@@ -1,5 +1,5 @@
-// Package common holds share types
-package common
+// Package api is the main interface to the frontend
+package api
 
 type Result[T any] struct {
 	IsSuccess bool   `json:"isSuccess"`
