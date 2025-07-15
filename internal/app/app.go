@@ -3,24 +3,28 @@ package app
 
 import (
 	"context"
-	"fmt"
 	"log"
+	"vervet/internal/api"
 	"vervet/internal/connections"
 	"vervet/internal/servers"
 )
 
 // App struct
 type App struct {
-	ctx                     context.Context
-	RegisteredServerManager *servers.RegisteredServerManager
-	ConnectionManager       *connections.ConnectionManager
+	ctx               context.Context
+	ServersProxy      *api.ServersProxy
+	serverManager     *servers.ServerManager
+	connectionManager *connections.ConnectionManager
 }
 
 // NewApp creates a new App application struct
 func NewApp() *App {
+	serverManager := servers.NewRegisteredServerManager()
+	connectionManager := connections.NewConnectionManager()
 	return &App{
-		RegisteredServerManager: servers.NewRegisteredServerManager(),
-		ConnectionManager:       connections.NewConnectionManager(),
+		serverManager:     serverManager,
+		connectionManager: connectionManager,
+		ServersProxy:      api.NewServersProxy(serverManager),
 	}
 }
 
@@ -29,12 +33,12 @@ func (a *App) Startup(ctx context.Context) {
 	// Perform your setup here
 	a.ctx = ctx
 
-	err := a.RegisteredServerManager.Init(ctx)
+	err := a.serverManager.Init(ctx)
 	if err != nil {
 		log.Fatalf("Failed to initialize registered server manager / settings database: %v", err)
 	}
 
-	err = a.ConnectionManager.Init(ctx)
+	err = a.connectionManager.Init(ctx)
 	if err != nil {
 		log.Fatalf("Failed to initialize connection manager: %v", err)
 	}
@@ -55,9 +59,4 @@ func (a *App) BeforeClose(ctx context.Context) (prevent bool) {
 // Shutdown is called at application termination
 func (a *App) Shutdown(ctx context.Context) {
 	// Perform your teardown here
-}
-
-// Greet returns a greeting for the given name
-func (a *App) Greet(name string) string {
-	return fmt.Sprintf("Hello %s, It's show time!", name)
 }

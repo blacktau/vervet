@@ -6,26 +6,25 @@ import (
 	"fmt"
 	"log"
 	"sync"
-	"vervet/internal/common"
 	"vervet/internal/configuration"
 )
 
-// RegisteredServerManager manages MongoDB connections and interactions.
+// ServerManager manages MongoDB connections and interactions.
 // This struct will be bound to Wails for frontend access.
-type RegisteredServerManager struct {
+type ServerManager struct {
 	ctx        context.Context
 	settingsDB *configuration.SettingsDatabase
 	mu         sync.RWMutex
 }
 
-func NewRegisteredServerManager() *RegisteredServerManager {
-	return &RegisteredServerManager{
+func NewRegisteredServerManager() *ServerManager {
+	return &ServerManager{
 		mu: sync.RWMutex{},
 	}
 }
 
 // Init initializes the manager.
-func (cm *RegisteredServerManager) Init(ctx context.Context) error {
+func (cm *ServerManager) Init(ctx context.Context) error {
 	database, err := configuration.NewSettingsDatabase()
 	if err != nil {
 		return err
@@ -39,70 +38,48 @@ func (cm *RegisteredServerManager) Init(ctx context.Context) error {
 
 // GetRegisteredServers returns the list of connections and folders for the tree of connections
 // this is exposed to wails
-func (cm *RegisteredServerManager) GetRegisteredServers() common.Result[[]configuration.RegisteredServer] {
+func (cm *ServerManager) GetRegisteredServers() ([]configuration.RegisteredServer, error) {
 	registeredServers, err := cm.settingsDB.GetRegisteredServersTree()
 	if err != nil {
-		return common.Result[[]configuration.RegisteredServer]{
-			IsSuccess: false,
-			Error:     fmt.Sprintf("Error getting Registered Servers Tree: %v", err),
-		}
+		return nil, fmt.Errorf("error getting RegisteredServers: %w", err)
 	}
-	return common.Result[[]configuration.RegisteredServer]{
-		IsSuccess: true,
-		Data:      registeredServers,
-	}
+	return registeredServers, nil
 }
 
-// CreateFolder creates a new folder node.
+// CreateGroup creates a new folder node.
 // this is exposed to wails
-func (cm *RegisteredServerManager) CreateFolder(name string, parentID int) common.EmptyResult {
+func (cm *ServerManager) CreateGroup(name string, parentID int) error {
 	_, err := cm.settingsDB.CreateFolder(name, parentID)
 	if err != nil {
-		return common.EmptyResult{
-			IsSuccess: false,
-			Error:     fmt.Sprintf("Failed to create folder: %v", err),
-		}
+		return fmt.Errorf("failed to create Server Group: %w", err)
 	}
 
-	return common.EmptyResult{
-		IsSuccess: true,
-	}
+	return nil
 }
 
 // SaveRegisterServer saves the metadata and the URI securely.
 // this is exposed to wails
-func (cm *RegisteredServerManager) SaveRegisterServer(name string, parentID int, uri string) common.EmptyResult {
+func (cm *ServerManager) SaveRegisterServer(name string, parentID int, uri string) error {
 	connectionID, err := cm.settingsDB.SaveRegisteredServer(name, parentID)
 	if err != nil {
-		return common.EmptyResult{
-			IsSuccess: false,
-			Error:     fmt.Sprintf("Failed to save registerd server metadata: %v", err),
-		}
+		return fmt.Errorf("failed to save registered server metadata: %w", err)
 	}
 
 	err = configuration.StoreConnectionURI(connectionID, uri)
 	if err != nil {
 		_ = cm.settingsDB.DeleteNode(int(connectionID))
-		return common.EmptyResult{
-			IsSuccess: false,
-			Error:     fmt.Sprintf("Failed to securely store connection URI: %v", err),
-		}
+		return fmt.Errorf("failed to securely store connection URI: %w", err)
 	}
 
-	return common.EmptyResult{
-		IsSuccess: true,
-	}
+	return nil
 }
 
 // RemoveNode removes a folder or connection and its uri
 // this is exposed to wails
-func (cm *RegisteredServerManager) RemoveNode(id int, isFolder bool) common.EmptyResult {
+func (cm *ServerManager) RemoveNode(id int, isFolder bool) error {
 	err := cm.settingsDB.DeleteNode(id)
 	if err != nil {
-		return common.EmptyResult{
-			IsSuccess: false,
-			Error:     fmt.Sprintf("Failed to delete node: %v", err),
-		}
+		return fmt.Errorf("failed to delete node: %w", err)
 	}
 
 	if !isFolder {
@@ -112,10 +89,7 @@ func (cm *RegisteredServerManager) RemoveNode(id int, isFolder bool) common.Empt
 		}
 	}
 
-	return common.EmptyResult{
-		IsSuccess: true,
-		Error:     "Node deleted successfully",
-	}
+	return nil
 }
 
 // -- End of wails binding methods

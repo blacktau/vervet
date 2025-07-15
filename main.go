@@ -50,8 +50,8 @@ func main() {
 		OnShutdown:       app.Shutdown,
 		WindowStartState: options.Normal,
 		Bind: []any{
-			app.RegisteredServerManager,
-			app.ConnectionManager,
+			app.ServersProxy,
+			app.ConnectionsProxy,
 		},
 		// Windows platform specific options
 		Windows: &windows.Options{
