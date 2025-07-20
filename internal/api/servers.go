@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"vervet/internal/configuration"
 	"vervet/internal/servers"
 )
@@ -58,4 +59,12 @@ func (sp *ServersProxy) SaveServer(name string, parentID int, uri string) EmptyR
 	return EmptyResult{
 		IsSuccess: true,
 	}
+}
+
+func (sp *ServersProxy) RemoveNode(id int, isFolder bool) EmptyResult {
+	err := sp.sm.RemoveNode(id, isFolder)
+	if err != nil {
+		return Error(fmt.Sprintf("Error removing node: %v", err))
+	}
+	return Success()
 }

@@ -1,14 +1,16 @@
+// Package connections contains code to manage active connections to mongo instances
 package connections
 
 import (
 	"context"
 	"fmt"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 	"log"
 	"sync"
 	"time"
 	"vervet/internal/configuration"
+
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type ConnectionManager struct {
@@ -31,18 +33,18 @@ func (cm *ConnectionManager) Init(ctx context.Context) error {
 
 // Connect establishes a connection to a MongoDB database using a securely stored URI.
 // This method is exposed to Wails.
-func (cm *ConnectionManager) Connect(connectionID int) (bool, string) {
+func (cm *ConnectionManager) Connect(connectionID int) error {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 
 	if _, ok := cm.activeConnections[connectionID]; ok {
-		return true, "Already connected to this MongoDB instance"
+		return fmt.Errorf("already connected to this Mongo Instance")
 	}
 
 	// 1. Retrieve the connection URI securely.
 	uri, err := configuration.GetConnectionURI(connectionID)
 	if err != nil {
-		return false, fmt.Sprintf("Error retrieving connection URI: %v", err)
+		return fmt.Errorf("error retrieving connection URI: %w", err)
 	}
 
 	clientOptions := options.Client().ApplyURI(uri)
@@ -52,13 +54,13 @@ func (cm *ConnectionManager) Connect(connectionID int) (bool, string) {
 	client, err := mongo.Connect(ctx, clientOptions)
 	if err != nil {
 		log.Printf("Failed to connect to MongoDB: %v", err)
-		return false, fmt.Sprintf("Failed to connect to database: %v", err)
+		return fmt.Errorf("failed to connect to database: %w", err)
 	}
 
 	// 4. Ping the database to ensure connection is valid.
 	if err = client.Ping(ctx, nil); err != nil {
 		_ = client.Disconnect(cm.ctx)
-		return false, fmt.Sprintf("Ping failed, connection invalid: %v", err)
+		return fmt.Errorf("ping failed, connection invalid", err)
 	}
 
 	activeConnection := newActiveConnection(connectionID)
@@ -68,12 +70,12 @@ func (cm *ConnectionManager) Connect(connectionID int) (bool, string) {
 
 	log.Printf("Successfully connected to MongoDB via ID: %d", connectionID)
 
-	return true, "Successfully connected"
+	return nil
 }
 
 // Disconnect closes the active MongoDB connection.
 // This method is exposed to Wails.
-func (cm *ConnectionManager) Disconnect(connectionID int) (bool, string) {
+func (cm *ConnectionManager) Disconnect(connectionID int) error {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 
@@ -81,21 +83,20 @@ func (cm *ConnectionManager) Disconnect(connectionID int) (bool, string) {
 		err := connection.Disconnect(cm.ctx)
 		if err != nil {
 			log.Printf("Error while diconnecting from mongo for connectionID %d: %v", connectionID, err)
-			return false, fmt.Sprintf("Error diconnecting: %v", err)
+			return fmt.Errorf("error diconnecting: %w", err)
 		}
 
 		delete(cm.activeConnections, connectionID)
 		log.Printf("Disconnected from mongo for connectionID: %v", connectionID)
-		return true, "Disconnection successful"
-
+		return nil
 	}
 
-	return false, "Connection not found or not active"
+	return fmt.Errorf("connection not found or not active")
 }
 
 // DisconnectAll disconnects all the active connections
 // this is exposed to wails
-func (cm *ConnectionManager) DisconnectAll() (bool, string) {
+func (cm *ConnectionManager) DisconnectAll() error {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 
@@ -108,7 +109,7 @@ func (cm *ConnectionManager) DisconnectAll() (bool, string) {
 		delete(cm.activeConnections, id)
 	}
 	log.Print("All active mongo DB connections disconnected")
-	return true, "All connections disconnected"
+	return nil
 }
 
 // GetConnectedClientIDs returns a list od IDs for the currently active connections

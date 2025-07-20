@@ -13,6 +13,7 @@ import (
 type App struct {
 	ctx               context.Context
 	ServersProxy      *api.ServersProxy
+	ConnectionsProxy  *api.ConnectionsProxy
 	serverManager     *servers.ServerManager
 	connectionManager *connections.ConnectionManager
 }
@@ -25,6 +26,7 @@ func NewApp() *App {
 		serverManager:     serverManager,
 		connectionManager: connectionManager,
 		ServersProxy:      api.NewServersProxy(serverManager),
+		ConnectionsProxy:  api.NewConnectionsProxy(connectionManager),
 	}
 }
 
@@ -59,4 +61,5 @@ func (a *App) BeforeClose(ctx context.Context) (prevent bool) {
 // Shutdown is called at application termination
 func (a *App) Shutdown(ctx context.Context) {
 	// Perform your teardown here
+	a.connectionManager.DisconnectAll()
 }

@@ -33,7 +33,7 @@ func (d *SettingsDatabase) createTables() error {
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		name TEXT NOT NULL,
 		parent_id INTEGER NOT NULL DEFAULT 0,
-		is_folder BOOLEAN NOT NULL DEFAULT 0,
+		is_group BOOLEAN NOT NULL DEFAULT 0,
 		UNIQUE(name, parent_id)
 	)
 	`
@@ -42,7 +42,7 @@ func (d *SettingsDatabase) createTables() error {
 }
 
 func (d *SettingsDatabase) GetRegisteredServersTree() ([]RegisteredServer, error) {
-	rows, err := d.db.Query("SELECT id, name, parent_id, is_folder FROM registered_servers ORDER BY is_folder DESC, name ASC")
+	rows, err := d.db.Query("SELECT id, name, parent_id, is_group FROM registered_servers ORDER BY is_group DESC, name ASC")
 	if err != nil {
 		return nil, fmt.Errorf("failed to query connections: %w", err)
 	}
@@ -52,7 +52,7 @@ func (d *SettingsDatabase) GetRegisteredServersTree() ([]RegisteredServer, error
 	var connections []RegisteredServer
 	for rows.Next() {
 		var conn RegisteredServer
-		if err := rows.Scan(&conn.ID, &conn.Name, &conn.ParentID, &conn.IsFolder); err != nil {
+		if err := rows.Scan(&conn.ID, &conn.Name, &conn.ParentID, &conn.IsGroup); err != nil {
 			return nil, fmt.Errorf("failed to read connection: %w", err)
 		}
 
@@ -62,7 +62,7 @@ func (d *SettingsDatabase) GetRegisteredServersTree() ([]RegisteredServer, error
 }
 
 func (d *SettingsDatabase) CreateFolder(name string, parentID int) (int64, error) {
-	result, err := d.db.Exec("INSERT INTO registered_servers (name, parent_id, is_folder) VALUES (?, ?, 1)", name, parentID)
+	result, err := d.db.Exec("INSERT INTO registered_servers (name, parent_id, is_group) VALUES (?, ?, 1)", name, parentID)
 	if err != nil {
 		return 0, fmt.Errorf("failed to create folder: %w", err)
 	}
@@ -72,7 +72,7 @@ func (d *SettingsDatabase) CreateFolder(name string, parentID int) (int64, error
 }
 
 func (d *SettingsDatabase) SaveRegisteredServer(name string, parentID int) (int64, error) {
-	result, err := d.db.Exec("INSERT into registered_servers (name, parent_id, is_folder) VALUES (?, ?, 0)", name, parentID)
+	result, err := d.db.Exec("INSERT into registered_servers (name, parent_id, is_group) VALUES (?, ?, 0)", name, parentID)
 	if err != nil {
 		return 0, fmt.Errorf("failed to save connection metadata: %w", err)
 	}
@@ -84,7 +84,7 @@ func (d *SettingsDatabase) SaveRegisteredServer(name string, parentID int) (int6
 func (d *SettingsDatabase) DeleteNode(id int) error {
 	var isFolder, count int
 
-	err := d.db.QueryRow("SELECT is_folder FROM registered_servers WHERE id = ?", id).Scan(&isFolder)
+	err := d.db.QueryRow("SELECT is_group FROM registered_servers WHERE id = ?", id).Scan(&isFolder)
 	if err != nil {
 		return fmt.Errorf("node not found or query error: %w", err)
 	}

@@ -9,8 +9,7 @@ import (
 	"vervet/internal/configuration"
 )
 
-// ServerManager manages MongoDB connections and interactions.
-// This struct will be bound to Wails for frontend access.
+// ServerManager manages MongoDB server connection strings
 type ServerManager struct {
 	ctx        context.Context
 	settingsDB *configuration.SettingsDatabase
@@ -34,10 +33,7 @@ func (cm *ServerManager) Init(ctx context.Context) error {
 	return nil
 }
 
-// Bindable methods for Folder/Connection Management
-
 // GetRegisteredServers returns the list of connections and folders for the tree of connections
-// this is exposed to wails
 func (cm *ServerManager) GetRegisteredServers() ([]configuration.RegisteredServer, error) {
 	registeredServers, err := cm.settingsDB.GetRegisteredServersTree()
 	if err != nil {
@@ -47,7 +43,6 @@ func (cm *ServerManager) GetRegisteredServers() ([]configuration.RegisteredServe
 }
 
 // CreateGroup creates a new folder node.
-// this is exposed to wails
 func (cm *ServerManager) CreateGroup(name string, parentID int) error {
 	_, err := cm.settingsDB.CreateFolder(name, parentID)
 	if err != nil {
@@ -58,7 +53,6 @@ func (cm *ServerManager) CreateGroup(name string, parentID int) error {
 }
 
 // SaveRegisterServer saves the metadata and the URI securely.
-// this is exposed to wails
 func (cm *ServerManager) SaveRegisterServer(name string, parentID int, uri string) error {
 	connectionID, err := cm.settingsDB.SaveRegisteredServer(name, parentID)
 	if err != nil {
@@ -75,7 +69,6 @@ func (cm *ServerManager) SaveRegisterServer(name string, parentID int, uri strin
 }
 
 // RemoveNode removes a folder or connection and its uri
-// this is exposed to wails
 func (cm *ServerManager) RemoveNode(id int, isFolder bool) error {
 	err := cm.settingsDB.DeleteNode(id)
 	if err != nil {
@@ -91,5 +84,3 @@ func (cm *ServerManager) RemoveNode(id int, isFolder bool) error {
 
 	return nil
 }
-
-// -- End of wails binding methods

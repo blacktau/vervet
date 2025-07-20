@@ -1,4 +1,4 @@
-export namespace common {
+export namespace api {
 	
 	export class EmptyResult {
 	    isSuccess: boolean;
@@ -11,6 +11,22 @@ export namespace common {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.isSuccess = source["isSuccess"];
+	        this.error = source["error"];
+	    }
+	}
+	export class Result___int_ {
+	    isSuccess: boolean;
+	    data: number[];
+	    error: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Result___int_(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.isSuccess = source["isSuccess"];
+	        this.data = source["data"];
 	        this.error = source["error"];
 	    }
 	}
@@ -57,7 +73,7 @@ export namespace configuration {
 	    id: number;
 	    name: string;
 	    parentId: number;
-	    isFolder: boolean;
+	    isGroup: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new RegisteredServer(source);
@@ -68,24 +84,7 @@ export namespace configuration {
 	        this.id = source["id"];
 	        this.name = source["name"];
 	        this.parentId = source["parentId"];
-	        this.isFolder = source["isFolder"];
-	    }
-	}
-
-}
-
-export namespace connections {
-	
-	export class ActiveConnection {
-	
-	
-	    static createFrom(source: any = {}) {
-	        return new ActiveConnection(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	
+	        this.isGroup = source["isGroup"];
 	    }
 	}
 
