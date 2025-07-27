@@ -1,12 +1,21 @@
 <script setup lang="ts">
 import {RibbonOption} from 'components/ribbon/model';
-import {ref} from 'vue';
+import {ref, watch} from 'vue';
 
 const props = defineProps<{
   options: RibbonOption[]
 }>()
 
+const emit = defineEmits<{
+  (e: 'change', selected: string): void
+}>()
+
 const selected = ref(props.options[0].value)
+
+watch(selected, (value) => {
+  emit('change', value)
+  console.log('ribbon change', value)
+})
 
 </script>
 
@@ -20,7 +29,6 @@ const selected = ref(props.options[0].value)
       :class="{ selected: option.value === selected }">
       <div><q-icon :name="option.icon"/></div>
       <q-tooltip anchor="center right" self="center middle" :offset="[40, 0]" :delay="250">{{ option.label }}</q-tooltip>
-<!--      <div v-if="selected === option.value" class="label text-h6">{{option.label}}</div>-->
     </div>
 
   </div>

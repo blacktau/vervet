@@ -11,9 +11,11 @@ import (
 
 // App struct
 type App struct {
-	ctx               context.Context
-	ServersProxy      *api.ServersProxy
-	ConnectionsProxy  *api.ConnectionsProxy
+	ctx              context.Context
+	ServersProxy     *api.ServersProxy
+	ConnectionsProxy *api.ConnectionsProxy
+	SystemProxy      *api.SystemProxy
+
 	serverManager     *servers.ServerManager
 	connectionManager *connections.ConnectionManager
 }
@@ -27,6 +29,7 @@ func NewApp() *App {
 		connectionManager: connectionManager,
 		ServersProxy:      api.NewServersProxy(serverManager),
 		ConnectionsProxy:  api.NewConnectionsProxy(connectionManager),
+		SystemProxy:       api.NewSystemProxy(),
 	}
 }
 

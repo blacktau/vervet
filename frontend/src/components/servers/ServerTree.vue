@@ -5,12 +5,12 @@ import {configuration} from 'app/wailsjs/go/models';
 
 const props = defineProps<{
   nodes: RegisteredServerNode[];
-}>()
+}>();
 
 const emit = defineEmits<{
   (e: 'node-selected', node: RegisteredServerNode | null): void;
   (e: 'delete-node-requested', node: RegisteredServerNode | null): void;
-}>()
+}>();
 
 const selectedNode = ref<RegisteredServerNode | null>(null);
 const connectionTree = ref<RegisteredServerNode[]>([]);
@@ -18,7 +18,7 @@ const connectionTree = ref<RegisteredServerNode[]>([]);
 watch(selectedNode, () => {
   console.log('tree node selected', selectedNode.value);
   emit('node-selected', selectedNode.value);
-})
+});
 
 // Helper to build a nested tree structure from a flat list
 const buildTree = (nodes: configuration.RegisteredServer[]) => {
@@ -26,7 +26,7 @@ const buildTree = (nodes: configuration.RegisteredServer[]) => {
   const tree: RegisteredServerNode[] = [];
 
   nodes.forEach(node => {
-    nodeMap[node.id] = { ...node, children: [] };
+    nodeMap[node.id] = {...node, children: []};
   });
 
   nodes.forEach(node => {
@@ -54,26 +54,31 @@ const buildTree = (nodes: configuration.RegisteredServer[]) => {
 };
 
 watchEffect(() => {
-  console.log('servers fetched', props.nodes)
-  connectionTree.value = buildTree(props.nodes)
-})
+  console.log('servers fetched', props.nodes);
+  connectionTree.value = buildTree(props.nodes);
+});
 
 function confirmDeleteNode(node: RegisteredServerNode) {
-  emit('delete-node-requested', node)
+  emit('delete-node-requested', node);
 }
 
 </script>
 
 <template>
-  <q-tree :nodes="connectionTree" node-key="id" label-key="name" selected-color="primary"
-          v-model:selected="selectedNode" default-expand-all no-nodes-label="No connections or folders yet. Add one!"
-  class="fit no-wrap">
+  <q-tree :nodes="connectionTree"
+          node-key="id"
+          label-key="name"
+          selected-color="primary"
+          v-model:selected="selectedNode"
+          default-expand-all
+          no-nodes-label="No connections or folders yet. Add one!"
+          class="fit no-wrap">
 
     <template v-slot:default-header="prop">
       <div class="row items-center no-wrap fit">
-        <q-icon :name="prop.node.isGroup ? 'folder' : 'storage'" color="grey-8" size="20px" class="q-mr-sm" />
+        <q-icon :name="prop.node.isGroup ? 'folder' : 'storage'" color="grey-8" size="20px" class="q-mr-sm"/>
         <div class="text-weight-bold">{{ prop.node.name }}</div>
-        <q-space />
+        <q-space/>
         <q-btn v-if="!prop.node.isGroup" flat round dense icon="link" color="green" size="sm" class="q-ml-sm">
           <q-tooltip>Connect</q-tooltip>
         </q-btn>

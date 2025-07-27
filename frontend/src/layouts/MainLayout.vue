@@ -4,6 +4,8 @@ import RegisteredServers from 'components/servers/RegisteredServers.vue';
 import 'assets/logo.svg'
 import LeftRibbon from 'components/ribbon/LeftRibbon.vue';
 import {RibbonOption} from 'components/ribbon/model';
+import ConnectionsTree from 'components/connections/ConnectionsTree.vue';
+import WindowBar from 'components/windowbar/WindowBar.vue';
 
 const selectedItem = ref('servers')
 const splitterModel = ref(25)
@@ -25,29 +27,26 @@ const ribbonOptions: RibbonOption[] = [
   }
 ]
 
+function handleRibbonChange(e: string) {
+  selectedItem.value = e
+  console.log(e)
+}
+
 </script>
 
 <template>
   <q-layout view="hHh lpr lff" class="fullscreen non-selectable">
 
-    <q-header elevated>
-      <q-toolbar>
-        <q-img src='/src/assets/logo.svg' style="width: 50px;" />
-
-        <q-toolbar-title>
-          Vervet
-        </q-toolbar-title>
-
-      </q-toolbar>
-    </q-header>
+    <WindowBar />
     <q-drawer show-if-above bordered mini>
-      <LeftRibbon :options="ribbonOptions" />
+      <LeftRibbon :options="ribbonOptions" @change="handleRibbonChange" />
     </q-drawer>
     <q-page-container>
       <q-page class="fit no-wrap">
-        <q-splitter id="main-splitter" v-model="splitterModel" before-class="inset-shadow full-height column content-stretch bg-orange-2">
+        <q-splitter id="main-splitter" v-model="splitterModel" before-class="inset-shadow full-height column content-stretch">
           <template v-slot:before>
-            <RegisteredServers />
+            <RegisteredServers v-if="selectedItem === 'servers'" />
+            <ConnectionsTree v-if="selectedItem === 'connections'" />
           </template>
 
           <template v-slot:after>
@@ -65,7 +64,7 @@ const ribbonOptions: RibbonOption[] = [
 #main-splitter {
   min-height: 100vh;
 }
-
+/*
 .q-item {
   color: darken($primary, 20%);
 }
@@ -74,4 +73,5 @@ const ribbonOptions: RibbonOption[] = [
   text-shadow: 0px 0px 10px rgba($primary, 0.8);
   color: lighten($primary, 10%);
 }
+ */
 </style>

@@ -15,12 +15,21 @@ const { configure } = require('quasar/wrappers');
 module.exports = configure(function (/* ctx */) {
   return {
     eslint: {
+
+
       // fix: true,
       // include = [],
-      // exclude = [],
+      exclude: ['wailsjs/go/models.ts'],
       // rawOptions = {},
       warnings: true,
-      errors: true
+      errors: true,
+      // rawOptions: {
+        // overrideConfig: {
+        //   rules: {
+        //     '@typescript-eslint/no-namespace': 'off'
+        //   },
+        // },
+      // }
     },
 
     // https://v2.quasar.dev/quasar-cli-vite/prefetch-feature

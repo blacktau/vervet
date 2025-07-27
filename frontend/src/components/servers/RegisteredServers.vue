@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
-import { useQuasar } from 'quasar';
-import * as serversProxy from 'app/wailsjs/go/api/ServersProxy'
-import AddServerDialog from './AddServerDialog.vue'
+import {onMounted, ref} from 'vue';
+import {useQuasar} from 'quasar';
+import * as serversProxy from 'app/wailsjs/go/api/ServersProxy';
+import AddServerDialog from './AddServerDialog.vue';
 import {RegisteredServerNode} from 'components/servers/models';
 import AddServerGroupDialog from 'components/servers/AddServerGroupDialog.vue';
 import DeleteDialog from 'components/servers/DeleteDialog.vue';
@@ -20,18 +20,18 @@ const nodes: RegisteredServerNode[] = ref([]);
 // --- Data Fetching and Tree Building ---
 const fetchConnectionNodes = async () => {
   try {
-    const result = await serversProxy.GetServers()
+    const result = await serversProxy.GetServers();
     if (!result.isSuccess) {
       $q.notify({
         type: 'negative',
         message: `Failed to load Registered Servers: ${result.error}`
-      })
-      console.error('Error fetching Registered Servers:', result.error)
-      return
+      });
+      console.error('Error fetching Registered Servers:', result.error);
+      return;
     }
-    nodes.value = result.data
+    nodes.value = result.data;
   } catch (error: unknown) {
-    const err = error as Error
+    const err = error as Error;
     $q.notify({
       type: 'negative',
       message: `An error occurred when loading the Registerd Servers: ${err.message}`,
@@ -50,7 +50,7 @@ const onServerAdded = async () => {
   console.log('onServerAdded');
   addServerDialog.value = false;
   await fetchConnectionNodes(); // Refresh tree
-}
+};
 
 const showAddGroupDialog = () => {
   addGroupDialog.value = true;
@@ -59,7 +59,7 @@ const showAddGroupDialog = () => {
 const onGroupAdded = async () => {
   addGroupDialog.value = false;
   await fetchConnectionNodes(); // Refresh tree
-}
+};
 
 const confirmDeleteNode = (node: RegisteredServerNode) => {
   nodeToDelete.value = node;
@@ -69,12 +69,12 @@ const confirmDeleteNode = (node: RegisteredServerNode) => {
 const onServerNodeDeleted = async () => {
   confirmDeleteDialog.value = true;
   await fetchConnectionNodes();
-}
+};
 
 // --- MongoDB Connection Logic ---
 const connectToMongo = async (id: number, name: string) => {
 
-  $q.loading.show({ message: `Connecting to ${name}... ${id}` });
+  $q.loading.show({message: `Connecting to ${name}... ${id}`});
   // try {
   //   const [success, message] = await connectionManager.Connect(id);
   //   if (success) {
@@ -100,29 +100,32 @@ const connectToMongo = async (id: number, name: string) => {
 };
 
 onMounted(async () => {
-  await fetchConnectionNodes()
-})
+  await fetchConnectionNodes();
+});
 </script>
 
 <template>
-  <q-layout view="hHh lpR fFf" container class="window-height fit" >
-    <q-header reveal bordered class="bg-primary text-white">
-      <q-toolbar>
-        <q-toolbar-title class="text-subtitle1">Registered Servers</q-toolbar-title>
 
+  <q-layout view="hHh lpR fFf" container class="window-height fit">
+    <q-header reveal bordered class="bg-primary text-white">
+
+      <q-bar>
+        <div class="text-subtitle1">Registered Servers</div>
+        <q-space/>
         <q-btn flat dense round icon="add" @click="showAddServerDialog()"
-          class="q-me-sm" >
+               class="q-me-sm">
           <q-tooltip>Add Server</q-tooltip>
         </q-btn>
-        <q-btn flat dense round icon="create_new_folder" @click="showAddGroupDialog()" >
+        <q-btn flat dense round icon="create_new_folder" @click="showAddGroupDialog()">
           <q-tooltip>Add Server Grouping</q-tooltip>
         </q-btn>
-
-      </q-toolbar>
+      </q-bar>
 
     </q-header>
-    <q-page-container class="inset-shadow-down column bg-green">
-      <ServerTree :nodes="nodes" @delete-node-requested="confirmDeleteNode"/>
+    <q-page-container id="rg-container" class="inset-shadow-down column fit" >
+      <q-page>
+        <ServerTree :nodes="nodes" @delete-node-requested="confirmDeleteNode" />
+      </q-page>
     </q-page-container>
   </q-layout>
 

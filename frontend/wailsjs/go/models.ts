@@ -1,5 +1,10 @@
 export namespace api {
 	
+	export enum OperatingSystem {
+	    WINDOWS = "windows",
+	    LINUX = "linux",
+	    OSX = "darwin",
+	}
 	export class EmptyResult {
 	    isSuccess: boolean;
 	    error: string;
@@ -63,6 +68,22 @@ export namespace api {
 		    }
 		    return a;
 		}
+	}
+	export class Result_vervet_internal_api_OperatingSystem_ {
+	    isSuccess: boolean;
+	    data: OperatingSystem;
+	    error: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Result_vervet_internal_api_OperatingSystem_(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.isSuccess = source["isSuccess"];
+	        this.data = source["data"];
+	        this.error = source["error"];
+	    }
 	}
 
 }

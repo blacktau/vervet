@@ -3,6 +3,7 @@ package main
 import (
 	"embed"
 	"log"
+	"vervet/internal/api"
 	"vervet/internal/app"
 
 	"github.com/wailsapp/wails/v2"
@@ -52,6 +53,10 @@ func main() {
 		Bind: []any{
 			app.ServersProxy,
 			app.ConnectionsProxy,
+			app.SystemProxy,
+		},
+		EnumBind: []any{
+			api.AllOperatingSystems,
 		},
 		// Windows platform specific options
 		Windows: &windows.Options{
