@@ -1,21 +1,21 @@
 <script setup lang="ts">
-import {onMounted, ref} from 'vue';
-import {useQuasar} from 'quasar';
+import { onMounted, ref, watchEffect } from 'vue';
+import { useQuasar } from 'quasar';
 import * as serversProxy from 'app/wailsjs/go/api/ServersProxy';
 import AddServerDialog from './AddServerDialog.vue';
-import {RegisteredServerNode} from 'components/servers/models';
+import { RegisteredServerNode } from 'components/servers/models';
 import AddServerGroupDialog from 'components/servers/AddServerGroupDialog.vue';
 import DeleteDialog from 'components/servers/DeleteDialog.vue';
 import ServerTree from 'components/servers/ServerTree.vue';
 
 const $q = useQuasar();
 
-const selectedNode = ref<RegisteredServerNode | null>(null); // For QTree selection
+const selectedNodeId = ref<number | null>(); // For QTree selection
 const addServerDialog = ref(false);
 const addGroupDialog = ref(false);
 const confirmDeleteDialog = ref(false);
-const nodeToDelete = ref<RegisteredServerNode | null>(null);
-const nodes: RegisteredServerNode[] = ref([]);
+const nodeToDelete = ref<RegisteredServerNode | undefined>();
+const nodes = ref<RegisteredServerNode[] | undefined>([]);
 
 // --- Data Fetching and Tree Building ---
 const fetchConnectionNodes = async () => {
@@ -24,25 +24,26 @@ const fetchConnectionNodes = async () => {
     if (!result.isSuccess) {
       $q.notify({
         type: 'negative',
-        message: `Failed to load Registered Servers: ${result.error}`
+        message: `Failed to load Registered Servers: ${result.error}`,
       });
       console.error('Error fetching Registered Servers:', result.error);
       return;
     }
-    nodes.value = result.data;
+    nodes.value = result.data as RegisteredServerNode[];
   } catch (error: unknown) {
     const err = error as Error;
     $q.notify({
       type: 'negative',
-      message: `An error occurred when loading the Registerd Servers: ${err.message}`,
+      message: `An error occurred when loading the Registered Servers: ${err.message}`,
     });
     console.error('Error fetching Registered Server nodes:', error);
   }
 };
 
 // --- Dialog and Form Handlers ---
-const showAddServerDialog = () => {
+const showAddServerDialog = (node?: RegisteredServerNode) => {
   console.log('showAddServerDialog');
+  selectedNodeId.value = node?.id || null
   addServerDialog.value = true;
 };
 
@@ -52,7 +53,8 @@ const onServerAdded = async () => {
   await fetchConnectionNodes(); // Refresh tree
 };
 
-const showAddGroupDialog = () => {
+const showAddGroupDialog = (node?: RegisteredServerNode) => {
+  selectedNodeId.value = node?.id || null
   addGroupDialog.value = true;
 };
 
@@ -71,10 +73,13 @@ const onServerNodeDeleted = async () => {
   await fetchConnectionNodes();
 };
 
-// --- MongoDB Connection Logic ---
-const connectToMongo = async (id: number, name: string) => {
+watchEffect(() => {
+  console.log(selectedNodeId.value)
+})
 
-  $q.loading.show({message: `Connecting to ${name}... ${id}`});
+// --- MongoDB Connection Logic ---
+const connectToMongo = async (node: RegisteredServerNode) => {
+  $q.loading.show({ message: `Connecting to ${node.name}... ${node.id}` });
   // try {
   //   const [success, message] = await connectionManager.Connect(id);
   //   if (success) {
@@ -105,38 +110,30 @@ onMounted(async () => {
 </script>
 
 <template>
-
   <q-layout view="hHh lpR fFf" container class="window-height fit">
     <q-header reveal bordered class="bg-primary text-white">
-
       <q-bar>
         <div class="text-subtitle1">Registered Servers</div>
-        <q-space/>
-        <q-btn flat dense round icon="add" @click="showAddServerDialog()"
-               class="q-me-sm">
+        <q-space />
+        <q-btn flat dense round icon="add" @click="showAddServerDialog()" class="q-me-sm">
           <q-tooltip>Add Server</q-tooltip>
         </q-btn>
         <q-btn flat dense round icon="create_new_folder" @click="showAddGroupDialog()">
           <q-tooltip>Add Server Grouping</q-tooltip>
         </q-btn>
       </q-bar>
-
     </q-header>
-    <q-page-container id="rg-container" class="inset-shadow-down column fit" >
+    <q-page-container id="rg-container" class="inset-shadow-down column fit">
       <q-page>
-        <ServerTree :nodes="nodes" @delete-node-requested="confirmDeleteNode" />
+        <ServerTree :nodes="nodes" @delete-node-requested="confirmDeleteNode" @connect="connectToMongo"
+          @add-server="showAddServerDialog" @add-group="showAddGroupDialog" />
       </q-page>
     </q-page-container>
   </q-layout>
 
-  <AddServerDialog @new-server-added="onServerAdded" :parentId="selectedNode" v-model="addServerDialog"/>
-  <AddServerGroupDialog @server-group-added="onGroupAdded" :parentId="selectedNode" v-model="addGroupDialog"/>
-  <DeleteDialog
-    @server-node-deleted="onServerNodeDeleted"
-
-    :target="nodeToDelete" v-model="confirmDeleteDialog"/>
-
+  <AddServerDialog @new-server-added="onServerAdded" :parentId="selectedNodeId" v-model="addServerDialog" />
+  <AddServerGroupDialog @server-group-added="onGroupAdded" :parentId="selectedNodeId" v-model="addGroupDialog" />
+  <DeleteDialog @server-node-deleted="onServerNodeDeleted" :target="nodeToDelete" v-model="confirmDeleteDialog" />
 </template>
 
-<style scoped lang="scss">
-</style>
+<style scoped lang="scss"></style>
