@@ -24,6 +24,7 @@ type App struct {
 func NewApp() *App {
 	serverManager := servers.NewRegisteredServerManager()
 	connectionManager := connections.NewConnectionManager()
+
 	return &App{
 		serverManager:     serverManager,
 		connectionManager: connectionManager,

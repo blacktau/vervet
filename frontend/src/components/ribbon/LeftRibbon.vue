@@ -1,22 +1,26 @@
 <script setup lang="ts">
-import {RibbonOption} from 'components/ribbon/model';
-import {ref, watch} from 'vue';
+import { RibbonOption } from 'components/ribbon/model';
+import { ref, watch } from 'vue';
+import * as runtime from 'app/wailsjs/runtime/runtime';
 
 const props = defineProps<{
-  options: RibbonOption[]
-}>()
+  options: RibbonOption[];
+}>();
 
 const emit = defineEmits<{
-  (e: 'change', selected: string): void
-}>()
+  (e: 'change', selected: string): void;
+}>();
 
-const selected = ref(props.options[0].value)
+const selected = ref(props.options[0].value);
+
+function showSettings() {
+  runtime.WindowReload();
+}
 
 watch(selected, (value) => {
-  emit('change', value)
-  console.log('ribbon change', value)
-})
-
+  emit('change', value);
+  console.log('ribbon change', value);
+});
 </script>
 
 <template>
@@ -26,15 +30,55 @@ watch(selected, (value) => {
       :key="index"
       class="ribbon-item"
       @click="selected = option.value"
-      :class="{ selected: option.value === selected }">
-      <div><q-icon :name="option.icon"/></div>
-      <q-tooltip anchor="center right" self="center middle" :offset="[40, 0]" :delay="250">{{ option.label }}</q-tooltip>
+      :class="{ selected: option.value === selected }"
+    >
+      <div><q-icon :name="option.icon" /></div>
+      <q-tooltip
+        anchor="center right"
+        self="center middle"
+        :offset="[40, 0]"
+        :delay="250"
+        >{{ option.label }}</q-tooltip
+      >
     </div>
-
+    <q-space />
+    <q-btn
+      flat
+      round
+      dense
+      icon="mdi-cog-outline"
+      class="q-mb-sm"
+      text-color="indigo-10"
+      @click="showSettings"
+    >
+      <q-tooltip
+        anchor="center right"
+        self="center middle"
+        :offset="[30, 0]"
+        :delay="250"
+        >Settings</q-tooltip
+      >
+    </q-btn>
+    <q-btn
+      flat
+      round
+      dense
+      icon="mdi-github"
+      class="q-mb-md"
+      text-color="indigo-10"
+    >
+      <q-tooltip
+        anchor="center right"
+        self="center middle"
+        :offset="[30, 0]"
+        :delay="250"
+        >Github</q-tooltip
+      >
+    </q-btn>
   </div>
 </template>
 <style scoped lang="scss">
-@use "quasar/src/css/variables" as q;
+@use 'quasar/src/css/variables' as q;
 @use 'sass:map';
 // $
 
@@ -46,7 +90,7 @@ watch(selected, (value) => {
   align-items: center;
   min-width: 100%;
 }
-.ribbon-item  {
+.ribbon-item {
   font-size: 2rem;
   cursor: pointer;
   color: $indigo-10;
@@ -74,11 +118,10 @@ watch(selected, (value) => {
 }
 
 .label {
-//  transform-origin: top left;
-//  transform: rotate(-0.25turn);
+  //  transform-origin: top left;
+  //  transform: rotate(-0.25turn);
   text-wrap: nowrap;
   writing-mode: vertical-lr;
   transform: rotate(0.5turn);
 }
-
 </style>

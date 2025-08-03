@@ -1,6 +1,8 @@
 package api
 
-import "runtime"
+import (
+	"runtime"
+)
 
 type OperatingSystem string
 
@@ -19,8 +21,7 @@ var AllOperatingSystems = []struct {
 	{OSX, "OSX"},
 }
 
-type SystemProxy struct {
-}
+type SystemProxy struct{}
 
 func NewSystemProxy() *SystemProxy {
 	return &SystemProxy{}

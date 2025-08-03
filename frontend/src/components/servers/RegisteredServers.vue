@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, watchEffect } from 'vue';
+import { onMounted, ref } from 'vue';
 import { useQuasar } from 'quasar';
 import * as serversProxy from 'app/wailsjs/go/api/ServersProxy';
 import AddServerDialog from './AddServerDialog.vue';
@@ -10,7 +10,7 @@ import ServerTree from 'components/servers/ServerTree.vue';
 
 const $q = useQuasar();
 
-const selectedNodeId = ref<number | null>(); // For QTree selection
+const selectedNodeId = ref<number | undefined>(); // For QTree selection
 const addServerDialog = ref(false);
 const addGroupDialog = ref(false);
 const confirmDeleteDialog = ref(false);
@@ -42,19 +42,17 @@ const fetchConnectionNodes = async () => {
 
 // --- Dialog and Form Handlers ---
 const showAddServerDialog = (node?: RegisteredServerNode) => {
-  console.log('showAddServerDialog');
-  selectedNodeId.value = node?.id || null
+  selectedNodeId.value = node?.id;
   addServerDialog.value = true;
 };
 
 const onServerAdded = async () => {
-  console.log('onServerAdded');
   addServerDialog.value = false;
   await fetchConnectionNodes(); // Refresh tree
 };
 
 const showAddGroupDialog = (node?: RegisteredServerNode) => {
-  selectedNodeId.value = node?.id || null
+  selectedNodeId.value = node?.id;
   addGroupDialog.value = true;
 };
 
@@ -72,10 +70,6 @@ const onServerNodeDeleted = async () => {
   confirmDeleteDialog.value = true;
   await fetchConnectionNodes();
 };
-
-watchEffect(() => {
-  console.log(selectedNodeId.value)
-})
 
 // --- MongoDB Connection Logic ---
 const connectToMongo = async (node: RegisteredServerNode) => {
@@ -115,25 +109,55 @@ onMounted(async () => {
       <q-bar>
         <div class="text-subtitle1">Registered Servers</div>
         <q-space />
-        <q-btn flat dense round icon="add" @click="showAddServerDialog()" class="q-me-sm">
+        <q-btn
+          flat
+          dense
+          round
+          icon="add"
+          @click="showAddServerDialog()"
+          class="q-me-sm"
+        >
           <q-tooltip>Add Server</q-tooltip>
         </q-btn>
-        <q-btn flat dense round icon="create_new_folder" @click="showAddGroupDialog()">
+        <q-btn
+          flat
+          dense
+          round
+          icon="o_create_new_folder"
+          @click="showAddGroupDialog()"
+        >
           <q-tooltip>Add Server Grouping</q-tooltip>
         </q-btn>
       </q-bar>
     </q-header>
     <q-page-container id="rg-container" class="inset-shadow-down column fit">
       <q-page>
-        <ServerTree :nodes="nodes" @delete-node-requested="confirmDeleteNode" @connect="connectToMongo"
-          @add-server="showAddServerDialog" @add-group="showAddGroupDialog" />
+        <ServerTree
+          :nodes="nodes"
+          @delete-node-requested="confirmDeleteNode"
+          @connect="connectToMongo"
+          @add-server="showAddServerDialog"
+          @add-group="showAddGroupDialog"
+        />
       </q-page>
     </q-page-container>
   </q-layout>
 
-  <AddServerDialog @new-server-added="onServerAdded" :parentId="selectedNodeId" v-model="addServerDialog" />
-  <AddServerGroupDialog @server-group-added="onGroupAdded" :parentId="selectedNodeId" v-model="addGroupDialog" />
-  <DeleteDialog @server-node-deleted="onServerNodeDeleted" :target="nodeToDelete" v-model="confirmDeleteDialog" />
+  <AddServerDialog
+    @new-server-added="onServerAdded"
+    :parentId="selectedNodeId"
+    v-model="addServerDialog"
+  />
+  <AddServerGroupDialog
+    @server-group-added="onGroupAdded"
+    :parentId="selectedNodeId"
+    v-model="addGroupDialog"
+  />
+  <DeleteDialog
+    @server-node-deleted="onServerNodeDeleted"
+    :target="nodeToDelete"
+    v-model="confirmDeleteDialog"
+  />
 </template>
 
 <style scoped lang="scss"></style>
