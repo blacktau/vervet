@@ -7,6 +7,7 @@ const props = defineProps<{
   parentId?: number;
 }>();
 const emit = defineEmits(['server-group-added']);
+const model = defineModel({ default: false });
 
 const $q = useQuasar();
 const newGroupName = ref('');
@@ -17,10 +18,7 @@ const saveNewGroup = async () => {
     return;
   }
   try {
-    const result = await serversProxy.CreateGroup(
-      newGroupName.value,
-      props.parentId ?? 0
-    );
+    const result = await serversProxy.CreateGroup(newGroupName.value, props.parentId ?? 0);
     if (result.isSuccess) {
       $q.notify({ type: 'positive', message: 'Group created' });
       emit('server-group-added');
@@ -43,7 +41,7 @@ const saveNewGroup = async () => {
 
 <template>
   <!-- Add Group Dialog -->
-  <q-dialog persistent>
+  <q-dialog persistent v-model="model">
     <q-card style="min-width: 350px">
       <q-card-section>
         <div class="text-h6">Create New Group</div>

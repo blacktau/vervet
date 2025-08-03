@@ -9,5 +9,10 @@
   "author": {
     "name": "Sean Garrett",
     "email": "sean@blacktau.com"
+  },
+  "bindings": {
+    "ts_generation": {
+      "outputType": "interfaces"
+    }
   }
 }
