@@ -2,27 +2,41 @@ package main
 
 import (
 	"embed"
-	"log"
+	"flag"
+	"fmt"
+	"log/slog"
+	"os"
 	"vervet/internal/api"
 	"vervet/internal/app"
+	"vervet/internal/logging"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/logger"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	"github.com/wailsapp/wails/v2/pkg/options/linux"
 	"github.com/wailsapp/wails/v2/pkg/options/mac"
 	"github.com/wailsapp/wails/v2/pkg/options/windows"
 )
 
-//go:embed all:frontend/dist/spa
+//go:embed all:frontend/dist
 var assets embed.FS
 
 //go:embed build/appicon.png
 var icon []byte
 
 func main() {
-	// Create an instance of the app structure
-	app := app.NewApp()
+	debugUI := flag.Bool("debug-ui", false, "enable ui inspector")
+	logLevel := &slog.LevelVar{}
+	logLevel.Set(slog.LevelDebug)
+	slogger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		Level: logLevel,
+	}))
+	log := logging.NewLogger(slogger)
+
+	application := app.NewApp(slogger)
+
+	log.Info(fmt.Sprintf("--debug-ui: %v", *debugUI))
 
 	// Create application with options
 	err := wails.Run(&options.App{
@@ -43,20 +57,28 @@ func main() {
 			Assets: assets,
 		},
 		Menu:             nil,
-		Logger:           nil,
+		Logger:           log,
 		LogLevel:         logger.DEBUG,
-		OnStartup:        app.Startup,
-		OnDomReady:       app.DomReady,
-		OnBeforeClose:    app.BeforeClose,
-		OnShutdown:       app.Shutdown,
+		OnStartup:        application.Startup,
+		OnDomReady:       application.DomReady,
+		OnBeforeClose:    application.BeforeClose,
+		OnShutdown:       application.Shutdown,
 		WindowStartState: options.Normal,
 		Bind: []any{
-			app.ServersProxy,
-			app.ConnectionsProxy,
-			app.SystemProxy,
+			application.ServersProxy,
+			application.ConnectionsProxy,
+			application.SystemProxy,
+			application.SettingsProxy,
 		},
 		EnumBind: []any{
 			api.AllOperatingSystems,
+		},
+		// Linux platform specific options
+		Linux: &linux.Options{
+			Icon:                icon,
+			WindowIsTranslucent: false,
+			WebviewGpuPolicy:    linux.WebviewGpuPolicyAlways,
+			ProgramName:         "Vervet",
 		},
 		// Windows platform specific options
 		Windows: &windows.Options{
@@ -87,8 +109,11 @@ func main() {
 				Icon:    icon,
 			},
 		},
+		Debug: options.Debug{
+			OpenInspectorOnStartup: *debugUI,
+		},
 	})
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal(err.Error())
 	}
 }

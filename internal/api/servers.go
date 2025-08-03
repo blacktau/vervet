@@ -1,70 +1,128 @@
 package api
 
 import (
+	"context"
 	"fmt"
-	"vervet/internal/configuration"
-	"vervet/internal/servers"
+	"vervet/internal/models"
 )
 
-// ServersProxy exposes the REgisteredServerManagaer to the UI
-// the proxies serve as a place to handle the idosyncrasies of the mashalling/unmarshalling to the UI
-type ServersProxy struct {
-	sm *servers.ServerManager
+type ServersProvider interface {
+	Init(ctx context.Context) error
+	GetServers() ([]models.RegisteredServer, error)
+	AddServer(parentID, name, uri, colour string) error
+	UpdateServer(serverID, name, uri, parentID, colour string) error
+	RemoveNode(id string) error
+	GetURI(id string) (string, error)
+	CreateGroup(parentID, name string) error
+	UpdateGroup(groupID, name, parentID string) error
+	GetServer(id string) (*models.RegisteredServer, error)
 }
 
-func NewServersProxy(sm *servers.ServerManager) *ServersProxy {
+// ServersProxy exposes the ServerManager to the UI
+// the proxies serve as a place to handle the idiosyncrasies of the marshaling/unmarshalling to the UI
+type ServersProxy struct {
+	sm ServersProvider
+}
+
+func NewServersProxy(sm ServersProvider) *ServersProxy {
 	return &ServersProxy{
 		sm: sm,
 	}
 }
 
-func (sp *ServersProxy) GetServers() Result[[]configuration.RegisteredServer] {
-	registeredServers, err := sp.sm.GetRegisteredServers()
+func (sp *ServersProxy) GetServers() Result[[]models.RegisteredServer] {
+	registeredServers, err := sp.sm.GetServers()
 	if err != nil {
-		return Result[[]configuration.RegisteredServer]{
+		return Result[[]models.RegisteredServer]{
 			IsSuccess: false,
 			Error:     err.Error(),
 		}
 	}
 
-	return Result[[]configuration.RegisteredServer]{
+	return Result[[]models.RegisteredServer]{
 		IsSuccess: true,
 		Data:      registeredServers,
 	}
 }
 
-func (sp *ServersProxy) CreateGroup(name string, parentID int) EmptyResult {
-	err := sp.sm.CreateGroup(name, parentID)
+func (sp *ServersProxy) GetServer(id string) Result[models.RegisteredServer] {
+	registerServer, err := sp.sm.GetServer(id)
 	if err != nil {
-		return EmptyResult{
+		return Result[models.RegisteredServer]{
 			IsSuccess: false,
 			Error:     err.Error(),
 		}
 	}
 
-	return EmptyResult{
-		IsSuccess: true,
-	}
-}
-
-func (sp *ServersProxy) SaveServer(name string, parentID int, uri string) EmptyResult {
-	err := sp.sm.SaveRegisterServer(name, parentID, uri)
-	if err != nil {
-		return EmptyResult{
+	if registerServer == nil {
+		return Result[models.RegisteredServer]{
 			IsSuccess: false,
-			Error:     err.Error(),
+			Error:     fmt.Sprintf("Server with id %s not found", id),
 		}
 	}
 
-	return EmptyResult{
+	return Result[models.RegisteredServer]{
 		IsSuccess: true,
+		Data:      *registerServer,
 	}
 }
 
-func (sp *ServersProxy) RemoveNode(id int, isFolder bool) EmptyResult {
-	err := sp.sm.RemoveNode(id, isFolder)
+func (sp *ServersProxy) CreateGroup(name, parentID string) EmptyResult {
+	err := sp.sm.CreateGroup(parentID, name)
+	if err != nil {
+		return Error(err.Error())
+	}
+
+	return Success()
+}
+
+func (sp *ServersProxy) UpdateGroup(groupID, name, parentID string) EmptyResult {
+	err := sp.sm.UpdateGroup(groupID, name, parentID)
+	if err != nil {
+		return Error(err.Error())
+	}
+
+	return Success()
+}
+
+// SaveServer saves a new server to the store
+func (sp *ServersProxy) SaveServer(parentID, name, uri, colour string) EmptyResult {
+	err := sp.sm.AddServer(parentID, name, uri, colour)
+	if err != nil {
+		return Error(err.Error())
+	}
+
+	return Success()
+}
+
+func (sp *ServersProxy) UpdateServer(serverID, name, uri, parentID, colour string) EmptyResult {
+	err := sp.sm.UpdateServer(serverID, name, uri, parentID, colour)
+	if err != nil {
+		return Error(err.Error())
+	}
+
+	return Success()
+}
+
+func (sp *ServersProxy) RemoveNode(id string) EmptyResult {
+	err := sp.sm.RemoveNode(id)
 	if err != nil {
 		return Error(fmt.Sprintf("Error removing node: %v", err))
 	}
 	return Success()
+}
+
+func (sp *ServersProxy) GetURI(id string) Result[string] {
+	uri, err := sp.sm.GetURI(id)
+	if err != nil {
+		return Result[string]{
+			IsSuccess: false,
+			Error:     err.Error(),
+		}
+	}
+
+	return Result[string]{
+		IsSuccess: true,
+		Data:      uri,
+	}
 }

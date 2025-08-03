@@ -14,6 +14,22 @@ export function DisconnectAll() {
   return window['go']['api']['ConnectionsProxy']['DisconnectAll']();
 }
 
-export function GetConnectionIDs() {
-  return window['go']['api']['ConnectionsProxy']['GetConnectionIDs']();
+export function GetCollections(arg1, arg2) {
+  return window['go']['api']['ConnectionsProxy']['GetCollections'](arg1, arg2);
+}
+
+export function GetConnections() {
+  return window['go']['api']['ConnectionsProxy']['GetConnections']();
+}
+
+export function GetDatabases(arg1) {
+  return window['go']['api']['ConnectionsProxy']['GetDatabases'](arg1);
+}
+
+export function GetViews(arg1, arg2) {
+  return window['go']['api']['ConnectionsProxy']['GetViews'](arg1, arg2);
+}
+
+export function TestConnection(arg1) {
+  return window['go']['api']['ConnectionsProxy']['TestConnection'](arg1);
 }

@@ -5,108 +5,130 @@ export namespace api {
 	    LINUX = "linux",
 	    OSX = "darwin",
 	}
-	export class EmptyResult {
+	export interface EmptyResult {
 	    isSuccess: boolean;
 	    error: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new EmptyResult(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.isSuccess = source["isSuccess"];
-	        this.error = source["error"];
-	    }
 	}
-	export class Result___int_ {
+	export interface Result__vervet_internal_models_Settings_ {
 	    isSuccess: boolean;
-	    data: number[];
+	    data?: models.Settings;
 	    error: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new Result___int_(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.isSuccess = source["isSuccess"];
-	        this.data = source["data"];
-	        this.error = source["error"];
-	    }
 	}
-	export class Result___vervet_internal_configuration_RegisteredServer_ {
+	export interface Result___string_ {
 	    isSuccess: boolean;
-	    data: configuration.RegisteredServer[];
+	    data: string[];
 	    error: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new Result___vervet_internal_configuration_RegisteredServer_(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.isSuccess = source["isSuccess"];
-	        this.data = this.convertValues(source["data"], configuration.RegisteredServer);
-	        this.error = source["error"];
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
 	}
-	export class Result_vervet_internal_api_OperatingSystem_ {
+	export interface Result___vervet_internal_models_Connection_ {
+	    isSuccess: boolean;
+	    data: models.Connection[];
+	    error: string;
+	}
+	export interface Result___vervet_internal_models_Font_ {
+	    isSuccess: boolean;
+	    data: models.Font[];
+	    error: string;
+	}
+	export interface Result___vervet_internal_models_RegisteredServer_ {
+	    isSuccess: boolean;
+	    data: models.RegisteredServer[];
+	    error: string;
+	}
+	export interface Result_string_ {
+	    isSuccess: boolean;
+	    data: string;
+	    error: string;
+	}
+	export interface Result_vervet_internal_api_OperatingSystem_ {
 	    isSuccess: boolean;
 	    data: OperatingSystem;
 	    error: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new Result_vervet_internal_api_OperatingSystem_(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.isSuccess = source["isSuccess"];
-	        this.data = source["data"];
-	        this.error = source["error"];
-	    }
+	}
+	export interface Result_vervet_internal_models_Connection_ {
+	    isSuccess: boolean;
+	    data: models.Connection;
+	    error: string;
+	}
+	export interface Result_vervet_internal_models_RegisteredServer_ {
+	    isSuccess: boolean;
+	    data: models.RegisteredServer;
+	    error: string;
+	}
+	export interface Result_vervet_internal_models_Settings_ {
+	    isSuccess: boolean;
+	    data: models.Settings;
+	    error: string;
+	}
+	export interface Result_vervet_internal_models_WindowState_ {
+	    isSuccess: boolean;
+	    data: models.WindowState;
+	    error: string;
 	}
 
 }
 
-export namespace configuration {
+export namespace models {
 	
-	export class RegisteredServer {
-	    id: number;
+	export interface Connection {
+	    serverID?: string;
+	    name?: string;
+	}
+	export interface FontSettings {
+	    family: string;
+	    size: number;
 	    name: string;
-	    parentId: number;
+	}
+	export interface EditorSettings {
+	    lineNumbers: boolean;
+	    font: FontSettings;
+	    showFolding: boolean;
+	    dropText: boolean;
+	    links: boolean;
+	}
+	export interface Font {
+	    family?: string;
+	    isFixedWidth?: boolean;
+	}
+	
+	export interface GeneralSettings {
+	    theme: string;
+	    language: string;
+	    font: FontSettings;
+	}
+	export interface RegisteredServer {
+	    id: string;
+	    name: string;
+	    parentID?: string;
+	    colour: string;
 	    isGroup: boolean;
+	    isCluster: boolean;
+	    isSrv: boolean;
+	}
+	export interface TerminalSettings {
+	    font: FontSettings;
+	    cursorStyle: string;
+	}
+	export interface WindowSettings {
+	    width: number;
+	    height: number;
+	    asideWidth: number;
+	    maximized: boolean;
+	    positionX: number;
+	    positionY: number;
+	}
+	export interface Settings {
+	    window: WindowSettings;
+	    general: GeneralSettings;
+	    editor: EditorSettings;
+	    terminal: TerminalSettings;
+	}
 	
-	    static createFrom(source: any = {}) {
-	        return new RegisteredServer(source);
-	    }
 	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.name = source["name"];
-	        this.parentId = source["parentId"];
-	        this.isGroup = source["isGroup"];
-	    }
+	export interface WindowState {
+	    width: number;
+	    height: number;
+	    x: number;
+	    y: number;
 	}
 
 }

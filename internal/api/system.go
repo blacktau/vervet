@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"runtime"
 )
 
@@ -21,24 +22,72 @@ var AllOperatingSystems = []struct {
 	{OSX, "OSX"},
 }
 
-type SystemProxy struct{}
+type SystemProxy struct {
+	service SystemProvider
+}
 
-func NewSystemProxy() *SystemProxy {
-	return &SystemProxy{}
+type SystemProvider interface {
+	Init(ctx context.Context) error
+	SelectFile(title string, extensions *[]string) (string, error)
+	SaveFile(title *string, name *string, extensions *[]string) (string, error)
+	Log(level string, message string)
+}
+
+func NewSystemProxy(ss SystemProvider) *SystemProxy {
+	return &SystemProxy{
+		service: ss,
+	}
 }
 
 func (sp *SystemProxy) GetOs() Result[OperatingSystem] {
-	os := Windows
-	if runtime.GOOS == "windows" {
+	var os OperatingSystem
+	switch runtime.GOOS {
+	case "windows":
 		os = Windows
-	} else if runtime.GOOS == "darwin" {
+	case "darwin":
 		os = OSX
-	} else if runtime.GOOS == "linux" {
+	case "linux":
 		os = Linux
+	default:
+		os = Windows
 	}
 
 	return Result[OperatingSystem]{
 		IsSuccess: true,
 		Data:      os,
 	}
+}
+
+func (sp *SystemProxy) SelectFile(title string, extensions *[]string) Result[string] {
+	path, err := sp.service.SelectFile(title, extensions)
+
+	if err != nil {
+		return Result[string]{
+			IsSuccess: false,
+			Error:     err.Error(),
+		}
+	}
+
+	return Result[string]{
+		IsSuccess: true,
+		Data:      path,
+	}
+}
+
+func (sp *SystemProxy) SaveFile(title, defaultName *string, extensions *[]string) Result[string] {
+	path, err := sp.service.SaveFile(title, defaultName, extensions)
+	if err != nil {
+		return Result[string]{
+			IsSuccess: false,
+			Error:     err.Error(),
+		}
+	}
+	return Result[string]{
+		IsSuccess: true,
+		Data:      path,
+	}
+}
+
+func (sp *SystemProxy) Log(level string, message string) {
+	sp.service.Log(level, message)
 }

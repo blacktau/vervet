@@ -4,93 +4,192 @@ package connections
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
+	"strings"
 	"sync"
 	"time"
-	"vervet/internal/configuration"
+	"vervet/internal/connectionStrings"
+	"vervet/internal/logging"
+	"vervet/internal/models"
 
+	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"go.mongodb.org/mongo-driver/event"
+
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
+const (
+	ConnectedEvent    = "connection-connected"
+	DisconnectedEvent = "connection-disconnected"
+)
+
 type ConnectionManager struct {
-	ctx               context.Context
-	activeConnections map[int]ActiveConnection
 	mu                sync.RWMutex
+	ctx               context.Context
+	store             connectionStrings.Store
+	serverProvider    ServerProvider
+	log               *slog.Logger
+	activeConnections map[string]activeConnection
 }
 
-func NewConnectionManager() *ConnectionManager {
+type ServerProvider interface {
+	GetServer(id string) (*models.RegisteredServer, error)
+}
+
+func NewManager(log *slog.Logger, store connectionStrings.Store, provider ServerProvider) *ConnectionManager {
+	log = log.With(slog.String(logging.SourceKey, "ConnectionManager"))
 	return &ConnectionManager{
-		activeConnections: make(map[int]ActiveConnection),
+		activeConnections: make(map[string]activeConnection),
 		mu:                sync.RWMutex{},
+		log:               log,
+		store:             store,
+		serverProvider:    provider,
 	}
 }
 
 func (cm *ConnectionManager) Init(ctx context.Context) error {
+	cm.log.Debug("Initializing Connection ConnectionManager")
 	cm.ctx = ctx
 	return nil
 }
 
 // Connect establishes a connection to a MongoDB database using a securely stored URI.
 // This method is exposed to Wails.
-func (cm *ConnectionManager) Connect(connectionID int) error {
+func (cm *ConnectionManager) Connect(serverID string) (models.Connection, error) {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
+	cm.log.Debug("Connecting to Mongo Instance", slog.String("serverID", serverID))
 
-	if _, ok := cm.activeConnections[connectionID]; ok {
-		return fmt.Errorf("already connected to this Mongo Instance")
+	if _, ok := cm.activeConnections[serverID]; ok {
+		cm.log.Warn("already connected to Mongo Instance", slog.String("serverID", serverID))
+		return models.Connection{}, fmt.Errorf("already connected to this Mongo Instance")
 	}
 
-	// 1. Retrieve the connection URI securely.
-	uri, err := configuration.GetConnectionURI(connectionID)
+	server, err := cm.serverProvider.GetServer(serverID)
 	if err != nil {
-		return fmt.Errorf("error retrieving connection URI: %w", err)
+		cm.log.Error("Error retrieving server", slog.String("serverID", serverID))
+		return models.Connection{}, fmt.Errorf("error retrieving server: %w", err)
 	}
 
-	clientOptions := options.Client().ApplyURI(uri)
+	uri, err := cm.store.GetRegisteredServerURI(serverID)
+	if err != nil {
+		cm.log.Error("Error retrieving connection URI", slog.String("serverID", serverID))
+		return models.Connection{}, fmt.Errorf("error retrieving connection URI: %w", err)
+	}
+
+	monitor := &event.CommandMonitor{
+		Succeeded: func(ctx context.Context, evt *event.CommandSucceededEvent) {
+			if evt.CommandName == "hello" || evt.CommandName == "isMaster" {
+				cm.log.Info(
+					"Connected to MongoDB",
+					slog.String("ConnectionID", evt.ConnectionID),
+					slog.Any("Reply", evt.Reply))
+			}
+		},
+	}
+
+	clientOptions := options.Client().
+		ApplyURI(uri).
+		SetMonitor(monitor)
 	ctx, cancel := context.WithTimeout(cm.ctx, 10*time.Second)
 	defer cancel()
 
 	client, err := mongo.Connect(ctx, clientOptions)
 	if err != nil {
-		log.Printf("Failed to connect to MongoDB: %v", err)
-		return fmt.Errorf("failed to connect to database: %w", err)
+		cm.log.Error("Failed to connect to MongoDB", slog.String("serverID", serverID), slog.Any("error", err))
+		return models.Connection{}, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
-	// 4. Ping the database to ensure connection is valid.
 	if err = client.Ping(ctx, nil); err != nil {
-		_ = client.Disconnect(cm.ctx)
-		return fmt.Errorf("ping failed, connection invalid", err)
+		cm.log.Error("Ping failed for server", slog.String("serverID", serverID), slog.Any("error", err))
+		err2 := client.Disconnect(cm.ctx)
+		if err2 != nil {
+			cm.log.Error("Error disconnecting from mongo server", slog.String("serverID", serverID), slog.Any("error", err2))
+		}
+		return models.Connection{}, fmt.Errorf("ping failed, connection invalid: %w", err)
 	}
 
-	activeConnection := newActiveConnection(connectionID)
-	activeConnection.client = client
-	// activeConnection.ctx = ctx
-	cm.activeConnections[connectionID] = activeConnection
+	ac := newActiveConnection(serverID, server.Name)
+	ac.client = client
+	// ac.ctx = ctx
+	cm.activeConnections[serverID] = ac
 
-	log.Printf("Successfully connected to MongoDB via ID: %d", connectionID)
+	cm.log.Info("Successfully connected to MongoDB", slog.String("serverID", serverID))
+	runtime.EventsEmit(cm.ctx, ConnectedEvent, serverID)
 
-	return nil
+	connection := models.Connection{
+		ServerID: serverID,
+		Name:     server.Name,
+	}
+
+	return connection, nil
 }
 
-// Disconnect closes the active MongoDB connection.
-// This method is exposed to Wails.
-func (cm *ConnectionManager) Disconnect(connectionID int) error {
+func (cm *ConnectionManager) TestConnection(uri string) (bool, error) {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 
-	if connection, ok := cm.activeConnections[connectionID]; ok {
-		err := connection.Disconnect(cm.ctx)
-		if err != nil {
-			log.Printf("Error while diconnecting from mongo for connectionID %d: %v", connectionID, err)
-			return fmt.Errorf("error diconnecting: %w", err)
+	clientOptions := options.Client().ApplyURI(uri)
+	ctx, cancel := context.WithTimeout(cm.ctx, 30*time.Second)
+	defer cancel()
+
+	client, err := mongo.Connect(ctx, clientOptions)
+	if err != nil {
+		scrubbed := cleanConnectionString(uri)
+		cm.log.Error("Failed to connect to MongoDB:", slog.String("uri", scrubbed), slog.Any("error", err))
+		return false, fmt.Errorf("failed to connect to database: %w", err)
+	}
+
+	if err = client.Ping(ctx, nil); err != nil {
+		err2 := client.Disconnect(cm.ctx)
+		scrubbed := cleanConnectionString(uri)
+		if err2 != nil {
+			cm.log.Error("Error disconnecting from mongo server", slog.String("uri", scrubbed), slog.Any("error", err2))
+		}
+		cm.log.Error("Ping failed:", slog.String("uri", scrubbed), slog.Any("error", err))
+		return false, fmt.Errorf("failed to connection to database: %w", err)
+	}
+
+	if _, err = client.ListDatabases(ctx, bson.D{}, nil); err != nil {
+		scrubbed := cleanConnectionString(uri)
+		err2 := client.Disconnect(cm.ctx)
+		if err2 != nil {
+			cm.log.Error("Error disconnecting from mongo server", slog.String("uri", scrubbed), slog.Any("error", err2))
 		}
 
-		delete(cm.activeConnections, connectionID)
-		log.Printf("Disconnected from mongo for connectionID: %v", connectionID)
+		cm.log.Error("Failed to retrieve list of databases", slog.Any("error", err))
+		return false, fmt.Errorf("failed to retrieve list of databases: %w", err)
+	}
+
+	err = client.Disconnect(ctx)
+	if err != nil {
+		scrubbed := cleanConnectionString(uri)
+		cm.log.Error("Error disconnecting from mongo server", slog.String("uri", scrubbed), slog.Any("error", err))
+	}
+
+	return true, nil
+}
+
+func (cm *ConnectionManager) Disconnect(serverID string) error {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+
+	if connection, ok := cm.activeConnections[serverID]; ok {
+		err := connection.Disconnect(cm.ctx)
+		if err != nil {
+			cm.log.Error("Error disconnecting from mongo server", slog.String("serverID", serverID), slog.Any("error", err))
+			return fmt.Errorf("error disconnecting: %w", err)
+		}
+
+		delete(cm.activeConnections, serverID)
+		runtime.EventsEmit(cm.ctx, DisconnectedEvent, serverID)
+		cm.log.Info("Disconnected from mongo server", slog.String("serverID", serverID))
 		return nil
 	}
 
+	cm.log.Warn("Connection not found or not active", slog.String("serverID", serverID))
 	return fmt.Errorf("connection not found or not active")
 }
 
@@ -103,36 +202,97 @@ func (cm *ConnectionManager) DisconnectAll() error {
 	for id, connection := range cm.activeConnections {
 		err := connection.Disconnect(cm.ctx)
 		if err != nil {
-			log.Printf("Error when disconnecting connection with ID: %v", err)
+			cm.log.Error("Error when disconnecting from mongo", slog.String("serverID", connection.serverID), slog.Any("error", err))
 		}
+
+		runtime.EventsEmit(cm.ctx, DisconnectedEvent, id)
 
 		delete(cm.activeConnections, id)
 	}
-	log.Print("All active mongo DB connections disconnected")
+
+	cm.log.Info("Disconnected from all mongo servers")
 	return nil
 }
 
-// GetConnectedClientIDs returns a list od IDs for the currently active connections
-// this is exposed to wails
-func (cm *ConnectionManager) GetConnectedClientIDs() []int {
+func (cm *ConnectionManager) GetConnections() []models.Connection {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 
-	ids := make([]int, 0, len(cm.activeConnections))
+	ids := make([]models.Connection, 0, len(cm.activeConnections))
 	for id := range cm.activeConnections {
-		ids = append(ids, id)
+		connection := cm.activeConnections[id]
+		ids = append(ids, models.Connection{
+			ServerID: connection.serverID,
+			Name:     connection.name,
+		})
 	}
 	return ids
 }
 
-func (cm *ConnectionManager) GetClient(connectionID int) (*ActiveConnection, error) {
+func (cm *ConnectionManager) getClient(serverID string) (*activeConnection, error) {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 
-	connection, ok := cm.activeConnections[connectionID]
+	connection, ok := cm.activeConnections[serverID]
 	if !ok {
-		return nil, fmt.Errorf("no active connection to mongo instance for ID: %v", connectionID)
+		cm.log.Warn("No active connection to mongo instance", slog.String("serverID", serverID))
+		return nil, fmt.Errorf("no active connection to mongo instance for ID: %v", serverID)
 	}
 
 	return &connection, nil
+}
+
+func (cm *ConnectionManager) GetDatabases(serverID string) ([]string, error) {
+	cm.log.Debug("Getting databases for mongo instance", slog.String("serverID", serverID))
+	connection, err := cm.getClient(serverID)
+	if err != nil {
+		cm.log.Error("Failed to get client", slog.String("serverID", serverID), slog.Any("error", err))
+		return nil, err
+	}
+
+	names, err := connection.client.ListDatabaseNames(cm.ctx, bson.D{})
+	if err != nil {
+		cm.log.Error("Failed to list databases", slog.String("serverID", serverID), slog.Any("error", err))
+		return nil, err
+	}
+	cm.log.Debug("Got databases", slog.String("serverID", serverID), slog.Any("databases", names))
+	return names, nil
+}
+
+func (cm *ConnectionManager) GetCollections(serverID string, dbName string) ([]string, error) {
+	cm.log.Debug("Getting collections for mongo instance", slog.String("serverID", serverID), slog.String("dbName", dbName))
+	connection, err := cm.getClient(serverID)
+	if err != nil {
+		return nil, err
+	}
+
+	db := connection.client.Database(dbName)
+	return db.ListCollectionNames(cm.ctx, bson.D{})
+}
+
+func (cm *ConnectionManager) GetViews(serverID string, dbName string) ([]string, error) {
+	cm.log.Debug("Getting views for mongo instance", slog.String("serverID", serverID), slog.String("dbName", dbName))
+	connection, err := cm.getClient(serverID)
+	if err != nil {
+		return nil, err
+	}
+
+	db := connection.client.Database(dbName)
+	filter := bson.D{{Key: "type", Value: "view"}}
+	return db.ListCollectionNames(cm.ctx, filter)
+}
+
+func cleanConnectionString(uri string) string {
+	idx := strings.Index(uri, "@")
+	if idx == -1 {
+		return uri
+	}
+
+	front := uri[0:idx]
+	rest := uri[idx+1:]
+
+	idx = strings.LastIndex(front, ":")
+	front = front[0:idx]
+
+	return front + ":***" + rest
 }
