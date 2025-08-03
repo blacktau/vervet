@@ -5,8 +5,10 @@ import { useQuasar } from 'quasar';
 
 const emit = defineEmits(['new-server-added']);
 const props = defineProps<{
-  parentId?: number;
+  parentId: number;
 }>();
+
+const model = defineModel<boolean>({ default: false });
 
 const $q = useQuasar();
 
@@ -29,7 +31,7 @@ const saveNewConnection = async () => {
     const result = await serversProxy.SaveServer(
       newConnection.value.name,
       props.parentId ?? 0,
-      newConnection.value.uri
+      newConnection.value.uri,
     );
 
     if (result.isSuccess) {
@@ -57,7 +59,7 @@ const saveNewConnection = async () => {
 
 <template>
   <!-- Add Connection Dialog -->
-  <q-dialog persistent>
+  <q-dialog persistent v-model="model">
     <q-card style="min-width: 350px">
       <q-card-section>
         <div class="text-h6">Add New Connection</div>
@@ -71,12 +73,7 @@ const saveNewConnection = async () => {
           autofocus
           @keyup.enter="saveNewConnection"
         />
-        <q-input
-          dense
-          v-model="newConnection.uri"
-          label="MongoDB Connection URI"
-          class="q-mt-sm"
-        />
+        <q-input dense v-model="newConnection.uri" label="MongoDB Connection URI" class="q-mt-sm" />
         <div class="text-caption text-grey-7 q-mt-sm">
           Example: `mongodb://user:pass@host:port/db?authSource=admin`
         </div>

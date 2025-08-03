@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { RibbonOption } from 'components/ribbon/model';
+import type { RibbonOption } from 'components/ribbon/model';
 import { ref, watch } from 'vue';
 import * as runtime from 'app/wailsjs/runtime/runtime';
 
@@ -11,7 +11,7 @@ const emit = defineEmits<{
   (e: 'change', selected: string): void;
 }>();
 
-const selected = ref(props.options[0].value);
+const selected = ref<string>(props.options[0]?.value ?? '');
 
 function showSettings() {
   runtime.WindowReload();
@@ -33,13 +33,9 @@ watch(selected, (value) => {
       :class="{ selected: option.value === selected }"
     >
       <div><q-icon :name="option.icon" /></div>
-      <q-tooltip
-        anchor="center right"
-        self="center middle"
-        :offset="[40, 0]"
-        :delay="250"
-        >{{ option.label }}</q-tooltip
-      >
+      <q-tooltip anchor="center right" self="center middle" :offset="[40, 0]" :delay="250">{{
+        option.label
+      }}</q-tooltip>
     </div>
     <q-space />
     <q-btn
@@ -51,27 +47,12 @@ watch(selected, (value) => {
       text-color="indigo-10"
       @click="showSettings"
     >
-      <q-tooltip
-        anchor="center right"
-        self="center middle"
-        :offset="[30, 0]"
-        :delay="250"
+      <q-tooltip anchor="center right" self="center middle" :offset="[30, 0]" :delay="250"
         >Settings</q-tooltip
       >
     </q-btn>
-    <q-btn
-      flat
-      round
-      dense
-      icon="mdi-github"
-      class="q-mb-md"
-      text-color="indigo-10"
-    >
-      <q-tooltip
-        anchor="center right"
-        self="center middle"
-        :offset="[30, 0]"
-        :delay="250"
+    <q-btn flat round dense icon="mdi-github" class="q-mb-md" text-color="indigo-10">
+      <q-tooltip anchor="center right" self="center middle" :offset="[30, 0]" :delay="250"
         >Github</q-tooltip
       >
     </q-btn>

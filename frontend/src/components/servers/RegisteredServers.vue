@@ -1,26 +1,27 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import { useQuasar } from 'quasar';
-import * as serversProxy from 'app/wailsjs/go/api/ServersProxy';
+//import * as serversProxy from 'app/wailjs/go/api/ServersProxy';
 import AddServerDialog from './AddServerDialog.vue';
-import { RegisteredServerNode } from 'components/servers/models';
-import AddServerGroupDialog from 'components/servers/AddServerGroupDialog.vue';
-import DeleteDialog from 'components/servers/DeleteDialog.vue';
-import ServerTree from 'components/servers/ServerTree.vue';
+import type { RegisteredServerNode } from 'app/src/components/servers/models';
+import AddServerGroupDialog from 'src/components/servers/AddServerGroupDialog.vue';
+import DeleteDialog from 'src/components/servers/DeleteDialog.vue';
+import ServerTree from 'src/components/servers/ServerTree.vue';
+import { GetServers } from 'app/wailsjs/go/api/ServersProxy';
 
 const $q = useQuasar();
 
-const selectedNodeId = ref<number | undefined>(); // For QTree selection
+const selectedNodeId = ref<number>(0); // For QTree selection
 const addServerDialog = ref(false);
 const addGroupDialog = ref(false);
 const confirmDeleteDialog = ref(false);
-const nodeToDelete = ref<RegisteredServerNode | undefined>();
-const nodes = ref<RegisteredServerNode[] | undefined>([]);
+const nodeToDelete = ref<RegisteredServerNode>();
+const nodes = ref<RegisteredServerNode[]>([]);
 
 // --- Data Fetching and Tree Building ---
 const fetchConnectionNodes = async () => {
   try {
-    const result = await serversProxy.GetServers();
+    const result = await GetServers();
     if (!result.isSuccess) {
       $q.notify({
         type: 'negative',
@@ -42,7 +43,9 @@ const fetchConnectionNodes = async () => {
 
 // --- Dialog and Form Handlers ---
 const showAddServerDialog = (node?: RegisteredServerNode) => {
-  selectedNodeId.value = node?.id;
+  if (node) {
+    selectedNodeId.value = node.id;
+  }
   addServerDialog.value = true;
 };
 
@@ -52,7 +55,9 @@ const onServerAdded = async () => {
 };
 
 const showAddGroupDialog = (node?: RegisteredServerNode) => {
-  selectedNodeId.value = node?.id;
+  if (node) {
+    selectedNodeId.value = node.id;
+  }
   addGroupDialog.value = true;
 };
 
@@ -61,7 +66,10 @@ const onGroupAdded = async () => {
   await fetchConnectionNodes(); // Refresh tree
 };
 
-const confirmDeleteNode = (node: RegisteredServerNode) => {
+const confirmDeleteNode = (node?: RegisteredServerNode) => {
+  if (!confirmDeleteNode) {
+    return;
+  }
   nodeToDelete.value = node;
   confirmDeleteDialog.value = true;
 };
@@ -72,7 +80,11 @@ const onServerNodeDeleted = async () => {
 };
 
 // --- MongoDB Connection Logic ---
-const connectToMongo = async (node: RegisteredServerNode) => {
+const connectToMongo = (node?: RegisteredServerNode) => {
+  if (!node) {
+    return;
+  }
+
   $q.loading.show({ message: `Connecting to ${node.name}... ${node.id}` });
   // try {
   //   const [success, message] = await connectionManager.Connect(id);
@@ -109,23 +121,10 @@ onMounted(async () => {
       <q-bar>
         <div class="text-subtitle1">Registered Servers</div>
         <q-space />
-        <q-btn
-          flat
-          dense
-          round
-          icon="add"
-          @click="showAddServerDialog()"
-          class="q-me-sm"
-        >
+        <q-btn flat dense round icon="add" @click="showAddServerDialog()" class="q-me-sm">
           <q-tooltip>Add Server</q-tooltip>
         </q-btn>
-        <q-btn
-          flat
-          dense
-          round
-          icon="o_create_new_folder"
-          @click="showAddGroupDialog()"
-        >
+        <q-btn flat dense round icon="o_create_new_folder" @click="showAddGroupDialog()">
           <q-tooltip>Add Server Grouping</q-tooltip>
         </q-btn>
       </q-bar>

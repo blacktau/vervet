@@ -1,6 +1,6 @@
-import {configuration} from 'app/wailsjs/go/models';
+import { configuration } from 'app/wailsjs/go/models';
 import Connection = configuration.RegisteredServer;
 
-export class RegisteredServerNode extends Connection {
-  children: RegisteredServerNode[] = []
+export interface RegisteredServerNode extends Connection {
+  children: RegisteredServerNode[];
 }

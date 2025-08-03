@@ -1,20 +1,20 @@
 <script setup lang="ts">
 import { ref, watchEffect } from 'vue';
-import { RegisteredServerNode } from 'components/servers/models';
-import { configuration } from 'app/wailsjs/go/models';
+import type { RegisteredServerNode } from 'src/components/servers/models';
+import type { configuration } from 'app/wailsjs/go/models';
 
 const props = defineProps<{
   nodes: RegisteredServerNode[];
 }>();
 
 const emit = defineEmits<{
-  (e: 'delete-node-requested', node: RegisteredServerNode | null): void;
-  (e: 'connect', node: RegisteredServerNode | null): void;
-  (e: 'add-server', node: RegisteredServerNode | null): void;
-  (e: 'add-group', node: RegisteredServerNode | null): void;
+  (e: 'delete-node-requested', node: RegisteredServerNode | undefined): void;
+  (e: 'connect', node: RegisteredServerNode | undefined): void;
+  (e: 'add-server', node: RegisteredServerNode | undefined): void;
+  (e: 'add-group', node: RegisteredServerNode | undefined): void;
 }>();
 
-const selectedNode = ref<RegisteredServerNode | null>(null);
+const selectedNode = ref<RegisteredServerNode>();
 const connectionTree = ref<RegisteredServerNode[]>([]);
 const showMenu = ref(false);
 const menuTarget = ref<string | undefined>();
@@ -34,12 +34,21 @@ const buildTree = (nodes: configuration.RegisteredServer[]) => {
 
   nodes.forEach((node) => {
     if (node.parentId === 0) {
-      tree.push(nodeMap[node.id]);
+      const tNode = nodeMap[node.id];
+      if (tNode) {
+        tree.push(tNode);
+      }
     } else {
-      if (nodeMap[node.parentId]) {
-        nodeMap[node.parentId].children.push(nodeMap[node.id]);
+      const parent = nodeMap[node.parentId];
+      if (parent) {
+        const child = nodeMap[node.id];
+
+        if (child) {
+          parent.children.push(child);
+        }
+
         // Sort children: folders first, then connections, then by name
-        nodeMap[node.parentId].children.sort((a, b) => {
+        parent.children.sort((a, b) => {
           if (a.isGroup && !b.isGroup) return -1;
           if (!a.isGroup && b.isGroup) return 1;
           return a.name.localeCompare(b.name);
@@ -61,28 +70,33 @@ watchEffect(() => {
   connectionTree.value = buildTree(props.nodes);
 });
 
-function confirmDeleteNode() {
-  if (!selectedNode.value) return;
+function confirmDeleteNode(node?: RegisteredServerNode) {
+  if (!node) return;
   emit('delete-node-requested', selectedNode.value);
 }
 
-function addServer() {
-  if (!selectedNode.value) return;
+function addServer(node?: RegisteredServerNode) {
+  if (!node) return;
   emit('add-server', selectedNode.value);
 }
 
-function addGroup() {
-  if (!selectedNode.value) return;
+function addGroup(node?: RegisteredServerNode) {
+  if (!node) return;
   emit('add-group', selectedNode.value);
 }
 
-function connect(node: RegisteredServerNode) {
+function connect(node?: RegisteredServerNode) {
   if (node && !node.isGroup) {
     emit('connect', node);
   }
 }
 
-function rightClickTarget(node: RegisteredServerNode, e: PointerEvent) {
+function editNode(node?: RegisteredServerNode) {
+  if (!node) return;
+  console.log('edit-node');
+}
+
+function rightClickTarget(node: RegisteredServerNode, e: MouseEvent) {
   selectedNode.value = node;
   const div = e.currentTarget as Element;
   menuTarget.value = '#' + div.id;
@@ -102,47 +116,33 @@ function rightClickTarget(node: RegisteredServerNode, e: PointerEvent) {
       v-model:selected="selectedNode"
       no-nodes-label="No connections or folders yet. Add one!"
       class="fit no-wrap"
-      @contextmenu="(e: PointerEvent) => e.preventDefault()"
+      @contextmenu="(e: MouseEvent) => e.preventDefault()"
     >
       <template v-slot:default-header="prop">
         <div
           class="row items-center no-wrap fit"
-          @contextmenu="(e: PointerEvent) => rightClickTarget(prop.node, e)"
+          @contextmenu="(e: MouseEvent) => rightClickTarget(prop.node, e)"
           :id="'node_' + prop.node.id"
         >
           <q-icon
             v-if="prop.node.isGroup"
-            :name="
-              prop.expanded ? 'mdi-folder-open-outline' : 'mdi-folder-outline'
-            "
+            :name="prop.expanded ? 'mdi-folder-open-outline' : 'mdi-folder-outline'"
             color="orange"
             size="20px"
             class="q-mr-sm"
           />
-          <q-icon
-            v-else
-            name="mdi-database-outline"
-            color="green"
-            size="20px"
-            class="q-mr-sm"
-          />
+          <q-icon v-else name="mdi-database-outline" color="green" size="20px" class="q-mr-sm" />
           <div class="text-weight-bold">{{ prop.node.name }}</div>
         </div>
       </template>
     </q-tree>
-    <q-menu
-      context-menu
-      touch-postition
-      v-model="showMenu"
-      :target="menuTarget"
-      no-parent-event
-    >
+    <q-menu context-menu touch-postition v-model="showMenu" :target="menuTarget" no-parent-event>
       <q-list dense style="min-width: 100px">
         <q-item
           clickable
           v-close-popup
           @click="connect(selectedNode)"
-          v-if="!selectedNode.isGroup"
+          v-if="!selectedNode?.isGroup"
         >
           <q-item-section>Connect</q-item-section>
         </q-item>
@@ -150,7 +150,7 @@ function rightClickTarget(node: RegisteredServerNode, e: PointerEvent) {
           clickable
           v-close-popup
           @click="addServer(selectedNode)"
-          v-if="selectedNode.isGroup"
+          v-if="selectedNode?.isGroup"
         >
           <q-item-section avatar><q-icon name="add" /></q-item-section>
           <q-item-section>Add Connection</q-item-section>
@@ -159,11 +159,9 @@ function rightClickTarget(node: RegisteredServerNode, e: PointerEvent) {
           clickable
           v-close-popup
           @click="addGroup(selectedNode)"
-          v-if="selectedNode.isGroup"
+          v-if="selectedNode?.isGroup"
         >
-          <q-item-section avatar
-            ><q-icon name="create-new-folder-outline"
-          /></q-item-section>
+          <q-item-section avatar><q-icon name="create-new-folder-outline" /></q-item-section>
           <q-item-section>Add Group</q-item-section>
         </q-item>
         <q-item clickable v-close-popup @click="editNode(selectedNode)">
@@ -173,7 +171,7 @@ function rightClickTarget(node: RegisteredServerNode, e: PointerEvent) {
           clickable
           v-close-popup
           @click="confirmDeleteNode(selectedNode)"
-          :disable="selectedNode.isGroup && selectedNode.children.length > 0"
+          :disable="selectedNode?.isGroup && selectedNode.children.length > 0"
         >
           <q-item-section>Delete</q-item-section>
         </q-item>
