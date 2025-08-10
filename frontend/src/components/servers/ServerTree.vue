@@ -2,6 +2,7 @@
 import { ref, watchEffect } from 'vue';
 import type { RegisteredServerNode } from 'src/components/servers/models';
 import type { configuration } from 'app/wailsjs/go/models';
+import ServerTreeContextMenu from './ServerTreeContextMenu.vue';
 
 const props = defineProps<{
   nodes: RegisteredServerNode[];
@@ -12,6 +13,7 @@ const emit = defineEmits<{
   (e: 'connect', node: RegisteredServerNode | undefined): void;
   (e: 'add-server', node: RegisteredServerNode | undefined): void;
   (e: 'add-group', node: RegisteredServerNode | undefined): void;
+  (e: 'edit-node', node: RegisteredServerNode | undefined): void;
 }>();
 
 const selectedNode = ref<RegisteredServerNode>();
@@ -20,7 +22,7 @@ const showMenu = ref(false);
 const menuTarget = ref<string | undefined>();
 
 // Helper to build a nested tree structure from a flat list
-const buildTree = (nodes: configuration.RegisteredServer[]) => {
+function buildTree(nodes: configuration.RegisteredServer[]) {
   const nodeMap: Record<string, RegisteredServerNode> = {};
   const tree: RegisteredServerNode[] = [];
 
@@ -29,7 +31,12 @@ const buildTree = (nodes: configuration.RegisteredServer[]) => {
   }
 
   nodes.forEach((node) => {
-    nodeMap[node.id] = { ...node, children: [] };
+    nodeMap[node.id] = {
+      ...node,
+      children: [],
+      header: node.isGroup ? 'group' : 'connection',
+      showButtons: false,
+    };
   });
 
   nodes.forEach((node) => {
@@ -63,7 +70,7 @@ const buildTree = (nodes: configuration.RegisteredServer[]) => {
     return a.name.localeCompare(b.name);
   });
   return tree;
-};
+}
 
 watchEffect(() => {
   console.log('servers fetched', props.nodes);
@@ -72,17 +79,17 @@ watchEffect(() => {
 
 function confirmDeleteNode(node?: RegisteredServerNode) {
   if (!node) return;
-  emit('delete-node-requested', selectedNode.value);
+  emit('delete-node-requested', node);
 }
 
 function addServer(node?: RegisteredServerNode) {
   if (!node) return;
-  emit('add-server', selectedNode.value);
+  emit('add-server', node);
 }
 
 function addGroup(node?: RegisteredServerNode) {
   if (!node) return;
-  emit('add-group', selectedNode.value);
+  emit('add-group', node);
 }
 
 function connect(node?: RegisteredServerNode) {
@@ -96,12 +103,24 @@ function editNode(node?: RegisteredServerNode) {
   console.log('edit-node');
 }
 
-function rightClickTarget(node: RegisteredServerNode, e: MouseEvent) {
+function showContextMenu(node: RegisteredServerNode) {
   selectedNode.value = node;
-  const div = e.currentTarget as Element;
-  menuTarget.value = '#' + div.id;
+  menuTarget.value = '#node_' + node.id;
   showMenu.value = true;
-  e.preventDefault();
+  console.log('showContextMenu');
+}
+
+function showButtons(node: RegisteredServerNode) {
+  return node.showButtons || node.id == selectedNode.value?.id;
+}
+
+function selectNode(node: RegisteredServerNode) {
+  if (selectedNode.value?.id === node.id) {
+    selectedNode.value = undefined;
+    return;
+  }
+
+  selectedNode.value = node;
 }
 </script>
 
@@ -111,73 +130,111 @@ function rightClickTarget(node: RegisteredServerNode, e: MouseEvent) {
       :nodes="connectionTree"
       node-key="id"
       label-key="name"
-      selected-color="primary"
-      default-expand-all
-      v-model:selected="selectedNode"
+      :duration="100"
+      :selected="selectedNode?.id"
       no-nodes-label="No connections or folders yet. Add one!"
       class="fit no-wrap"
-      @contextmenu="(e: MouseEvent) => e.preventDefault()"
+      @contextmenu.prevent="() => {}"
     >
-      <template v-slot:default-header="prop">
+      <template v-slot:header-group="prop">
         <div
-          class="row items-center no-wrap fit"
-          @contextmenu="(e: MouseEvent) => rightClickTarget(prop.node, e)"
           :id="'node_' + prop.node.id"
+          class="row items-center no-wrap fit cursor-pointer tree-node q-mr-sm"
+          @mouseenter="prop.node.showButtons = true"
+          @mouseleave="prop.node.showButtons = false"
+          @click.left="selectNode(prop.node)"
+          @contextmenu.prevent="showContextMenu(prop.node)"
         >
           <q-icon
-            v-if="prop.node.isGroup"
             :name="prop.expanded ? 'mdi-folder-open-outline' : 'mdi-folder-outline'"
             color="orange"
             size="20px"
             class="q-mr-sm"
           />
-          <q-icon v-else name="mdi-database-outline" color="green" size="20px" class="q-mr-sm" />
           <div class="text-weight-bold">{{ prop.node.name }}</div>
+          <q-space />
+          <q-btn
+            v-if="showButtons(prop.node)"
+            flat
+            round
+            color="secondary"
+            size="xs"
+            icon="mdi-cog-outline"
+            @click="editNode(prop.node)"
+          />
+          <q-btn
+            v-if="showButtons(prop.node)"
+            flat
+            round
+            color="negative"
+            size="xs"
+            icon="mdi-trash-can-outline"
+            :disable="prop.node.children.length != 0"
+            @click="confirmDeleteNode(prop.node)"
+          />
+        </div>
+      </template>
+      <template v-slot:header-connection="prop">
+        <div
+          class="row items-center no-wrap fit cursor-pointer tree-node q-pr-sm"
+          :id="'node_' + prop.node.id"
+          @mouseenter="prop.node.showButtons = true"
+          @mouseleave="prop.node.showButtons = false"
+          @click.left="selectNode(prop.node)"
+          @contextmenu.prevent="showContextMenu(prop.node)"
+        >
+          <q-icon name="mdi-database-outline" color="green" size="20px" class="q-mr-sm" />
+          <div class="text-weight-bold">{{ prop.node.name }}</div>
+          <q-space />
+          <q-btn
+            v-if="showButtons(prop.node)"
+            flat
+            round
+            color="positive"
+            size="xs"
+            icon="mdi-connection"
+            @click="connect(prop.node)"
+          />
+          <q-btn
+            v-if="showButtons(prop.node)"
+            flat
+            round
+            color="secondary"
+            size="xs"
+            icon="mdi-cog-outline"
+            @click="editNode(prop.node)"
+          />
+          <q-btn
+            v-if="showButtons(prop.node)"
+            flat
+            round
+            color="negative"
+            size="xs"
+            icon="mdi-trash-can-outline"
+            @click="confirmDeleteNode(prop.node)"
+          />
         </div>
       </template>
     </q-tree>
-    <q-menu context-menu touch-postition v-model="showMenu" :target="menuTarget" no-parent-event>
-      <q-list dense style="min-width: 100px">
-        <q-item
-          clickable
-          v-close-popup
-          @click="connect(selectedNode)"
-          v-if="!selectedNode?.isGroup"
-        >
-          <q-item-section>Connect</q-item-section>
-        </q-item>
-        <q-item
-          clickable
-          v-close-popup
-          @click="addServer(selectedNode)"
-          v-if="selectedNode?.isGroup"
-        >
-          <q-item-section avatar><q-icon name="add" /></q-item-section>
-          <q-item-section>Add Connection</q-item-section>
-        </q-item>
-        <q-item
-          clickable
-          v-close-popup
-          @click="addGroup(selectedNode)"
-          v-if="selectedNode?.isGroup"
-        >
-          <q-item-section avatar><q-icon name="create-new-folder-outline" /></q-item-section>
-          <q-item-section>Add Group</q-item-section>
-        </q-item>
-        <q-item clickable v-close-popup @click="editNode(selectedNode)">
-          <q-item-section>Edit</q-item-section>
-        </q-item>
-        <q-item
-          clickable
-          v-close-popup
-          @click="confirmDeleteNode(selectedNode)"
-          :disable="selectedNode?.isGroup && selectedNode.children.length > 0"
-        >
-          <q-item-section>Delete</q-item-section>
-        </q-item>
-      </q-list>
-    </q-menu>
+    <ServerTreeContextMenu
+      v-model="showMenu"
+      :target-node="selectedNode"
+      :target-selector="menuTarget"
+      @add-server="addServer"
+      @add-group="addGroup"
+    />
   </div>
 </template>
 
-<style scoped lang="scss"></style>
+<style scoped lang="scss">
+@use 'sass:color';
+:deep(.q-tree__node--selected) {
+  background: $blue-1;
+  .q-tree__node-header-content {
+    color: $primary;
+  }
+}
+.tree-node {
+  min-height: 24px;
+}
+</style>
