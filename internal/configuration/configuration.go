@@ -9,18 +9,18 @@ import (
 
 const serviceName = "Vervet"
 
-// StoreConnectionURI securly saves a conectionURI associtated with a user provided name
-func StoreConnectionURI(connectionID int64, uri string) error {
-	key := getKey(int(connectionID))
+// StoreRegisteredServerURI securly saves a conectionURI associtated with a user provided name
+func StoreRegisteredServerURI(registeredServerID int, uri string) error {
+	key := getKey(int(registeredServerID))
 	err := keyring.Set(serviceName, key, uri)
 	if err != nil {
-		return fmt.Errorf("failed to store connection URI securly: %w", err)
+		return fmt.Errorf("failed to store registeredServer URI securly: %w", err)
 	}
 	return nil
 }
 
-func GetConnectionURI(connectionID int) (string, error) {
-	key := getKey(connectionID)
+func GetRegisteredServerURI(registeredServerID int) (string, error) {
+	key := getKey(registeredServerID)
 	uri, err := keyring.Get(serviceName, key)
 	if err != nil {
 		return "", fmt.Errorf("failed to retrieve conneciton URI: %w", err)
@@ -29,15 +29,15 @@ func GetConnectionURI(connectionID int) (string, error) {
 	return uri, nil
 }
 
-func DeleteConnectionURI(connectionID int) error {
-	key := getKey(connectionID)
+func DeleteRegisteredServerURI(registeredServerID int) error {
+	key := getKey(registeredServerID)
 	err := keyring.Delete(serviceName, key)
 	if err != nil {
-		return fmt.Errorf("failed to delete connection URI: %w", err)
+		return fmt.Errorf("failed to delete registeredServer URI: %w", err)
 	}
 	return nil
 }
 
-func getKey(connectionID int) string {
-	return fmt.Sprintf("conn_%d", connectionID)
+func getKey(registeredServerID int) string {
+	return fmt.Sprintf("conn_%d", registeredServerID)
 }

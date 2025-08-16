@@ -19,6 +19,11 @@ export namespace api {
 	    data: configuration.RegisteredServer[];
 	    error: string;
 	}
+	export interface Result_string_ {
+	    isSuccess: boolean;
+	    data: string;
+	    error: string;
+	}
 	export interface Result_vervet_internal_api_OperatingSystem_ {
 	    isSuccess: boolean;
 	    data: OperatingSystem;

@@ -73,7 +73,6 @@ function buildTree(nodes: configuration.RegisteredServer[]) {
 }
 
 watchEffect(() => {
-  console.log('servers fetched', props.nodes);
   connectionTree.value = buildTree(props.nodes);
 });
 
@@ -100,14 +99,13 @@ function connect(node?: RegisteredServerNode) {
 
 function editNode(node?: RegisteredServerNode) {
   if (!node) return;
-  console.log('edit-node');
+  emit('edit-node', node);
 }
 
 function showContextMenu(node: RegisteredServerNode) {
   selectedNode.value = node;
   menuTarget.value = '#node_' + node.id;
   showMenu.value = true;
-  console.log('showContextMenu');
 }
 
 function showButtons(node: RegisteredServerNode) {
@@ -160,7 +158,7 @@ function selectNode(node: RegisteredServerNode) {
             color="secondary"
             size="xs"
             icon="mdi-cog-outline"
-            @click="editNode(prop.node)"
+            @click.prevent="editNode(prop.node)"
           />
           <q-btn
             v-if="showButtons(prop.node)"
@@ -170,7 +168,7 @@ function selectNode(node: RegisteredServerNode) {
             size="xs"
             icon="mdi-trash-can-outline"
             :disable="prop.node.children.length != 0"
-            @click="confirmDeleteNode(prop.node)"
+            @click.prevent="confirmDeleteNode(prop.node)"
           />
         </div>
       </template>
@@ -193,7 +191,7 @@ function selectNode(node: RegisteredServerNode) {
             color="positive"
             size="xs"
             icon="mdi-connection"
-            @click="connect(prop.node)"
+            @click.prevent="connect(prop.node)"
           />
           <q-btn
             v-if="showButtons(prop.node)"
@@ -211,7 +209,7 @@ function selectNode(node: RegisteredServerNode) {
             color="negative"
             size="xs"
             icon="mdi-trash-can-outline"
-            @click="confirmDeleteNode(prop.node)"
+            @click.prevent="confirmDeleteNode(prop.node)"
           />
         </div>
       </template>
@@ -222,6 +220,9 @@ function selectNode(node: RegisteredServerNode) {
       :target-selector="menuTarget"
       @add-server="addServer"
       @add-group="addGroup"
+      @edit-node="editNode"
+      @delete-node="confirmDeleteNode"
+      @connect="connect"
     />
   </div>
 </template>

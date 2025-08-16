@@ -29,12 +29,16 @@ func NewSystemProxy() *SystemProxy {
 
 func (sp *SystemProxy) GetOs() Result[OperatingSystem] {
 	os := Windows
-	if runtime.GOOS == "windows" {
+
+	switch runtime.GOOS {
+	case "windows":
 		os = Windows
-	} else if runtime.GOOS == "darwin" {
+	case "darwin":
 		os = OSX
-	} else if runtime.GOOS == "linux" {
+	case "linux":
 		os = Linux
+	default:
+		os = Windows
 	}
 
 	return Result[OperatingSystem]{
