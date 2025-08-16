@@ -3,8 +3,9 @@ package configuration
 import (
 	"database/sql"
 	"fmt"
-	_ "github.com/mattn/go-sqlite3"
 	"path/filepath"
+
+	_ "github.com/mattn/go-sqlite3"
 )
 
 type SettingsDatabase struct {
@@ -44,58 +45,76 @@ func (d *SettingsDatabase) createTables() error {
 func (d *SettingsDatabase) GetRegisteredServersTree() ([]RegisteredServer, error) {
 	rows, err := d.db.Query("SELECT id, name, parent_id, is_group FROM registered_servers ORDER BY is_group DESC, name ASC")
 	if err != nil {
-		return nil, fmt.Errorf("failed to query connections: %w", err)
+		return nil, fmt.Errorf("failed to query registered servers: %w", err)
 	}
 
 	defer rows.Close()
 
-	var connections []RegisteredServer
+	var registeredServers []RegisteredServer
 	for rows.Next() {
 		var conn RegisteredServer
 		if err := rows.Scan(&conn.ID, &conn.Name, &conn.ParentID, &conn.IsGroup); err != nil {
-			return nil, fmt.Errorf("failed to read connection: %w", err)
+			return nil, fmt.Errorf("failed to read registered server: %w", err)
 		}
 
-		connections = append(connections, conn)
+		registeredServers = append(registeredServers, conn)
 	}
-	return connections, nil
+	return registeredServers, nil
 }
 
-func (d *SettingsDatabase) CreateFolder(name string, parentID int) (int64, error) {
+func (d *SettingsDatabase) CreateGroup(parentID int, name string) (int64, error) {
 	result, err := d.db.Exec("INSERT INTO registered_servers (name, parent_id, is_group) VALUES (?, ?, 1)", name, parentID)
 	if err != nil {
-		return 0, fmt.Errorf("failed to create folder: %w", err)
+		return 0, fmt.Errorf("failed to create group: %w", err)
 	}
 
 	id, _ := result.LastInsertId()
 	return id, nil
 }
 
-func (d *SettingsDatabase) SaveRegisteredServer(name string, parentID int) (int64, error) {
+func (d *SettingsDatabase) UpdateGroup(groupID, parentID int, name string) error {
+	_, err := d.db.Exec("UPDATE registered_servers SET name = ?, parent_id = ? WHERE id = ?", name, parentID, groupID)
+	if err != nil {
+		return fmt.Errorf("failed to update group: %w", err)
+	}
+
+	return nil
+}
+
+func (d *SettingsDatabase) SaveRegisteredServer(parentID int, name string) (int, error) {
 	result, err := d.db.Exec("INSERT into registered_servers (name, parent_id, is_group) VALUES (?, ?, 0)", name, parentID)
 	if err != nil {
-		return 0, fmt.Errorf("failed to save connection metadata: %w", err)
+		return 0, fmt.Errorf("failed to save registered server metadata: %w", err)
 	}
 
 	id, _ := result.LastInsertId()
-	return id, nil
+	return int(id), nil
+}
+
+func (d *SettingsDatabase) UpdateRegisteredServer(serverID, parentID int, name string) error {
+	_, err := d.db.Exec("UPDATE registered_servers SET name = ?, parent_id = ? WHERE id = ?", name, parentID, serverID)
+	if err != nil {
+		return fmt.Errorf("failed to update registered server: %w", err)
+	}
+
+	return nil
 }
 
 func (d *SettingsDatabase) DeleteNode(id int) error {
-	var isFolder, count int
+	var isGroup, count int
 
-	err := d.db.QueryRow("SELECT is_group FROM registered_servers WHERE id = ?", id).Scan(&isFolder)
+	err := d.db.QueryRow("SELECT is_group FROM registered_servers WHERE id = ?", id).Scan(&isGroup)
 	if err != nil {
 		return fmt.Errorf("node not found or query error: %w", err)
 	}
 
-	if isFolder == 1 {
+	if isGroup == 1 {
 		err := d.db.QueryRow("SELECT COUNT(*) FROM registered_servers WHERE parent_id = ?", id).Scan(&count)
 		if err != nil {
-			return fmt.Errorf("failed to check folder contents : %w", err)
+			return fmt.Errorf("failed to check group contents : %w", err)
 		}
 		if count > 0 {
-			return fmt.Errorf("cannot delete a non-empty folder. Please move or delete contents first")
+			return fmt.Errorf("cannot delete a non-empty group. Please move or delete contents first")
 		}
 	}
 

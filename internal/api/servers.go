@@ -34,31 +34,39 @@ func (sp *ServersProxy) GetServers() Result[[]configuration.RegisteredServer] {
 }
 
 func (sp *ServersProxy) CreateGroup(name string, parentID int) EmptyResult {
-	err := sp.sm.CreateGroup(name, parentID)
+	err := sp.sm.CreateGroup(parentID, name)
 	if err != nil {
-		return EmptyResult{
-			IsSuccess: false,
-			Error:     err.Error(),
-		}
+		return Error(err.Error())
 	}
 
-	return EmptyResult{
-		IsSuccess: true,
-	}
+	return Success()
 }
 
-func (sp *ServersProxy) SaveServer(name string, parentID int, uri string) EmptyResult {
-	err := sp.sm.SaveRegisterServer(name, parentID, uri)
+func (sp *ServersProxy) UpdateGroup(groupID, parentID int, name string) EmptyResult {
+	err := sp.sm.UpdateGroup(groupID, parentID, name)
 	if err != nil {
-		return EmptyResult{
-			IsSuccess: false,
-			Error:     err.Error(),
-		}
+		return Error(err.Error())
 	}
 
-	return EmptyResult{
-		IsSuccess: true,
+	return Success()
+}
+
+func (sp *ServersProxy) SaveServer(parentID int, name, uri string) EmptyResult {
+	err := sp.sm.AddRegisterServer(parentID, name, uri)
+	if err != nil {
+		return Error(err.Error())
 	}
+
+	return Success()
+}
+
+func (sp *ServersProxy) UpdateServer(serverID, parentID int, name, uri string) EmptyResult {
+	err := sp.sm.UpdateRegisterServer(serverID, parentID, name, uri)
+	if err != nil {
+		return Error(err.Error())
+	}
+
+	return Success()
 }
 
 func (sp *ServersProxy) RemoveNode(id int, isFolder bool) EmptyResult {
@@ -67,4 +75,19 @@ func (sp *ServersProxy) RemoveNode(id int, isFolder bool) EmptyResult {
 		return Error(fmt.Sprintf("Error removing node: %v", err))
 	}
 	return Success()
+}
+
+func (sp *ServersProxy) GetURI(id int) Result[string] {
+	uri, err := sp.sm.GetURI(id)
+	if err != nil {
+		return Result[string]{
+			IsSuccess: false,
+			Error:     err.Error(),
+		}
+	}
+
+	return Result[string]{
+		IsSuccess: true,
+		Data:      uri,
+	}
 }
