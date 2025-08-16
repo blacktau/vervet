@@ -1,20 +1,20 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import { useQuasar } from 'quasar';
-//import * as serversProxy from 'app/wailjs/go/api/ServersProxy';
-import AddServerDialog from './AddServerDialog.vue';
+import ServerDialog from './ServerDialog.vue';
 import type { RegisteredServerNode } from 'app/src/components/servers/models';
-import AddServerGroupDialog from 'src/components/servers/AddServerGroupDialog.vue';
+import ServerGroupDialog from 'src/components/servers/ServerGroupDialog.vue';
 import DeleteDialog from 'src/components/servers/DeleteDialog.vue';
 import ServerTree from 'src/components/servers/ServerTree.vue';
 import { GetServers } from 'app/wailsjs/go/api/ServersProxy';
 
 const $q = useQuasar();
 
-const selectedNodeId = ref<number>(0); // For QTree selection
-const addServerDialog = ref(false);
-const addGroupDialog = ref(false);
+const selectedNode = ref<RegisteredServerNode>();
+const serverDialogVisible = ref(false);
+const groupDialogVisible = ref(false);
 const confirmDeleteDialog = ref(false);
+const isEdit = ref(false);
 const nodeToDelete = ref<RegisteredServerNode>();
 const nodes = ref<RegisteredServerNode[]>([]);
 
@@ -42,32 +42,43 @@ const fetchConnectionNodes = async () => {
 };
 
 // --- Dialog and Form Handlers ---
-const showAddServerDialog = (node?: RegisteredServerNode) => {
+const showServerDialog = (node?: RegisteredServerNode) => {
   if (node) {
-    selectedNodeId.value = node.id;
+    selectedNode.value = node;
   }
-  addServerDialog.value = true;
+  serverDialogVisible.value = true;
 };
 
 const onServerAdded = async () => {
-  addServerDialog.value = false;
+  serverDialogVisible.value = false;
   await fetchConnectionNodes(); // Refresh tree
 };
 
-const showAddGroupDialog = (node?: RegisteredServerNode) => {
+const onServerUpdated = async () => {
+  serverDialogVisible.value = false;
+  await fetchConnectionNodes(); // Refresh tree
+};
+
+const showGroupDialog = (node?: RegisteredServerNode) => {
   if (node) {
-    selectedNodeId.value = node.id;
+    selectedNode.value = node;
   }
-  addGroupDialog.value = true;
+  groupDialogVisible.value = true;
+  console.log('showGroupDialog isEdit:', isEdit.value, ' node:', selectedNode.value);
 };
 
 const onGroupAdded = async () => {
-  addGroupDialog.value = false;
+  groupDialogVisible.value = false;
+  await fetchConnectionNodes(); // Refresh tree
+};
+
+const onGroupUpdated = async () => {
+  groupDialogVisible.value = false;
   await fetchConnectionNodes(); // Refresh tree
 };
 
 const confirmDeleteNode = (node?: RegisteredServerNode) => {
-  if (!confirmDeleteNode) {
+  if (!node) {
     return;
   }
   nodeToDelete.value = node;
@@ -77,6 +88,16 @@ const confirmDeleteNode = (node?: RegisteredServerNode) => {
 const onServerNodeDeleted = async () => {
   confirmDeleteDialog.value = true;
   await fetchConnectionNodes();
+};
+
+const editNode = (node?: RegisteredServerNode) => {
+  if (!node) return;
+  isEdit.value = true;
+  if (node.isGroup) {
+    showGroupDialog(node);
+  } else {
+    showServerDialog(node);
+  }
 };
 
 // --- MongoDB Connection Logic ---
@@ -121,10 +142,10 @@ onMounted(async () => {
       <q-bar>
         <div class="text-subtitle1">Registered Servers</div>
         <q-space />
-        <q-btn flat dense round icon="add" @click="showAddServerDialog()" class="q-me-sm">
+        <q-btn flat dense round icon="add" @click="showServerDialog()" class="q-me-sm">
           <q-tooltip>Add Server</q-tooltip>
         </q-btn>
-        <q-btn flat dense round icon="o_create_new_folder" @click="showAddGroupDialog()">
+        <q-btn flat dense round icon="o_create_new_folder" @click="showGroupDialog()">
           <q-tooltip>Add Server Grouping</q-tooltip>
         </q-btn>
       </q-bar>
@@ -135,24 +156,32 @@ onMounted(async () => {
           :nodes="nodes"
           @delete-node-requested="confirmDeleteNode"
           @connect="connectToMongo"
-          @add-server="showAddServerDialog"
-          @add-group="showAddGroupDialog"
+          @add-server="showServerDialog"
+          @add-group="showGroupDialog"
+          @edit-node="editNode"
         />
       </q-page>
     </q-page-container>
   </q-layout>
 
-  <AddServerDialog
+  <ServerDialog
+    v-if="serverDialogVisible"
     @new-server-added="onServerAdded"
-    :parentId="selectedNodeId"
-    v-model="addServerDialog"
+    @server-updated="onServerUpdated"
+    :target="selectedNode"
+    :isEdit="isEdit"
+    v-model="serverDialogVisible"
   />
-  <AddServerGroupDialog
+  <ServerGroupDialog
+    v-if="groupDialogVisible"
     @server-group-added="onGroupAdded"
-    :parentId="selectedNodeId"
-    v-model="addGroupDialog"
+    @server-group-updated="onGroupUpdated"
+    :target="selectedNode"
+    :isEdit="isEdit"
+    v-model="groupDialogVisible"
   />
   <DeleteDialog
+    v-if="confirmDeleteDialog"
     @server-node-deleted="onServerNodeDeleted"
     :target="nodeToDelete"
     v-model="confirmDeleteDialog"
