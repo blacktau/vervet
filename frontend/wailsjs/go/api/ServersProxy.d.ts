@@ -6,6 +6,12 @@ export function CreateGroup(arg1:string,arg2:number):Promise<api.EmptyResult>;
 
 export function GetServers():Promise<api.Result___vervet_internal_configuration_RegisteredServer_>;
 
+export function GetURI(arg1:number):Promise<api.Result_string_>;
+
 export function RemoveNode(arg1:number,arg2:boolean):Promise<api.EmptyResult>;
 
-export function SaveServer(arg1:string,arg2:number,arg3:string):Promise<api.EmptyResult>;
+export function SaveServer(arg1:number,arg2:string,arg3:string):Promise<api.EmptyResult>;
+
+export function UpdateGroup(arg1:number,arg2:number,arg3:string):Promise<api.EmptyResult>;
+
+export function UpdateServer(arg1:number,arg2:number,arg3:string,arg4:string):Promise<api.EmptyResult>;

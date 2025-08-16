@@ -33,16 +33,16 @@ func (cm *ConnectionManager) Init(ctx context.Context) error {
 
 // Connect establishes a connection to a MongoDB database using a securely stored URI.
 // This method is exposed to Wails.
-func (cm *ConnectionManager) Connect(connectionID int) error {
+func (cm *ConnectionManager) Connect(registeredServerID int) error {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 
-	if _, ok := cm.activeConnections[connectionID]; ok {
+	if _, ok := cm.activeConnections[registeredServerID]; ok {
 		return fmt.Errorf("already connected to this Mongo Instance")
 	}
 
 	// 1. Retrieve the connection URI securely.
-	uri, err := configuration.GetConnectionURI(connectionID)
+	uri, err := configuration.GetRegisteredServerURI(registeredServerID)
 	if err != nil {
 		return fmt.Errorf("error retrieving connection URI: %w", err)
 	}
@@ -60,15 +60,15 @@ func (cm *ConnectionManager) Connect(connectionID int) error {
 	// 4. Ping the database to ensure connection is valid.
 	if err = client.Ping(ctx, nil); err != nil {
 		_ = client.Disconnect(cm.ctx)
-		return fmt.Errorf("ping failed, connection invalid", err)
+		return fmt.Errorf("ping failed, connection invalid: %w", err)
 	}
 
-	activeConnection := newActiveConnection(connectionID)
+	activeConnection := newActiveConnection(registeredServerID)
 	activeConnection.client = client
 	// activeConnection.ctx = ctx
-	cm.activeConnections[connectionID] = activeConnection
+	cm.activeConnections[registeredServerID] = activeConnection
 
-	log.Printf("Successfully connected to MongoDB via ID: %d", connectionID)
+	log.Printf("Successfully connected to MongoDB via ID: %d", registeredServerID)
 
 	return nil
 }
