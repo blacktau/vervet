@@ -47,3 +47,11 @@ func (cp *ConnectionsProxy) GetConnectionIDs() Result[[]int] {
 		Data:      cp.cm.GetConnectedClientIDs(),
 	}
 }
+
+func (cp *ConnectionsProxy) TestConnection(uri string) EmptyResult {
+	result, err := cp.cm.TestConnection(uri)
+	return EmptyResult{
+		IsSuccess: result,
+		Error:     fmt.Sprintf("failed to connect to mongo server: %v", err),
+	}
+}

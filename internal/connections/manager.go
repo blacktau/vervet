@@ -9,6 +9,7 @@ import (
 	"time"
 	"vervet/internal/configuration"
 
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -71,6 +72,35 @@ func (cm *ConnectionManager) Connect(registeredServerID int) error {
 	log.Printf("Successfully connected to MongoDB via ID: %d", registeredServerID)
 
 	return nil
+}
+
+func (cm *ConnectionManager) TestConnection(uri string) (bool, error) {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+
+	clientOptions := options.Client().ApplyURI(uri)
+	ctx, cancel := context.WithTimeout(cm.ctx, 30*time.Second)
+	defer cancel()
+
+	client, err := mongo.Connect(ctx, clientOptions)
+	if err != nil {
+		log.Printf("Failed to connect to MongoDB: %v", err)
+		return false, fmt.Errorf("failed to connect to database: %w", err)
+	}
+
+	if err = client.Ping(ctx, nil); err != nil {
+		_ = client.Disconnect(ctx)
+		return false, fmt.Errorf("failed to connection to database: %w", err)
+	}
+
+	if _, err = client.ListDatabases(ctx, bson.D{}, nil); err != nil {
+		_ = client.Disconnect(ctx)
+		return false, fmt.Errorf("failed to retrive list of databases: %w", err)
+	}
+
+	_ = client.Disconnect(ctx)
+
+	return true, nil
 }
 
 // Disconnect closes the active MongoDB connection.
