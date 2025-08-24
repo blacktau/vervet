@@ -9,3 +9,5 @@ export function Disconnect(arg1:number):Promise<api.EmptyResult>;
 export function DisconnectAll():Promise<api.EmptyResult>;
 
 export function GetConnectionIDs():Promise<api.Result___int_>;
+
+export function TestConnection(arg1:string):Promise<api.EmptyResult>;

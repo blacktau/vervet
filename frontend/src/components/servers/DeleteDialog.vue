@@ -31,7 +31,7 @@ const deleteNode = async () => {
 
 <template>
   <!-- Confirm Delete Dialog -->
-  <q-dialog persistent v-model="model">
+  <q-dialog persistent v-model="model" transition-hide="scale" transition-show="scale">
     <q-card>
       <q-card-section class="row items-center">
         <q-avatar icon="warning" color="warning" text-color="white" />

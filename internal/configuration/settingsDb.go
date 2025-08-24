@@ -101,14 +101,15 @@ func (d *SettingsDatabase) UpdateRegisteredServer(serverID, parentID int, name s
 }
 
 func (d *SettingsDatabase) DeleteNode(id int) error {
-	var isGroup, count int
+	var isGroup bool
+	var count int
 
 	err := d.db.QueryRow("SELECT is_group FROM registered_servers WHERE id = ?", id).Scan(&isGroup)
 	if err != nil {
 		return fmt.Errorf("node not found or query error: %w", err)
 	}
 
-	if isGroup == 1 {
+	if isGroup {
 		err := d.db.QueryRow("SELECT COUNT(*) FROM registered_servers WHERE parent_id = ?", id).Scan(&count)
 		if err != nil {
 			return fmt.Errorf("failed to check group contents : %w", err)
