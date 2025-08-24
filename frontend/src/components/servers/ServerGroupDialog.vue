@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { onMounted, ref, watch } from 'vue';
 import * as serversProxy from 'app/wailsjs/go/api/ServersProxy';
 import { useQuasar } from 'quasar';
 import type { RegisteredServerNode } from './models';
@@ -82,6 +82,23 @@ const updateGroup = async () => {
 
 onMounted(() => {
   console.log('ServerGroupDialog target:', props.target, ' isEdit:', props.isEdit);
+});
+
+watch(model, () => {
+  if (!model.value) {
+    return;
+  }
+
+  groupName.value = props.isEdit ? (props.target?.name ?? '') : '';
+
+  console.log(
+    'groupName:',
+    groupName.value,
+    'props.isEdit:',
+    props.isEdit,
+    'props.target.name:',
+    props.target?.name,
+  );
 });
 </script>
 
