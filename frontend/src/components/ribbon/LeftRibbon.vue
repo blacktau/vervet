@@ -1,26 +1,16 @@
 <script setup lang="ts">
 import type { RibbonOption } from 'components/ribbon/model';
-import { ref, watch } from 'vue';
 import * as runtime from 'app/wailsjs/runtime/runtime';
 
 const props = defineProps<{
   options: RibbonOption[];
 }>();
 
-const emit = defineEmits<{
-  (e: 'change', selected: string): void;
-}>();
-
-const selected = ref<string>(props.options[0]?.value ?? '');
+const model = defineModel<string>({ required: true });
 
 function showSettings() {
   runtime.WindowReload();
 }
-
-watch(selected, (value) => {
-  emit('change', value);
-  console.log('ribbon change', value);
-});
 </script>
 
 <template>
@@ -29,8 +19,8 @@ watch(selected, (value) => {
       v-for="(option, index) in props.options"
       :key="index"
       class="ribbon-item"
-      @click="selected = option.value"
-      :class="{ selected: option.value === selected }"
+      @click="model = option.value"
+      :class="{ selected: option.value === model }"
     >
       <div><q-icon :name="option.icon" /></div>
       <q-tooltip anchor="center right" self="center middle" :offset="[40, 0]" :delay="250">{{

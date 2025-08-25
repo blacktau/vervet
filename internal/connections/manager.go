@@ -9,21 +9,31 @@ import (
 	"time"
 	"vervet/internal/configuration"
 
+	"github.com/wailsapp/wails/v2/pkg/logger"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
+
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+)
+
+const (
+	ConnectedEvent    = "connection-connected"
+	DisconnectedEvent = "connection-disconnected"
 )
 
 type ConnectionManager struct {
 	ctx               context.Context
 	activeConnections map[int]ActiveConnection
 	mu                sync.RWMutex
+	log               logger.Logger
 }
 
-func NewConnectionManager() *ConnectionManager {
+func NewConnectionManager(log logger.Logger) *ConnectionManager {
 	return &ConnectionManager{
 		activeConnections: make(map[int]ActiveConnection),
 		mu:                sync.RWMutex{},
+		log:               log,
 	}
 }
 
@@ -69,7 +79,8 @@ func (cm *ConnectionManager) Connect(registeredServerID int) error {
 	// activeConnection.ctx = ctx
 	cm.activeConnections[registeredServerID] = activeConnection
 
-	log.Printf("Successfully connected to MongoDB via ID: %d", registeredServerID)
+	cm.log.Info(fmt.Sprintf("Successfully connected to MongoDB via ID: %d", registeredServerID))
+	runtime.EventsEmit(cm.ctx, ConnectedEvent, registeredServerID)
 
 	return nil
 }
@@ -117,6 +128,7 @@ func (cm *ConnectionManager) Disconnect(connectionID int) error {
 		}
 
 		delete(cm.activeConnections, connectionID)
+		runtime.EventsEmit(cm.ctx, DisconnectedEvent, connectionID)
 		log.Printf("Disconnected from mongo for connectionID: %v", connectionID)
 		return nil
 	}
@@ -135,6 +147,8 @@ func (cm *ConnectionManager) DisconnectAll() error {
 		if err != nil {
 			log.Printf("Error when disconnecting connection with ID: %v", err)
 		}
+
+		runtime.EventsEmit(cm.ctx, DisconnectedEvent, id)
 
 		delete(cm.activeConnections, id)
 	}

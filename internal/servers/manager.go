@@ -7,6 +7,8 @@ import (
 	"log"
 	"sync"
 	"vervet/internal/configuration"
+
+	"github.com/wailsapp/wails/v2/pkg/logger"
 )
 
 // ServerManager manages MongoDB server registeredServer strings
@@ -14,11 +16,13 @@ type ServerManager struct {
 	ctx        context.Context
 	settingsDB *configuration.SettingsDatabase
 	mu         sync.RWMutex
+	log        logger.Logger
 }
 
-func NewRegisteredServerManager() *ServerManager {
+func NewRegisteredServerManager(log logger.Logger) *ServerManager {
 	return &ServerManager{
-		mu: sync.RWMutex{},
+		log: log,
+		mu:  sync.RWMutex{},
 	}
 }
 

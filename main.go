@@ -2,7 +2,6 @@ package main
 
 import (
 	"embed"
-	"log"
 	"vervet/internal/api"
 	"vervet/internal/app"
 
@@ -21,8 +20,8 @@ var assets embed.FS
 var icon []byte
 
 func main() {
-	// Create an instance of the app structure
-	app := app.NewApp()
+	log := logger.NewDefaultLogger()
+	app := app.NewApp(log)
 
 	// Create application with options
 	err := wails.Run(&options.App{
@@ -43,7 +42,7 @@ func main() {
 			Assets: assets,
 		},
 		Menu:             nil,
-		Logger:           nil,
+		Logger:           log,
 		LogLevel:         logger.DEBUG,
 		OnStartup:        app.Startup,
 		OnDomReady:       app.DomReady,
@@ -89,6 +88,6 @@ func main() {
 		},
 	})
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal(err.Error())
 	}
 }
