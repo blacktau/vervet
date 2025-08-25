@@ -6,6 +6,7 @@ import ServerTreeContextMenu from './ServerTreeContextMenu.vue';
 
 const props = defineProps<{
   nodes: RegisteredServerNode[];
+  disable?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -159,6 +160,7 @@ function selectNode(node: RegisteredServerNode) {
             size="xs"
             icon="mdi-cog-outline"
             @click.prevent="editNode(prop.node)"
+            :disable="props.disable"
           />
           <q-btn
             v-if="showButtons(prop.node)"
@@ -192,6 +194,7 @@ function selectNode(node: RegisteredServerNode) {
             size="xs"
             icon="mdi-connection"
             @click.prevent="connect(prop.node)"
+            :disable="props.disable"
           />
           <q-btn
             v-if="showButtons(prop.node)"
@@ -201,6 +204,7 @@ function selectNode(node: RegisteredServerNode) {
             size="xs"
             icon="mdi-cog-outline"
             @click="editNode(prop.node)"
+            :disable="props.disable"
           />
           <q-btn
             v-if="showButtons(prop.node)"
@@ -210,6 +214,7 @@ function selectNode(node: RegisteredServerNode) {
             size="xs"
             icon="mdi-trash-can-outline"
             @click.prevent="confirmDeleteNode(prop.node)"
+            :disable="props.disable"
           />
         </div>
       </template>

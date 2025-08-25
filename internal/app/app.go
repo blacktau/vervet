@@ -7,10 +7,13 @@ import (
 	"vervet/internal/api"
 	"vervet/internal/connections"
 	"vervet/internal/servers"
+
+	"github.com/wailsapp/wails/v2/pkg/logger"
 )
 
 // App struct
 type App struct {
+	log              logger.Logger
 	ctx              context.Context
 	ServersProxy     *api.ServersProxy
 	ConnectionsProxy *api.ConnectionsProxy
@@ -21,11 +24,12 @@ type App struct {
 }
 
 // NewApp creates a new App application struct
-func NewApp() *App {
-	serverManager := servers.NewRegisteredServerManager()
-	connectionManager := connections.NewConnectionManager()
+func NewApp(log logger.Logger) *App {
+	serverManager := servers.NewRegisteredServerManager(log)
+	connectionManager := connections.NewConnectionManager(log)
 
 	return &App{
+		log:               log,
 		serverManager:     serverManager,
 		connectionManager: connectionManager,
 		ServersProxy:      api.NewServersProxy(serverManager),

@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { onMounted, ref, watch } from 'vue';
 import RegisteredServers from 'src/components/servers/RegisteredServers.vue';
 import 'assets/logo.svg';
 import LeftRibbon from 'src/components/ribbon/LeftRibbon.vue';
 import type { RibbonOption } from 'src/components/ribbon/model';
 import ConnectionsTree from 'src/components/connections/ConnectionsTree.vue';
 import WindowBar from 'src/components/windowbar/WindowBar.vue';
+import * as runtime from 'app/wailsjs/runtime/runtime';
 
 const selectedItem = ref('servers');
 const splitterModel = ref(25);
@@ -27,17 +28,18 @@ const ribbonOptions: RibbonOption[] = [
   },
 ];
 
-function handleRibbonChange(e: string) {
-  selectedItem.value = e;
-  console.log(e);
-}
+onMounted(() => {
+  runtime.EventsOn('connection-connected', (connectionId: number) => {
+    console.log('connected!', connectionId);
+  });
+});
 </script>
 
 <template>
   <q-layout view="hHh lpr lff" class="fullscreen non-selectable">
     <WindowBar />
     <q-drawer show-if-above bordered mini>
-      <LeftRibbon :options="ribbonOptions" @change="handleRibbonChange" />
+      <LeftRibbon v-model="selectedItem" :options="ribbonOptions" />
     </q-drawer>
     <q-page-container>
       <q-page class="fit no-wrap">

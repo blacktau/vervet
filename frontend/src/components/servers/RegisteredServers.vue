@@ -7,6 +7,8 @@ import ServerGroupDialog from 'src/components/servers/ServerGroupDialog.vue';
 import DeleteDialog from 'src/components/servers/DeleteDialog.vue';
 import ServerTree from 'src/components/servers/ServerTree.vue';
 import { fetchConnectionNodes } from './api';
+import * as connectionsProxy from 'app/wailsjs/go/api/ConnectionsProxy';
+import { showError } from 'src/utils/notifications';
 
 const $q = useQuasar();
 
@@ -15,6 +17,7 @@ const serverDialogVisible = ref(false);
 const groupDialogVisible = ref(false);
 const confirmDeleteDialog = ref(false);
 const isEdit = ref(false);
+const connecting = ref(false);
 const nodeToDelete = ref<RegisteredServerNode>();
 const nodes = ref<RegisteredServerNode[]>([]);
 
@@ -89,34 +92,39 @@ const editNode = (node?: RegisteredServerNode) => {
 };
 
 // --- MongoDB Connection Logic ---
-const connectToMongo = (node?: RegisteredServerNode) => {
+const connectToMongo = async (node?: RegisteredServerNode) => {
+  console.log('connecting To Mongo', node);
   if (!node) {
     return;
   }
 
-  $q.loading.show({ message: `Connecting to ${node.name}... ${node.id}` });
-  // try {
-  //   const [success, message] = await connectionManager.Connect(id);
-  //   if (success) {
-  //     $q.notify({type: 'positive', message: message});
-  //     // Add to connected IDs if not already there
-  //     if (!connectedClientIDs.value.includes(id)) {
-  //       connectedClientIDs.value.push(id);
-  //     }
-  //     // Open a new tab for this connection if not already open
-  //     if (!openConnectionTabs.value.some(tab => tab.id === id)) {
-  //       openConnectionTabs.value.push({id: id, name: name, queryResult: null});
-  //     }
-  //     currentTab.value = `conn-${id}`; // Switch to the new tab
-  //   } else {
-  //     $q.notify({type: 'negative', message: `Connection failed: ${message}`});
-  //   }
-  // } catch (error) {
-  //   $q.notify({type: 'negative', message: `Error connecting: ${error.message}`});
-  //   console.error('Error connecting to MongoDB:', error);
-  // } finally {
-  //   $q.loading.hide();
-  // }
+  connecting.value = true;
+
+  const notif = $q.notify({
+    type: 'ongoing',
+    message: `Connecting to '${node.name}'...`,
+  });
+
+  try {
+    const result = await connectionsProxy.Connect(node.id);
+    console.log('connected:', node.id, 'result:', result);
+    if (!result.isSuccess) {
+      showError(`Failed to connect to '${node.name}':\n ${result.error}`, notif);
+      connecting.value = false;
+      return;
+    }
+
+    notif({
+      type: 'positive',
+      message: `Connected to '${node.name}'.`,
+    });
+  } catch (error) {
+    const err = error as Error;
+    showError(`Error connecting to server: '${node.name}': ${err.message}`, notif);
+    console.error(`Error connecting to server '${node.name}':`, error);
+  }
+
+  connecting.value = false;
 };
 
 onMounted(async () => {
@@ -147,6 +155,7 @@ onMounted(async () => {
           @add-server="(node) => showServerDialog(false, node)"
           @add-group="(node) => showGroupDialog(false, node)"
           @edit-node="editNode"
+          :disable="connecting"
         />
       </q-page>
     </q-page-container>
