@@ -1,6 +1,6 @@
 module vervet
 
-go 1.23.0
+go 1.24.0
 
 toolchain go1.24.4
 
@@ -20,7 +20,7 @@ require (
 	github.com/xdg-go/scram v1.1.2 // indirect
 	github.com/xdg-go/stringprep v1.0.4 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78 // indirect
-	golang.org/x/sync v0.16.0 // indirect
+	golang.org/x/sync v0.18.0 // indirect
 )
 
 require (
@@ -48,10 +48,10 @@ require (
 	github.com/wailsapp/mimetype v1.4.1 // indirect
 	github.com/zalando/go-keyring v0.2.6
 	go.mongodb.org/mongo-driver v1.17.4
-	golang.org/x/crypto v0.40.0 // indirect
-	golang.org/x/net v0.42.0 // indirect
-	golang.org/x/sys v0.34.0 // indirect
-	golang.org/x/text v0.27.0 // indirect
+	golang.org/x/crypto v0.45.0 // indirect
+	golang.org/x/net v0.47.0 // indirect
+	golang.org/x/sys v0.38.0 // indirect
+	golang.org/x/text v0.31.0 // indirect
 )
 
 // replace github.com/wailsapp/wails/v2 v2.10.1 => /home/sean/go/pkg/mod
