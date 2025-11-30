@@ -1,6 +1,6 @@
 # Vervet - A mongo database explorer
 
-![Vervet Logo](./art/logo.svg "Vervet Logo")
+<img src="./art/logo.svg" alt="Vervet Logo" width="128" height="128">
 
 Vervet is a desktop application designed for querying and managing MongoDB
 databases, built with a modern and responsive user interface. It is
