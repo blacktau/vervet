@@ -2,6 +2,8 @@ package main
 
 import (
 	"embed"
+	"flag"
+	"fmt"
 	"vervet/internal/api"
 	"vervet/internal/app"
 
@@ -9,6 +11,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/logger"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	"github.com/wailsapp/wails/v2/pkg/options/linux"
 	"github.com/wailsapp/wails/v2/pkg/options/mac"
 	"github.com/wailsapp/wails/v2/pkg/options/windows"
 )
@@ -20,8 +23,12 @@ var assets embed.FS
 var icon []byte
 
 func main() {
+	debugUI := flag.Bool("debug-ui", false, "enable ui inspector")
+
 	log := logger.NewDefaultLogger()
-	app := app.NewApp(log)
+	application := app.NewApp(log)
+
+	log.Info(fmt.Sprintf("--debug-ui: %v", *debugUI))
 
 	// Create application with options
 	err := wails.Run(&options.App{
@@ -44,18 +51,25 @@ func main() {
 		Menu:             nil,
 		Logger:           log,
 		LogLevel:         logger.DEBUG,
-		OnStartup:        app.Startup,
-		OnDomReady:       app.DomReady,
-		OnBeforeClose:    app.BeforeClose,
-		OnShutdown:       app.Shutdown,
+		OnStartup:        application.Startup,
+		OnDomReady:       application.DomReady,
+		OnBeforeClose:    application.BeforeClose,
+		OnShutdown:       application.Shutdown,
 		WindowStartState: options.Normal,
 		Bind: []any{
-			app.ServersProxy,
-			app.ConnectionsProxy,
-			app.SystemProxy,
+			application.ServersProxy,
+			application.ConnectionsProxy,
+			application.SystemProxy,
 		},
 		EnumBind: []any{
 			api.AllOperatingSystems,
+		},
+		// Linux platform specific options
+		Linux: &linux.Options{
+			Icon:                icon,
+			WindowIsTranslucent: false,
+			WebviewGpuPolicy:    linux.WebviewGpuPolicyAlways,
+			ProgramName:         "Vervet",
 		},
 		// Windows platform specific options
 		Windows: &windows.Options{
@@ -85,6 +99,9 @@ func main() {
 				Message: "",
 				Icon:    icon,
 			},
+		},
+		Debug: options.Debug{
+			OpenInspectorOnStartup: *debugUI,
 		},
 	})
 	if err != nil {
