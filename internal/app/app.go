@@ -5,8 +5,11 @@ import (
 	"context"
 	"log"
 	"vervet/internal/api"
+	"vervet/internal/connectionStrings"
 	"vervet/internal/connections"
 	"vervet/internal/servers"
+	"vervet/internal/settings"
+	"vervet/internal/system"
 
 	"github.com/wailsapp/wails/v2/pkg/logger"
 )
@@ -18,23 +21,32 @@ type App struct {
 	ServersProxy     *api.ServersProxy
 	ConnectionsProxy *api.ConnectionsProxy
 	SystemProxy      *api.SystemProxy
+	SettingsProxy    *api.SettingsProxy
 
-	serverManager     *servers.ServerManager
-	connectionManager *connections.ConnectionManager
+	serverManager     servers.Manager
+	connectionManager connections.Manager
+	settingsManager   settings.Manager
+	systemService     system.Service
 }
 
 // NewApp creates a new App application struct
 func NewApp(log logger.Logger) *App {
-	serverManager := servers.NewRegisteredServerManager(log)
-	connectionManager := connections.NewConnectionManager(log)
+	serverManager := servers.NewManager(log)
+	connectionStringsStore := connectionStrings.NewStore()
+	connectionManager := connections.NewManager(log, connectionStringsStore)
+	settingsManager := settings.NewManager(log)
+	systemService := system.NewSystemService()
 
 	return &App{
 		log:               log,
 		serverManager:     serverManager,
 		connectionManager: connectionManager,
+		settingsManager:   settingsManager,
+		systemService:     systemService,
 		ServersProxy:      api.NewServersProxy(serverManager),
 		ConnectionsProxy:  api.NewConnectionsProxy(connectionManager),
-		SystemProxy:       api.NewSystemProxy(),
+		SystemProxy:       api.NewSystemProxy(systemService),
+		SettingsProxy:     api.NewSettingsProxy(settingsManager),
 	}
 }
 
@@ -52,10 +64,20 @@ func (a *App) Startup(ctx context.Context) {
 	if err != nil {
 		log.Fatalf("Failed to initialize connection manager: %v", err)
 	}
+
+	err = a.settingsManager.Init(ctx)
+	if err != nil {
+		log.Fatalf("Failed to initialize configuration manager: %v", err)
+	}
+
+	err = a.systemService.Init(ctx)
+	if err != nil {
+		log.Fatalf("Failed to initialize system service: %v", err)
+	}
 }
 
 // DomReady is called after front-end resources have been loaded
-func (a App) DomReady(ctx context.Context) {
+func (a *App) DomReady(ctx context.Context) {
 	// Add your action here
 }
 
@@ -69,5 +91,5 @@ func (a *App) BeforeClose(ctx context.Context) (prevent bool) {
 // Shutdown is called at application termination
 func (a *App) Shutdown(ctx context.Context) {
 	// Perform your teardown here
-	a.connectionManager.DisconnectAll()
+	_ = a.connectionManager.DisconnectAll()
 }

@@ -3,3 +3,7 @@
 import {api} from '../models';
 
 export function GetOs():Promise<api.Result_vervet_internal_api_OperatingSystem_>;
+
+export function SaveFile(arg1:any,arg2:any,arg3:any):Promise<api.Result_string_>;
+
+export function SelectFile(arg1:string,arg2:any):Promise<api.Result_string_>;

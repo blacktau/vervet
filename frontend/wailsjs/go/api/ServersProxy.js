@@ -6,6 +6,10 @@ export function CreateGroup(arg1, arg2) {
   return window['go']['api']['ServersProxy']['CreateGroup'](arg1, arg2);
 }
 
+export function GetServer(arg1) {
+  return window['go']['api']['ServersProxy']['GetServer'](arg1);
+}
+
 export function GetServers() {
   return window['go']['api']['ServersProxy']['GetServers']();
 }
@@ -14,16 +18,16 @@ export function GetURI(arg1) {
   return window['go']['api']['ServersProxy']['GetURI'](arg1);
 }
 
-export function RemoveNode(arg1, arg2) {
-  return window['go']['api']['ServersProxy']['RemoveNode'](arg1, arg2);
+export function RemoveNode(arg1) {
+  return window['go']['api']['ServersProxy']['RemoveNode'](arg1);
 }
 
 export function SaveServer(arg1, arg2, arg3) {
   return window['go']['api']['ServersProxy']['SaveServer'](arg1, arg2, arg3);
 }
 
-export function UpdateGroup(arg1, arg2, arg3) {
-  return window['go']['api']['ServersProxy']['UpdateGroup'](arg1, arg2, arg3);
+export function UpdateGroup(arg1, arg2) {
+  return window['go']['api']['ServersProxy']['UpdateGroup'](arg1, arg2);
 }
 
 export function UpdateServer(arg1, arg2, arg3, arg4) {

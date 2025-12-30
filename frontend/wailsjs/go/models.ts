@@ -9,14 +9,24 @@ export namespace api {
 	    isSuccess: boolean;
 	    error: string;
 	}
-	export interface Result___int_ {
+	export interface Result__vervet_internal_settings_Settings_ {
 	    isSuccess: boolean;
-	    data: number[];
+	    data?: settings.Settings;
 	    error: string;
 	}
-	export interface Result___vervet_internal_configuration_RegisteredServer_ {
+	export interface Result___string_ {
 	    isSuccess: boolean;
-	    data: configuration.RegisteredServer[];
+	    data: string[];
+	    error: string;
+	}
+	export interface Result___vervet_internal_servers_RegisteredServer_ {
+	    isSuccess: boolean;
+	    data: servers.RegisteredServer[];
+	    error: string;
+	}
+	export interface Result___vervet_internal_settings_Font_ {
+	    isSuccess: boolean;
+	    data: settings.Font[];
 	    error: string;
 	}
 	export interface Result_string_ {
@@ -29,16 +39,88 @@ export namespace api {
 	    data: OperatingSystem;
 	    error: string;
 	}
+	export interface Result_vervet_internal_connections_Connection_ {
+	    isSuccess: boolean;
+	    // Go type: connections
+	    data: any;
+	    error: string;
+	}
+	export interface Result_vervet_internal_servers_RegisteredServer_ {
+	    isSuccess: boolean;
+	    data: servers.RegisteredServer;
+	    error: string;
+	}
+	export interface Result_vervet_internal_settings_Settings_ {
+	    isSuccess: boolean;
+	    data: settings.Settings;
+	    error: string;
+	}
+	export interface Result_vervet_internal_settings_WindowState_ {
+	    isSuccess: boolean;
+	    data: settings.WindowState;
+	    error: string;
+	}
 
 }
 
-export namespace configuration {
+export namespace servers {
 	
 	export interface RegisteredServer {
-	    id: number;
+	    id: string;
 	    name: string;
-	    parentId: number;
 	    isGroup: boolean;
+	    parentID?: string;
+	    color: string;
+	}
+
+}
+
+export namespace settings {
+	
+	export interface FontSettings {
+	    family: string;
+	    size: number;
+	    name: string;
+	}
+	export interface EditorSettings {
+	    lineNumbers: boolean;
+	    font: FontSettings;
+	}
+	export interface Font {
+	    name: string;
+	    path: string;
+	}
+	
+	export interface GeneralSettings {
+	    theme: string;
+	    language: string;
+	    font: FontSettings;
+	}
+	export interface TerminalSettings {
+	    font: FontSettings;
+	    cursorStyle: string;
+	}
+	export interface WindowSettings {
+	    width: number;
+	    height: number;
+	    asideWidth: number;
+	    maximized: boolean;
+	    positionX: number;
+	    positionY: number;
+	}
+	export interface Settings {
+	    window: WindowSettings;
+	    general: GeneralSettings;
+	    editor: EditorSettings;
+	    terminal: TerminalSettings;
+	}
+	
+	
+	export interface WindowState {
+	    width: number;
+	    height: number;
+	    x: number;
+	    y: number;
 	}
 
 }
