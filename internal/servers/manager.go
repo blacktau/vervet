@@ -6,90 +6,141 @@ import (
 	"fmt"
 	"log"
 	"sync"
-	"vervet/internal/configuration"
+	"vervet/internal/connectionStrings"
 
+	"github.com/google/uuid"
 	"github.com/wailsapp/wails/v2/pkg/logger"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
-// ServerManager manages MongoDB server registeredServer strings
-type ServerManager struct {
-	ctx        context.Context
-	settingsDB *configuration.SettingsDatabase
-	mu         sync.RWMutex
-	log        logger.Logger
+type Manager interface {
+	Init(ctx context.Context) error
+	GetServers() ([]RegisteredServer, error)
+	AddServer(parentID, name, uri string) error
+	UpdateServer(serverID, name, uri, parentID string) error
+	RemoveNode(id string) error
+	GetURI(id string) (string, error)
+	CreateGroup(parentID string, name string) error
+	UpdateGroup(groupID string, name string) error
+	GetServer(id string) (*RegisteredServer, error)
 }
 
-func NewRegisteredServerManager(log logger.Logger) *ServerManager {
-	return &ServerManager{
-		log: log,
-		mu:  sync.RWMutex{},
+// ServerManagerImpl manages MongoDB server registeredServer strings
+type ServerManagerImpl struct {
+	ctx               context.Context
+	store             ServerStore
+	connectionStrings connectionStrings.Store
+	mu                sync.RWMutex
+	log               logger.Logger
+}
+
+func NewManager(log logger.Logger) Manager {
+	return &ServerManagerImpl{
+		log:               log,
+		mu:                sync.RWMutex{},
+		connectionStrings: connectionStrings.NewStore(),
 	}
 }
 
 // Init initializes the manager.
-func (cm *ServerManager) Init(ctx context.Context) error {
-	database, err := configuration.NewSettingsDatabase()
+func (sm *ServerManagerImpl) Init(ctx context.Context) error {
+	sm.ctx = ctx
+
+	store, err := NewServerStore(sm.log)
+
 	if err != nil {
-		return err
+		_, _ = runtime.MessageDialog(ctx, runtime.MessageDialogOptions{
+			Type:    runtime.ErrorDialog,
+			Title:   "Unrecoverable Error in Vervet",
+			Message: fmt.Sprintf("Error: %v", err),
+		})
+		panic(err)
 	}
 
-	cm.settingsDB = database
+	sm.store = store
 	return nil
 }
 
-// GetRegisteredServers returns the list of registeredServers and groups for the tree of connections
-func (cm *ServerManager) GetRegisteredServers() ([]configuration.RegisteredServer, error) {
-	registeredServers, err := cm.settingsDB.GetRegisteredServersTree()
+// GetServers returns the list of registeredServers and groups for the tree of connections
+func (sm *ServerManagerImpl) GetServers() ([]RegisteredServer, error) {
+	registeredServers, err := sm.store.LoadServers()
 	if err != nil {
 		return nil, fmt.Errorf("error getting RegisteredServers: %w", err)
 	}
 	return registeredServers, nil
 }
 
-// CreateGroup creates a new group node.
-func (cm *ServerManager) CreateGroup(parentID int, name string) error {
-	_, err := cm.settingsDB.CreateGroup(parentID, name)
+func (sm *ServerManagerImpl) GetServer(id string) (*RegisteredServer, error) {
+	registeredServers, err := sm.store.LoadServers()
 	if err != nil {
-		return fmt.Errorf("failed to create Server Group: %w", err)
+		return nil, fmt.Errorf("error getting RegisteredServers: %w", err)
 	}
-
-	return nil
+	for _, server := range registeredServers {
+		if server.ID == id {
+			return &server, nil
+		}
+	}
+	return nil, fmt.Errorf("server with ID %s not found", id)
 }
 
-func (cm *ServerManager) UpdateGroup(groupID, parentID int, name string) error {
-	err := cm.settingsDB.UpdateGroup(groupID, parentID, name)
-	if err != nil {
-		return fmt.Errorf("failed to update server group: %w", err)
+// AddServer saves the metadata and the URI securely.
+func (sm *ServerManagerImpl) AddServer(parentID, name, uri string) error {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	servers, err := sm.store.LoadServers()
+
+	newId := uuid.New().String()
+
+	parent, _ := findServer(parentID, servers)
+	if parent == nil {
+		return fmt.Errorf("failed to find parent group for ID %s", parentID)
 	}
 
-	return nil
-}
+	servers = append(servers, RegisteredServer{
+		ID:       newId,
+		Name:     name,
+		ParentID: parentID,
+		IsGroup:  false,
+	})
 
-// AddRegisterServer saves the metadata and the URI securely.
-func (cm *ServerManager) AddRegisterServer(parentID int, name, uri string) error {
-	registeredServerID, err := cm.settingsDB.SaveRegisteredServer(parentID, name)
+	err = sm.connectionStrings.StoreRegisteredServerURI(newId, uri)
 	if err != nil {
-		return fmt.Errorf("failed to save registered server metadata: %w", err)
-	}
-
-	err = configuration.StoreRegisteredServerURI(registeredServerID, uri)
-	if err != nil {
-		_ = cm.settingsDB.DeleteNode(int(registeredServerID))
 		return fmt.Errorf("failed to securely store registeredServer URI: %w", err)
 	}
 
+	err = sm.store.SaveServers(servers)
+	if err != nil {
+		_ = sm.connectionStrings.DeleteRegisteredServerURI(newId)
+		return fmt.Errorf("failed to save registered servers: %w", err)
+	}
 	return nil
 }
 
-func (cm *ServerManager) UpdateRegisterServer(registeredServerID, parentID int, name, uri string) error {
-	err := cm.settingsDB.UpdateRegisteredServer(registeredServerID, parentID, name)
+func (sm *ServerManagerImpl) UpdateServer(serverID, name, uri, parentID string) error {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	servers, err := sm.store.LoadServers()
+	if err != nil {
+		return fmt.Errorf("failed to load registered servers: %w", err)
+	}
+
+	server, _ := findServer(serverID, servers)
+	if server == nil {
+		return fmt.Errorf("failed to find registered server with ID %s", serverID)
+	}
+
+	server.Name = name
+	server.ParentID = parentID
+
+	err = sm.store.SaveServers(servers)
 	if err != nil {
 		return fmt.Errorf("failed to save registered server metadata: %w", err)
 	}
 
-	err = configuration.StoreRegisteredServerURI(registeredServerID, uri)
+	err = sm.connectionStrings.StoreRegisteredServerURI(serverID, uri)
 	if err != nil {
-		_ = cm.settingsDB.DeleteNode(int(registeredServerID))
 		return fmt.Errorf("failed to securely store registeredServer URI: %w", err)
 	}
 
@@ -97,27 +148,74 @@ func (cm *ServerManager) UpdateRegisterServer(registeredServerID, parentID int, 
 }
 
 // RemoveNode removes a group or registeredServer and its uri
-func (cm *ServerManager) RemoveNode(id int, isgroup bool) error {
-	err := cm.settingsDB.DeleteNode(id)
+func (sm *ServerManagerImpl) RemoveNode(id string) error {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	servers, err := sm.store.LoadServers()
+	if err != nil {
+		return fmt.Errorf("failed to load registered servers: %w", err)
+	}
+
+	node, idx := findServer(id, servers)
+	if node == nil {
+		return fmt.Errorf("failed to find registered server with ID %s", id)
+	}
+
+	if node.IsGroup && hasChildren(node.ID, servers) {
+		return fmt.Errorf("cannot remove node %s from registered servers: still contains children", node.ID)
+	}
+
+	servers = append(servers[:idx], servers[idx+1:]...)
+
+	err = sm.store.SaveServers(servers)
 	if err != nil {
 		return fmt.Errorf("failed to delete node: %w", err)
 	}
 
-	if !isgroup {
-		err := configuration.DeleteRegisteredServerURI(id)
+	if !node.IsGroup {
+		err := sm.connectionStrings.DeleteRegisteredServerURI(id)
 		if err != nil {
-			log.Printf("Warning: Failed to delete keyring entry for ID %d: %v", id, err)
+			log.Printf("Warning: Failed to delete keyring entry for ID %s: %v", id, err)
 		}
 	}
 
 	return nil
 }
 
-func (cm *ServerManager) GetURI(id int) (string, error) {
-	uri, err := configuration.GetRegisteredServerURI(id)
+func (sm *ServerManagerImpl) GetURI(id string) (string, error) {
+	uri, err := sm.connectionStrings.GetRegisteredServerURI(id)
 	if err != nil {
 		return "", fmt.Errorf("failed to get uri for registered server: %w", err)
 	}
 
 	return uri, nil
+}
+
+func findServer(serverId string, servers []RegisteredServer) (*RegisteredServer, int) {
+	if len(servers) == 0 {
+		return nil, -1
+	}
+
+	for idx, server := range servers {
+		if server.ID == serverId {
+			return &servers[idx], idx
+		}
+	}
+
+	return nil, -1
+}
+
+func hasChildren(parentId string, servers []RegisteredServer) bool {
+	if len(servers) == 0 {
+		return false
+	}
+
+	for _, server := range servers {
+		if server.ParentID == parentId {
+			return true
+		}
+	}
+
+	return false
 }

@@ -16,7 +16,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options/windows"
 )
 
-//go:embed all:frontend/dist/spa
+//go:embed all:frontend/dist
 var assets embed.FS
 
 //go:embed build/appicon.png
@@ -60,6 +60,7 @@ func main() {
 			application.ServersProxy,
 			application.ConnectionsProxy,
 			application.SystemProxy,
+			application.SettingsProxy,
 		},
 		EnumBind: []any{
 			api.AllOperatingSystems,
