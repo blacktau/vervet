@@ -42,7 +42,7 @@ export const useDialogStore = defineStore('dialog', {
     } as Record<DialogType, DialogState>,
   }),
   actions: {
-    openNewDialog(dialog: DialogType, data?: unknown) {
+    showNewDialog(dialog: DialogType, data?: unknown) {
       if (!this.dialogs[dialog]) {
         this.dialogs[dialog] = {
           visible: true,
@@ -57,7 +57,7 @@ export const useDialogStore = defineStore('dialog', {
       this.dialogs[dialog].type = DialogMode.New
       this.dialogs[dialog].data = data
     },
-    closeDialog(dialog: DialogType) {
+    hide(dialog: DialogType) {
       if (!this.dialogs[dialog]) {
         return
       }
@@ -67,7 +67,7 @@ export const useDialogStore = defineStore('dialog', {
         type: DialogMode.New
       }
     },
-    openEditDialog<T>(dialog: DialogType, data: T) {
+    showEditDialog<T>(dialog: DialogType, data: T) {
       if (!this.dialogs[dialog]) {
         this.dialogs[dialog] = {
           visible: true,
@@ -81,44 +81,44 @@ export const useDialogStore = defineStore('dialog', {
       this.dialogs[dialog].type = DialogMode.Edit
       this.dialogs[dialog].data = data
     },
-    openNewServerDialog() {
-      this.openNewDialog(DialogType.Server, undefined)
+    showNewServerDialog() {
+      this.showNewDialog(DialogType.Server, undefined)
     },
-    async openServerEditDialog(serverId: string) {
-      this.openEditDialog(DialogType.Server, {
+    async showServerEditDialog(serverId: string) {
+      this.showEditDialog(DialogType.Server, {
         serverId: serverId,
         mode: 'edit',
       })
     },
-    async openCloneServerDialog(serverID: string) {
-      this.openEditDialog(DialogType.Server, {
+    async showCloneServerDialog(serverID: string) {
+      this.showEditDialog(DialogType.Server, {
         serverId: serverID,
         mode: 'clone',
       })
     },
     openNewGroupDialog() {
-      this.openNewDialog(DialogType.Group, undefined)
+      this.showNewDialog(DialogType.Group, undefined)
     },
     closeNewGroupDialog() {
-      this.closeDialog(DialogType.Group)
+      this.hide(DialogType.Group)
     },
     openSettingsDialog(tag: string = '') {
-      this.openNewDialog(DialogType.Settings, tag)
+      this.showNewDialog(DialogType.Settings, tag)
     },
     closeSettingsDialog() {
-      this.closeDialog(DialogType.Settings)
+      this.hide(DialogType.Settings)
     },
     openAboutDialog() {
-      this.openNewDialog(DialogType.About)
+      this.showNewDialog(DialogType.About)
     },
     closeAboutDialog() {
-      this.closeDialog(DialogType.About)
+      this.hide(DialogType.About)
     },
     openRenameGroupDialog(groupId: string) {
-      this.openEditDialog(DialogType.Group, groupId)
+      this.showEditDialog(DialogType.Group, groupId)
     },
     closeRenameGroupDialog() {
-      this.closeDialog(DialogType.Group)
+      this.hide(DialogType.Group)
     }
   },
   getters: {
@@ -129,6 +129,18 @@ export const useDialogStore = defineStore('dialog', {
       }
 
       return dialog.data as ServerDialogData
+    },
+    isVisible(state) {
+      return (dialog: DialogType) => {
+        return state.dialogs[dialog].visible
+      }
+    },
+    getDialogData(state) {
+      return <T>(dialog: DialogType): T | undefined => {
+        const data = state.dialogs[dialog].data as T | undefined
+        return data
+      }
     }
+
   },
 })

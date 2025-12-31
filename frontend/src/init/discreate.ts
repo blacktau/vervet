@@ -1,4 +1,4 @@
-import { useSettingsStore } from '@/stores/settings'
+import { useSettingsStore } from '@/features/settings/settings.ts'
 import { computed, type VNodeChild } from 'vue'
 import { createDiscreteApi, darkTheme, type DialogOptions, type MessageOptions, type NotificationReactive } from 'naive-ui'
 import { type MessageApiInjection  } from 'naive-ui/lib/message/src/MessageProvider'

@@ -2,10 +2,10 @@
 import { useThemeVars } from 'naive-ui'
 import { computed } from 'vue'
 import * as runtime from 'wailsjs/runtime/runtime'
-import WindowMin from '@/components/icon/WindowMin.vue'
-import WindowRestore from '@/components/icon/WindowRestore.vue'
-import WindowMax from '@/components/icon/WindowMax.vue'
-import WindowClose from '@/components/icon/WindowClose.vue'
+import WindowMin from '@/features/icon/WindowMin.vue'
+import WindowRestore from '@/features/icon/WindowRestore.vue'
+import WindowMax from '@/features/icon/WindowMax.vue'
+import WindowClose from '@/features/icon/WindowClose.vue'
 
 const themeVars = useThemeVars()
 const props = withDefaults(defineProps<{

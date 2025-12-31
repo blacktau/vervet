@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import IconButton from '@/components/common/IconButton.vue'
+import IconButton from '@/features/common/IconButton.vue'
 import {
   ArrowDownOnSquareIcon,
   ArrowPathIcon,

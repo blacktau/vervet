@@ -71,6 +71,8 @@ export namespace servers {
 	    isGroup: boolean;
 	    parentID?: string;
 	    color: string;
+	    isCluster: boolean;
+	    isSrv: boolean;
 	}
 
 }

@@ -3,7 +3,7 @@ import { type TabItem } from '@/types/TabItem'
 import { useDialoger } from '@/utils/dialog'
 import { i18nGlobal } from '@/i18n'
 import { find, findIndex, set } from 'lodash'
-import { useDataBrowserStore } from '@/components/data-browser/browserStore.ts'
+import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 
 interface TabStoreState {
   nav?: string

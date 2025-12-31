@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { parseUri } from '@/components/server-pane/connectionStrings.ts'
+import { parseUri } from '@/features/server-pane/connectionStrings.ts'
 import InvalidUriScenarios from './scenarios/invalid-uris.json' with { type: 'json' }
 import ValidAuthScenarios from './scenarios/valid-auth.json' with { type: 'json' }
 import ValidDbWithDottedNameScenarios from './scenarios/valid-db-with-dotted-name.json' with { type: 'json' }

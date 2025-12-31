@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { computed, h, reactive, ref } from 'vue'
 import dayjs from 'dayjs'
 import { map, size, split, uniqBy } from 'lodash'
-import IconButton from '@/components/common/IconButton.vue'
+import IconButton from '@/features/common/IconButton.vue'
 import { ArrowPathIcon, TrashIcon } from '@heroicons/vue/24/outline'
 
 interface CmdHistoryItem {

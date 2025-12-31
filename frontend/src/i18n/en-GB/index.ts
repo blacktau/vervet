@@ -18,6 +18,16 @@ export default {
     unit_minute: 'm',
     unit_second: 's',
     all: 'All',
+    deleteTooltip: '{type} "{name}" will be deleted',
+    dialog: {
+      fieldRequired: 'required',
+      illegalCharacters: 'Illegal characters',
+      handleSuccess: 'Operation Successful',
+      handleCancel: 'Operation cancelled',
+      connecting: 'Connecting...',
+      closeConfirm: 'Disconnect from {name]?',
+      cancelConnecting: 'Cancel',
+    },
   },
   settings: {
     name: 'Settings',
@@ -62,45 +72,7 @@ export default {
       about: 'About',
     },
   },
-  dialog: {
-    common: {
-      fieldRequired: 'required',
-      illegalCharacters: 'Illegal characters',
-      handleSuccess: 'Operation Successful',
-      handleCancel: 'Operation cancelled',
-    },
-    closeConfirm: 'Close this connection ({name])?',
-    deleteTooltip: '{type} "{name}" will be deleted',
-    deleteGroupTooltip: 'Group "{name}" and all its Servers will be deleted',
-    connecting: 'Connecting...',
-    cancelConnecting: 'Cancel',
-    about: {
-      source: 'Source Code',
-    },
-    server: {
-      newTitle: 'Add Server',
-      nameTip: 'Server Name',
-      noGroup: 'No Group',
-      editTitle: 'Edit Server',
-      generalTab: 'General',
-      name: 'Name',
-      group: 'Group',
-      connectionString: 'Connection String',
-      connectionStringTip:
-        'mongodb://[username:password@]host1[:port1][,...hostN[:portN]][/[defaultauthdb][?options]]',
-      test: 'Test Connection',
-      testFailure: 'Failed to connect to server',
-      testSuccess: 'Successfully connected to server',
-    },
-  },
-  interface: {
-    serverPane: {
-      importServers: 'Import Servers...',
-      exportServers: 'Export Servers...',
-      addServer: 'Add Server',
-      addGroup: 'Add Group',
-      filter: 'Filter',
-    },
+  serverPane: {
     serverTree: {
       renameGroup: 'Rename Group',
       deleteGroup: 'Delete Group',
@@ -112,6 +84,48 @@ export default {
       editDisconnectConfirmation:
         'Relevant open connections must be closed before editing. Continue?',
       empty: 'No Mongo Servers Added',
+      deleteGroupTooltip: 'Group "{name}" and all its Servers will be deleted',
+    },
+    dialogs: {
+      common: {
+        noGroup: 'No Group',
+
+
+      },
+      server: {
+        newTitle: 'Add Server',
+        nameTip: 'Server Name',
+        editTitle: 'Edit Server',
+        generalTab: 'General',
+        name: 'Name',
+        group: 'Group',
+        connectionString: 'Connection String',
+        connectionStringTip:
+          'mongodb://[username:password@]host1[:port1][,...hostN[:portN]][/[defaultauthdb][?options]]',
+        test: 'Test Connection',
+        testFailure: 'Failed to connect to server',
+        testSuccess: 'Successfully connected to server',
+      },
+      group: {
+        edit: 'Edit Group',
+        new: 'New Group',
+        name: 'Name',
+        namePlaceholder: 'Group Name',
+        delete: 'Delete Group',
+        deleteConfirmation: 'Group "{name}" and all its Servers will be deleted',
+      },
+    },
+    importServers: 'Import Servers...',
+    exportServers: 'Export Servers...',
+    addServer: 'Add Server',
+    addGroup: 'Add Group',
+    filter: 'Filter',
+    typeName: 'Server',
+  },
+  dialog: {
+    common: {},
+    about: {
+      source: 'Source Code',
     },
   },
   uriParser: {
