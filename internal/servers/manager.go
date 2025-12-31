@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/wailsapp/wails/v2/pkg/logger"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"go.mongodb.org/mongo-driver/v2/x/mongo/driver/connstring"
 )
 
 type Manager interface {
@@ -94,14 +95,24 @@ func (sm *ServerManagerImpl) AddServer(parentID, name, uri string) error {
 
 	parent, _ := findServer(parentID, servers)
 	if parent == nil {
-		return fmt.Errorf("failed to find parent group for ID %s", parentID)
+		parentID = ""
 	}
 
+	connString, err := connstring.Parse(uri)
+	if err != nil {
+		return fmt.Errorf("failed to parse connection string: %w", err)
+	}
+
+	isCluster := connString.Hosts != nil && len(connString.Hosts) > 1
+	isSrv := connString.Scheme == connstring.SchemeMongoDBSRV
+
 	servers = append(servers, RegisteredServer{
-		ID:       newId,
-		Name:     name,
-		ParentID: parentID,
-		IsGroup:  false,
+		ID:        newId,
+		Name:      name,
+		ParentID:  parentID,
+		IsGroup:   false,
+		IsCluster: isCluster,
+		IsSrv:     isSrv,
 	})
 
 	err = sm.connectionStrings.StoreRegisteredServerURI(newId, uri)

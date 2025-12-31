@@ -1,16 +1,17 @@
 <script setup lang="ts">
-import { useSettingsStore } from '@/stores/settings'
+import { useSettingsStore } from '@/features/settings/settings.ts'
 import { useI18n } from 'vue-i18n'
 import { onMounted, ref, watch } from 'vue'
 import * as runtime from 'wailsjs/runtime'
 import { WindowSetDarkTheme, WindowSetLightTheme } from 'wailsjs/runtime'
 import { darkTheme, type NLocale } from 'naive-ui'
 import { darkThemeOverrides, themeOverrides } from '@/utils/theme'
-import { useServerStore } from '@/components/server-pane/serverStore.ts'
+import { useServerStore } from '@/features/server-pane/serverStore.ts'
 import AppContent from '@/app/AppContent.vue'
-import AboutDialog from '@/dialogs/AboutDialog.vue'
-import GroupDialog from '@/dialogs/GroupDialog.vue'
-import ServerDialog from '@/components/server-pane/ServerDialog.vue'
+import AboutDialog from '@/features/about/AboutDialog.vue'
+import GroupDialog from '@/features/server-pane/GroupDialog.vue'
+import ServerDialog from '@/features/server-pane/ServerDialog.vue'
+import SettingsDialog from '@/features/settings/SettingsDialog.vue'
 
 const settingsStore = useSettingsStore()
 const serverStore = useServerStore()

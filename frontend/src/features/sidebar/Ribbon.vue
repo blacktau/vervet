@@ -2,12 +2,11 @@
 import { type DropdownOption, useThemeVars } from 'naive-ui'
 import { useRender } from '@/utils/render'
 import { computed } from 'vue'
-import { useDataBrowserStore } from '@/components/data-browser/browserStore.ts'
+import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 import { useDialogStore } from '@/stores/dialog'
-import { useSettingsStore } from '@/stores/settings'
+import { useSettingsStore } from '@/features/settings/settings.ts'
 import * as runtime from 'wailsjs/runtime'
-import IconButton from '@/components/common/IconButton.vue'
-import Github from '@/components/icon/Github.vue'
+import IconButton from '@/features/common/IconButton.vue'
 import { extraTheme } from '@/utils/extraTheme'
 import {
   BugAntIcon,
@@ -16,6 +15,8 @@ import {
   ServerIcon,
   WrenchScrewdriverIcon,
 } from '@heroicons/vue/24/outline'
+
+import Github from '@/features/icon/Github.vue'
 
 const themeVars = useThemeVars()
 const render = useRender()

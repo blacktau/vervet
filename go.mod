@@ -8,6 +8,7 @@ require (
 	github.com/adrg/sysfont v0.1.2
 	github.com/stretchr/testify v1.11.1
 	github.com/wailsapp/wails/v2 v2.10.2
+	go.mongodb.org/mongo-driver/v2 v2.4.1
 	gopkg.in/yaml.v3 v3.0.1
 )
 

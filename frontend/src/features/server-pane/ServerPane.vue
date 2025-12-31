@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { useThemeVars } from 'naive-ui'
 import { useDialogStore } from '@/stores/dialog.ts'
-import { useServerStore } from '@/components/server-pane/serverStore.ts'
+import { useServerStore } from '@/features/server-pane/serverStore.ts'
 import { useRender } from '@/utils/render.ts'
 import { ref } from 'vue'
-import IconButton from '@/components/common/IconButton.vue'
-import ServerTree from '@/components/server-pane/ServerTree.vue'
+import IconButton from '@/features/common/IconButton.vue'
+import ServerTree from '@/features/server-pane/ServerTree.vue'
 import {
   ArrowRightEndOnRectangleIcon,
   ArrowRightStartOnRectangleIcon,
@@ -57,7 +57,7 @@ const onSelectOptions = async (select: string) => {
         :stroke-width="3.5"
         size="20"
         t-tooltip="interface.serverPane.addServer"
-        @click="dialogStore.openNewServerDialog()" />
+        @click="dialogStore.showNewServerDialog()" />
       <icon-button
         :button-class="['nav-pane-func-btn']"
         :icon="FolderPlusIcon"

@@ -16,11 +16,13 @@ type Store struct {
 }
 
 type RegisteredServer struct {
-	ID       string `json:"id" yaml:"id"`
-	Name     string `json:"name" yaml:"name"`
-	IsGroup  bool   `json:"isGroup" yaml:"isGroup"`
-	ParentID string `json:"parentID,omitempty" yaml:"parentID,omitempty"`
-	Color    string `json:"color" yaml:"color"`
+	ID        string `json:"id" yaml:"id"`
+	Name      string `json:"name" yaml:"name"`
+	IsGroup   bool   `json:"isGroup" yaml:"isGroup"`
+	ParentID  string `json:"parentID,omitempty" yaml:"parentID,omitempty"`
+	Color     string `json:"color" yaml:"color"`
+	IsCluster bool   `json:"isCluster" yaml:"isCluster"`
+	IsSrv     bool   `json:"isSrv" yaml:"isSrv"`
 }
 
 //type ConnectionType int

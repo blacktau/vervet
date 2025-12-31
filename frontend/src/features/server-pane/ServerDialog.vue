@@ -1,14 +1,15 @@
 <script setup lang="ts">
 import { type FormInst, type FormRules, type TreeSelectOption, useThemeVars } from 'naive-ui'
 import { DialogType, useDialogStore } from '@/stores/dialog.ts'
-import { useDataBrowserStore } from '@/components/data-browser/browserStore.ts'
-import { type RegisteredServerNode, useServerStore } from '@/components/server-pane/serverStore.ts'
+import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
+import { useServerStore } from '@/features/server-pane/serverStore.ts'
 import { useI18n } from 'vue-i18n'
 import { computed, nextTick, ref, watch } from 'vue'
 import { every, includes, isEmpty } from 'lodash'
 import { useMessager, useNotifier } from '@/utils/dialog.ts'
 import * as connectionsProxy from 'wailsjs/go/api/ConnectionsProxy'
-import { parseUri } from '@/components/server-pane/connectionStrings.ts'
+import { parseUri } from '@/features/server-pane/connectionStrings.ts'
+import { filterGroupMap } from '@/features/server-pane/helpers.ts'
 
 type EditableRegisteredServer = {
   id: string
@@ -39,7 +40,7 @@ const generalFormRef = ref<FormInst | undefined>(undefined)
 const testing = ref(false)
 
 const generalFormRules = () => {
-  const requiredMsg = i18n.t('dialog.common.fieldRequired')
+  const requiredMsg = i18n.t('common.dialog.fieldRequired')
   const illegalChars = ['/', '\\']
   return {
     name: [
@@ -48,7 +49,7 @@ const generalFormRules = () => {
         validator: (rule, value) => {
           return every(illegalChars, (c) => !includes(value, c))
         },
-        message: i18n.t('dialog.common.illegalCharacters'),
+        message: i18n.t('common.dialog.illegalCharacters'),
         trigger: 'input',
       },
     ],
@@ -107,52 +108,28 @@ const onSaveServer = async () => {
     }
   }
 
-  messager.success(i18n.t('dialog.common.handleSuccess'))
+  messager.success(i18n.t('common.dialog.handleSuccess'))
   onClose()
-}
-
-const mapNode = (node: RegisteredServerNode) => {
-  if (!node.isGroup) {
-    return undefined
-  }
-
-  const children: TreeSelectOption[] = []
-  for (let i = 0, ln = node.children.length; i < ln; ++i) {
-    if (!node.children[i]?.isGroup) {
-      continue
-    }
-
-    const child = mapNode(node.children[i]!)
-    if (child) {
-      children.push(child)
-    }
-  }
-
-  return {
-    label: node.name,
-    key: node.id,
-    children: children,
-  } as TreeSelectOption
 }
 
 const groupOptions = computed(() => {
   const nodes = serverStore.serverTree
   const options: TreeSelectOption[] = []
   for (let i = 0, ln = nodes.length; i < ln; ++i) {
-    const option = mapNode(nodes[i]!)
+    const option = filterGroupMap(nodes[i]!)
     if (!!option) {
       options.push(option)
     }
   }
   options.splice(0, 0, {
-    label: i18n.t('dialog.server.noGroup'),
+    label: i18n.t('serverPane.dialogs.common.noGroup'),
     key: '',
   })
   return options
 })
 
 const onClose = () => {
-  dialogStore.closeDialog(DialogType.Server)
+  dialogStore.hide(DialogType.Server)
 }
 
 const resetForm = () => {
@@ -194,10 +171,10 @@ const onTestConnection = async () => {
   const notifier = useNotifier()
   if (!isEmpty(testingResult)) {
     notifier.error(testingResult, {
-      title: i18n.t('dialog.server.testFailure'),
+      title: i18n.t('serverPane.dialogs.server.testFailure'),
     })
   } else {
-    notifier.success(i18n.t('dialog.server.testSuccess'))
+    notifier.success(i18n.t('serverPane.dialogs.server.testSuccess'))
   }
   showTestResult.value = true
 }
@@ -210,7 +187,7 @@ const onTestConnection = async () => {
     :mask-closable="false"
     :on-after-leave="resetForm"
     :show-icon="false"
-    :title="isEditMode ? $t('dialog.server.editTitle') : $t('dialog.server.newTitle')"
+    :title="isEditMode ? $t('serverPane.dialogs.server.editTitle') : $t('serverPane.dialogs.server.newTitle')"
     close-on-esc
     preset="dialog"
     style="width: 600px"
@@ -225,7 +202,7 @@ const onTestConnection = async () => {
         tab-style="justify-content: right; font-weight: 420;"
         type="line">
         <n-tab-pane
-          :tab="$t('dialog.server.generalTab')"
+          :tab="$t('serverPane.dialogs.server.generalTab')"
           display-directive="show:lazy"
           name="general">
           <n-form
@@ -235,26 +212,26 @@ const onTestConnection = async () => {
             :show-require-mark="false"
             label-placement="top">
             <n-grid :x-gap="10">
-              <n-form-item-gi :label="$t('dialog.server.name')" :span="24" path="name" required>
+              <n-form-item-gi :label="$t('serverPane.dialogs.server.name')" :span="24" path="name" required>
                 <n-input
                   v-model:value="generalForm.name"
-                  :placeholder="$t('dialog.server.nameTip')" />
+                  :placeholder="$t('serverPane.dialogs.server.nameTip')" />
               </n-form-item-gi>
               <n-form-item-gi
                 v-if="!isEditMode"
-                :label="$t('dialog.server.group')"
+                :label="$t('serverPane.dialogs.server.group')"
                 :span="24"
                 required>
                 <n-tree-select :options="groupOptions" v-model:value="generalForm.parentId" />
               </n-form-item-gi>
               <n-form-item-gi
-                :label="$t('dialog.server.connectionString')"
+                :label="$t('serverPane.dialogs.server.connectionString')"
                 :span="24"
                 path="connectionString"
                 required>
                 <n-input
                   v-model:value="generalForm.connectionString"
-                  :placeholder="$t('dialog.server.connectionStringTip')" />
+                  :placeholder="$t('serverPane.dialogs.server.connectionStringTip')" />
               </n-form-item-gi>
             </n-grid>
           </n-form>
@@ -283,7 +260,7 @@ const onTestConnection = async () => {
           :focusable="false"
           :loading="testing"
           @click="onTestConnection">
-          {{ $t('dialog.server.test') }}
+          {{ $t('serverPane.dialogs.server.test') }}
         </n-button>
       </div>
       <div class="flex-item n-dialog__action">
@@ -295,7 +272,7 @@ const onTestConnection = async () => {
           :focusable="false"
           type="primary"
           @click="onSaveServer">
-          {{ isEditMode ? $t('settings.general.update') : $t('common.confirm') }}
+          {{ isEditMode ? $t('common.update') : $t('common.confirm') }}
         </n-button>
       </div>
     </template>

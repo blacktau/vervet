@@ -1,18 +1,18 @@
 <script lang="ts" setup>
-import { type DropdownOption, NIcon, NSpace, NText, useThemeVars } from 'naive-ui'
+import { type DropdownOption, NIcon, NSpace, NText, type TreeOption, useThemeVars } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import { useRender } from '@/utils/render.ts'
-import { h, nextTick, reactive, ref, type VNodeArrayChildren } from 'vue'
-import { useServerStore } from '@/components/server-pane/serverStore.ts'
-import { useDataBrowserStore } from '@/components/data-browser/browserStore.ts'
+import { computed, h, nextTick, reactive, ref, type VNodeArrayChildren } from 'vue'
+import { type RegisteredServerNode, useServerStore } from '@/features/server-pane/serverStore.ts'
+import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 import { useTabStore } from '@/stores/tabs.ts'
-import { useSettingsStore } from '@/stores/settings.ts'
-import { DialogType, useDialogStore } from '@/stores/dialog.ts'
+import { useSettingsStore } from '@/features/settings/settings.ts'
+import { useDialogStore } from '@/stores/dialog.ts'
 import { includes, indexOf, isEmpty } from 'lodash'
 import { useDialoger, useMessager } from '@/utils/dialog.ts'
-import PlugConnected from '@/components/icon/PlugConnected.vue'
+import PlugConnected from '@/features/icon/PlugConnected.vue'
 import { hexGammaCorrection, parseHexColor, toHexColor } from '@/utils/colours.ts'
-import IconButton from '@/components/common/IconButton.vue'
+import IconButton from '@/features/common/IconButton.vue'
 import {
   Cog8ToothIcon,
   DocumentDuplicateIcon,
@@ -22,7 +22,9 @@ import {
   ServerStackIcon,
   TrashIcon,
 } from '@heroicons/vue/24/outline'
-import PlugDisconnected from '@/components/icon/PlugDisconnected.vue'
+
+import PlugDisconnected from '@/features/icon/PlugDisconnected.vue'
+import SrvIcon from '@/features/icon/SrvIcon.vue'
 
 enum ServerNodeType {
   Group = 0,
@@ -72,12 +74,12 @@ const menuOptions = {
   [ServerNodeType.Group]: () => [
     {
       key: MenuKeys.GroupRename,
-      label: 'interface.serverTree.renameGroup',
+      label: 'serverPane.serverTree.renameGroup',
       icon: PencilSquareIcon,
     },
     {
       key: MenuKeys.GroupDelete,
-      label: 'interface.serverTree.deleteGroup',
+      label: 'serverPane.serverTree.deleteGroup',
       icon: TrashIcon,
     },
   ],
@@ -85,12 +87,12 @@ const menuOptions = {
     const common = [
       {
         key: MenuKeys.ServerEdit,
-        label: 'interface.serverTree.editServer',
+        label: 'serverPane.serverTree.editServer',
         icon: Cog8ToothIcon,
       },
       {
         key: MenuKeys.ServerClone,
-        label: 'interface.serverTree.cloneServer',
+        label: 'serverPane.serverTree.cloneServer',
         icon: DocumentDuplicateIcon,
       },
       {
@@ -99,7 +101,7 @@ const menuOptions = {
       },
       {
         key: MenuKeys.ServerDelete,
-        label: 'interface.serverTree.deleteServer',
+        label: 'serverPane.serverTree.deleteServer',
         icon: TrashIcon,
       },
     ]
@@ -109,7 +111,7 @@ const menuOptions = {
       return [
         {
           key: MenuKeys.ServerDisconnect,
-          label: 'interface.serverTree.disconnect',
+          label: 'serverPane.serverTree.disconnect',
           icon: PlugDisconnected,
         },
         ...common,
@@ -118,7 +120,7 @@ const menuOptions = {
       return [
         {
           key: MenuKeys.ServerConnect,
-          label: 'interface.serverTree.connectServer',
+          label: 'serverPane.serverTree.connectServer',
           icon: PlugConnected,
         },
         ...common,
@@ -130,9 +132,44 @@ const menuOptions = {
 const expandedKeys = ref<string[]>([])
 const selectedKeys = ref<string[]>([])
 
-const getServerMarkColor = (serverId: string) => {
-  const server = serverStore.findServerById(serverId)
-  if (!server || server.color.length == 0) {
+
+type ServerTreeNode = TreeOption & {
+  type: ServerNodeType
+  isSrv?: boolean
+  isCluster?: boolean
+  color?: string
+  path: string
+}
+
+const mapNode = (node: RegisteredServerNode, path: string = ''): ServerTreeNode => {
+  if (node.isGroup) {
+    const thisPath = `${path}/${node.id}`
+    return {
+      key: node.id,
+      label: node.name,
+      children: node.children.map(x => mapNode(x, thisPath)),
+      type: ServerNodeType.Group,
+      path: path
+    }
+  } else {
+    return {
+      key : node.id,
+      label: node.name,
+      type: ServerNodeType.Server,
+      isSrv: node.isSrv,
+      isCluster: node.isCluster,
+      color: node.color,
+      path: path
+    }
+  }
+}
+
+const data = computed(() => {
+  return serverStore.serverTree.map(x => mapNode(x))
+})
+
+const getServerMarkColor = (server: ServerTreeNode) => {
+if (server == null || server.color == null || server.color.length == 0) {
     return undefined
   }
 
@@ -141,13 +178,11 @@ const getServerMarkColor = (serverId: string) => {
   return toHexColor(darker)
 }
 
-const renderLabel = ({
-  option,
-}: {
-  option: { type: ServerNodeType; label: string; serverId: string }
-}) => {
-  if (option.type === ServerNodeType.Server) {
-    const color = getServerMarkColor(option.serverId)
+const renderLabel = (x: { option: ServerTreeNode }) => {
+  const option = x.option
+  console.log('serverTree->renderLabel', x)
+  if (option.isGroup == false) {
+    const color = getServerMarkColor(option)
     if (color) {
       return h(NText, { style: { color, fontWeight: '450' } }, () => option.label)
     }
@@ -170,59 +205,63 @@ const renderIconMenu = (items: VNodeArrayChildren) => {
   )
 }
 
-const renderPrefix = ({
-  option,
-}: {
-  option: { type: ServerNodeType; key: string; serverId: string; cluster: boolean }
-}) => {
+const getServerNodeIcon = (server: ServerTreeNode) => {
+  console.log('ServerTree->getServerNodeIcon', server)
+  if (server.is) {
+    return ServerStackIcon
+  } else if (server.isSrv) {
+    return SrvIcon
+  }
+
+  return ServerIcon
+}
+
+const renderPrefix = ({ option }: { option: ServerTreeNode }) => {
+  console.log('serverTree->renderPrefix', option)
   const iconTransparency = settingsStore.isDark ? 0.75 : 1
-  switch (option.type) {
-    case ServerNodeType.Group:
-      const opened = indexOf(expandedKeys.value, option.key) !== 1
-      return h(
-        NIcon,
-        { size: 20 },
-        {
-          default: () =>
-            h(FolderIcon, {
-              open: opened,
-              fillColor: `rgba(255,206,120,${iconTransparency})`,
-            }),
-        },
-      )
-    case ServerNodeType.Server:
-      const connected = browserStore.isConnected(option.serverId)
-      const color = getServerMarkColor(option.serverId)
-      const icon = option.cluster ? ServerStackIcon : ServerIcon
-      return h(
-        NIcon,
-        { size: 20, color: connected ? color : '#dc423c' },
-        {
-          default: () =>
-            h(icon, {
-              inverse: connected,
-              filColor: `rgba(220, 66, 60. ${iconTransparency})`,
-            }),
-        },
-      )
+  if (option.isGroup) {
+    const opened = indexOf(expandedKeys.value, option.id) !== 1
+    return h(
+      NIcon,
+      { size: 20 },
+      {
+        default: () =>
+          h(FolderIcon, {
+            open: opened,
+            fillColor: `rgba(56, 176, 0, ${iconTransparency})`,
+          }),
+      },
+    )
+  } else {
+    const connected = browserStore.isConnected(option.key as string)
+    const color = getServerMarkColor(option)
+    const icon = getServerNodeIcon(option)
+    return h(
+      NIcon,
+      { size: 20, color: connected ? color : '#38b000' },
+      {
+        default: () =>
+          h(icon, {
+            inverse: false, //connected,
+            filColor: `rgba(56, 176, 0. ${iconTransparency})`,
+          }),
+      },
+    )
   }
 }
 
-const renderSuffix = ({
-  option,
-}: {
-  option: { key: string; type: ServerNodeType; serverId: string }
-}) => {
+const renderSuffix = ({ option }: { option: ServerTreeNode }) => {
+  console.log('renderSuffix', option)
+  console.log('renderSuffix', selectedKeys.value)
   if (!includes(selectedKeys.value, option.key)) {
     return undefined
   }
 
-  switch (option.type) {
-    case ServerNodeType.Server:
-      const connected = browserStore.isConnected(option.serverId)
-      return renderIconMenu(getServerMenu(connected))
-    case ServerNodeType.Group:
-      return renderIconMenu(getGroupMenu())
+  if (option.isGroup) {
+    return renderIconMenu(getGroupMenu())
+  } else {
+    const connected = browserStore.isConnected(option.key as string)
+    return renderIconMenu(getServerMenu(connected))
   }
 }
 
@@ -231,12 +270,12 @@ const getServerMenu = (connected: boolean) => {
   if (connected) {
     btns.push(
       h(IconButton, {
-        tTooltip: 'interface.serverTree.disconnect',
+        tTooltip: 'serverPane.serverTree.disconnect',
         icon: PlugDisconnected,
         onClick: () => handleSelectContextMenu(MenuKeys.ServerDisconnect),
       }),
       h(IconButton, {
-        tTooltip: 'interface.serverTree.editServer',
+        tTooltip: 'serverPane.serverTree.editServer',
         icon: Cog8ToothIcon,
         onClick: () => handleSelectContextMenu(MenuKeys.ServerEdit),
       }),
@@ -244,17 +283,17 @@ const getServerMenu = (connected: boolean) => {
   } else {
     btns.push(
       h(IconButton, {
-        tTooltip: 'interface.serverTree.connectServer',
+        tTooltip: 'serverPane.serverTree.connectServer',
         icon: PlugConnected,
         onClick: () => handleSelectContextMenu(MenuKeys.ServerConnect),
       }),
       h(IconButton, {
-        tTooltip: 'interface.serverTree.editServer',
+        tTooltip: 'serverPane.serverTree.editServer',
         icon: Cog8ToothIcon,
         onClick: () => handleSelectContextMenu(MenuKeys.ServerEdit),
       }),
       h(IconButton, {
-        tTooltip: 'interface.serverTree.deleteServer',
+        tTooltip: 'serverPane.serverTree.deleteServer',
         icon: TrashIcon,
         onClick: () => handleSelectContextMenu(MenuKeys.ServerDelete),
       }),
@@ -266,29 +305,25 @@ const getServerMenu = (connected: boolean) => {
 const getGroupMenu = () => {
   return [
     h(IconButton, {
-      tTooltip: 'interface.serverTree.groupRename',
+      tTooltip: 'serverPane.serverTree.groupRename',
       icon: Cog8ToothIcon,
       onClick: () => handleSelectContextMenu(MenuKeys.GroupRename),
     }),
     h(IconButton, {
-      tTooltip: 'interface.serverTree.groupDelete',
+      tTooltip: 'serverPane.serverTree.groupDelete',
       icon: TrashIcon,
       onClick: () => handleSelectContextMenu(MenuKeys.GroupDelete),
     }),
   ]
 }
 
-const nodeProps = ({
-  option,
-}: {
-  option: { type: ServerNodeType; serverId: string; key: string }
-}) => {
+const nodeProps = ({ option }: { option: ServerTreeNode }) => {
   return {
     onDblclick: async () => {
-      if (option.type === ServerNodeType.Server) {
-        connectToServer(option.serverId).then(() => {})
-      } else if (option.type === ServerNodeType.Group) {
-        nextTick().then(() => expandKey(option.key))
+      if (option.isGroup) {
+        nextTick().then(() => expandKey(option.key as string))
+      } else {
+        connectToServer(option.key as string).then(() => {})
       }
     },
     onContextmenu(e: Event) {
@@ -302,6 +337,7 @@ const nodeProps = ({
 }
 
 const connectToServer = async (serverId: string) => {
+  console.log('ServerTree->connectToServer', serverId)
   try {
     connectingServer.value = serverId
     if (!browserStore.isConnected(serverId)) {
@@ -324,9 +360,11 @@ const connectToServer = async (serverId: string) => {
 }
 
 const onUpdateExpandedKeys = (keys: string[]) => {
+  console.log('onUpdateExpandedKeys', keys)
   expandedKeys.value = keys
 }
 const onUpdateSelectedKeys = (keys: string[]) => {
+  console.log('onUpdateSelectedKeys', keys)
   selectedKeys.value = keys
 }
 
@@ -335,7 +373,7 @@ const deleteServer = async (serverId: string) => {
   const server = serverStore.findServerById(serverId)
   const name = server?.name ?? 'unknown'
   dialoger.warning(
-    i18n.t('dialog.deleteTooltip', { type: i18n.t('dialog.server.serverName'), name }),
+    i18n.t('common.deleteTooltip', { type: i18n.t('serverPane.typeName'), name }),
     async () => {
       const { success, msg } = await serverStore.deleteServer(serverId)
       if (!success) {
@@ -350,7 +388,7 @@ const deleteGroup = async (serverId: string) => {
   const dialoger = useDialoger()
   const server = serverStore.findServerById(serverId)
   const name = server?.name ?? 'unknown'
-  dialoger.warning(i18n.t('dialog.deleteGroupTooltip', { name }), async () => {
+  dialoger.warning(i18n.t('serverPane.serverTree.deleteGroupTooltip', { name }), async () => {
     const { success, msg } = await serverStore.deleteGroup(serverId)
     if (!success) {
       const messager = useMessager()
@@ -369,6 +407,7 @@ const expandKey = (key: string) => {
 }
 
 const handleSelectContextMenu = (key: string) => {
+  console.log('handleSelectContextMenu', key)
   contextMenuParams.show = false
   const selectedKey = selectedKeys.value.length > 0 ? selectedKeys.value[0] : undefined
   if (!selectedKey) {
@@ -387,16 +426,16 @@ const handleSelectContextMenu = (key: string) => {
     case MenuKeys.ServerEdit:
       if (browserStore.isConnected(serverId!)) {
         const dialoger = useDialoger()
-        dialoger.warning(i18n.t('interface.serverTree.editDisconnectConfirmation'), () => {
+        dialoger.warning(i18n.t('serverPane.serverTree.editDisconnectConfirmation'), () => {
           browserStore.disconnect(serverId!)
-          dialogStore.openServerEditDialog(serverId!)
+          dialogStore.showServerEditDialog(serverId!)
         })
       } else {
-        dialogStore.openServerEditDialog(DialogType.Server, serverId!)
+        dialogStore.showServerEditDialog(serverId!)
       }
       break
     case MenuKeys.ServerClone:
-      dialogStore.openCloneServerDialog(serverId!)
+      dialogStore.showCloneServerDialog(serverId!)
       break
     case MenuKeys.ServerDelete:
       deleteServer(serverId!)
@@ -408,7 +447,7 @@ const handleSelectContextMenu = (key: string) => {
         }
 
         const messager = useMessager()
-        messager.success(i18n.t('dialog.handleSuccess'))
+        messager.success(i18n.t('common.dialog.handleSuccess'))
       })
       break
     case MenuKeys.GroupRename:
@@ -447,7 +486,7 @@ const onCancelConnecting = async () => {
       :block-line="true"
       :block-node="true"
       :cancelable="false"
-      :data="serverStore.serverTree"
+      :data="data"
       :draggable="true"
       :expanded-keys="expandedKeys"
       :node-props="nodeProps"
@@ -461,7 +500,7 @@ const onCancelConnecting = async () => {
       @update:expanded-keys="onUpdateExpandedKeys"
       @update:selected-keys="onUpdateSelectedKeys">
       <template #empty>
-        <n-empty :description="$t('interface.serverTree.empty')" class="empty-content" />
+        <n-empty :description="$t('serverPane.serverTree.empty')" class="empty-content" />
       </template>
     </n-tree>
 
@@ -475,9 +514,9 @@ const onCancelConnecting = async () => {
         <n-spin>
           <template #description>
             <n-space vertical>
-              <n-text strong>{{ $t('dialog.connecting') }}}</n-text>
+              <n-text strong>{{ $t('common.dialog.connecting') }}}</n-text>
               <n-button :focusable="false" secondary size="small" @click="onCancelConnecting">
-                {{ $t('dialog.cancelConnecting') }}
+                {{ $t('common.dialog.cancelConnecting') }}
               </n-button>
             </n-space>
           </template>

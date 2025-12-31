@@ -3,7 +3,7 @@ import * as serversProxy from 'wailsjs/go/api/ServersProxy'
 import type { servers } from 'wailsjs/go/models.ts'
 import { isEmpty, union } from 'lodash'
 import { useNotifier } from '@/utils/dialog.ts'
-import { useDataBrowserStore } from '@/components/data-browser/browserStore.ts'
+import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 
 export interface RegisteredServerNode extends servers.RegisteredServer {
   children: RegisteredServerNode[];
