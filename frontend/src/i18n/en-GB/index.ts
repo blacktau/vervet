@@ -33,6 +33,11 @@ export default {
     name: 'Settings',
     restoreDefaults: 'Restore Defaults',
     fontTip: 'Supports multi-selection. Manually input the font if not shown.',
+    common: {
+      font: 'Font',
+      fontTip: 'Select or input font name',
+      fontSize: 'Font Size',
+    },
     general: {
       name: 'General',
       theme: 'Theme',
@@ -41,17 +46,14 @@ export default {
       themeAuto: 'Auto',
       language: 'Language',
       systemLanguage: 'Use System Language',
-      font: 'Font',
-      fontTip: 'Select or input font name',
-      fontSize: 'Font Size',
-      update: 'Update',
-      autoUpdate: 'Automatically Check for Updates',
     },
     editor: {
       name: 'Editor',
+      font: 'Font',
       showLineNumbers: 'Show Line Numbers',
       showFolding: 'Enable Code Folding',
-      links: 'Supports Links',
+      dropText: 'Allow Dragging & Dropping of Text',
+      links: 'Support Links',
     },
     terminal: {
       name: 'Terminal',
@@ -89,8 +91,6 @@ export default {
     dialogs: {
       common: {
         noGroup: 'No Group',
-
-
       },
       server: {
         newTitle: 'Add Server',
