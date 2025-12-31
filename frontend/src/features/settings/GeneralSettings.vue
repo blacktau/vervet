@@ -37,26 +37,26 @@ const settingsStore = useSettingsStore()
       </n-form-item-gi>
       <n-form-item-gi :span="24" required>
         <template #label>
-          {{ $t('settings.general.font') }}
+          {{ $t('settings.common.font') }}
           <n-tooltip trigger="hover">
             <template #trigger>
               <n-icon :component="QuestionMarkCircleIcon" />
             </template>
             <div class="text-block">
-              {{ $t('settings.fontTip') }}
+              {{ $t('settings.common.fontTip') }}
             </div>
           </n-tooltip>
         </template>
         <n-select
           v-model:value="settingsStore.general.font.family"
           :options="settingsStore.fontOptions"
-          :placeholder="$t('settings.general.fontTip')"
+          :placeholder="$t('settings.common.fontTip')"
           :render-label="({ label, value }: SelectOption) => (value === '' ? $t(label as string) : label)"
           filterable
           multiple
           tag />
       </n-form-item-gi>
-      <n-form-item-gi :label="$t('settings.general.fontSize')" :span="24">
+      <n-form-item-gi :label="$t('settings.common.fontSize')" :span="24">
         <n-input-number v-model:value="settingsStore.general.font.size" :min="1" :max="65535" />
       </n-form-item-gi>
     </n-grid>
