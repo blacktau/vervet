@@ -4,7 +4,7 @@ import {api} from '../models';
 
 export function CreateGroup(arg1:string,arg2:string):Promise<api.EmptyResult>;
 
-export function GetServer(arg1:string):Promise<api.Result_vervet_internal_servers_RegisteredServer_>;
+export function GetServer(arg1:string):Promise<api.Result_vervet_internal_servers_RegisteredServerConnection_>;
 
 export function GetServers():Promise<api.Result___vervet_internal_servers_RegisteredServer_>;
 
@@ -12,8 +12,8 @@ export function GetURI(arg1:string):Promise<api.Result_string_>;
 
 export function RemoveNode(arg1:string):Promise<api.EmptyResult>;
 
-export function SaveServer(arg1:string,arg2:string,arg3:string):Promise<api.EmptyResult>;
+export function SaveServer(arg1:string,arg2:string,arg3:string,arg4:string):Promise<api.EmptyResult>;
 
 export function UpdateGroup(arg1:string,arg2:string):Promise<api.EmptyResult>;
 
-export function UpdateServer(arg1:string,arg2:string,arg3:string,arg4:string):Promise<api.EmptyResult>;
+export function UpdateServer(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string):Promise<api.EmptyResult>;

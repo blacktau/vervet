@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { QuestionMarkCircleIcon } from '@heroicons/vue/24/outline'
-import { useSettingsStore } from '@/features/settings/settings.ts'
+import { useSettingsStore } from '@/features/settings/settingsStore.ts'
 import type { SelectOption } from 'naive-ui'
 
 const props = defineProps<{

@@ -39,7 +39,10 @@ export const useDataBrowserStore = defineStore(
         return !isEmpty(state.connections)
       },
       isConnected: (state: DataBrowserStoreState) => {
-        return (serverID: string) => {
+        return (serverID?: string) => {
+          if (serverID == null) {
+            return false
+          }
           return state.connections.hasOwnProperty(serverID)
         }
       }

@@ -22,14 +22,14 @@ export function RemoveNode(arg1) {
   return window['go']['api']['ServersProxy']['RemoveNode'](arg1);
 }
 
-export function SaveServer(arg1, arg2, arg3) {
-  return window['go']['api']['ServersProxy']['SaveServer'](arg1, arg2, arg3);
+export function SaveServer(arg1, arg2, arg3, arg4) {
+  return window['go']['api']['ServersProxy']['SaveServer'](arg1, arg2, arg3, arg4);
 }
 
 export function UpdateGroup(arg1, arg2) {
   return window['go']['api']['ServersProxy']['UpdateGroup'](arg1, arg2);
 }
 
-export function UpdateServer(arg1, arg2, arg3, arg4) {
-  return window['go']['api']['ServersProxy']['UpdateServer'](arg1, arg2, arg3, arg4);
+export function UpdateServer(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['api']['ServersProxy']['UpdateServer'](arg1, arg2, arg3, arg4, arg5);
 }

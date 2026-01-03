@@ -27,12 +27,13 @@ export const filterGroupMap = (node: RegisteredServerNode) => {
   } as TreeSelectOption
 }
 
-export const getServerMarkColor = (server: ServerTreeNode) => {
-  if (server == null || server.color == null || server.color.length == 0) {
+export const getServerColour = (server: ServerTreeNode) => {
+  if (server == null || server.colour == null || server.colour.length == 0) {
     return undefined
   }
 
-  const rgb = parseHexColor(server.color)
+  const rgb = parseHexColor(server.colour)
   const darker = hexGammaCorrection(rgb, 0.75)
+  console.log('getServerColour', server.colour, darker)
   return toHexColor(darker)
 }
