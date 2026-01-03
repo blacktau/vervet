@@ -70,10 +70,16 @@ export const useServerStore = defineStore('server', {
       console.log('serverStore.serverTree', this.serverTree)
       console.log('serverStore.mappedTree', this.mappedTree)
     },
-    async getServerDetails(id: string) {
+    async getServerDetails(id?: string) {
+      if (id == null) {
+        return undefined
+      }
+
       const response = await serversProxy.GetServer(id)
       if (response.isSuccess) {
-        return response.data
+        return {
+          ...response.data,
+        }
       }
       const notifier = useNotifier()
       notifier.error(`error retrieving registered server: ${response.error}`)
@@ -96,8 +102,8 @@ export const useServerStore = defineStore('server', {
         isGroup: false,
       } as unknown as servers.RegisteredServer
     },
-    async saveServer(name: string, connectionString: string, parentId?: string) {
-      const result = await serversProxy.SaveServer(parentId || '', name, connectionString)
+    async saveServer(name: string, connectionString: string, parentId?: string, colour?: string) {
+      const result = await serversProxy.SaveServer(parentId || '', name, connectionString, colour || '')
       if (!result.isSuccess) {
         return { success: false, msg: result.error }
       }
@@ -105,8 +111,12 @@ export const useServerStore = defineStore('server', {
       await this.refreshServers(true)
       return { success: true }
     },
-    async updateServer(serverId: string, name: string, connectionString: string, parentId?: string) {
-      const result = await serversProxy.UpdateServer(serverId, name, connectionString, parentId || '')
+    async updateServer(serverId: string | null, name: string, connectionString: string, parentId?: string, colour?: string) {
+      console.log('updateServer', serverId, name, connectionString, parentId, colour)
+      if (serverId == null) {
+        return { success: false, msg: 'serverId is required' }
+      }
+      const result = await serversProxy.UpdateServer(serverId, name, connectionString, parentId || '', colour || '')
       if (!result.isSuccess) {
         return { success: false, msg: result.error }
       }
@@ -230,8 +240,9 @@ const mapNode = (node: RegisteredServerNode, path: string = ''): ServerTreeNode 
       type: ServerNodeType.Server,
       isSrv: node.isSrv,
       isCluster: node.isCluster,
-      color: node.color,
+      colour: node.colour,
       path: path,
+      isLeaf: true,
     }
   }
 }

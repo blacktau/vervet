@@ -2,7 +2,7 @@
 import { useThemeVars } from 'naive-ui'
 import { computed, onMounted, reactive, ref, watchEffect } from 'vue'
 import { useTabStore } from '@/stores/tabs'
-import { useSettingsStore } from '@/features/settings/settings.ts'
+import { useSettingsStore } from '@/features/settings/settingsStore.ts'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 import { extraTheme } from '@/utils/extraTheme'
 import { debounce } from 'lodash'

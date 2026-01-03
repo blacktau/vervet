@@ -6,7 +6,7 @@ import { h, nextTick, reactive, ref, type VNodeArrayChildren } from 'vue'
 import { useServerStore } from '@/features/server-pane/serverStore.ts'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 import { useTabStore } from '@/stores/tabs.ts'
-import { useSettingsStore } from '@/features/settings/settings.ts'
+import { useSettingsStore } from '@/features/settings/settingsStore.ts'
 import { useDialogStore } from '@/stores/dialog.ts'
 import { includes, indexOf, isEmpty } from 'lodash'
 import { useDialoger, useMessager } from '@/utils/dialog.ts'
@@ -16,7 +16,8 @@ import IconButton from '@/features/common/IconButton.vue'
 import {
   Cog8ToothIcon,
   DocumentDuplicateIcon,
-  FolderIcon, FolderOpenIcon,
+  FolderIcon,
+  FolderOpenIcon,
   PencilSquareIcon,
   ServerIcon,
   ServerStackIcon,
@@ -25,7 +26,7 @@ import {
 
 import PlugDisconnected from '@/features/icon/PlugDisconnected.vue'
 import SrvIcon from '@/features/icon/SrvIcon.vue'
-import { getServerMarkColor } from '@/features/server-pane/helpers.ts'
+import { getServerColour } from '@/features/server-pane/helpers.ts'
 import { ServerNodeType, type ServerTreeNode } from '@/features/server-pane/types.ts'
 
 const themeVars = useThemeVars()
@@ -131,11 +132,10 @@ const selectedKeys = ref<string[]>([])
 
 const renderLabel = (x: { option: ServerTreeNode }) => {
   const option = x.option
-  console.log('serverTree->renderLabel', x)
-  if (option.isGroup == false) {
-    const color = getServerMarkColor(option)
-    if (color) {
-      return h(NText, { style: { backgroundColor: color, fontWeight: '450' } }, () => option.label)
+  if (option.type == ServerNodeType.Server) {
+    const colour = getServerColour(option)
+    if (colour) {
+      return h(NText, { style: { color: colour, fontWeight: '450' } }, () => option.label)
     }
   }
   return h(NText, {}, () => option.label)
@@ -168,7 +168,6 @@ const getServerNodeIcon = (server: ServerTreeNode) => {
 
 const renderPrefix = ({ option }: { option: ServerTreeNode }) => {
   const iconTransparency = settingsStore.isDark ? 0.75 : 1
-  console.log('renderPrefix', option)
   if (option.type == ServerNodeType.Group) {
     const opened = indexOf(expandedKeys.value, option.key) >= 0
     const icon = opened ? FolderOpenIcon : FolderIcon
@@ -186,11 +185,11 @@ const renderPrefix = ({ option }: { option: ServerTreeNode }) => {
   } else {
     const connected = browserStore.isConnected(option.key as string)
     const icon = getServerNodeIcon(option)
-    const iconColor = connected ? '#38b000' : 'currentColor'
+    const iconColour = connected ? '#38b000' : 'currentColor'
 
     return h(
       NIcon,
-      { size: 20, color: iconColor },
+      { size: 20, color: iconColour },
       {
         default: () =>
           h(icon, {
@@ -287,7 +286,6 @@ const nodeProps = ({ option }: { option: ServerTreeNode }) => {
 }
 
 const connectToServer = async (serverId: string) => {
-  console.log('ServerTree->connectToServer', serverId)
   try {
     connectingServer.value = serverId
     if (!browserStore.isConnected(serverId)) {
@@ -310,11 +308,9 @@ const connectToServer = async (serverId: string) => {
 }
 
 const onUpdateExpandedKeys = (keys: string[]) => {
-  console.log('onUpdateExpandedKeys', keys)
   expandedKeys.value = keys
 }
 const onUpdateSelectedKeys = (keys: string[]) => {
-  console.log('onUpdateSelectedKeys', keys)
   selectedKeys.value = keys
 }
 
@@ -357,41 +353,38 @@ const expandKey = (key: string) => {
 }
 
 const handleSelectContextMenu = (key: string) => {
-  console.log('handleSelectContextMenu', key)
   contextMenuParams.show = false
+  console.log('handleSelectContextMenu: ', key, selectedKeys.value.join(';'))
   const selectedKey = selectedKeys.value.length > 0 ? selectedKeys.value[0] : undefined
   if (!selectedKey) {
     return
   }
 
-  const [groupId, serverId] = selectedKey.split('/')
-  if (isEmpty(groupId) && isEmpty(serverId)) {
-    return
-  }
+  const serverId = selectedKey
 
   switch (key) {
     case MenuKeys.ServerConnect:
-      connectToServer(serverId!).then(() => {})
+      connectToServer(serverId).then(() => {})
       break
     case MenuKeys.ServerEdit:
-      if (browserStore.isConnected(serverId!)) {
+      if (browserStore.isConnected(serverId)) {
         const dialoger = useDialoger()
         dialoger.warning(i18n.t('serverPane.serverTree.editDisconnectConfirmation'), () => {
-          browserStore.disconnect(serverId!)
-          dialogStore.showServerEditDialog(serverId!)
+          browserStore.disconnect(serverId)
+          dialogStore.showServerEditDialog(serverId)
         })
       } else {
-        dialogStore.showServerEditDialog(serverId!)
+        dialogStore.showServerEditDialog(serverId)
       }
       break
     case MenuKeys.ServerClone:
-      dialogStore.showCloneServerDialog(serverId!)
+      dialogStore.showCloneServerDialog(serverId)
       break
     case MenuKeys.ServerDelete:
-      deleteServer(serverId!)
+      deleteServer(serverId)
       break
     case MenuKeys.ServerDisconnect:
-      browserStore.disconnect(serverId!).then((closed) => {
+      browserStore.disconnect(serverId).then((closed) => {
         if (!closed) {
           return
         }
@@ -401,18 +394,18 @@ const handleSelectContextMenu = (key: string) => {
       })
       break
     case MenuKeys.GroupRename:
-      if (!groupId || groupId.length == 0) {
+      if (selectedKey.length == 0) {
         return
       }
 
-      dialogStore.openRenameGroupDialog(serverId!)
+      dialogStore.openRenameGroupDialog(selectedKey)
       break
     case MenuKeys.GroupDelete:
-      if (!groupId || groupId.length == 0) {
+      if (selectedKey.length == 0) {
         return
       }
 
-      deleteGroup(groupId)
+      deleteGroup(selectedKey)
       break
     default:
       console.warn(`missing context menu option handling for key '${key}'`)

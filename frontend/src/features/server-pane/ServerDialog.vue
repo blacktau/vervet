@@ -1,21 +1,23 @@
 <script setup lang="ts">
 import { type FormInst, type FormRules, type TreeSelectOption, useThemeVars } from 'naive-ui'
-import { DialogType, useDialogStore } from '@/stores/dialog.ts'
-import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
-import { useServerStore } from '@/features/server-pane/serverStore.ts'
 import { useI18n } from 'vue-i18n'
 import { computed, nextTick, ref, watch } from 'vue'
 import { every, includes, isEmpty } from 'lodash'
+import { XCircleIcon } from '@heroicons/vue/24/outline'
+import { DialogType, useDialogStore } from '@/stores/dialog.ts'
+import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
+import { useServerStore } from '@/features/server-pane/serverStore.ts'
 import { useMessager, useNotifier } from '@/utils/dialog.ts'
-import * as connectionsProxy from 'wailsjs/go/api/ConnectionsProxy'
 import { parseUri } from '@/features/server-pane/connectionStrings.ts'
 import { filterGroupMap } from '@/features/server-pane/helpers.ts'
+import * as connectionsProxy from 'wailsjs/go/api/ConnectionsProxy'
 
 type EditableRegisteredServer = {
   id: string
   name: string
   connectionString: string
   parentId: string
+  colour: string
 }
 
 const themeVars = useThemeVars()
@@ -24,18 +26,27 @@ const serverStore = useServerStore()
 const browserStore = useDataBrowserStore()
 const i18n = useI18n()
 
-const dialogState = dialogStore.serverDialogData
-
-const editServerID = ref(dialogState?.serverId ?? '')
+const editServerID = ref(dialogStore.serverDialogData?.serverId)
 const tab = ref('general')
 const showTestResult = ref<boolean>(false)
+const serverColors = ref<string[]>([
+  '',
+  '#F75B52',
+  '#F7A234',
+  '#F7CE33',
+  '#4ECF60',
+  '#348CF7',
+  '#B270D3',
+])
 
 const generalForm = ref<EditableRegisteredServer>({
   id: '',
   name: '',
   parentId: '',
   connectionString: '',
+  colour: '',
 })
+
 const generalFormRef = ref<FormInst | undefined>(undefined)
 const testing = ref(false)
 
@@ -68,7 +79,7 @@ const generalFormRules = () => {
   } as FormRules
 }
 
-const isEditMode = computed(() => dialogState?.mode === 'edit')
+const isEditMode = computed(() => dialogStore.serverDialogData?.mode === 'edit')
 
 const closingConnection = computed(() => {
   if (isEmpty(editServerID.value)) {
@@ -78,6 +89,7 @@ const closingConnection = computed(() => {
 })
 
 const onSaveServer = async () => {
+  console.log('onSaveServer', generalFormRef.value)
   await generalFormRef.value?.validate((err) => {
     if (err) {
       nextTick(() => (tab.value = 'general'))
@@ -96,11 +108,14 @@ const onSaveServer = async () => {
       return
     }
   } else {
+    console.log('editServerID', editServerID.value)
+
     const result = await serverStore.updateServer(
-      editServerID.value,
+      editServerID.value || null,
       generalForm.value.name,
       generalForm.value.connectionString,
       generalForm.value.parentId,
+      generalForm.value.colour
     )
     if (!result.success) {
       messager.error(result.msg || 'unknown error')
@@ -138,16 +153,33 @@ const resetForm = () => {
     name: '',
     connectionString: '',
     parentId: '',
+    colour: '',
   }
   generalFormRef.value?.restoreValidation()
   testing.value = false
 }
 
 watch(
-  () => dialogStore.dialogs[DialogType.Server]?.visible ?? false,
-  (visible: boolean) => {
+  () => dialogStore.dialogs[DialogType.Server].visible,
+  async (visible: boolean) => {
+    console.log('ServerDialog->watch.visible:', visible)
     if (visible) {
       resetForm()
+      const data = dialogStore.serverDialogData
+      console.log('dialog data', data)
+      if (dialogStore.serverDialogData?.mode == 'edit') {
+        editServerID.value = data?.serverId
+        const server = await serverStore.getServerDetails(data?.serverId)
+        if (server != null) {
+          generalForm.value = {
+            id: server.id,
+            name: server.name,
+            colour: server.colour,
+            connectionString: server.uri,
+            parentId: server.parentID || '',
+          }
+        }
+      }
     }
   },
 )
@@ -187,7 +219,11 @@ const onTestConnection = async () => {
     :mask-closable="false"
     :on-after-leave="resetForm"
     :show-icon="false"
-    :title="isEditMode ? $t('serverPane.dialogs.server.editTitle') : $t('serverPane.dialogs.server.newTitle')"
+    :title="
+      isEditMode
+        ? $t('serverPane.dialogs.server.editTitle')
+        : $t('serverPane.dialogs.server.newTitle')
+    "
     close-on-esc
     preset="dialog"
     style="width: 600px"
@@ -212,13 +248,16 @@ const onTestConnection = async () => {
             :show-require-mark="false"
             label-placement="top">
             <n-grid :x-gap="10">
-              <n-form-item-gi :label="$t('serverPane.dialogs.server.name')" :span="24" path="name" required>
+              <n-form-item-gi
+                :label="$t('serverPane.dialogs.server.name')"
+                :span="24"
+                path="name"
+                required>
                 <n-input
                   v-model:value="generalForm.name"
                   :placeholder="$t('serverPane.dialogs.server.nameTip')" />
               </n-form-item-gi>
               <n-form-item-gi
-                v-if="!isEditMode"
                 :label="$t('serverPane.dialogs.server.group')"
                 :span="24"
                 required>
@@ -232,6 +271,23 @@ const onTestConnection = async () => {
                 <n-input
                   v-model:value="generalForm.connectionString"
                   :placeholder="$t('serverPane.dialogs.server.connectionStringTip')" />
+              </n-form-item-gi>
+              <n-form-item-gi
+                :label="$t('serverPane.dialogs.server.colour')"
+                :span="24"
+                path="colour">
+                <div
+                  v-for="colour in serverColors"
+                  :key="colour"
+                  :style="{
+                    backgroundColor: colour,
+                    borderColor:
+                      generalForm.colour === colour ? themeVars.textColorBase : themeVars.borderColor,
+                  }"
+                  class="color-preset-item"
+                  @click="generalForm.colour = colour">
+                  <n-icon v-if="isEmpty(colour)" :component="XCircleIcon" size="24" />
+                </div>
               </n-form-item-gi>
             </n-grid>
           </n-form>
@@ -279,4 +335,14 @@ const onTestConnection = async () => {
   </n-modal>
 </template>
 
-<style scoped lang="scss"></style>
+<style scoped lang="scss">
+.color-preset-item {
+  width: 24px;
+  height: 24px;
+  margin-right: 2px;
+  border-width: 3px;
+  border-style: solid;
+  cursor: pointer;
+  border-radius: 50%;
+}
+</style>

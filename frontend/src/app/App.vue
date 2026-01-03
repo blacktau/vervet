@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useSettingsStore } from '@/features/settings/settings.ts'
+import { useSettingsStore } from '@/features/settings/settingsStore.ts'
 import { useI18n } from 'vue-i18n'
 import { onMounted, ref, watch } from 'vue'
 import * as runtime from 'wailsjs/runtime'

@@ -107,10 +107,11 @@ export default {
         group: 'Group',
         connectionString: 'Connection String',
         connectionStringTip:
-          'mongodb://[username:password@]host1[:port1][,...hostN[:portN]][/[defaultauthdb][?options]]',
+          "mongodb://[username:password{'@'}]host1[:port1][,...hostN[:portN]][/[defaultauthdb][?options]]",
         test: 'Test Connection',
         testFailure: 'Failed to connect to server',
         testSuccess: 'Successfully connected to server',
+        colour: 'Colour',
       },
       group: {
         edit: 'Edit Group',

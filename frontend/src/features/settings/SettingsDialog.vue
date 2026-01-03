@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useSettingsStore } from '@/features/settings/settings.ts'
+import { useSettingsStore } from '@/features/settings/settingsStore.ts'
 import { computed, ref, watchEffect } from 'vue'
 import { DialogType, useDialogStore } from '@/stores/dialog.ts'
 import { useI18n } from 'vue-i18n'

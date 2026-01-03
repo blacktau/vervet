@@ -45,9 +45,9 @@ export namespace api {
 	    data: any;
 	    error: string;
 	}
-	export interface Result_vervet_internal_servers_RegisteredServer_ {
+	export interface Result_vervet_internal_servers_RegisteredServerConnection_ {
 	    isSuccess: boolean;
-	    data: servers.RegisteredServer;
+	    data: servers.RegisteredServerConnection;
 	    error: string;
 	}
 	export interface Result_vervet_internal_settings_Settings_ {
@@ -70,9 +70,19 @@ export namespace servers {
 	    name: string;
 	    isGroup: boolean;
 	    parentID?: string;
-	    color: string;
+	    colour: string;
 	    isCluster: boolean;
 	    isSrv: boolean;
+	}
+	export interface RegisteredServerConnection {
+	    id: string;
+	    name: string;
+	    isGroup: boolean;
+	    parentID?: string;
+	    colour: string;
+	    isCluster: boolean;
+	    isSrv: boolean;
+	    uri: string;
 	}
 
 }
