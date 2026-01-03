@@ -32,7 +32,7 @@ export const useDataBrowserStore = defineStore(
   'browser',
   {
     state: () => ({
-      connections: {} as Record<string, ServerConnection>
+      connections: {} as Record<string, ServerConnection>,
     }),
     getters: {
       hasOpenConnections: (state: DataBrowserStoreState) => {
@@ -61,6 +61,23 @@ export const useDataBrowserStore = defineStore(
         await connectionsProxy.Disconnect(serverId)
         delete this.connections[serverId]
         return true
+      },
+      async refreshConnectedServers(force: boolean = false) {
+        if (!force && !isEmpty(this.connections)) {
+          return
+        }
+
+        const connections = await connectionsProxy.GetConnectionIDs()
+        if (!connections.isSuccess) {
+          return
+        }
+        this.connections = connections.data.reduce((acc, serverId) => {
+          acc[serverId] = { serverId: serverId, name: '', databases: [] }
+          return acc
+        }, {} as Record<string, ServerConnection>)
+        for (const serverId in this.connections) {
+          await this.getDatabaseList(serverId)
+        }
       },
       async getDatabaseList(serverId: string) {
         const connection = this.connections[serverId]

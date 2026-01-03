@@ -1,9 +1,9 @@
 <script lang="ts" setup>
-import { type DropdownOption, NIcon, NSpace, NText, type TreeOption, useThemeVars } from 'naive-ui'
+import { type DropdownOption, NIcon, NSpace, NText, useThemeVars } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import { useRender } from '@/utils/render.ts'
-import { computed, h, nextTick, reactive, ref, type VNodeArrayChildren } from 'vue'
-import { type RegisteredServerNode, useServerStore } from '@/features/server-pane/serverStore.ts'
+import { h, nextTick, reactive, ref, type VNodeArrayChildren } from 'vue'
+import { useServerStore } from '@/features/server-pane/serverStore.ts'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 import { useTabStore } from '@/stores/tabs.ts'
 import { useSettingsStore } from '@/features/settings/settings.ts'
@@ -11,12 +11,12 @@ import { useDialogStore } from '@/stores/dialog.ts'
 import { includes, indexOf, isEmpty } from 'lodash'
 import { useDialoger, useMessager } from '@/utils/dialog.ts'
 import PlugConnected from '@/features/icon/PlugConnected.vue'
-import { hexGammaCorrection, parseHexColor, toHexColor } from '@/utils/colours.ts'
 import IconButton from '@/features/common/IconButton.vue'
+
 import {
   Cog8ToothIcon,
   DocumentDuplicateIcon,
-  FolderIcon,
+  FolderIcon, FolderOpenIcon,
   PencilSquareIcon,
   ServerIcon,
   ServerStackIcon,
@@ -25,11 +25,8 @@ import {
 
 import PlugDisconnected from '@/features/icon/PlugDisconnected.vue'
 import SrvIcon from '@/features/icon/SrvIcon.vue'
-
-enum ServerNodeType {
-  Group = 0,
-  Server,
-}
+import { getServerMarkColor } from '@/features/server-pane/helpers.ts'
+import { ServerNodeType, type ServerTreeNode } from '@/features/server-pane/types.ts'
 
 const themeVars = useThemeVars()
 const i18n = useI18n()
@@ -132,62 +129,16 @@ const menuOptions = {
 const expandedKeys = ref<string[]>([])
 const selectedKeys = ref<string[]>([])
 
-
-type ServerTreeNode = TreeOption & {
-  type: ServerNodeType
-  isSrv?: boolean
-  isCluster?: boolean
-  color?: string
-  path: string
-}
-
-const mapNode = (node: RegisteredServerNode, path: string = ''): ServerTreeNode => {
-  if (node.isGroup) {
-    const thisPath = `${path}/${node.id}`
-    return {
-      key: node.id,
-      label: node.name,
-      children: node.children.map(x => mapNode(x, thisPath)),
-      type: ServerNodeType.Group,
-      path: path
-    }
-  } else {
-    return {
-      key : node.id,
-      label: node.name,
-      type: ServerNodeType.Server,
-      isSrv: node.isSrv,
-      isCluster: node.isCluster,
-      color: node.color,
-      path: path
-    }
-  }
-}
-
-const data = computed(() => {
-  return serverStore.serverTree.map(x => mapNode(x))
-})
-
-const getServerMarkColor = (server: ServerTreeNode) => {
-if (server == null || server.color == null || server.color.length == 0) {
-    return undefined
-  }
-
-  const rgb = parseHexColor(server.color)
-  const darker = hexGammaCorrection(rgb, 0.75)
-  return toHexColor(darker)
-}
-
 const renderLabel = (x: { option: ServerTreeNode }) => {
   const option = x.option
   console.log('serverTree->renderLabel', x)
   if (option.isGroup == false) {
     const color = getServerMarkColor(option)
     if (color) {
-      return h(NText, { style: { color, fontWeight: '450' } }, () => option.label)
+      return h(NText, { style: { backgroundColor: color, fontWeight: '450' } }, () => option.label)
     }
   }
-  return option.label
+  return h(NText, {}, () => option.label)
 }
 
 const renderIconMenu = (items: VNodeArrayChildren) => {
@@ -206,7 +157,6 @@ const renderIconMenu = (items: VNodeArrayChildren) => {
 }
 
 const getServerNodeIcon = (server: ServerTreeNode) => {
-  console.log('ServerTree->getServerNodeIcon', server)
   if (server.is) {
     return ServerStackIcon
   } else if (server.isSrv) {
@@ -217,16 +167,17 @@ const getServerNodeIcon = (server: ServerTreeNode) => {
 }
 
 const renderPrefix = ({ option }: { option: ServerTreeNode }) => {
-  console.log('serverTree->renderPrefix', option)
   const iconTransparency = settingsStore.isDark ? 0.75 : 1
-  if (option.isGroup) {
-    const opened = indexOf(expandedKeys.value, option.id) !== 1
+  console.log('renderPrefix', option)
+  if (option.type == ServerNodeType.Group) {
+    const opened = indexOf(expandedKeys.value, option.key) >= 0
+    const icon = opened ? FolderOpenIcon : FolderIcon
     return h(
       NIcon,
       { size: 20 },
       {
         default: () =>
-          h(FolderIcon, {
+          h(icon, {
             open: opened,
             fillColor: `rgba(56, 176, 0, ${iconTransparency})`,
           }),
@@ -234,11 +185,12 @@ const renderPrefix = ({ option }: { option: ServerTreeNode }) => {
     )
   } else {
     const connected = browserStore.isConnected(option.key as string)
-    const color = getServerMarkColor(option)
     const icon = getServerNodeIcon(option)
+    const iconColor = connected ? '#38b000' : 'currentColor'
+
     return h(
       NIcon,
-      { size: 20, color: connected ? color : '#38b000' },
+      { size: 20, color: iconColor },
       {
         default: () =>
           h(icon, {
@@ -251,8 +203,6 @@ const renderPrefix = ({ option }: { option: ServerTreeNode }) => {
 }
 
 const renderSuffix = ({ option }: { option: ServerTreeNode }) => {
-  console.log('renderSuffix', option)
-  console.log('renderSuffix', selectedKeys.value)
   if (!includes(selectedKeys.value, option.key)) {
     return undefined
   }
@@ -486,7 +436,7 @@ const onCancelConnecting = async () => {
       :block-line="true"
       :block-node="true"
       :cancelable="false"
-      :data="data"
+      :data="serverStore.mappedTree"
       :draggable="true"
       :expanded-keys="expandedKeys"
       :node-props="nodeProps"

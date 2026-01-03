@@ -19,7 +19,7 @@ func (sm *ServerManagerImpl) CreateGroup(parentID string, name string) error {
 	parent, _ := findServer(parentID, servers)
 
 	if parent == nil {
-		return fmt.Errorf("failed to find parent for ID %s", parentID)
+		parentID = ""
 	}
 
 	newServer := RegisteredServer{

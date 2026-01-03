@@ -1,12 +1,19 @@
 <script setup lang="ts">
-import { computed, useSlots } from 'vue'
+import {
+  computed,
+  type FunctionalComponent,
+  type HTMLAttributes,
+  useSlots,
+  type VNode,
+  type VNodeProps,
+} from 'vue'
 
 interface Props {
   tooltip?: string
   tTooltip?: string
   tooltipDelay?: number
   type?: string
-  icon?: string | object
+  icon?: string | object | FunctionalComponent<HTMLAttributes & VNodeProps>
   size?: number | string
   color?: string
   strokeWidth?: number | string

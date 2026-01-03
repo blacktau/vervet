@@ -37,6 +37,10 @@ export const useDialogStore = defineStore('dialog', {
         type: DialogMode.New,
       } as DialogState,
       [DialogType.Settings]: {
+         visible: false,
+         type: DialogMode.New,
+      },
+      [DialogType.About]: {
         visible: false,
       }
     } as Record<DialogType, DialogState>,

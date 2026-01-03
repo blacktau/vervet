@@ -3,7 +3,7 @@ import { type DropdownOption, useThemeVars } from 'naive-ui'
 import { useRender } from '@/utils/render'
 import { computed } from 'vue'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
-import { useDialogStore } from '@/stores/dialog'
+import { DialogType, useDialogStore } from '@/stores/dialog'
 import { useSettingsStore } from '@/features/settings/settings.ts'
 import * as runtime from 'wailsjs/runtime'
 import IconButton from '@/features/common/IconButton.vue'
@@ -84,13 +84,13 @@ const settingsOptions = computed(() => {
 const onSelectSettingsMenu = (key: string) => {
   switch (key) {
     case 'configuration':
-      dialogStore.openSettingsDialog()
+      dialogStore.showNewDialog(DialogType.Settings)
       break
     case 'report':
       runtime.BrowserOpenURL('https://github.com/blacktau/vervet/issues')
       break
     case 'about':
-      dialogStore.openAboutDialog()
+      dialogStore.showNewDialog(DialogType.About)
       break
   }
 }
