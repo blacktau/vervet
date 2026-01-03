@@ -3,20 +3,19 @@ package app
 
 import (
 	"context"
-	"log"
+	"fmt"
+	"log/slog"
 	"vervet/internal/api"
 	"vervet/internal/connectionStrings"
 	"vervet/internal/connections"
 	"vervet/internal/servers"
 	"vervet/internal/settings"
 	"vervet/internal/system"
-
-	"github.com/wailsapp/wails/v2/pkg/logger"
 )
 
 // App struct
 type App struct {
-	log              logger.Logger
+	log              *slog.Logger
 	ctx              context.Context
 	ServersProxy     *api.ServersProxy
 	ConnectionsProxy *api.ConnectionsProxy
@@ -30,12 +29,12 @@ type App struct {
 }
 
 // NewApp creates a new App application struct
-func NewApp(log logger.Logger) *App {
+func NewApp(log *slog.Logger) *App {
 	serverManager := servers.NewManager(log)
-	connectionStringsStore := connectionStrings.NewStore()
+	connectionStringsStore := connectionStrings.NewStore(log)
 	connectionManager := connections.NewManager(log, connectionStringsStore)
 	settingsManager := settings.NewManager(log)
-	systemService := system.NewSystemService()
+	systemService := system.NewSystemService(log)
 
 	return &App{
 		log:               log,
@@ -57,22 +56,26 @@ func (a *App) Startup(ctx context.Context) {
 
 	err := a.serverManager.Init(ctx)
 	if err != nil {
-		log.Fatalf("Failed to initialize registered server manager / settings database: %v", err)
+		a.log.Error("Failed to initialize registered server manager / settings database", slog.Any("error", err))
+		panic(fmt.Errorf("failed to initialize registered server manager / settings database: %w", err))
 	}
 
 	err = a.connectionManager.Init(ctx)
 	if err != nil {
-		log.Fatalf("Failed to initialize connection manager: %v", err)
+		a.log.Error("Failed to initialize connection manager", slog.Any("error", err))
+		panic(fmt.Errorf("failed to initialize connection manager: %w", err))
 	}
 
 	err = a.settingsManager.Init(ctx)
 	if err != nil {
-		log.Fatalf("Failed to initialize configuration manager: %v", err)
+		a.log.Error("Failed to initialize settings manager", slog.Any("error", err))
+		panic(fmt.Errorf("failed to initialize settings manager: %w", err))
 	}
 
 	err = a.systemService.Init(ctx)
 	if err != nil {
-		log.Fatalf("Failed to initialize system service: %v", err)
+		a.log.Error("Failed to initialize system service", slog.Any("error", err))
+		panic(fmt.Errorf("failed to initialize system service: %w", err))
 	}
 }
 

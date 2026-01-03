@@ -4,8 +4,11 @@ import (
 	"embed"
 	"flag"
 	"fmt"
+	"log/slog"
+	"os"
 	"vervet/internal/api"
 	"vervet/internal/app"
+	"vervet/internal/logging"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/logger"
@@ -24,9 +27,14 @@ var icon []byte
 
 func main() {
 	debugUI := flag.Bool("debug-ui", false, "enable ui inspector")
+	logLevel := &slog.LevelVar{}
+	logLevel.Set(slog.LevelDebug)
+	slogger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		Level: logLevel,
+	}))
+	log := logging.NewLogger(slogger)
 
-	log := logger.NewDefaultLogger()
-	application := app.NewApp(log)
+	application := app.NewApp(slogger)
 
 	log.Info(fmt.Sprintf("--debug-ui: %v", *debugUI))
 
