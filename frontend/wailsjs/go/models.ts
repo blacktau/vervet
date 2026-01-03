@@ -1,5 +1,5 @@
 export namespace api {
-
+	
 	export enum OperatingSystem {
 	    WINDOWS = "windows",
 	    LINUX = "linux",
@@ -64,7 +64,7 @@ export namespace api {
 }
 
 export namespace servers {
-
+	
 	export interface RegisteredServer {
 	    id: string;
 	    name: string;
@@ -78,7 +78,7 @@ export namespace servers {
 }
 
 export namespace settings {
-
+	
 	export interface FontSettings {
 	    family: string;
 	    size: number;
@@ -86,16 +86,13 @@ export namespace settings {
 	}
 	export interface EditorSettings {
 	    lineNumbers: boolean;
-      showFolding: boolean;
-      dropText: boolean;
-      links: boolean;
 	    font: FontSettings;
 	}
 	export interface Font {
 	    name: string;
 	    path: string;
 	}
-
+	
 	export interface GeneralSettings {
 	    theme: string;
 	    language: string;
@@ -119,8 +116,8 @@ export namespace settings {
 	    editor: EditorSettings;
 	    terminal: TerminalSettings;
 	}
-
-
+	
+	
 	export interface WindowState {
 	    width: number;
 	    height: number;

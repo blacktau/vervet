@@ -4,18 +4,21 @@ import type { servers } from 'wailsjs/go/models.ts'
 import { isEmpty, union } from 'lodash'
 import { useNotifier } from '@/utils/dialog.ts'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
+import { ServerNodeType, type ServerTreeNode } from '@/features/server-pane/types.ts'
 
 export interface RegisteredServerNode extends servers.RegisteredServer {
   children: RegisteredServerNode[];
 }
 
 type ServerStoreState = {
-  serverTree: RegisteredServerNode[]
+  serverTree: RegisteredServerNode[],
+  mappedTree: ServerTreeNode[],
 }
 
 export const useServerStore = defineStore('server', {
   state: () => ({
-    serverTree: []
+    serverTree: [],
+    mappedTree: [],
   } as ServerStoreState),
   actions: {
     refreshServers: async function(force: boolean = false) {
@@ -27,6 +30,8 @@ export const useServerStore = defineStore('server', {
       const tree: RegisteredServerNode[] = []
 
       const result = await serversProxy.GetServers()
+
+      console.log('refreshServers', result)
 
       if (!result.isSuccess) {
         const notifier = useNotifier()
@@ -61,6 +66,9 @@ export const useServerStore = defineStore('server', {
 
       tree.sort(nodeComparator)
       this.serverTree = tree
+      this.mappedTree = tree.map((x) => mapNode(x))
+      console.log('serverStore.serverTree', this.serverTree)
+      console.log('serverStore.mappedTree', this.mappedTree)
     },
     async getServerDetails(id: string) {
       const response = await serversProxy.GetServer(id)
@@ -203,3 +211,28 @@ function merge(dst: Record<string, any>, src: Record<string, any>) {
   }
   return dst
 }
+
+const mapNode = (node: RegisteredServerNode, path: string = ''): ServerTreeNode => {
+  if (node.isGroup) {
+    const thisPath = `${path}/${node.id}`
+    return {
+      key: node.id,
+      label: node.name,
+      children: node.children.map((x) => mapNode(x, thisPath)),
+      type: ServerNodeType.Group,
+      path: path,
+      isGroup: true,
+    }
+  } else {
+    return {
+      key: node.id,
+      label: node.name,
+      type: ServerNodeType.Server,
+      isSrv: node.isSrv,
+      isCluster: node.isCluster,
+      color: node.color,
+      path: path,
+    }
+  }
+}
+

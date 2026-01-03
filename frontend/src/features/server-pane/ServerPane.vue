@@ -24,12 +24,12 @@ const filterPattern = ref('')
 const moreOptions = [
   {
     key: 'import',
-    label: 'interface.serverPane.importServers',
+    label: 'serverPane.importServers',
     icon: ArrowRightEndOnRectangleIcon,
   },
   {
     key: 'export',
-    label: 'interface.serverPane.exportServers',
+    label: 'serverPane.exportServers',
     icon: ArrowRightStartOnRectangleIcon,
   },
 ]
@@ -69,7 +69,7 @@ const onSelectOptions = async (select: string) => {
       <n-input
         v-model:value="filterPattern"
         :autofocus="false"
-        :placeholder="$t('interface.serverPane.filter')"
+        :placeholder="$t('serverPane.filter')"
         clearable>
         <template #prefix>
           <n-icon :component="FunnelIcon" size="20" />

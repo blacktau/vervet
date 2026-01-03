@@ -5,9 +5,7 @@ import { computed } from 'vue'
 import { find, map } from 'lodash'
 
 const themeVars = useThemeVars()
-const props = defineProps<{
-  server: string
-}>()
+const props = defineProps<{ }>()
 
 const tabStore = useTabStore()
 const tab = computed(() => {
@@ -42,14 +40,12 @@ const tabContent = computed(() => {
         tabGapMediumLine: '10px',
         tabGapLargeLine: '10px',
       }"
-      :value="selectedSubtab"
       class="content-sub-tab"
-      :default-value="BrowserTabType.Status.toString()"
       pane-class="content-sub-tab-pane"
       placement="top"
       tab-style="padding-left: 10px; padding-right: 10px;"
       type="line"
-      @update:value="tabStore.switchSubTab"></n-tabs>
+      ></n-tabs>
   </div>
 </template>
 

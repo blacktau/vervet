@@ -17,6 +17,7 @@ import ResizeableWrapper from '@/features/common/ResizeableWrapper.vue'
 import ContentPane from '@/features/content/ContentPane.vue'
 import ContentLogPane from '@/features/content/ContentLogPane.vue'
 import ServerPane from '@/features/server-pane/ServerPane.vue'
+import DataBrowserPane from '@/features/data-browser/DataBrowserPane.vue'
 
 const themeVars = useThemeVars()
 const props = defineProps<{
@@ -166,7 +167,7 @@ const onKeyShortCut = (e: KeyboardEvent) => {
           </n-space>
         </div>
         <div v-show="tabStore.nav !== 'browser'" class="app-toolbar-tab flex-item-expand">
-          <content-value-tab />
+          <div>content-value-tab</div>
         </div>
         <div class="flex-item-expand" style="min-width: 15px"></div>
         <toolbar-control-widget
@@ -207,7 +208,7 @@ const onKeyShortCut = (e: KeyboardEvent) => {
             @update:size="handleResize">
             <server-pane class="app-side flex-item-expand" />
           </resizeable-wrapper>
-          <content-server-pane class="flex-item-expand" />
+<!--          <content-server-pane class="flex-item-expand" />-->
         </div>
         <div v-show="tabStore.nav === 'log'" class="content-area flex-box-h flex-item-expand">
           <content-log-pane ref="logPaneRef" class="flex-item-expand" />

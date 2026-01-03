@@ -19,6 +19,13 @@ export default {
     unit_second: 's',
     all: 'All',
     deleteTooltip: '{type} "{name}" will be deleted',
+    filter: {
+      label: 'Filter',
+      fullSearchResult: 'Content matched "{pattern}"',
+      exactMatchTip: 'Exact match',
+      filterPatternTip: 'Filter pattern',
+      fullSearch: 'Full Text Search',
+    },
     dialog: {
       fieldRequired: 'required',
       illegalCharacters: 'Illegal characters',
@@ -49,7 +56,6 @@ export default {
     },
     editor: {
       name: 'Editor',
-      font: 'Font',
       showLineNumbers: 'Show Line Numbers',
       showFolding: 'Enable Code Folding',
       dropText: 'Allow Dragging & Dropping of Text',

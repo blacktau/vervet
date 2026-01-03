@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useThemeVars } from 'naive-ui'
-import { useDialogStore } from '@/stores/dialog.ts'
+import { DialogType, useDialogStore } from '@/stores/dialog.ts'
 import { onMounted, ref } from 'vue'
 import * as settingsProxy from 'wailsjs/go/api/SettingsProxy'
 import * as runtime from 'wailsjs/runtime'
@@ -20,11 +20,14 @@ onMounted(async () => {
 const onOpenSource = () => {
   runtime.BrowserOpenURL('https://github.com/blacktau/vervet')
 }
-
 </script>
 
 <template>
-  <n-modal v-model:show="dialogStore.aboutDialogVisible" :show-icon="false" preset="dialog" transform-origin="center">
+  <n-modal
+    v-model:show="dialogStore.dialogs[DialogType.About].visible"
+    :show-icon="false"
+    preset="dialog"
+    transform-origin="center">
     <n-space :size="10" :wrap="false" align="center" vertical>
       <n-avatar :size="120" :src="iconUrl" color="#0000"></n-avatar>
       <div class="about-app-title">Vervet</div>
