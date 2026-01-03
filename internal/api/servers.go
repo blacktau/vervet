@@ -32,23 +32,23 @@ func (sp *ServersProxy) GetServers() Result[[]servers.RegisteredServer] {
 	}
 }
 
-func (sp *ServersProxy) GetServer(id string) Result[servers.RegisteredServer] {
+func (sp *ServersProxy) GetServer(id string) Result[servers.RegisteredServerConnection] {
 	registerServer, err := sp.sm.GetServer(id)
 	if err != nil {
-		return Result[servers.RegisteredServer]{
+		return Result[servers.RegisteredServerConnection]{
 			IsSuccess: false,
 			Error:     err.Error(),
 		}
 	}
 
 	if registerServer == nil {
-		return Result[servers.RegisteredServer]{
+		return Result[servers.RegisteredServerConnection]{
 			IsSuccess: false,
 			Error:     fmt.Sprintf("Server with id %s not found", id),
 		}
 	}
 
-	return Result[servers.RegisteredServer]{
+	return Result[servers.RegisteredServerConnection]{
 		IsSuccess: true,
 		Data:      *registerServer,
 	}
@@ -73,8 +73,8 @@ func (sp *ServersProxy) UpdateGroup(groupID, name string) EmptyResult {
 }
 
 // SaveServer saves a new server to the store
-func (sp *ServersProxy) SaveServer(parentID, name, uri string) EmptyResult {
-	err := sp.sm.AddServer(parentID, name, uri)
+func (sp *ServersProxy) SaveServer(parentID, name, uri, colour string) EmptyResult {
+	err := sp.sm.AddServer(parentID, name, uri, colour)
 	if err != nil {
 		return Error(err.Error())
 	}
@@ -82,8 +82,8 @@ func (sp *ServersProxy) SaveServer(parentID, name, uri string) EmptyResult {
 	return Success()
 }
 
-func (sp *ServersProxy) UpdateServer(serverID, name, uri, parentID string) EmptyResult {
-	err := sp.sm.UpdateServer(serverID, name, uri, parentID)
+func (sp *ServersProxy) UpdateServer(serverID, name, uri, parentID, colour string) EmptyResult {
+	err := sp.sm.UpdateServer(serverID, name, uri, parentID, colour)
 	if err != nil {
 		return Error(err.Error())
 	}

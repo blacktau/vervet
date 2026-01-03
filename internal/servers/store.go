@@ -2,17 +2,18 @@ package servers
 
 import (
 	"fmt"
+	"log/slog"
 	"sync"
 	"vervet/internal/infrastructure"
+	"vervet/internal/logging"
 
-	"github.com/wailsapp/wails/v2/pkg/logger"
 	"gopkg.in/yaml.v3"
 )
 
 type Store struct {
 	cfgStore infrastructure.Store
 	mutex    sync.Mutex
-	log      logger.Logger
+	log      *slog.Logger
 }
 
 type RegisteredServer struct {
@@ -20,9 +21,14 @@ type RegisteredServer struct {
 	Name      string `json:"name" yaml:"name"`
 	IsGroup   bool   `json:"isGroup" yaml:"isGroup"`
 	ParentID  string `json:"parentID,omitempty" yaml:"parentID,omitempty"`
-	Color     string `json:"color" yaml:"color"`
+	Colour    string `json:"colour" yaml:"colour"`
 	IsCluster bool   `json:"isCluster" yaml:"isCluster"`
 	IsSrv     bool   `json:"isSrv" yaml:"isSrv"`
+}
+
+type RegisteredServerConnection struct {
+	RegisteredServer
+	URI string `json:"uri" yaml:"uri"`
 }
 
 //type ConnectionType int
@@ -71,21 +77,23 @@ type ServerStore interface {
 	SaveServers(servers []RegisteredServer) error
 }
 
-func NewServerStore(log logger.Logger) (ServerStore, error) {
-	cfgStore, err := infrastructure.NewStore("connections.yaml", log)
+func NewServerStore(log *slog.Logger) (ServerStore, error) {
+	logger := log.With(slog.String(logging.SourceKey, "ServerStore"))
+	cfgStore, err := infrastructure.NewStore("connections.yaml", logger)
 	if err != nil {
 		return nil, fmt.Errorf("error loading configuration: %v", err)
 	}
 
 	return &Store{
 		cfgStore: cfgStore,
-		log:      log,
+		log:      logger,
 	}, nil
 }
 
 func (s *Store) LoadServers() ([]RegisteredServer, error) {
 	b, err := s.cfgStore.Read()
 	if err != nil {
+		s.log.Error("error loading registered servers", slog.Any("error", err))
 		return nil, fmt.Errorf("error loading registered servers: %v", err)
 	}
 
@@ -96,6 +104,7 @@ func (s *Store) LoadServers() ([]RegisteredServer, error) {
 	}
 
 	if err = yaml.Unmarshal(b, &registeredServers); err != nil {
+		s.log.Error("error parsing registered servers", slog.Any("error", err))
 		return nil, fmt.Errorf("error parsing registered servers: %v", err)
 	}
 
@@ -103,12 +112,15 @@ func (s *Store) LoadServers() ([]RegisteredServer, error) {
 }
 
 func (s *Store) SaveServers(registeredServers []RegisteredServer) error {
+	s.log.Debug("Saving Registered Servers")
 	b, err := yaml.Marshal(&registeredServers)
 	if err != nil {
+		s.log.Error("error marshalling registered servers", slog.Any("error", err))
 		return fmt.Errorf("error marshalling registered servers: %v", err)
 	}
 
 	if err = s.cfgStore.Save(b); err != nil {
+		s.log.Error("error saving registered servers", slog.Any("error", err))
 		return fmt.Errorf("error saving registered servers: %v", err)
 	}
 
