@@ -2,12 +2,11 @@ package settings
 
 import (
 	"context"
+	"log/slog"
 	"vervet/internal/infrastructure"
-
-	"github.com/wailsapp/wails/v2/pkg/logger"
 )
 
-func NewTestManager(store infrastructure.Store, log logger.Logger, ctx context.Context) Manager {
+func NewTestManager(store infrastructure.Store, log *slog.Logger, ctx context.Context) Manager {
 	return &settingsManager{
 		store: store,
 		log:   log,

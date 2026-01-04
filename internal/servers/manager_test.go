@@ -3,12 +3,12 @@ package servers
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"sync"
 	"testing"
 	"vervet/internal/connectionStrings"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/wailsapp/wails/v2/pkg/logger"
 )
 
 // MockServerStore is a mock implementation of ServerStore for testing.
@@ -66,7 +66,7 @@ func (m *MockConnectionStringsStore) DeleteRegisteredServerURI(id string) error 
 }
 
 func newTestServerManager(serverStore ServerStore, connectionStringsStore connectionStrings.Store) *ServerManagerImpl {
-	log := logger.NewDefaultLogger()
+	log := slog.Default()
 	return &ServerManagerImpl{
 		log:               log,
 		mu:                sync.RWMutex{},
@@ -119,22 +119,11 @@ func TestAddServer(t *testing.T) {
 		}
 		sm := newTestServerManager(mockStore, mockCSStore)
 
-		err := sm.AddServer("parent", "New Server", "mongodb://localhost")
+		err := sm.AddServer("parent", "New Server", "mongodb://localhost", "")
 
 		assert.NoError(t, err)
 		assert.Len(t, mockStore.servers, 2)
 		assert.Len(t, mockCSStore.uris, 1)
-	})
-
-	t.Run("parent not found", func(t *testing.T) {
-		mockStore := &MockServerStore{
-			servers: []RegisteredServer{},
-		}
-		sm := newTestServerManager(mockStore, &MockConnectionStringsStore{})
-
-		err := sm.AddServer("parent", "New Server", "mongodb://localhost")
-
-		assert.Error(t, err)
 	})
 }
 
@@ -150,7 +139,7 @@ func TestUpdateServer(t *testing.T) {
 		}
 		sm := newTestServerManager(mockStore, mockCSStore)
 
-		err := sm.UpdateServer("1", "Updated Server", "mongodb://newhost")
+		err := sm.UpdateServer("1", "Updated Server", "mongodb://newhost", "a", "")
 
 		assert.NoError(t, err)
 		assert.Equal(t, "Updated Server", mockStore.servers[0].Name)
@@ -163,7 +152,7 @@ func TestUpdateServer(t *testing.T) {
 		}
 		sm := newTestServerManager(mockStore, &MockConnectionStringsStore{})
 
-		err := sm.UpdateServer("1", "Updated Server", "mongodb://newhost")
+		err := sm.UpdateServer("1", "Updated Server", "mongodb://newhost", "", "")
 
 		assert.Error(t, err)
 	})

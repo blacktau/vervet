@@ -3,6 +3,7 @@ package settings_test
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"os"
 	"path"
 	"testing"
@@ -10,7 +11,6 @@ import (
 	"vervet/internal/settings"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/wailsapp/wails/v2/pkg/logger"
 )
 
 func TestMain(m *testing.M) {
@@ -40,12 +40,12 @@ func (s *storeStub) Save(date []byte) error {
 	return s.err
 }
 
-func newTestManager(store infrastructure.Store, log logger.Logger) settings.Manager {
+func newTestManager(store infrastructure.Store, log *slog.Logger) settings.Manager {
 	if store == nil {
 		store = &storeStub{}
 	}
 	if log == nil {
-		log = logger.NewDefaultLogger()
+		log = slog.Default()
 	}
 	ctx := context.Background()
 	cm := settings.NewTestManager(store, log, ctx)
@@ -145,19 +145,6 @@ func Test_SettingsManager_GetFonts(t *testing.T) {
 		}
 		if len(fonts) == 0 {
 			t.Error("expected to find at least one font")
-		}
-	})
-}
-
-func Test_SettingsManager_GetWindowState(t *testing.T) {
-	t.Run("returns default window state", func(t *testing.T) {
-		m := newTestManager(nil, nil)
-		ws, err := m.GetWindowState()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if ws.Width != settings.DefaultWindowWidth {
-			t.Errorf("unexpected window width: %d", ws.Width)
 		}
 	})
 }

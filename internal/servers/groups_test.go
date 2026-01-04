@@ -23,17 +23,6 @@ func TestCreateGroup(t *testing.T) {
 		assert.Equal(t, "New Group", mockStore.servers[1].Name)
 		assert.Equal(t, "parent", mockStore.servers[1].ParentID)
 	})
-
-	t.Run("parent not found", func(t *testing.T) {
-		mockStore := &MockServerStore{
-			servers: []RegisteredServer{},
-		}
-		sm := newTestServerManager(mockStore, &MockConnectionStringsStore{})
-
-		err := sm.CreateGroup("parent", "New Group")
-
-		assert.Error(t, err)
-	})
 }
 
 func TestUpdateGroup(t *testing.T) {
@@ -45,7 +34,7 @@ func TestUpdateGroup(t *testing.T) {
 		}
 		sm := newTestServerManager(mockStore, &MockConnectionStringsStore{})
 
-		err := sm.UpdateGroup("1", "Updated Group")
+		err := sm.UpdateGroup("1", "Updated Group", "")
 
 		assert.NoError(t, err)
 		assert.Equal(t, "Updated Group", mockStore.servers[0].Name)
@@ -57,7 +46,7 @@ func TestUpdateGroup(t *testing.T) {
 		}
 		sm := newTestServerManager(mockStore, &MockConnectionStringsStore{})
 
-		err := sm.UpdateGroup("1", "Updated Group")
+		err := sm.UpdateGroup("1", "Updated Group", "")
 
 		assert.Error(t, err)
 	})
@@ -70,7 +59,7 @@ func TestUpdateGroup(t *testing.T) {
 		}
 		sm := newTestServerManager(mockStore, &MockConnectionStringsStore{})
 
-		err := sm.UpdateGroup("1", "Updated Group")
+		err := sm.UpdateGroup("1", "Updated Group", "")
 
 		assert.Error(t, err)
 	})

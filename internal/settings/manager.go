@@ -37,7 +37,7 @@ func NewManager(log *slog.Logger) Manager {
 	log = log.With(slog.String(logging.SourceKey, "SettingsManager"))
 	store, err := infrastructure.NewStore("configuration.yaml", log)
 	if err != nil {
-		log.Error("error accessing configuration", err)
+		log.Error("error accessing configuration", slog.Any("error", err))
 		panic(fmt.Errorf("error accessing configuration: %v", err))
 	}
 
