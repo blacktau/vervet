@@ -148,7 +148,7 @@ func (sm *ServerManagerImpl) AddServer(parentID, name, uri, colour string) error
 	err = sm.store.SaveServers(servers)
 	if err != nil {
 		_ = sm.connectionStrings.DeleteRegisteredServerURI(newId)
-		log.Error("Failed to save registered server", err)
+		log.Error("Failed to save registered server", slog.Any("error", err))
 		return fmt.Errorf("failed to save registered server: %w", err)
 	}
 	return nil
