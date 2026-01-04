@@ -63,8 +63,8 @@ func (sp *ServersProxy) CreateGroup(name, parentID string) EmptyResult {
 	return Success()
 }
 
-func (sp *ServersProxy) UpdateGroup(groupID, name string) EmptyResult {
-	err := sp.sm.UpdateGroup(groupID, name)
+func (sp *ServersProxy) UpdateGroup(groupID, name, parentID string) EmptyResult {
+	err := sp.sm.UpdateGroup(groupID, name, parentID)
 	if err != nil {
 		return Error(err.Error())
 	}

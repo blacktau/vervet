@@ -21,8 +21,8 @@ type Manager interface {
 	UpdateServer(serverID, name, uri, parentID, colour string) error
 	RemoveNode(id string) error
 	GetURI(id string) (string, error)
-	CreateGroup(parentID string, name string) error
-	UpdateGroup(groupID string, name string) error
+	CreateGroup(parentID, name string) error
+	UpdateGroup(groupID, name, parentID string) error
 	GetServer(id string) (*RegisteredServerConnection, error)
 }
 

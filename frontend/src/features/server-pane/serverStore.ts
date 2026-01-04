@@ -7,18 +7,17 @@ import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 import { ServerNodeType, type ServerTreeNode } from '@/features/server-pane/types.ts'
 
 export interface RegisteredServerNode extends servers.RegisteredServer {
-  children: RegisteredServerNode[];
+  children?: RegisteredServerNode[];
+  isLeaf?: boolean;
 }
 
 type ServerStoreState = {
   serverTree: RegisteredServerNode[],
-  mappedTree: ServerTreeNode[],
 }
 
 export const useServerStore = defineStore('server', {
   state: () => ({
     serverTree: [],
-    mappedTree: [],
   } as ServerStoreState),
   actions: {
     refreshServers: async function(force: boolean = false) {
@@ -31,8 +30,6 @@ export const useServerStore = defineStore('server', {
 
       const result = await serversProxy.GetServers()
 
-      console.log('refreshServers', result)
-
       if (!result.isSuccess) {
         const notifier = useNotifier()
         notifier.error(`error retrieving registered servers: ${result.error}`)
@@ -42,7 +39,7 @@ export const useServerStore = defineStore('server', {
       for (const node of result.data) {
         nodeMap[node.id] = {
           ...node,
-          children: []
+          children: node.isGroup ? [] : undefined,
         }
       }
 
@@ -56,7 +53,7 @@ export const useServerStore = defineStore('server', {
           const parentNode = nodeMap[node.parentID]
           if (parentNode) {
             const child = nodeMap[node.id]
-            if (child) {
+            if (child && parentNode.children && !parentNode.children.some((x) => x.id === child.id)) {
               parentNode.children.push(child)
               parentNode.children.sort(nodeComparator)
             }
@@ -66,9 +63,6 @@ export const useServerStore = defineStore('server', {
 
       tree.sort(nodeComparator)
       this.serverTree = tree
-      this.mappedTree = tree.map((x) => mapNode(x))
-      console.log('serverStore.serverTree', this.serverTree)
-      console.log('serverStore.mappedTree', this.mappedTree)
     },
     async getServerDetails(id?: string) {
       if (id == null) {
@@ -142,17 +136,17 @@ export const useServerStore = defineStore('server', {
       await this.refreshServers(true)
       return { success: true }
     },
-    async renameGroup(groupId: string, newName: string) {
+    async updateGroup(groupId: string, newName: string, parentId?: string) {
       const group = this.findServerById(groupId)
       if (!group) {
         return { success: false, msg: 'group not found' }
       }
 
-      if (group.name === newName) {
+      if (group.name === newName && group.parentID === (parentId || '')) {
         return { success: true }
       }
 
-      const result = await serversProxy.UpdateGroup(groupId, newName)
+      const result = await serversProxy.UpdateGroup(groupId, newName, parentId || '')
       if (!result.isSuccess) {
         return { success: false, msg: result.error }
       }
@@ -172,18 +166,22 @@ export const useServerStore = defineStore('server', {
   getters: {
     findServerById(state: ServerStoreState) {
       return (id: string) => {
-        return findServerById(state.serverTree, id)
+        return findServerById(id, state.serverTree)
       }
     }
   },
 })
 
-function findServerById(nodeList: RegisteredServerNode[], id: string): RegisteredServerNode | undefined {
+function findServerById(id: string, nodeList?: RegisteredServerNode[]): RegisteredServerNode | undefined {
+  if (!nodeList) {
+    return undefined
+  }
+
   for (const node of nodeList) {
     if (node.id === id) {
       return node
     }
-    const child = findServerById(node.children, id)
+    const child = findServerById(id, node.children)
     if (child) {
       return child
     }
@@ -228,7 +226,7 @@ const mapNode = (node: RegisteredServerNode, path: string = ''): ServerTreeNode 
     return {
       key: node.id,
       label: node.name,
-      children: node.children.map((x) => mapNode(x, thisPath)),
+      children: node.children?.map((x) => mapNode(x, thisPath)),
       type: ServerNodeType.Group,
       path: path,
       isGroup: true,

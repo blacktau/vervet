@@ -14,6 +14,6 @@ export function RemoveNode(arg1:string):Promise<api.EmptyResult>;
 
 export function SaveServer(arg1:string,arg2:string,arg3:string,arg4:string):Promise<api.EmptyResult>;
 
-export function UpdateGroup(arg1:string,arg2:string):Promise<api.EmptyResult>;
+export function UpdateGroup(arg1:string,arg2:string,arg3:string):Promise<api.EmptyResult>;
 
 export function UpdateServer(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string):Promise<api.EmptyResult>;

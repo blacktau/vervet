@@ -6,7 +6,7 @@ import { every, includes, isEmpty } from 'lodash'
 import { XCircleIcon } from '@heroicons/vue/24/outline'
 import { DialogType, useDialogStore } from '@/stores/dialog.ts'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
-import { useServerStore } from '@/features/server-pane/serverStore.ts'
+import { type RegisteredServerNode, useServerStore } from '@/features/server-pane/serverStore.ts'
 import { useMessager, useNotifier } from '@/utils/dialog.ts'
 import { parseUri } from '@/features/server-pane/connectionStrings.ts'
 import { filterGroupMap } from '@/features/server-pane/helpers.ts'
@@ -115,7 +115,7 @@ const onSaveServer = async () => {
       generalForm.value.name,
       generalForm.value.connectionString,
       generalForm.value.parentId,
-      generalForm.value.colour
+      generalForm.value.colour,
     )
     if (!result.success) {
       messager.error(result.msg || 'unknown error')
@@ -129,7 +129,7 @@ const onSaveServer = async () => {
 
 const groupOptions = computed(() => {
   const nodes = serverStore.serverTree
-  const options: TreeSelectOption[] = []
+  const options: RegisteredServerNode[] = []
   for (let i = 0, ln = nodes.length; i < ln; ++i) {
     const option = filterGroupMap(nodes[i]!)
     if (!!option) {
@@ -137,8 +137,13 @@ const groupOptions = computed(() => {
     }
   }
   options.splice(0, 0, {
-    label: i18n.t('serverPane.dialogs.common.noGroup'),
-    key: '',
+    name: i18n.t('serverPane.dialogs.common.noGroup'),
+    id: '',
+    isGroup: true,
+    isCluster: false,
+    isSrv: false,
+    children: [],
+    colour: ''
   })
   return options
 })
@@ -257,11 +262,8 @@ const onTestConnection = async () => {
                   v-model:value="generalForm.name"
                   :placeholder="$t('serverPane.dialogs.server.nameTip')" />
               </n-form-item-gi>
-              <n-form-item-gi
-                :label="$t('serverPane.dialogs.server.group')"
-                :span="24"
-                required>
-                <n-tree-select :options="groupOptions" v-model:value="generalForm.parentId" />
+              <n-form-item-gi :label="$t('serverPane.dialogs.server.group')" :span="24" required>
+                <n-tree-select :options="groupOptions" v-model:value="generalForm.parentId" key-field="id" label-field="name" />
               </n-form-item-gi>
               <n-form-item-gi
                 :label="$t('serverPane.dialogs.server.connectionString')"
@@ -282,7 +284,9 @@ const onTestConnection = async () => {
                   :style="{
                     backgroundColor: colour,
                     borderColor:
-                      generalForm.colour === colour ? themeVars.textColorBase : themeVars.borderColor,
+                      generalForm.colour === colour
+                        ? themeVars.textColorBase
+                        : themeVars.borderColor,
                   }"
                   class="color-preset-item"
                   @click="generalForm.colour = colour">

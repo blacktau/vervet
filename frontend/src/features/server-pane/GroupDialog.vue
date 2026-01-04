@@ -4,11 +4,14 @@ import { computed, reactive, ref, watchEffect } from 'vue'
 import { every, get, includes, isEmpty } from 'lodash'
 import { type FormItemRule, type FormInst, type TreeSelectOption } from 'naive-ui'
 import { DialogType, useDialogStore } from '@/stores/dialog.ts'
-import { useServerStore } from '@/features/server-pane/serverStore.ts'
+import { type RegisteredServerNode, useServerStore } from '@/features/server-pane/serverStore.ts'
 import { useMessager } from '@/utils/dialog.ts'
 import { filterGroupMap } from '@/features/server-pane/helpers.ts'
 
+const dialogStore = useDialogStore()
+const serverStore = useServerStore()
 const i18n = useI18n()
+
 const editGroup = ref('')
 const groupForm = reactive<{
   name: string
@@ -40,16 +43,6 @@ const isEditMode = computed(
   () => ((dialogStore.dialogs[DialogType.Group].data as string) || '').length > 0,
 )
 
-const dialogStore = useDialogStore()
-const serverStore = useServerStore()
-watchEffect(() => {
-  if (dialogStore.dialogs[DialogType.Group].visible) {
-    const groupId = dialogStore.dialogs[DialogType.Group].data as string
-    const group = serverStore.findServerById(groupId)
-    groupForm.name = editGroup.value = group?.name || ''
-  }
-})
-
 const onConfirm = async () => {
   const messager = useMessager()
   try {
@@ -64,7 +57,7 @@ const onConfirm = async () => {
     const { name, parentId } = groupForm
 
     if (isEditMode.value) {
-      const { success, msg } = await serverStore.renameGroup(editGroup.value, name)
+      const { success, msg } = await serverStore.updateGroup(editGroup.value, name, parentId)
 
       if (success) {
         messager.success(i18n.t('common.dialog.handleSuccess'))
@@ -95,18 +88,37 @@ const onClose = () => {
 
 const groupOptions = computed(() => {
   const nodes = serverStore.serverTree
-  const options: TreeSelectOption[] = []
+  const options: RegisteredServerNode[] = []
   for (let i = 0, ln = nodes.length; i < ln; ++i) {
     const option = filterGroupMap(nodes[i]!)
+    if (option?.id == editGroup.value) {
+      continue
+    }
+
     if (!!option) {
       options.push(option)
     }
   }
   options.splice(0, 0, {
-    label: i18n.t('serverPane.dialogs.common.noGroup'),
-    key: '',
+    name: i18n.t('serverPane.dialogs.common.noGroup'),
+    id: '',
+    isGroup: true,
+    isCluster: false,
+    isSrv: false,
+    children: [],
+    colour: '',
   })
   return options
+})
+
+watchEffect(() => {
+  if (dialogStore.dialogs[DialogType.Group].visible) {
+    const groupId = dialogStore.dialogs[DialogType.Group].data as string
+    const group = serverStore.findServerById(groupId)
+    editGroup.value = groupId
+    groupForm.name = group?.name || ''
+    groupForm.parentId = group?.parentID
+  }
 })
 </script>
 
@@ -135,10 +147,16 @@ const groupOptions = computed(() => {
       :show-require-mark="false"
       label-placement="top">
       <n-form-item :label="$t('serverPane.dialogs.group.name')" path="name" required>
-        <n-input v-model:value="groupForm.name" :placeholder="$t('serverPane.dialogs.group.namePlaceholder')" />
+        <n-input
+          v-model:value="groupForm.name"
+          :placeholder="$t('serverPane.dialogs.group.namePlaceholder')" />
       </n-form-item>
       <n-form-item :label="$t('serverPane.dialogs.group.parent')" :span="24" required>
-        <n-tree-select :options="groupOptions" v-model:value="groupForm.parentId" />
+        <n-tree-select
+          :options="groupOptions"
+          v-model:value="groupForm.parentId"
+          key-field="id"
+          label-field="name" />
       </n-form-item>
     </n-form>
   </n-modal>
