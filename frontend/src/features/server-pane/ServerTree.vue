@@ -2,8 +2,8 @@
 import { type DropdownOption, NIcon, NSpace, NText, useThemeVars } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import { useRender } from '@/utils/render.ts'
-import { h, nextTick, reactive, ref, type VNodeArrayChildren } from 'vue'
-import { useServerStore } from '@/features/server-pane/serverStore.ts'
+import { computed, h, nextTick, reactive, ref, type VNodeArrayChildren } from 'vue'
+import { type RegisteredServerNode, useServerStore } from '@/features/server-pane/serverStore.ts'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 import { useTabStore } from '@/stores/tabs.ts'
 import { useSettingsStore } from '@/features/settings/settingsStore.ts'
@@ -29,10 +29,13 @@ import SrvIcon from '@/features/icon/SrvIcon.vue'
 import { getServerColour } from '@/features/server-pane/helpers.ts'
 import { ServerNodeType, type ServerTreeNode } from '@/features/server-pane/types.ts'
 
+const props = defineProps<{
+  filterPattern?: string
+}>()
+
 const themeVars = useThemeVars()
 const i18n = useI18n()
 const render = useRender()
-const connectingServer = ref('')
 
 const browserStore = useDataBrowserStore()
 const tabStore = useTabStore()
@@ -40,9 +43,9 @@ const settingsStore = useSettingsStore()
 const dialogStore = useDialogStore()
 const serverStore = useServerStore()
 
-const props = defineProps<{
-  filterPattern?: string
-}>()
+const connectingServer = ref('')
+const expandedKeys = ref<string[]>([])
+const selectedKeys = ref<string[]>([])
 
 const contextMenuParams = reactive<{
   show: boolean
@@ -127,18 +130,8 @@ const menuOptions = {
   },
 }
 
-const expandedKeys = ref<string[]>([])
-const selectedKeys = ref<string[]>([])
-
-const renderLabel = (x: { option: ServerTreeNode }) => {
-  const option = x.option
-  if (option.type == ServerNodeType.Server) {
-    const colour = getServerColour(option)
-    if (colour) {
-      return h(NText, { style: { color: colour, fontWeight: '450' } }, () => option.label)
-    }
-  }
-  return h(NText, {}, () => option.label)
+const renderLabel = (x: { option: RegisteredServerNode }) => {
+  return h(NText, {}, () => x.option.name)
 }
 
 const renderIconMenu = (items: VNodeArrayChildren) => {
@@ -156,8 +149,8 @@ const renderIconMenu = (items: VNodeArrayChildren) => {
   )
 }
 
-const getServerNodeIcon = (server: ServerTreeNode) => {
-  if (server.is) {
+const getServerNodeIcon = (server: RegisteredServerNode) => {
+  if (server.isCluster) {
     return ServerStackIcon
   } else if (server.isSrv) {
     return SrvIcon
@@ -166,10 +159,10 @@ const getServerNodeIcon = (server: ServerTreeNode) => {
   return ServerIcon
 }
 
-const renderPrefix = ({ option }: { option: ServerTreeNode }) => {
+const renderPrefix = ({ option }: { option: RegisteredServerNode }) => {
   const iconTransparency = settingsStore.isDark ? 0.75 : 1
-  if (option.type == ServerNodeType.Group) {
-    const opened = indexOf(expandedKeys.value, option.key) >= 0
+  if (option.isGroup) {
+    const opened = indexOf(expandedKeys.value, option.id) >= 0
     const icon = opened ? FolderOpenIcon : FolderIcon
     return h(
       NIcon,
@@ -183,7 +176,7 @@ const renderPrefix = ({ option }: { option: ServerTreeNode }) => {
       },
     )
   } else {
-    const connected = browserStore.isConnected(option.key as string)
+    const connected = browserStore.isConnected(option.id)
     const icon = getServerNodeIcon(option)
     const iconColour = connected ? '#38b000' : 'currentColor'
 
@@ -201,15 +194,15 @@ const renderPrefix = ({ option }: { option: ServerTreeNode }) => {
   }
 }
 
-const renderSuffix = ({ option }: { option: ServerTreeNode }) => {
-  if (!includes(selectedKeys.value, option.key)) {
+const renderSuffix = ({ option }: { option: RegisteredServerNode }) => {
+  if (!includes(selectedKeys.value, option.id)) {
     return undefined
   }
 
   if (option.isGroup) {
     return renderIconMenu(getGroupMenu())
   } else {
-    const connected = browserStore.isConnected(option.key as string)
+    const connected = browserStore.isConnected(option.id)
     return renderIconMenu(getServerMenu(connected))
   }
 }
@@ -266,24 +259,42 @@ const getGroupMenu = () => {
   ]
 }
 
-const nodeProps = ({ option }: { option: ServerTreeNode }) => {
+const colorCalc = (node: RegisteredServerNode) => {
+  if (node?.id == null) {
+    return undefined
+  }
+
+  if (selectedKeys.value.indexOf(node.id) > -1) {
+    return getServerColour(node, true)
+  }
+
+  return getServerColour(node, false)
+}
+
+const nodeProps = computed(() => (x: { option: RegisteredServerNode }) => {
+  const option = x.option
+
   return {
+    style: {
+      backgroundColor: colorCalc(option),
+    },
     onDblclick: async () => {
       if (option.isGroup) {
-        nextTick().then(() => expandKey(option.key as string))
+        nextTick().then(() => expandKey(option.id))
       } else {
-        connectToServer(option.key as string).then(() => {})
+        connectToServer(option.id).then(() => {})
       }
     },
     onContextmenu(e: Event) {
       e.preventDefault()
-      const mop = menuOptions[option.type]
+      const type = option.isGroup ? ServerNodeType.Group : ServerNodeType.Server
+      const mop = menuOptions[type]
       if (!mop) {
         return
       }
     },
   }
-}
+})
 
 const connectToServer = async (serverId: string) => {
   try {
@@ -429,11 +440,13 @@ const onCancelConnecting = async () => {
       :block-line="true"
       :block-node="true"
       :cancelable="false"
-      :data="serverStore.mappedTree"
+      :data="serverStore.serverTree"
       :draggable="true"
       :expanded-keys="expandedKeys"
       :node-props="nodeProps"
       :pattern="props.filterPattern"
+      label-field="name"
+      key-field="id"
       :render-label="renderLabel"
       :render-prefix="renderPrefix"
       :render-suffix="renderSuffix"
@@ -491,5 +504,38 @@ const onCancelConnecting = async () => {
 .server-tree-wrapper {
   height: 100%;
   overflow: hidden;
+}
+
+/*
+  '#F75B52',
+  '#F7A234',
+  '#F7CE33',
+  '#4ECF60',
+  '#348CF7',
+  '#B270D3',
+ */
+
+.server-node-red {
+  background-color: #f75b52;
+}
+
+.server-node-orange {
+  background-color: #f7a234;
+}
+
+.server-node-yellow {
+  background-color: #f7ce33;
+}
+
+.server-node-green {
+  background-color: #4ecf60;
+}
+
+.server-node-blue {
+  background-color: #348cf7;
+}
+
+.server-node-purple {
+  background-color: #b270d3;
 }
 </style>

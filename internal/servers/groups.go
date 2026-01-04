@@ -8,7 +8,7 @@ import (
 )
 
 // CreateGroup creates a new group node.
-func (sm *ServerManagerImpl) CreateGroup(parentID string, name string) error {
+func (sm *ServerManagerImpl) CreateGroup(parentID, name string) error {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 	log := sm.log.With(slog.String("parentID", parentID), slog.String("name", name))
@@ -50,16 +50,22 @@ func (sm *ServerManagerImpl) CreateGroup(parentID string, name string) error {
 	return nil
 }
 
-func (sm *ServerManagerImpl) UpdateGroup(groupID string, name string) error {
+func (sm *ServerManagerImpl) UpdateGroup(groupID, name, parentID string) error {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
-	log := sm.log.With(slog.String("groupID", groupID), slog.String("name", name))
+
+	log := sm.log.With(slog.String("groupID", groupID), slog.String("name", name), slog.String("parentID", parentID))
 	log.Debug("Updating group")
 
 	servers, err := sm.store.LoadServers()
 	if err != nil {
 		log.Error("Failed to update group", slog.Any("error", err))
 		return fmt.Errorf("failed to update group: %w", err)
+	}
+
+	parent, _ := findServer(parentID, servers)
+	if parent == nil {
+		parentID = ""
 	}
 
 	group := findGroup(groupID, servers)
@@ -69,6 +75,8 @@ func (sm *ServerManagerImpl) UpdateGroup(groupID string, name string) error {
 	}
 
 	group.Name = name
+	group.ParentID = parentID
+
 	err = sm.store.SaveServers(servers)
 
 	if err != nil {

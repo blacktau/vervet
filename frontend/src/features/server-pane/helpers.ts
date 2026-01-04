@@ -8,7 +8,7 @@ export const filterGroupMap = (node: RegisteredServerNode) => {
     return undefined
   }
 
-  const children: TreeSelectOption[] = []
+  const children: RegisteredServerNode[] = []
   for (let i = 0, ln = node.children.length; i < ln; ++i) {
     if (!node.children[i]?.isGroup) {
       continue
@@ -20,20 +20,19 @@ export const filterGroupMap = (node: RegisteredServerNode) => {
     }
   }
 
-  return {
-    label: node.name,
-    key: node.id,
-    children: children,
-  } as TreeSelectOption
+  return { ...node, children }
 }
 
-export const getServerColour = (server: ServerTreeNode) => {
+export const getServerColour = (server: RegisteredServerNode, selected: boolean = false) => {
   if (server == null || server.colour == null || server.colour.length == 0) {
     return undefined
   }
 
   const rgb = parseHexColor(server.colour)
-  const darker = hexGammaCorrection(rgb, 0.75)
-  console.log('getServerColour', server.colour, darker)
+  let gamma = 0.20
+  if (selected) {
+    gamma = 0.35
+  }
+  const darker = hexGammaCorrection(rgb, gamma)
   return toHexColor(darker)
 }
