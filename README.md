@@ -4,10 +4,12 @@
 
 Vervet is a desktop application designed for querying and managing MongoDB
 databases, built with a modern and responsive user interface. It is
-developed using the Wails framework, combining the power of Go for the backend
-with the flexibility of Vue.js and the Quasar component library for the frontend.
+developed using the [Wails](https://wails.io) framework, combining the power of Go for the backend
+with the flexibility of Vue.js and the [naiveui](https://www.naiveui.com/) component library for the frontend.
 
-It is currently still in development, with many feature missing.
+The UI is heavily influenced (some say copied) from [Tiny RDM](https://redis.tinycraft.cc/)
+
+It is currently still in development (not even alpha), with many features missing.
 
 ## Building
 
