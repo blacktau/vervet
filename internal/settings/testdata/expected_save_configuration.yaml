@@ -1,0 +1,20 @@
+window:
+     width: 1280
+     height: 768
+     asideWidth: 300
+     maximized: false
+     positionX: 0
+     positionY: 0
+general:
+     theme: "auto"
+     language: "auto"
+     font:
+          size: 14
+editor:
+     lineNumbers: true
+     font:
+          size: 14
+terminal:
+     font:
+          size: 14
+     cursorStyle: "block"

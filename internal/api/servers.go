@@ -2,38 +2,59 @@ package api
 
 import (
 	"fmt"
-	"vervet/internal/configuration"
 	"vervet/internal/servers"
 )
 
-// ServersProxy exposes the REgisteredServerManagaer to the UI
-// the proxies serve as a place to handle the idosyncrasies of the mashalling/unmarshalling to the UI
+// ServersProxy exposes the ServerManagerImpl to the UI
+// the proxies serve as a place to handle the idiosyncrasies of the marshaling/unmarshalling to the UI
 type ServersProxy struct {
-	sm *servers.ServerManager
+	sm servers.Manager
 }
 
-func NewServersProxy(sm *servers.ServerManager) *ServersProxy {
+func NewServersProxy(sm servers.Manager) *ServersProxy {
 	return &ServersProxy{
 		sm: sm,
 	}
 }
 
-func (sp *ServersProxy) GetServers() Result[[]configuration.RegisteredServer] {
-	registeredServers, err := sp.sm.GetRegisteredServers()
+func (sp *ServersProxy) GetServers() Result[[]servers.RegisteredServer] {
+	registeredServers, err := sp.sm.GetServers()
 	if err != nil {
-		return Result[[]configuration.RegisteredServer]{
+		return Result[[]servers.RegisteredServer]{
 			IsSuccess: false,
 			Error:     err.Error(),
 		}
 	}
 
-	return Result[[]configuration.RegisteredServer]{
+	return Result[[]servers.RegisteredServer]{
 		IsSuccess: true,
 		Data:      registeredServers,
 	}
 }
 
-func (sp *ServersProxy) CreateGroup(name string, parentID int) EmptyResult {
+func (sp *ServersProxy) GetServer(id string) Result[servers.RegisteredServerConnection] {
+	registerServer, err := sp.sm.GetServer(id)
+	if err != nil {
+		return Result[servers.RegisteredServerConnection]{
+			IsSuccess: false,
+			Error:     err.Error(),
+		}
+	}
+
+	if registerServer == nil {
+		return Result[servers.RegisteredServerConnection]{
+			IsSuccess: false,
+			Error:     fmt.Sprintf("Server with id %s not found", id),
+		}
+	}
+
+	return Result[servers.RegisteredServerConnection]{
+		IsSuccess: true,
+		Data:      *registerServer,
+	}
+}
+
+func (sp *ServersProxy) CreateGroup(name, parentID string) EmptyResult {
 	err := sp.sm.CreateGroup(parentID, name)
 	if err != nil {
 		return Error(err.Error())
@@ -42,8 +63,8 @@ func (sp *ServersProxy) CreateGroup(name string, parentID int) EmptyResult {
 	return Success()
 }
 
-func (sp *ServersProxy) UpdateGroup(groupID, parentID int, name string) EmptyResult {
-	err := sp.sm.UpdateGroup(groupID, parentID, name)
+func (sp *ServersProxy) UpdateGroup(groupID, name, parentID string) EmptyResult {
+	err := sp.sm.UpdateGroup(groupID, name, parentID)
 	if err != nil {
 		return Error(err.Error())
 	}
@@ -51,8 +72,9 @@ func (sp *ServersProxy) UpdateGroup(groupID, parentID int, name string) EmptyRes
 	return Success()
 }
 
-func (sp *ServersProxy) SaveServer(parentID int, name, uri string) EmptyResult {
-	err := sp.sm.AddRegisterServer(parentID, name, uri)
+// SaveServer saves a new server to the store
+func (sp *ServersProxy) SaveServer(parentID, name, uri, colour string) EmptyResult {
+	err := sp.sm.AddServer(parentID, name, uri, colour)
 	if err != nil {
 		return Error(err.Error())
 	}
@@ -60,8 +82,8 @@ func (sp *ServersProxy) SaveServer(parentID int, name, uri string) EmptyResult {
 	return Success()
 }
 
-func (sp *ServersProxy) UpdateServer(serverID, parentID int, name, uri string) EmptyResult {
-	err := sp.sm.UpdateRegisterServer(serverID, parentID, name, uri)
+func (sp *ServersProxy) UpdateServer(serverID, name, uri, parentID, colour string) EmptyResult {
+	err := sp.sm.UpdateServer(serverID, name, uri, parentID, colour)
 	if err != nil {
 		return Error(err.Error())
 	}
@@ -69,15 +91,15 @@ func (sp *ServersProxy) UpdateServer(serverID, parentID int, name, uri string) E
 	return Success()
 }
 
-func (sp *ServersProxy) RemoveNode(id int, isFolder bool) EmptyResult {
-	err := sp.sm.RemoveNode(id, isFolder)
+func (sp *ServersProxy) RemoveNode(id string) EmptyResult {
+	err := sp.sm.RemoveNode(id)
 	if err != nil {
 		return Error(fmt.Sprintf("Error removing node: %v", err))
 	}
 	return Success()
 }
 
-func (sp *ServersProxy) GetURI(id int) Result[string] {
+func (sp *ServersProxy) GetURI(id string) Result[string] {
 	uri, err := sp.sm.GetURI(id)
 	if err != nil {
 		return Result[string]{

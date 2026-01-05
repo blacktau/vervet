@@ -2,6 +2,7 @@ package api
 
 import (
 	"runtime"
+	"vervet/internal/system"
 )
 
 type OperatingSystem string
@@ -21,10 +22,14 @@ var AllOperatingSystems = []struct {
 	{OSX, "OSX"},
 }
 
-type SystemProxy struct{}
+type SystemProxy struct {
+	service system.Service
+}
 
-func NewSystemProxy() *SystemProxy {
-	return &SystemProxy{}
+func NewSystemProxy(ss system.Service) *SystemProxy {
+	return &SystemProxy{
+		service: ss,
+	}
 }
 
 func (sp *SystemProxy) GetOs() Result[OperatingSystem] {
@@ -44,5 +49,23 @@ func (sp *SystemProxy) GetOs() Result[OperatingSystem] {
 	return Result[OperatingSystem]{
 		IsSuccess: true,
 		Data:      os,
+	}
+}
+
+func (sp *SystemProxy) SelectFile(title string, extensions *[]string) Result[string] {
+	path, err := sp.service.SelectFile(title, extensions)
+	return Result[string]{
+		IsSuccess: err == nil,
+		Data:      path,
+		Error:     err.Error(),
+	}
+}
+
+func (sp *SystemProxy) SaveFile(title, defaultName *string, extensions *[]string) Result[string] {
+	path, err := sp.service.SaveFile(title, defaultName, extensions)
+	return Result[string]{
+		IsSuccess: err == nil,
+		Data:      path,
+		Error:     err.Error(),
 	}
 }

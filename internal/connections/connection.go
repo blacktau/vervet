@@ -9,13 +9,13 @@ import (
 )
 
 type ActiveConnection struct {
-	connectionID int
-	client       *mongo.Client
+	serverID string
+	client   *mongo.Client
 }
 
-func newActiveConnection(connectionID int) ActiveConnection {
+func newActiveConnection(serverID string) ActiveConnection {
 	return ActiveConnection{
-		connectionID: connectionID,
+		serverID: serverID,
 	}
 }
 
