@@ -83,7 +83,7 @@ const settingsOptions = computed(() => {
 
 const onSelectSettingsMenu = (key: string) => {
   switch (key) {
-    case 'configuration':
+    case 'settings':
       dialogStore.showNewDialog(DialogType.Settings)
       break
     case 'report':
