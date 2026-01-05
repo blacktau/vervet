@@ -48,12 +48,9 @@ const onClose = async () => {
   dialogStore.hide(DialogType.Settings)
 }
 
-
 watchEffect(() => {
-  console.log('SettingsDialog->visible',dialogStore.dialogs[DialogType.Settings].visible)
-
+  console.log('SettingsDialog->visible', dialogStore.dialogs[DialogType.Settings].visible)
 })
-
 </script>
 
 <template>
@@ -82,18 +79,21 @@ watchEffect(() => {
         <n-tab-pane :tab="$t('settings.editor.name')" display-directive="show:lazy" name="editor">
           <editor-settings :loading="loading" />
         </n-tab-pane>
-        <n-tab-pane :tab="$t('settings.terminal.name')" display-directive="show:lazy" name="editor">
+        <n-tab-pane
+          :tab="$t('settings.terminal.name')"
+          display-directive="show:lazy"
+          name="terminal">
           <terminal-settings :loading="loading" />
         </n-tab-pane>
       </n-tabs>
     </n-spin>
     <template #action>
-      <div class="flex-item-expanded">
+      <div class="flex-item-expand">
         <n-button :disabled="loading" @click="settingsStore.restoreConfiguration()">
-                  {{ $t('settings.restoreDefaults') }}
+          {{ $t('settings.restoreDefaults') }}
         </n-button>
       </div>
-      <div class="flex-item n-dialog-action">
+      <div class="flex-item n-dialog__action">
         <n-button :disabled="loading" @click="onClose">{{ $t('common.cancel') }}</n-button>
         <n-button :disabled="loading" type="primary" @click="onSavePreferences">
           {{ $t('common.save') }}
@@ -103,4 +103,5 @@ watchEffect(() => {
   </n-modal>
 </template>
 
-<style scoped lang="scss"></style>
+<style scoped lang="scss">
+</style>

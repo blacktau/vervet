@@ -14,7 +14,7 @@ const theme = useOsTheme()
 
 type SettingsStore = settings.Settings & { fontList: Font[], previousVersion?: settings.Settings }
 
-export const useSettingsStore = defineStore('preferences', {
+export const useSettingsStore = defineStore('settings', {
   state: () => ({
     window: {
       width: 0,
@@ -48,15 +48,15 @@ export const useSettingsStore = defineStore('preferences', {
       return [
         {
           value: 'light',
-          label: 'preferences.general.themeLight',
+          label: 'settings.general.themeLight',
         },
         {
           value: 'dark',
-          label: 'preferences.general.themeDark',
+          label: 'settings.general.themeDark',
         },
         {
           value: 'auto',
-          label: 'preferences.general.themeAuto',
+          label: 'settings.general.themeAuto',
         }
       ]
     },
@@ -67,7 +67,7 @@ export const useSettingsStore = defineStore('preferences', {
       }))
       options.splice(0, 0, {
         value: 'auto',
-        label: 'preferences.general.systemLanguage',
+        label: 'settings.general.systemLanguage',
       })
     },
     currentLanguage() {
@@ -98,15 +98,15 @@ export const useSettingsStore = defineStore('preferences', {
       return [
         {
           value: 'block',
-          label: 'preferences.terminal.cursorStyleBlock',
+          label: 'settings.terminal.cursorStyleBlock',
         },
         {
           value: 'underline',
-          label: 'preferences.terminal.cursorStyleUnderline',
+          label: 'settings.terminal.cursorStyleUnderline',
         },
         {
           value: 'bar',
-          label: 'preferences.terminal.cursorStyleBar',
+          label: 'settings.terminal.cursorStyleBar',
         }
       ]
     },

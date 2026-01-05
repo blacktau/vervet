@@ -264,11 +264,9 @@ const colorCalc = (node: RegisteredServerNode) => {
     return undefined
   }
 
-  if (selectedKeys.value.indexOf(node.id) > -1) {
-    return getServerColour(node, true)
-  }
+  const isSelected = selectedKeys.value.indexOf(node.id) > -1
 
-  return getServerColour(node, false)
+  return getServerColour(node, isSelected, settingsStore.isDark)
 }
 
 const nodeProps = computed(() => (x: { option: RegisteredServerNode }) => {
@@ -504,38 +502,5 @@ const onCancelConnecting = async () => {
 .server-tree-wrapper {
   height: 100%;
   overflow: hidden;
-}
-
-/*
-  '#F75B52',
-  '#F7A234',
-  '#F7CE33',
-  '#4ECF60',
-  '#348CF7',
-  '#B270D3',
- */
-
-.server-node-red {
-  background-color: #f75b52;
-}
-
-.server-node-orange {
-  background-color: #f7a234;
-}
-
-.server-node-yellow {
-  background-color: #f7ce33;
-}
-
-.server-node-green {
-  background-color: #4ecf60;
-}
-
-.server-node-blue {
-  background-color: #348cf7;
-}
-
-.server-node-purple {
-  background-color: #b270d3;
 }
 </style>

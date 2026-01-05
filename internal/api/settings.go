@@ -28,36 +28,56 @@ func (cp *SettingsProxy) GetSettings() Result[settings.Settings] {
 
 func (cp *SettingsProxy) SetSettings(cfg settings.Settings) EmptyResult {
 	err := cp.cm.SetSettings(&cfg)
-	return EmptyResult{
-		IsSuccess: err == nil,
-		Error:     err.Error(),
+	if err != nil {
+		return EmptyResult{
+			IsSuccess: false,
+			Error:     err.Error(),
+		}
 	}
+	return Success()
 }
 
 func (cp *SettingsProxy) ResetSettings() Result[*settings.Settings] {
 	cfg, err := cp.cm.RestoreSettings()
+	if err != nil {
+		return Result[*settings.Settings]{
+			IsSuccess: false,
+			Error:     err.Error(),
+		}
+	}
+
 	return Result[*settings.Settings]{
-		IsSuccess: err == nil,
+		IsSuccess: true,
 		Data:      cfg,
-		Error:     err.Error(),
 	}
 }
 
 func (cp *SettingsProxy) GetAvailableFonts() Result[[]settings.Font] {
 	fonts, err := cp.cm.GetFonts()
+	if err != nil {
+		return Result[[]settings.Font]{
+			IsSuccess: false,
+			Error:     err.Error(),
+		}
+	}
 	return Result[[]settings.Font]{
-		IsSuccess: err == nil,
+		IsSuccess: true,
 		Data:      fonts,
-		Error:     err.Error(),
 	}
 }
 
 func (cp *SettingsProxy) GetWindowState() Result[settings.WindowState] {
 	state, err := cp.cm.GetWindowState()
+	if err != nil {
+		return Result[settings.WindowState]{
+			IsSuccess: false,
+			Error:     err.Error(),
+		}
+	}
+
 	return Result[settings.WindowState]{
-		IsSuccess: err == nil,
+		IsSuccess: true,
 		Data:      state,
-		Error:     err.Error(),
 	}
 }
 

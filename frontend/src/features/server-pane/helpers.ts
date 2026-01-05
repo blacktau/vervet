@@ -1,11 +1,13 @@
 import type { RegisteredServerNode } from '@/features/server-pane/serverStore.ts'
-import type { TreeSelectOption } from 'naive-ui'
-import { hexGammaCorrection, parseHexColor, toHexColor } from '@/utils/colours.ts'
-import type { ServerTreeNode } from '@/features/server-pane/types.ts'
+import Color from 'color'
 
 export const filterGroupMap = (node: RegisteredServerNode) => {
   if (!node.isGroup) {
     return undefined
+  }
+
+  if (node.children == null) {
+    return node
   }
 
   const children: RegisteredServerNode[] = []
@@ -23,16 +25,19 @@ export const filterGroupMap = (node: RegisteredServerNode) => {
   return { ...node, children }
 }
 
-export const getServerColour = (server: RegisteredServerNode, selected: boolean = false) => {
+export const getServerColour = (server: RegisteredServerNode, selected: boolean = false, isDark: boolean) => {
   if (server == null || server.colour == null || server.colour.length == 0) {
     return undefined
   }
 
-  const rgb = parseHexColor(server.colour)
-  let gamma = 0.20
+  let gamma = 0.2
   if (selected) {
     gamma = 0.35
   }
-  const darker = hexGammaCorrection(rgb, gamma)
-  return toHexColor(darker)
+
+  if (isDark) {
+    return Color(server.colour).darken(gamma).hex()
+  }
+
+  return Color(server.colour).lighten(gamma).hex()
 }
