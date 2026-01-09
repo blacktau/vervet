@@ -1,14 +1,12 @@
-<script setup lang="ts">
+<script lang="ts" setup>
 import { QuestionMarkCircleIcon } from '@heroicons/vue/24/outline'
 import { useSettingsStore } from '@/features/settings/settingsStore.ts'
-import type { SelectOption } from 'naive-ui'
 
 const props = defineProps<{
   loading: boolean
 }>()
 
 const settingsStore = useSettingsStore()
-
 </script>
 
 <template>
@@ -32,8 +30,9 @@ const settingsStore = useSettingsStore()
         <n-select
           v-model:value="settingsStore.general.language"
           :options="settingsStore.languageOptions"
-          :render-label="({ label, value }: SelectOption) => (value === 'auto' ? $t(label as string) : label)"
-          filterable />
+          filterable
+          label-field="label"
+          value-field="value" />
       </n-form-item-gi>
       <n-form-item-gi :span="24" required>
         <template #label>
@@ -51,16 +50,16 @@ const settingsStore = useSettingsStore()
           v-model:value="settingsStore.general.font.family"
           :options="settingsStore.fontOptions"
           :placeholder="$t('settings.common.fontTip')"
-          :render-label="({ label, value }: SelectOption) => (value === '' ? $t(label as string) : label)"
           filterable
-          multiple
-          tag />
+          label-field="family"
+          tag
+          value-field="family" />
       </n-form-item-gi>
       <n-form-item-gi :label="$t('settings.common.fontSize')" :span="24">
-        <n-input-number v-model:value="settingsStore.general.font.size" :min="1" :max="65535" />
+        <n-input-number v-model:value="settingsStore.general.font.size" :max="65535" :min="1" />
       </n-form-item-gi>
     </n-grid>
   </n-form>
 </template>
 
-<style scoped lang="scss"></style>
+<style lang="scss" scoped></style>

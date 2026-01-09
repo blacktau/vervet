@@ -1,6 +1,6 @@
-<script setup lang="ts">
+<script lang="ts" setup>
 import { useSettingsStore } from '@/features/settings/settingsStore.ts'
-import { computed, ref, watchEffect } from 'vue'
+import { ref, watchEffect } from 'vue'
 import { DialogType, useDialogStore } from '@/stores/dialog.ts'
 import { useI18n } from 'vue-i18n'
 import GeneralSettings from '@/features/settings/GeneralSettings.vue'
@@ -47,10 +47,6 @@ const onClose = async () => {
   await settingsStore.loadSettings()
   dialogStore.hide(DialogType.Settings)
 }
-
-watchEffect(() => {
-  console.log('SettingsDialog->visible', dialogStore.dialogs[DialogType.Settings].visible)
-})
 </script>
 
 <template>
@@ -103,5 +99,4 @@ watchEffect(() => {
   </n-modal>
 </template>
 
-<style scoped lang="scss">
-</style>
+<style lang="scss" scoped></style>

@@ -10,21 +10,25 @@ import (
 	"sync"
 	"vervet/internal/infrastructure"
 	"vervet/internal/logging"
+	"vervet/internal/models"
 
-	"github.com/adrg/sysfont"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"gopkg.in/yaml.v3"
 )
 
 type Manager interface {
 	Init(ctx context.Context) error
-	GetSettings() (Settings, error)
-	SetSettings(settings *Settings) error
-	RestoreSettings() (*Settings, error)
-	GetFonts() ([]Font, error)
-	GetWindowState() (WindowState, error)
-	SaveWindowState(state WindowState) error
+	GetSettings() (models.Settings, error)
+	SetSettings(settings *models.Settings) error
+	RestoreSettings() (*models.Settings, error)
+	GetWindowState() (models.WindowState, error)
+	SaveWindowState(state models.WindowState) error
 }
+
+const DefaultFontSize = 14
+const DefaultWindowWidth = 1024
+const DefaultWindowHeight = 768
+const DefaultAsideWidth = 300
 
 type settingsManager struct {
 	store infrastructure.Store
@@ -53,7 +57,7 @@ func (cm *settingsManager) Init(ctx context.Context) error {
 	return nil
 }
 
-func (cm *settingsManager) GetSettings() (Settings, error) {
+func (cm *settingsManager) GetSettings() (models.Settings, error) {
 	cm.mutex.Lock()
 	defer cm.mutex.Unlock()
 
@@ -74,7 +78,7 @@ func (cm *settingsManager) GetSettings() (Settings, error) {
 	return settings, nil
 }
 
-func (cm *settingsManager) SetSettings(settings *Settings) error {
+func (cm *settingsManager) SetSettings(settings *models.Settings) error {
 	cm.mutex.Lock()
 	defer cm.mutex.Unlock()
 
@@ -83,7 +87,7 @@ func (cm *settingsManager) SetSettings(settings *Settings) error {
 	return cm.saveSettings(settings)
 }
 
-func (cm *settingsManager) RestoreSettings() (*Settings, error) {
+func (cm *settingsManager) RestoreSettings() (*models.Settings, error) {
 	cm.mutex.Lock()
 	defer cm.mutex.Unlock()
 
@@ -99,39 +103,12 @@ func (cm *settingsManager) RestoreSettings() (*Settings, error) {
 	return &settings, nil
 }
 
-func (cm *settingsManager) GetFonts() ([]Font, error) {
-	cm.log.Debug("Getting system font list")
-	finder := sysfont.NewFinder(nil)
-	fontSet := map[string]Font{}
-	for _, f := range finder.List() {
-		if len(f.Family) <= 0 {
-			continue
-		}
-
-		if _, ok := fontSet[f.Family]; ok {
-			continue
-		}
-
-		fontSet[f.Family] = Font{
-			Name: f.Family,
-			Path: f.Filename,
-		}
-	}
-
-	fonts := make([]Font, 0, len(fontSet))
-	for _, f := range fontSet {
-		fonts = append(fonts, f)
-	}
-
-	return fonts, nil
-}
-
-func (cm *settingsManager) GetWindowState() (WindowState, error) {
+func (cm *settingsManager) GetWindowState() (models.WindowState, error) {
 	cm.log.Debug("Getting window state")
 	settings, err := cm.GetSettings()
 	if err != nil {
 		cm.log.Error("failed to get configuration for window state", slog.Any("error", err))
-		return WindowState{}, fmt.Errorf("failed to get configuration for window state: %w", err)
+		return models.WindowState{}, fmt.Errorf("failed to get configuration for window state: %w", err)
 	}
 
 	x, y, width, height := settings.Window.PositionX, settings.Window.PositionY, settings.Window.Width, settings.Window.Height
@@ -141,10 +118,10 @@ func (cm *settingsManager) GetWindowState() (WindowState, error) {
 		x, y = (screenWidth-width)/2, (screenHeight-height)/2
 	}
 
-	return WindowState{x, y, width, height}, nil
+	return models.WindowState{x, y, width, height}, nil
 }
 
-func (cm *settingsManager) SaveWindowState(state WindowState) error {
+func (cm *settingsManager) SaveWindowState(state models.WindowState) error {
 	log := cm.log.With(slog.Any("windowState", state))
 	log.Info("Saving window state")
 
@@ -202,7 +179,7 @@ func (cm *settingsManager) getScreenSize() (width, height int) {
 	return DefaultWindowWidth, DefaultWindowHeight
 }
 
-func (cm *settingsManager) getSettings() (Settings, error) {
+func (cm *settingsManager) getSettings() (models.Settings, error) {
 	settings := defaultSettings()
 	b, err := cm.store.Read()
 	if err != nil && !os.IsNotExist(err) {
@@ -223,7 +200,7 @@ func (cm *settingsManager) getSettings() (Settings, error) {
 	return settings, nil
 }
 
-func (cm *settingsManager) setSettings(settings *Settings, key string, value any) error {
+func (cm *settingsManager) setSettings(settings *models.Settings, key string, value any) error {
 	parts := strings.Split(key, ".")
 
 	log := cm.log.With(slog.String("key", key), slog.Any("value", value))
@@ -276,7 +253,7 @@ func (cm *settingsManager) setSettings(settings *Settings, key string, value any
 	return fmt.Errorf("invalid configuration key: %s", key)
 }
 
-func (cm *settingsManager) saveSettings(settings *Settings) error {
+func (cm *settingsManager) saveSettings(settings *models.Settings) error {
 	b, err := yaml.Marshal(settings)
 	if err != nil {
 		cm.log.Error("error marshalling configuration", slog.Any("error", err))
@@ -291,28 +268,28 @@ func (cm *settingsManager) saveSettings(settings *Settings) error {
 	return nil
 }
 
-func defaultSettings() Settings {
-	return Settings{
-		Window: WindowSettings{
+func defaultSettings() models.Settings {
+	return models.Settings{
+		Window: models.WindowSettings{
 			Width:      DefaultWindowWidth,
 			Height:     DefaultWindowHeight,
 			AsideWidth: DefaultAsideWidth,
 		},
-		General: GeneralSettings{
+		General: models.GeneralSettings{
 			Theme:    "auto",
 			Language: "auto",
-			Font: FontSettings{
+			Font: models.FontSettings{
 				Size: DefaultFontSize,
 			},
 		},
-		Editor: EditorSettings{
-			Font: FontSettings{
+		Editor: models.EditorSettings{
+			Font: models.FontSettings{
 				Size: DefaultFontSize,
 			},
 			LineNumbers: true,
 		},
-		Terminal: TerminalSettings{
-			Font: FontSettings{
+		Terminal: models.TerminalSettings{
+			Font: models.FontSettings{
 				Size: DefaultFontSize,
 			},
 			CursorStyle: "block",

@@ -19,8 +19,8 @@ func TestMain(m *testing.M) {
 
 type storeStub struct {
 	path    string
-	content []byte
 	err     error
+	content []byte
 }
 
 func (s *storeStub) Name() string {
@@ -132,19 +132,6 @@ func Test_SettingsManager_RestoreSettings(t *testing.T) {
 		}
 		if c.Window.Width != settings.DefaultWindowWidth {
 			t.Errorf("expected default window width, got %d", c.Window.Width)
-		}
-	})
-}
-
-func Test_SettingsManager_GetFonts(t *testing.T) {
-	t.Run("returns a list of fonts", func(t *testing.T) {
-		m := newTestManager(nil, nil)
-		fonts, err := m.GetFonts()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if len(fonts) == 0 {
-			t.Error("expected to find at least one font")
 		}
 	})
 }

@@ -23,7 +23,7 @@ type App struct {
 	SettingsProxy    *api.SettingsProxy
 
 	serverManager     servers.Manager
-	connectionManager connections.Manager
+	connectionManager *connections.ConnectionManager
 	settingsManager   settings.Manager
 	systemService     system.Service
 }
@@ -35,17 +35,18 @@ func NewApp(log *slog.Logger) *App {
 	connectionManager := connections.NewManager(log, connectionStringsStore)
 	settingsManager := settings.NewManager(log)
 	systemService := system.NewSystemService(log)
+	fontService := system.NewFontService(log)
 
 	return &App{
 		log:               log,
 		serverManager:     serverManager,
 		connectionManager: connectionManager,
 		settingsManager:   settingsManager,
-		systemService:     systemService,
+		systemService:     *systemService,
 		ServersProxy:      api.NewServersProxy(serverManager),
 		ConnectionsProxy:  api.NewConnectionsProxy(connectionManager),
 		SystemProxy:       api.NewSystemProxy(systemService),
-		SettingsProxy:     api.NewSettingsProxy(settingsManager),
+		SettingsProxy:     api.NewSettingsProxy(settingsManager, fontService),
 	}
 }
 

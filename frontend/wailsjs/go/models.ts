@@ -9,9 +9,9 @@ export namespace api {
 	    isSuccess: boolean;
 	    error: string;
 	}
-	export interface Result__vervet_internal_settings_Settings_ {
+	export interface Result__vervet_internal_models_Settings_ {
 	    isSuccess: boolean;
-	    data?: settings.Settings;
+	    data?: models.Settings;
 	    error: string;
 	}
 	export interface Result___string_ {
@@ -19,14 +19,14 @@ export namespace api {
 	    data: string[];
 	    error: string;
 	}
+	export interface Result___vervet_internal_models_Font_ {
+	    isSuccess: boolean;
+	    data: models.Font[];
+	    error: string;
+	}
 	export interface Result___vervet_internal_servers_RegisteredServer_ {
 	    isSuccess: boolean;
 	    data: servers.RegisteredServer[];
-	    error: string;
-	}
-	export interface Result___vervet_internal_settings_Font_ {
-	    isSuccess: boolean;
-	    data: settings.Font[];
 	    error: string;
 	}
 	export interface Result_string_ {
@@ -39,10 +39,19 @@ export namespace api {
 	    data: OperatingSystem;
 	    error: string;
 	}
-	export interface Result_vervet_internal_connections_Connection_ {
+	export interface Result_vervet_internal_models_Connection_ {
 	    isSuccess: boolean;
-	    // Go type: connections
-	    data: any;
+	    data: models.Connection;
+	    error: string;
+	}
+	export interface Result_vervet_internal_models_Settings_ {
+	    isSuccess: boolean;
+	    data: models.Settings;
+	    error: string;
+	}
+	export interface Result_vervet_internal_models_WindowState_ {
+	    isSuccess: boolean;
+	    data: models.WindowState;
 	    error: string;
 	}
 	export interface Result_vervet_internal_servers_RegisteredServerConnection_ {
@@ -50,45 +59,15 @@ export namespace api {
 	    data: servers.RegisteredServerConnection;
 	    error: string;
 	}
-	export interface Result_vervet_internal_settings_Settings_ {
-	    isSuccess: boolean;
-	    data: settings.Settings;
-	    error: string;
-	}
-	export interface Result_vervet_internal_settings_WindowState_ {
-	    isSuccess: boolean;
-	    data: settings.WindowState;
-	    error: string;
-	}
 
 }
 
-export namespace servers {
+export namespace models {
 	
-	export interface RegisteredServer {
-	    id: string;
-	    name: string;
-	    isGroup: boolean;
-	    parentID?: string;
-	    colour: string;
-	    isCluster: boolean;
-	    isSrv: boolean;
+	export interface Connection {
+	    ServerID: string;
+	    Name: string;
 	}
-	export interface RegisteredServerConnection {
-	    id: string;
-	    name: string;
-	    isGroup: boolean;
-	    parentID?: string;
-	    colour: string;
-	    isCluster: boolean;
-	    isSrv: boolean;
-	    uri: string;
-	}
-
-}
-
-export namespace settings {
-	
 	export interface FontSettings {
 	    family: string;
 	    size: number;
@@ -97,10 +76,13 @@ export namespace settings {
 	export interface EditorSettings {
 	    lineNumbers: boolean;
 	    font: FontSettings;
+	    showFolding: boolean;
+	    dropText: boolean;
+	    links: boolean;
 	}
 	export interface Font {
-	    name: string;
-	    path: string;
+	    family?: string;
+	    isFixedWidth?: boolean;
 	}
 	
 	export interface GeneralSettings {
@@ -133,6 +115,30 @@ export namespace settings {
 	    height: number;
 	    x: number;
 	    y: number;
+	}
+
+}
+
+export namespace servers {
+	
+	export interface RegisteredServer {
+	    id: string;
+	    name: string;
+	    isGroup: boolean;
+	    parentID?: string;
+	    colour: string;
+	    isCluster: boolean;
+	    isSrv: boolean;
+	}
+	export interface RegisteredServerConnection {
+	    id: string;
+	    name: string;
+	    isGroup: boolean;
+	    parentID?: string;
+	    colour: string;
+	    isCluster: boolean;
+	    isSrv: boolean;
+	    uri: string;
 	}
 
 }

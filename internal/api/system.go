@@ -1,8 +1,8 @@
 package api
 
 import (
+	"context"
 	"runtime"
-	"vervet/internal/system"
 )
 
 type OperatingSystem string
@@ -23,18 +23,23 @@ var AllOperatingSystems = []struct {
 }
 
 type SystemProxy struct {
-	service system.Service
+	service Service
 }
 
-func NewSystemProxy(ss system.Service) *SystemProxy {
+type Service interface {
+	Init(ctx context.Context) error
+	SelectFile(title string, extensions *[]string) (string, error)
+	SaveFile(title *string, name *string, extensions *[]string) (string, error)
+}
+
+func NewSystemProxy(ss Service) *SystemProxy {
 	return &SystemProxy{
 		service: ss,
 	}
 }
 
 func (sp *SystemProxy) GetOs() Result[OperatingSystem] {
-	os := Windows
-
+	var os OperatingSystem
 	switch runtime.GOOS {
 	case "windows":
 		os = Windows
@@ -54,18 +59,30 @@ func (sp *SystemProxy) GetOs() Result[OperatingSystem] {
 
 func (sp *SystemProxy) SelectFile(title string, extensions *[]string) Result[string] {
 	path, err := sp.service.SelectFile(title, extensions)
+
+	if err != nil {
+		return Result[string]{
+			IsSuccess: false,
+			Error:     err.Error(),
+		}
+	}
+
 	return Result[string]{
-		IsSuccess: err == nil,
+		IsSuccess: true,
 		Data:      path,
-		Error:     err.Error(),
 	}
 }
 
 func (sp *SystemProxy) SaveFile(title, defaultName *string, extensions *[]string) Result[string] {
 	path, err := sp.service.SaveFile(title, defaultName, extensions)
+	if err != nil {
+		return Result[string]{
+			IsSuccess: false,
+			Error:     err.Error(),
+		}
+	}
 	return Result[string]{
-		IsSuccess: err == nil,
+		IsSuccess: true,
 		Data:      path,
-		Error:     err.Error(),
 	}
 }

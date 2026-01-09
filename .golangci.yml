@@ -1,0 +1,38 @@
+linters:
+  enable:
+    - staticcheck
+    - gosimple
+    - govet
+    - errcheck
+    - gosec
+    - revive
+    - gocyclo
+    - misspell
+    - unconvert
+    - unparam
+
+linters-settings:
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+
+  govet:
+    enable-all: true
+
+  gocyclo:
+    min-complexity: 15
+
+  revive:
+    severity: warning
+
+run:
+  timeout: 5m
+  tests: true
+  skip-dirs:
+    - vendor
+    - third_party
+
+issues:
+  exclude-use-default: false
+  max-issues-per-linter: 0
+  max-same-issues: 0
