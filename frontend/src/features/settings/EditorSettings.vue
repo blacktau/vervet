@@ -1,7 +1,6 @@
-<script setup lang="ts">
+<script lang="ts" setup>
 import { useSettingsStore } from '@/features/settings/settingsStore.ts'
 import { QuestionMarkCircleIcon } from '@heroicons/vue/24/outline'
-import type { SelectOption } from 'naive-ui'
 
 const props = defineProps<{ loading: boolean }>()
 
@@ -29,32 +28,32 @@ const settingsStore = useSettingsStore()
         </template>
         <n-select
           v-model:value="settingsStore.editor.font.family"
-          :options="settingsStore.fontOptions"
+          :options="settingsStore.monoFontOptions"
           :placeholder="$t('settings.common.fontTip')"
-          :render-label="({ label, value }: SelectOption) => value || $t(label as string)"
           filterable
-          multiple
-          tag />
+          label-field="family"
+          tag
+          value-field="family" />
       </n-form-item-gi>
       <n-form-item-gi :label="$t('settings.common.fontSize')" :span="24">
-        <n-input-number v-model:value="settingsStore.editor.font.size" :min="1" :max="65535" />
+        <n-input-number v-model:value="settingsStore.editor.font.size" :max="65535" :min="1" />
       </n-form-item-gi>
-      <n-form-item-gi :show-feedback="false" :span="24" :show-label="false">
+      <n-form-item-gi :show-feedback="false" :show-label="false" :span="24">
         <n-checkbox v-model:checked="settingsStore.editor.lineNumbers">
           {{ $t('settings.editor.showLineNumbers') }}
         </n-checkbox>
       </n-form-item-gi>
-      <n-form-item-gi :show-feedback="false" :span="24" :show-label="false">
+      <n-form-item-gi :show-feedback="false" :show-label="false" :span="24">
         <n-checkbox v-model:checked="settingsStore.editor.showFolding">
           {{ $t('settings.editor.showFolding') }}
         </n-checkbox>
       </n-form-item-gi>
-      <n-form-item-gi :show-feedback="false" :span="24" :show-label="false">
+      <n-form-item-gi :show-feedback="false" :show-label="false" :span="24">
         <n-checkbox v-model:checked="settingsStore.editor.dropText">
           {{ $t('settings.editor.dropText') }}
         </n-checkbox>
       </n-form-item-gi>
-      <n-form-item-gi :show-feedback="false" :span="24" :show-label="false">
+      <n-form-item-gi :show-feedback="false" :show-label="false" :span="24">
         <n-checkbox v-model:checked="settingsStore.editor.links">
           {{ $t('settings.editor.links') }}
         </n-checkbox>
@@ -63,4 +62,4 @@ const settingsStore = useSettingsStore()
   </n-form>
 </template>
 
-<style scoped lang="scss"></style>
+<style lang="scss" scoped></style>

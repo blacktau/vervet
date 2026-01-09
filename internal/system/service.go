@@ -9,30 +9,24 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
-type Service interface {
-	Init(ctx context.Context) error
-	SelectFile(title string, extensions *[]string) (string, error)
-	SaveFile(title *string, name *string, extensions *[]string) (string, error)
-}
-
-type systemService struct {
+type Service struct {
 	ctx context.Context
 	log *slog.Logger
 }
 
-func NewSystemService(log *slog.Logger) Service {
-	return &systemService{
-		log: log.With(slog.String(logging.SourceKey, "SystemService")),
+func NewSystemService(log *slog.Logger) *Service {
+	return &Service{
+		log: log.With(slog.String(logging.SourceKey, "Service")),
 	}
 }
 
-func (ss *systemService) Init(ctx context.Context) error {
+func (ss *Service) Init(ctx context.Context) error {
 	ss.log.Debug("Initializing System Service")
 	ss.ctx = ctx
 	return nil
 }
 
-func (ss *systemService) SelectFile(title string, extensions *[]string) (string, error) {
+func (ss *Service) SelectFile(title string, extensions *[]string) (string, error) {
 	var filters []runtime.FileFilter
 	if extensions == nil {
 		extensions = &[]string{}
@@ -57,7 +51,7 @@ func (ss *systemService) SelectFile(title string, extensions *[]string) (string,
 	return filepath, nil
 }
 
-func (ss *systemService) SaveFile(title *string, name *string, extensions *[]string) (string, error) {
+func (ss *Service) SaveFile(title *string, name *string, extensions *[]string) (string, error) {
 	var filters []runtime.FileFilter
 
 	if extensions == nil {
