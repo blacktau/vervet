@@ -9,6 +9,7 @@ import (
 	"time"
 	"vervet/internal/connectionStrings"
 	"vervet/internal/logging"
+	"vervet/internal/models"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"go.mongodb.org/mongo-driver/event"
@@ -23,18 +24,7 @@ const (
 	DisconnectedEvent = "connection-disconnected"
 )
 
-type Manager interface {
-	Init(ctx context.Context) error
-	Connect(serverID string) (Connection, error)
-	TestConnection(uri string) (bool, error)
-	Disconnect(serverID string) error
-	DisconnectAll() error
-	GetConnectedClientIDs() []string
-	GetClient(serverID string) (*ActiveConnection, error)
-	GetDatabases(serverID string) ([]string, error)
-}
-
-type connectionManager struct {
+type ConnectionManager struct {
 	ctx               context.Context
 	activeConnections map[string]ActiveConnection
 	mu                sync.RWMutex
@@ -42,14 +32,9 @@ type connectionManager struct {
 	store             connectionStrings.Store
 }
 
-type Connection struct {
-	serverID string
-	name     string
-}
-
-func NewManager(log *slog.Logger, store connectionStrings.Store) Manager {
+func NewManager(log *slog.Logger, store connectionStrings.Store) *ConnectionManager {
 	log = log.With(slog.String(logging.SourceKey, "ConnectionManager"))
-	return &connectionManager{
+	return &ConnectionManager{
 		activeConnections: make(map[string]ActiveConnection),
 		mu:                sync.RWMutex{},
 		log:               log,
@@ -57,28 +42,28 @@ func NewManager(log *slog.Logger, store connectionStrings.Store) Manager {
 	}
 }
 
-func (cm *connectionManager) Init(ctx context.Context) error {
-	cm.log.Debug("Initializing Connection Manager")
+func (cm *ConnectionManager) Init(ctx context.Context) error {
+	cm.log.Debug("Initializing Connection ConnectionManager")
 	cm.ctx = ctx
 	return nil
 }
 
 // Connect establishes a connection to a MongoDB database using a securely stored URI.
 // This method is exposed to Wails.
-func (cm *connectionManager) Connect(serverID string) (Connection, error) {
+func (cm *ConnectionManager) Connect(serverID string) (models.Connection, error) {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 	cm.log.Debug("Connecting to Mongo Instance", slog.String("serverID", serverID))
 
 	if _, ok := cm.activeConnections[serverID]; ok {
 		cm.log.Warn("already connected to Mongo Instance", slog.String("serverID", serverID))
-		return Connection{}, fmt.Errorf("already connected to this Mongo Instance")
+		return models.Connection{}, fmt.Errorf("already connected to this Mongo Instance")
 	}
 
 	uri, err := cm.store.GetRegisteredServerURI(serverID)
 	if err != nil {
 		cm.log.Error("Error retrieving connection URI", slog.String("serverID", serverID))
-		return Connection{}, fmt.Errorf("error retrieving connection URI: %w", err)
+		return models.Connection{}, fmt.Errorf("error retrieving connection URI: %w", err)
 	}
 
 	monitor := &event.CommandMonitor{
@@ -101,13 +86,13 @@ func (cm *connectionManager) Connect(serverID string) (Connection, error) {
 	client, err := mongo.Connect(ctx, clientOptions)
 	if err != nil {
 		cm.log.Error("Failed to connect to MongoDB", slog.String("serverID", serverID), slog.Any("error", err))
-		return Connection{}, fmt.Errorf("failed to connect to database: %w", err)
+		return models.Connection{}, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
 	if err = client.Ping(ctx, nil); err != nil {
 		cm.log.Error("Ping failed for server", slog.String("serverID", serverID), slog.Any("error", err))
 		_ = client.Disconnect(cm.ctx)
-		return Connection{}, fmt.Errorf("ping failed, connection invalid: %w", err)
+		return models.Connection{}, fmt.Errorf("ping failed, connection invalid: %w", err)
 	}
 
 	activeConnection := newActiveConnection(serverID)
@@ -118,15 +103,15 @@ func (cm *connectionManager) Connect(serverID string) (Connection, error) {
 	cm.log.Info("Successfully connected to MongoDB", slog.String("serverID", serverID))
 	runtime.EventsEmit(cm.ctx, ConnectedEvent, serverID)
 
-	connection := Connection{
-		serverID: serverID,
-		name:     serverID,
+	connection := models.Connection{
+		ServerID: serverID,
+		Name:     serverID,
 	}
 
 	return connection, nil
 }
 
-func (cm *connectionManager) TestConnection(uri string) (bool, error) {
+func (cm *ConnectionManager) TestConnection(uri string) (bool, error) {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 
@@ -157,7 +142,7 @@ func (cm *connectionManager) TestConnection(uri string) (bool, error) {
 	return true, nil
 }
 
-func (cm *connectionManager) Disconnect(serverID string) error {
+func (cm *ConnectionManager) Disconnect(serverID string) error {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 
@@ -180,7 +165,7 @@ func (cm *connectionManager) Disconnect(serverID string) error {
 
 // DisconnectAll disconnects all the active connections
 // this is exposed to wails
-func (cm *connectionManager) DisconnectAll() error {
+func (cm *ConnectionManager) DisconnectAll() error {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 
@@ -201,7 +186,7 @@ func (cm *connectionManager) DisconnectAll() error {
 
 // GetConnectedClientIDs returns a list od IDs for the currently active connections
 // this is exposed to wails
-func (cm *connectionManager) GetConnectedClientIDs() []string {
+func (cm *ConnectionManager) GetConnectedClientIDs() []string {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 
@@ -212,7 +197,7 @@ func (cm *connectionManager) GetConnectedClientIDs() []string {
 	return ids
 }
 
-func (cm *connectionManager) GetClient(serverID string) (*ActiveConnection, error) {
+func (cm *ConnectionManager) getClient(serverID string) (*ActiveConnection, error) {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 
@@ -225,8 +210,8 @@ func (cm *connectionManager) GetClient(serverID string) (*ActiveConnection, erro
 	return &connection, nil
 }
 
-func (cm *connectionManager) GetDatabases(serverID string) ([]string, error) {
-	connection, err := cm.GetClient(serverID)
+func (cm *ConnectionManager) GetDatabases(serverID string) ([]string, error) {
+	connection, err := cm.getClient(serverID)
 	if err != nil {
 		return nil, err
 	}

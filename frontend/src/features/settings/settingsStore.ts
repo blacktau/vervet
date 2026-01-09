@@ -3,46 +3,46 @@ import { defineStore } from 'pinia'
 import { i18nGlobal, translations } from '@/i18n'
 import { cloneDeep, get, isEmpty, join, map, set, split } from 'lodash'
 import * as settingsProxy from 'wailsjs/go/api/SettingsProxy'
-import type { settings } from 'wailsjs/go/models.ts'
-
-type Font = {
-  name: string,
-  path: string
-}
+import { type models } from 'wailsjs/go/models.ts'
+import { useNotifier } from '@/utils/dialog.ts'
 
 const theme = useOsTheme()
 
-type SettingsStore = settings.Settings & { fontList: Font[], previousVersion?: settings.Settings }
+type SettingsStore = models.Settings & {
+  fontList: models.Font[]
+  previousVersion?: models.Settings
+}
 
 export const useSettingsStore = defineStore('settings', {
-  state: () => ({
-    window: {
-      width: 0,
-      height: 0,
-      asideWidth: 0,
-      maximised: false,
-    },
-    general: {
-      theme: 'auto',
-      language: 'auto',
-      font: {
-        size: 14,
-      }
-    },
-    editor: {
-      font: {
-        size: 14,
+  state: () =>
+    ({
+      window: {
+        width: 0,
+        height: 0,
+        asideWidth: 0,
+        maximised: false,
       },
-      showLineNumbers: true,
-    },
-    terminal: {
-      font: {
-        size: 14,
+      general: {
+        theme: 'auto',
+        language: 'auto',
+        font: {
+          size: 14,
+        },
       },
-      cursorStyle: 'block'
-    },
-    fontList: [],
-  } as unknown as SettingsStore),
+      editor: {
+        font: {
+          size: 14,
+        },
+        showLineNumbers: true,
+      },
+      terminal: {
+        font: {
+          size: 14,
+        },
+        cursorStyle: 'block',
+      },
+      fontList: [],
+    }) as unknown as SettingsStore,
   getters: {
     themeOptions() {
       return [
@@ -57,21 +57,21 @@ export const useSettingsStore = defineStore('settings', {
         {
           value: 'auto',
           label: 'settings.general.themeAuto',
-        }
+        },
       ]
     },
     languageOptions() {
       const options = Object.entries(translations).map(([key, value]) => ({
         value: key,
-        label: value['name']
+        label: value['name'],
       }))
       options.splice(0, 0, {
         value: 'auto',
-        label: 'settings.general.systemLanguage',
+        label: i18nGlobal.t('settings.general.systemLanguage'),
       })
     },
     currentLanguage() {
-      let language : string = this.general.language || 'auto'
+      let language: string = this.general.language || 'auto'
       if (language === 'auto') {
         const systemLanguage = navigator.language
         language = split(systemLanguage, '-')[0] || 'en'
@@ -82,11 +82,10 @@ export const useSettingsStore = defineStore('settings', {
       return get(state.editor, 'showLineNum', true)
     },
     fontOptions(state: SettingsStore) {
-      return map(state.fontList, (font) => ({
-        value: font.name,
-        label: font.name,
-        path: font.path
-      }))
+      return state.fontList
+    },
+    monoFontOptions(state: SettingsStore) {
+      return state.fontList.filter((x) => x.isFixedWidth)
     },
     uiFont(state: SettingsStore) {
       return fontToStyle(state.general.font, 'monaco')
@@ -107,13 +106,13 @@ export const useSettingsStore = defineStore('settings', {
         {
           value: 'bar',
           label: 'settings.terminal.cursorStyleBar',
-        }
+        },
       ]
     },
     isDark(): boolean {
       const th = this.general.theme || 'auto'
       return th === 'dark' || (th === 'auto' && theme.value === 'dark')
-    }
+    },
   },
   actions: {
     _applyConfiguration(data: Record<string, any>) {
@@ -148,14 +147,15 @@ export const useSettingsStore = defineStore('settings', {
       }
       i18nGlobal.locale = this.currentLanguage
     },
-    async loadFontList(): Promise<Font[]> {
-      return []
-      // const result = await settingsProxy.GetAvailableFonts()
-      // if (!result.isSuccess) {
-      //   this.fontList = []
-      // }
-      // this.fontList = result.data
-      // return this.fontList
+    async loadFontList(): Promise<void> {
+      const result = await settingsProxy.GetAvailableFonts()
+      if (!result.isSuccess) {
+        const notifier = useNotifier()
+        notifier.error(`error retrieving available fonts: ${result.error}`)
+        return
+      }
+
+      this.fontList = result.data
     },
     async saveConfiguration(): Promise<boolean> {
       const result = await settingsProxy.SetSettings(this)
@@ -168,16 +168,19 @@ export const useSettingsStore = defineStore('settings', {
         return true
       }
       return false
-    }
-  }
+    },
+  },
 })
 
-function fontToStyle(font: settings.FontSettings, defaultFontFamily?: string) {
+function fontToStyle(font: models.FontSettings, defaultFontFamily?: string) {
   const style: Record<string, string | undefined> = {
-    fontSize: (font.size || 14) + 'px'
+    fontSize: (font.size || 14) + 'px',
   }
   if (!isEmpty(font.family)) {
-    style['fontFamily'] = join(map(font.family, (f) => `"${f}`), ',')
+    style['fontFamily'] = join(
+      map(font.family, (f) => `"${f}`),
+      ',',
+    )
   }
 
   if (isEmpty(style['fontFamily']) && !isEmpty(defaultFontFamily)) {

@@ -5,17 +5,16 @@ go 1.24.0
 toolchain go1.24.4
 
 require (
-	github.com/adrg/sysfont v0.1.2
+	github.com/flopp/go-findfont v0.1.0
 	github.com/stretchr/testify v1.11.1
 	github.com/wailsapp/wails/v2 v2.10.2
 	go.mongodb.org/mongo-driver/v2 v2.4.1
+	golang.org/x/image v0.12.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
 	al.essio.dev/pkg/shellescape v1.6.0 // indirect
-	github.com/adrg/strutil v0.2.2 // indirect
-	github.com/adrg/xdg v0.3.0 // indirect
 	github.com/danieljoos/wincred v1.2.3 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/golang/snappy v1.0.0 // indirect

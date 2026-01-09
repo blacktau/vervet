@@ -1,6 +1,6 @@
-<script setup lang="ts">
+<script lang="ts" setup>
 import { useThemeVars } from 'naive-ui'
-import { computed, onMounted, reactive, ref, watchEffect } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, watchEffect } from 'vue'
 import { useTabStore } from '@/stores/tabs'
 import { useSettingsStore } from '@/features/settings/settingsStore.ts'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
@@ -36,7 +36,7 @@ const logPaneRef = ref()
 const exThemeVars = computed(() => {
   return extraTheme(settingsStore.isDark)
 })
-const saveSidebarWidth = debounce(settingsStore.saveConfiguration, 1000, {trailing: true})
+const saveSidebarWidth = debounce(settingsStore.saveConfiguration, 1000, { trailing: true })
 const handleResize = () => {
   saveSidebarWidth()
 }
@@ -48,7 +48,7 @@ watchEffect(() => {
 })
 
 const logoWrapperWidth = computed(() => {
-  return `${data.navMenuWidth + settingsStore.window.asideWidth - 4 }px`
+  return `${data.navMenuWidth + settingsStore.window.asideWidth - 4}px`
 })
 
 const logoPaddingLeft = ref<number>(10)
@@ -66,20 +66,20 @@ const wrapperStyle = computed(() => {
 
   return {
     border: `1px solid ${themeVars.value.borderColor}`,
-    borderRadius: '10px'
+    borderRadius: '10px',
   }
 })
 
 const spinStyle = computed<CSSStyleValue>(() => {
   if (isWindows() || hideRadius.value) {
     return {
-      backgroundColor: themeVars.value.bodyColor
+      backgroundColor: themeVars.value.bodyColor,
     }
   }
 
   return {
     backgroundColor: themeVars.value.bodyColor,
-    borderRadius: '10px'
+    borderRadius: '10px',
   }
 })
 
@@ -134,6 +134,10 @@ const onKeyShortCut = (e: KeyboardEvent) => {
       break
   }
 }
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', onKeyShortCut)
+})
 </script>
 
 <template>
@@ -208,7 +212,7 @@ const onKeyShortCut = (e: KeyboardEvent) => {
             @update:size="handleResize">
             <server-pane class="app-side flex-item-expand" />
           </resizeable-wrapper>
-<!--          <content-server-pane class="flex-item-expand" />-->
+          <!--          <content-server-pane class="flex-item-expand" />-->
         </div>
         <div v-show="tabStore.nav === 'log'" class="content-area flex-box-h flex-item-expand">
           <content-log-pane ref="logPaneRef" class="flex-item-expand" />
@@ -218,7 +222,7 @@ const onKeyShortCut = (e: KeyboardEvent) => {
   </n-spin>
 </template>
 
-<style scoped lang="scss">
+<style lang="scss" scoped>
 #app-content-wrapper {
   width: 100vw;
   height: 100vh;

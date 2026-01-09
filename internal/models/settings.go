@@ -1,9 +1,10 @@
-package settings
+package models
 
-const DefaultFontSize = 14
-const DefaultWindowWidth = 1024
-const DefaultWindowHeight = 768
-const DefaultAsideWidth = 300
+type Font struct {
+	Family       string `json:"family,omitempty" yaml:"family,omitempty"`
+	Path         string `json:"-" yaml:"-"`
+	IsFixedWidth bool   `json:"isFixedWidth,omitempty" yaml:"-"`
+}
 
 type Settings struct {
 	Window   WindowSettings   `json:"window" yaml:"window"`
@@ -36,16 +37,14 @@ type FontSettings struct {
 type EditorSettings struct {
 	LineNumbers bool         `json:"lineNumbers" yaml:"lineNumbers"`
 	Font        FontSettings `json:"font" yaml:"font,omitempty"`
+	ShowFolding bool         `json:"showFolding" yaml:"showFolding"`
+	DropText    bool         `json:"dropText" yaml:"dropText"`
+	Links       bool         `json:"links" yaml:"links"`
 }
 
 type TerminalSettings struct {
 	Font        FontSettings `json:"font" yaml:"font"`
 	CursorStyle string       `json:"cursorStyle" yaml:"cursorStyle,omitempty"`
-}
-
-type Font struct {
-	Name string `json:"name"`
-	Path string `json:"path"`
 }
 
 type WindowState struct {
