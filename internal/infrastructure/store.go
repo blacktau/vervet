@@ -37,7 +37,7 @@ func (s *cfgStore) Read() ([]byte, error) {
 		s.log.Info("Configuration file does not exist yet. Creating it.")
 		err := os.WriteFile(s.ConfigPath, []byte{}, 0700)
 		if err != nil {
-			s.log.Error("Error creating configuration file: %v", err)
+			s.log.Error("Error creating configuration file", slog.Any("error", err))
 			return []byte{}, err
 		}
 	} else if err != nil {
@@ -53,8 +53,8 @@ func (s *cfgStore) Read() ([]byte, error) {
 }
 
 func (s *cfgStore) Save(data []byte) error {
-	if err := os.WriteFile(s.ConfigPath, data, 0700); err != nil {
-		s.log.Error("Error saving configuration: %v", err)
+	if err := os.WriteFile(s.ConfigPath, data, 0600); err != nil {
+		s.log.Error("Error saving configuration", slog.Any("error", err))
 		return fmt.Errorf("error saving configuration: %w", err)
 	}
 	return nil
@@ -64,7 +64,7 @@ func getConfigDirectory() (string, error) {
 
 	configHome, err := os.UserConfigDir()
 	if err != nil {
-		slog.Error("could not determine config home directory: %v", err)
+		slog.Error("could not determine config home directory", slog.Any("error", err))
 		return "", fmt.Errorf("could not determine config home directory: %w", err)
 	}
 
@@ -72,7 +72,7 @@ func getConfigDirectory() (string, error) {
 	if _, err := os.Stat(configDir); os.IsNotExist(err) {
 		err := os.MkdirAll(configDir, 0700)
 		if err != nil {
-			slog.Error("could not create config home directory '%s': %v", configDir, err)
+			slog.Error("could not create config home directory", slog.String("configDir", configDir), slog.Any("error", err))
 			return "", fmt.Errorf("could not create config home directory '%s': %w", configDir, err)
 		}
 	}

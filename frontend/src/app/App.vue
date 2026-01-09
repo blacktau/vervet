@@ -1,8 +1,7 @@
-<script setup lang="ts">
+<script lang="ts" setup>
 import { useSettingsStore } from '@/features/settings/settingsStore.ts'
 import { useI18n } from 'vue-i18n'
 import { onMounted, ref, watch } from 'vue'
-import * as runtime from 'wailsjs/runtime'
 import { WindowSetDarkTheme, WindowSetLightTheme } from 'wailsjs/runtime'
 import { darkTheme, type NLocale } from 'naive-ui'
 import { darkThemeOverrides, themeOverrides } from '@/utils/theme'
@@ -42,6 +41,15 @@ watch(
   () => settingsStore.general.language,
   (lang: string) => {
     i18n.locale.value = settingsStore.currentLanguage
+  },
+)
+watch(
+  () => settingsStore.general.font.family,
+  (font: string) => {
+    const body = document.getElementsByName('body')[0]
+    if (body != null) {
+      body.style = `font-family: '${font}'`
+    }
   },
 )
 </script>

@@ -1,4 +1,4 @@
-<script setup lang="ts">
+<script lang="ts" setup>
 import { useSettingsStore } from '@/features/settings/settingsStore.ts'
 import type { SelectOption } from 'naive-ui'
 
@@ -11,8 +11,8 @@ const settingsStore = useSettingsStore()
   <n-form
     :disabled="props.loading"
     :model="settingsStore.terminal"
-    label-placement="top"
-    :show-require-mark="false">
+    :show-require-mark="false"
+    label-placement="top">
     <n-grid :x-gap="10">
       <n-form-item-gi :span="24" required>
         <template #label>
@@ -28,7 +28,7 @@ const settingsStore = useSettingsStore()
         </template>
         <n-select
           v-model:value="settingsStore.terminal.font.family"
-          :options="settingsStore.fontOptions"
+          :options="settingsStore.monoFontOptions"
           :placeholder="$t('settings.common.fontTip')"
           :render-label="({ label, value }: SelectOption) => value || $t(label as string)"
           filterable
@@ -36,7 +36,7 @@ const settingsStore = useSettingsStore()
           tag />
       </n-form-item-gi>
       <n-form-item-gi :label="$t('settings.common.fontSize')" :span="24">
-        <n-input-number v-model:value="settingsStore.terminal.font.size" :min="1" :max="65535" />
+        <n-input-number v-model:value="settingsStore.terminal.font.size" :max="65535" :min="1" />
       </n-form-item-gi>
       <n-form-item-gi :label="$t('settings.terminal.cursorStyle')" :span="24">
         <n-radio-group
@@ -46,7 +46,7 @@ const settingsStore = useSettingsStore()
           <n-radio-button
             v-for="opt in settingsStore.terminalCursorOptions"
             :key="opt.value"
-            :value="opt.value" >
+            :value="opt.value">
             {{ $t(opt.label) }}
           </n-radio-button>
         </n-radio-group>
@@ -55,4 +55,4 @@ const settingsStore = useSettingsStore()
   </n-form>
 </template>
 
-<style scoped lang="scss"></style>
+<style lang="scss" scoped></style>
