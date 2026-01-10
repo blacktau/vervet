@@ -25,18 +25,26 @@ export const filterGroupMap = (node: RegisteredServerNode) => {
   return { ...node, children }
 }
 
-export const getServerColour = (server: RegisteredServerNode, selected: boolean = false, isDark: boolean) => {
+export const getServerColour = (
+  server: RegisteredServerNode,
+  selected: boolean = false,
+  isDark: boolean,
+) => {
   if (server == null || server.colour == null || server.colour.length == 0) {
     return undefined
   }
 
-  let gamma = 0.2
-  if (selected) {
-    gamma = 0.35
+  if (isDark) {
+    let gamma = 0.7
+    if (selected) {
+      gamma = 0.5
+    }
+    return Color(server.colour).darken(gamma).hex()
   }
 
-  if (isDark) {
-    return Color(server.colour).darken(gamma).hex()
+  let gamma = 0.4
+  if (selected) {
+    gamma = 0.3
   }
 
   return Color(server.colour).lighten(gamma).hex()

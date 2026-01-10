@@ -115,7 +115,8 @@ export const useSettingsStore = defineStore('settings', {
     },
   },
   actions: {
-    _applyConfiguration(data: Record<string, any>) {
+    _applyConfiguration(settings: models.Settings) {
+      const data = settings as unknown as Record<string, unknown>
       for (const key in data) {
         set(this, key, data[key])
       }
