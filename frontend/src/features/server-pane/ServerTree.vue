@@ -27,12 +27,13 @@ import {
 import PlugDisconnected from '@/features/icon/PlugDisconnected.vue'
 import SrvIcon from '@/features/icon/SrvIcon.vue'
 import { getServerColour } from '@/features/server-pane/helpers.ts'
-import { ServerNodeType, type ServerTreeNode } from '@/features/server-pane/types.ts'
+import { ServerNodeType } from '@/features/server-pane/types.ts'
 
 const props = defineProps<{
   filterPattern?: string
 }>()
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const themeVars = useThemeVars()
 const i18n = useI18n()
 const render = useRender()
@@ -443,13 +444,13 @@ const onCancelConnecting = async () => {
       :expanded-keys="expandedKeys"
       :node-props="nodeProps"
       :pattern="props.filterPattern"
-      label-field="name"
-      key-field="id"
       :render-label="renderLabel"
       :render-prefix="renderPrefix"
       :render-suffix="renderSuffix"
       :selected-keys="selectedKeys"
       class="fill-height"
+      key-field="id"
+      label-field="name"
       virtual-scroll
       @update:expanded-keys="onUpdateExpandedKeys"
       @update:selected-keys="onUpdateSelectedKeys">
