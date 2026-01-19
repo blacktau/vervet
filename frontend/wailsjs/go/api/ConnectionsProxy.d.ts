@@ -8,7 +8,7 @@ export function Disconnect(arg1:string):Promise<api.EmptyResult>;
 
 export function DisconnectAll():Promise<api.EmptyResult>;
 
-export function GetConnectionIDs():Promise<api.Result___string_>;
+export function GetConnections():Promise<api.Result___vervet_internal_models_Connection_>;
 
 export function GetDatabases(arg1:string):Promise<api.Result___string_>;
 

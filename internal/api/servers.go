@@ -1,54 +1,67 @@
 package api
 
 import (
+	"context"
 	"fmt"
-	"vervet/internal/servers"
+	"vervet/internal/models"
 )
 
-// ServersProxy exposes the ServerManagerImpl to the UI
-// the proxies serve as a place to handle the idiosyncrasies of the marshaling/unmarshalling to the UI
-type ServersProxy struct {
-	sm servers.Manager
+type ServersProvider interface {
+	Init(ctx context.Context) error
+	GetServers() ([]models.RegisteredServer, error)
+	AddServer(parentID, name, uri, colour string) error
+	UpdateServer(serverID, name, uri, parentID, colour string) error
+	RemoveNode(id string) error
+	GetURI(id string) (string, error)
+	CreateGroup(parentID, name string) error
+	UpdateGroup(groupID, name, parentID string) error
+	GetServer(id string) (*models.RegisteredServer, error)
 }
 
-func NewServersProxy(sm servers.Manager) *ServersProxy {
+// ServersProxy exposes the ServerManager to the UI
+// the proxies serve as a place to handle the idiosyncrasies of the marshaling/unmarshalling to the UI
+type ServersProxy struct {
+	sm ServersProvider
+}
+
+func NewServersProxy(sm ServersProvider) *ServersProxy {
 	return &ServersProxy{
 		sm: sm,
 	}
 }
 
-func (sp *ServersProxy) GetServers() Result[[]servers.RegisteredServer] {
+func (sp *ServersProxy) GetServers() Result[[]models.RegisteredServer] {
 	registeredServers, err := sp.sm.GetServers()
 	if err != nil {
-		return Result[[]servers.RegisteredServer]{
+		return Result[[]models.RegisteredServer]{
 			IsSuccess: false,
 			Error:     err.Error(),
 		}
 	}
 
-	return Result[[]servers.RegisteredServer]{
+	return Result[[]models.RegisteredServer]{
 		IsSuccess: true,
 		Data:      registeredServers,
 	}
 }
 
-func (sp *ServersProxy) GetServer(id string) Result[servers.RegisteredServerConnection] {
+func (sp *ServersProxy) GetServer(id string) Result[models.RegisteredServer] {
 	registerServer, err := sp.sm.GetServer(id)
 	if err != nil {
-		return Result[servers.RegisteredServerConnection]{
+		return Result[models.RegisteredServer]{
 			IsSuccess: false,
 			Error:     err.Error(),
 		}
 	}
 
 	if registerServer == nil {
-		return Result[servers.RegisteredServerConnection]{
+		return Result[models.RegisteredServer]{
 			IsSuccess: false,
 			Error:     fmt.Sprintf("Server with id %s not found", id),
 		}
 	}
 
-	return Result[servers.RegisteredServerConnection]{
+	return Result[models.RegisteredServer]{
 		IsSuccess: true,
 		Data:      *registerServer,
 	}

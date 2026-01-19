@@ -7,7 +7,7 @@ import (
 )
 
 type ConnectionsProxy struct {
-	cm ConnectionsProvider
+	provider ConnectionsProvider
 }
 
 type ConnectionsProvider interface {
@@ -16,18 +16,18 @@ type ConnectionsProvider interface {
 	TestConnection(uri string) (bool, error)
 	Disconnect(serverID string) error
 	DisconnectAll() error
-	GetConnectedClientIDs() []string
+	GetConnections() []models.Connection
 	GetDatabases(serverID string) ([]string, error)
 }
 
-func NewConnectionsProxy(cm ConnectionsProvider) *ConnectionsProxy {
+func NewConnectionsProxy(provider ConnectionsProvider) *ConnectionsProxy {
 	return &ConnectionsProxy{
-		cm: cm,
+		provider: provider,
 	}
 }
 
 func (cp *ConnectionsProxy) Connect(serverID string) Result[models.Connection] {
-	connection, err := cp.cm.Connect(serverID)
+	connection, err := cp.provider.Connect(serverID)
 	if err != nil {
 		return Result[models.Connection]{
 			IsSuccess: false,
@@ -42,7 +42,7 @@ func (cp *ConnectionsProxy) Connect(serverID string) Result[models.Connection] {
 }
 
 func (cp *ConnectionsProxy) Disconnect(serverID string) EmptyResult {
-	err := cp.cm.Disconnect(serverID)
+	err := cp.provider.Disconnect(serverID)
 	if err != nil {
 		return Error(fmt.Sprintf("Error disconnecting from mongo instance: %v", err))
 	}
@@ -51,7 +51,7 @@ func (cp *ConnectionsProxy) Disconnect(serverID string) EmptyResult {
 }
 
 func (cp *ConnectionsProxy) DisconnectAll() EmptyResult {
-	err := cp.cm.DisconnectAll()
+	err := cp.provider.DisconnectAll()
 	if err != nil {
 		return Error(fmt.Sprintf("Error disconnecting from all connections: %v", err))
 	}
@@ -59,15 +59,15 @@ func (cp *ConnectionsProxy) DisconnectAll() EmptyResult {
 	return Success()
 }
 
-func (cp *ConnectionsProxy) GetConnectionIDs() Result[[]string] {
-	return Result[[]string]{
+func (cp *ConnectionsProxy) GetConnections() Result[[]models.Connection] {
+	return Result[[]models.Connection]{
 		IsSuccess: true,
-		Data:      cp.cm.GetConnectedClientIDs(),
+		Data:      cp.provider.GetConnections(),
 	}
 }
 
 func (cp *ConnectionsProxy) TestConnection(uri string) EmptyResult {
-	_, err := cp.cm.TestConnection(uri)
+	_, err := cp.provider.TestConnection(uri)
 	if err != nil {
 		return Error(fmt.Sprintf("failed to connect to mongo server: %v", err))
 	}
@@ -76,7 +76,7 @@ func (cp *ConnectionsProxy) TestConnection(uri string) EmptyResult {
 }
 
 func (cp *ConnectionsProxy) GetDatabases(serverID string) Result[[]string] {
-	result, err := cp.cm.GetDatabases(serverID)
+	result, err := cp.provider.GetDatabases(serverID)
 	if err != nil {
 		return Result[[]string]{
 			IsSuccess: false,

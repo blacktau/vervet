@@ -19,14 +19,19 @@ export namespace api {
 	    data: string[];
 	    error: string;
 	}
+	export interface Result___vervet_internal_models_Connection_ {
+	    isSuccess: boolean;
+	    data: models.Connection[];
+	    error: string;
+	}
 	export interface Result___vervet_internal_models_Font_ {
 	    isSuccess: boolean;
 	    data: models.Font[];
 	    error: string;
 	}
-	export interface Result___vervet_internal_servers_RegisteredServer_ {
+	export interface Result___vervet_internal_models_RegisteredServer_ {
 	    isSuccess: boolean;
-	    data: servers.RegisteredServer[];
+	    data: models.RegisteredServer[];
 	    error: string;
 	}
 	export interface Result_string_ {
@@ -44,6 +49,11 @@ export namespace api {
 	    data: models.Connection;
 	    error: string;
 	}
+	export interface Result_vervet_internal_models_RegisteredServer_ {
+	    isSuccess: boolean;
+	    data: models.RegisteredServer;
+	    error: string;
+	}
 	export interface Result_vervet_internal_models_Settings_ {
 	    isSuccess: boolean;
 	    data: models.Settings;
@@ -54,19 +64,14 @@ export namespace api {
 	    data: models.WindowState;
 	    error: string;
 	}
-	export interface Result_vervet_internal_servers_RegisteredServerConnection_ {
-	    isSuccess: boolean;
-	    data: servers.RegisteredServerConnection;
-	    error: string;
-	}
 
 }
 
 export namespace models {
 	
 	export interface Connection {
-	    ServerID: string;
-	    Name: string;
+	    serverID?: string;
+	    name?: string;
 	}
 	export interface FontSettings {
 	    family: string;
@@ -89,6 +94,15 @@ export namespace models {
 	    theme: string;
 	    language: string;
 	    font: FontSettings;
+	}
+	export interface RegisteredServer {
+	    id: string;
+	    name: string;
+	    parentID?: string;
+	    colour: string;
+	    isGroup: boolean;
+	    isCluster: boolean;
+	    isSrv: boolean;
 	}
 	export interface TerminalSettings {
 	    font: FontSettings;
@@ -115,30 +129,6 @@ export namespace models {
 	    height: number;
 	    x: number;
 	    y: number;
-	}
-
-}
-
-export namespace servers {
-	
-	export interface RegisteredServer {
-	    id: string;
-	    name: string;
-	    isGroup: boolean;
-	    parentID?: string;
-	    colour: string;
-	    isCluster: boolean;
-	    isSrv: boolean;
-	}
-	export interface RegisteredServerConnection {
-	    id: string;
-	    name: string;
-	    isGroup: boolean;
-	    parentID?: string;
-	    colour: string;
-	    isCluster: boolean;
-	    isSrv: boolean;
-	    uri: string;
 	}
 
 }

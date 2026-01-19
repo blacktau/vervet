@@ -22,17 +22,17 @@ type App struct {
 	SystemProxy      *api.SystemProxy
 	SettingsProxy    *api.SettingsProxy
 
-	serverManager     servers.Manager
+	serverManager     *servers.ServerManager
 	connectionManager *connections.ConnectionManager
 	settingsManager   settings.Manager
-	systemService     system.Service
+	systemService     *system.Service
 }
 
 // NewApp creates a new App application struct
 func NewApp(log *slog.Logger) *App {
 	serverManager := servers.NewManager(log)
 	connectionStringsStore := connectionStrings.NewStore(log)
-	connectionManager := connections.NewManager(log, connectionStringsStore)
+	connectionManager := connections.NewManager(log, connectionStringsStore, serverManager)
 	settingsManager := settings.NewManager(log)
 	systemService := system.NewSystemService(log)
 	fontService := system.NewFontService(log)
@@ -42,7 +42,7 @@ func NewApp(log *slog.Logger) *App {
 		serverManager:     serverManager,
 		connectionManager: connectionManager,
 		settingsManager:   settingsManager,
-		systemService:     *systemService,
+		systemService:     systemService,
 		ServersProxy:      api.NewServersProxy(serverManager),
 		ConnectionsProxy:  api.NewConnectionsProxy(connectionManager),
 		SystemProxy:       api.NewSystemProxy(systemService),
@@ -95,5 +95,8 @@ func (a *App) BeforeClose(ctx context.Context) (prevent bool) {
 // Shutdown is called at application termination
 func (a *App) Shutdown(ctx context.Context) {
 	// Perform your teardown here
-	_ = a.connectionManager.DisconnectAll()
+	err := a.connectionManager.DisconnectAll()
+	if err != nil {
+		a.log.Error("Failed to disconnect from all connections", slog.Any("error", err))
+	}
 }
