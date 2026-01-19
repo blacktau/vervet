@@ -1,17 +1,37 @@
 <script lang="ts" setup>
-import { type DropdownOption, NIcon, NSpace, NText, useThemeVars } from 'naive-ui'
+import {
+  type DropdownOption,
+  type MenuDividerOption,
+  NIcon,
+  NSpace,
+  NText,
+  useThemeVars,
+} from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import { useRender } from '@/utils/render.ts'
-import { computed, h, nextTick, reactive, ref, type VNodeArrayChildren } from 'vue'
+import {
+  computed,
+  h,
+  type HTMLAttributes,
+  markRaw,
+  nextTick,
+  reactive,
+  ref,
+  type VNodeArrayChildren,
+} from 'vue'
 import { type RegisteredServerNode, useServerStore } from '@/features/server-pane/serverStore.ts'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
-import { useTabStore } from '@/stores/tabs.ts'
+import { useTabStore } from '@/features/tabs/tabs.ts'
 import { useSettingsStore } from '@/features/settings/settingsStore.ts'
 import { useDialogStore } from '@/stores/dialog.ts'
 import { includes, indexOf, isEmpty } from 'lodash'
 import { useDialoger, useMessager } from '@/utils/dialog.ts'
 import PlugConnected from '@/features/icon/PlugConnected.vue'
 import IconButton from '@/features/common/IconButton.vue'
+import PlugDisconnected from '@/features/icon/PlugDisconnected.vue'
+import SrvIcon from '@/features/icon/SrvIcon.vue'
+import { getServerColour } from '@/features/server-pane/helpers.ts'
+import { ServerNodeType } from '@/features/server-pane/types.ts'
 
 import {
   Cog8ToothIcon,
@@ -23,11 +43,7 @@ import {
   ServerStackIcon,
   TrashIcon,
 } from '@heroicons/vue/24/outline'
-
-import PlugDisconnected from '@/features/icon/PlugDisconnected.vue'
-import SrvIcon from '@/features/icon/SrvIcon.vue'
-import { getServerColour } from '@/features/server-pane/helpers.ts'
-import { ServerNodeType } from '@/features/server-pane/types.ts'
+import type { MenuRenderOption } from 'naive-ui/es/menu/src/interface'
 
 const props = defineProps<{
   filterPattern?: string
@@ -52,13 +68,13 @@ const contextMenuParams = reactive<{
   show: boolean
   x: number
   y: number
-  options?: unknown
-  currentNode?: unknown
+  options: Array<MenuRenderOption | MenuDividerOption>
+  currentNode?: RegisteredServerNode
 }>({
   show: false,
   x: 0,
   y: 0,
-  options: undefined,
+  options: [],
   currentNode: undefined,
 })
 
@@ -72,62 +88,73 @@ const MenuKeys = {
   ServerDelete: 'server_delete',
 }
 
-const menuOptions = {
+const menuOptions: Record<
+  ServerNodeType,
+  (option: RegisteredServerNode) => Array<MenuRenderOption | MenuDividerOption>
+> = {
   [ServerNodeType.Group]: () => [
     {
       key: MenuKeys.GroupRename,
       label: 'serverPane.serverTree.renameGroup',
       icon: PencilSquareIcon,
-    },
+      type: 'render',
+    } as MenuRenderOption,
     {
       key: MenuKeys.GroupDelete,
       label: 'serverPane.serverTree.deleteGroup',
       icon: TrashIcon,
-    },
+      type: 'render',
+    } as MenuRenderOption,
   ],
-  [ServerNodeType.Server]: ({ serverId }: { serverId: string }) => {
+  [ServerNodeType.Server]: (option: RegisteredServerNode) => {
+    const serverId = option.id
     const common = [
       {
         key: MenuKeys.ServerEdit,
         label: 'serverPane.serverTree.editServer',
         icon: Cog8ToothIcon,
-      },
+        type: 'render',
+      } as MenuRenderOption,
       {
         key: MenuKeys.ServerClone,
         label: 'serverPane.serverTree.cloneServer',
         icon: DocumentDuplicateIcon,
-      },
+        type: 'render',
+      } as MenuRenderOption,
       {
         type: 'divider',
         key: 'd1',
-      },
+      } as MenuDividerOption,
       {
         key: MenuKeys.ServerDelete,
         label: 'serverPane.serverTree.deleteServer',
         icon: TrashIcon,
-      },
+        type: 'render',
+      } as MenuRenderOption,
     ]
 
     const connected = browserStore.isConnected(serverId)
     if (connected) {
       return [
+        ...common,
         {
           key: MenuKeys.ServerDisconnect,
           label: 'serverPane.serverTree.disconnect',
           icon: PlugDisconnected,
-        },
-        ...common,
-      ]
-    } else {
-      return [
-        {
-          key: MenuKeys.ServerConnect,
-          label: 'serverPane.serverTree.connectServer',
-          icon: PlugConnected,
-        },
-        ...common,
+          type: 'render',
+        } as MenuRenderOption,
       ]
     }
+
+    return [
+      ...common,
+      {
+        key: MenuKeys.ServerConnect,
+        label: 'serverPane.serverTree.connectServer',
+        icon: PlugConnected,
+        type: 'render',
+      } as MenuRenderOption,
+    ]
   },
 }
 
@@ -284,28 +311,42 @@ const nodeProps = computed(() => (x: { option: RegisteredServerNode }) => {
         connectToServer(option.id).then(() => {})
       }
     },
-    onContextmenu(e: Event) {
+    onContextmenu(e: PointerEvent) {
+      console.log('onContextMenu', e)
       e.preventDefault()
       const type = option.isGroup ? ServerNodeType.Group : ServerNodeType.Server
       const mop = menuOptions[type]
-      if (!mop) {
+      if (mop == null) {
         return
       }
+      contextMenuParams.show = false
+      nextTick().then(() => {
+        console.log('tick...')
+        contextMenuParams.options = markRaw(mop(option)) as never
+        contextMenuParams.currentNode = option
+        contextMenuParams.x = e.clientX
+        contextMenuParams.y = e.clientY
+        contextMenuParams.show = true
+        selectedKeys.value = [option.id]
+      })
     },
-  }
+  } as HTMLAttributes
 })
 
 const connectToServer = async (serverId: string) => {
   try {
     connectingServer.value = serverId
-    if (!browserStore.isConnected(serverId)) {
-      await browserStore.connect(serverId)
+    const connectionResult = await browserStore.connect(serverId)
+    if (!connectionResult.success) {
+      return
     }
 
     if (!isEmpty(connectingServer.value)) {
       tabStore.upsertTab({
-        server: serverId,
+        serverId: serverId,
+        title: connectionResult.name || '',
         forceSwitch: true,
+        blank: false,
       })
     }
   } catch (e) {
@@ -492,7 +533,7 @@ const onCancelConnecting = async () => {
       :y="contextMenuParams.y"
       placement="bottom-start"
       trigger="manual"
-      @clickoutside="contextMenuParams.show = false"
+      @clickoutside="() => (contextMenuParams.show = false)"
       @select="handleSelectContextMenu" />
   </div>
 </template>

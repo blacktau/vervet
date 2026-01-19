@@ -1,58 +1,43 @@
 <script lang="ts" setup>
 import { useThemeVars } from 'naive-ui'
-import { computed, onMounted, onUnmounted, reactive, ref, watchEffect } from 'vue'
-import { useTabStore } from '@/stores/tabs'
+import { computed, onMounted, reactive, ref } from 'vue'
+import { NavType, useTabStore } from '@/features/tabs/tabs.ts'
 import { useSettingsStore } from '@/features/settings/settingsStore.ts'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 import { extraTheme } from '@/utils/extraTheme'
 import { debounce } from 'lodash'
 import { isMacOS, isWindows } from '@/init/environment'
 import * as runtime from 'wailsjs/runtime'
-import { WindowToggleMaximise } from 'wailsjs/runtime'
-import iconUrl from '@/assets/logo.svg'
-
-import ToolbarControlWidget from '@/features/common/ToolbarControlWidget.vue'
-import Ribbon from '@/features/sidebar/Ribbon.vue'
+import LeftRibbon from '@/features/sidebar/LeftRibbon.vue'
 import ResizeableWrapper from '@/features/common/ResizeableWrapper.vue'
-import ContentPane from '@/features/content/ContentPane.vue'
-import ContentLogPane from '@/features/content/ContentLogPane.vue'
 import ServerPane from '@/features/server-pane/ServerPane.vue'
 import DataBrowserPane from '@/features/data-browser/DataBrowserPane.vue'
+import UnconnectedContent from '@/features/unconnected-content/UnconnectedContent.vue'
+import TitleBar from '@/app/TitleBar.vue'
 
 const themeVars = useThemeVars()
 const props = defineProps<{
   loading: boolean
 }>()
 
+const tabStore = useTabStore()
+const connectionsStore = useDataBrowserStore()
+const settingsStore = useSettingsStore()
+
 const data = reactive({
   navMenuWidth: 50,
   toolbarHeight: 38,
 })
 
-const tabStore = useTabStore()
-const connectionsStore = useDataBrowserStore()
-const settingsStore = useSettingsStore()
-const logPaneRef = ref()
 const exThemeVars = computed(() => {
   return extraTheme(settingsStore.isDark)
 })
+
 const saveSidebarWidth = debounce(settingsStore.saveConfiguration, 1000, { trailing: true })
 const handleResize = () => {
   saveSidebarWidth()
 }
 
-watchEffect(() => {
-  if (tabStore.nav === 'log') {
-    logPaneRef.value?.refresh()
-  }
-})
-
-const logoWrapperWidth = computed(() => {
-  return `${data.navMenuWidth + settingsStore.window.asideWidth - 4}px`
-})
-
-const logoPaddingLeft = ref<number>(10)
-const maximised = ref<boolean>(false)
 const hideRadius = ref<boolean>(false)
 
 const wrapperStyle = computed(() => {
@@ -85,21 +70,14 @@ const spinStyle = computed<CSSStyleValue>(() => {
 
 const onToggleFullscreen = (fullscreen: boolean) => {
   hideRadius.value = fullscreen
-  if (fullscreen) {
-    logoPaddingLeft.value = 10
-  } else {
-    logoPaddingLeft.value = isMacOS() ? 70 : 10
-  }
 }
 
 const onToggleMaximize = (isMaximized: boolean) => {
   if (isMaximized) {
-    maximised.value = true
     if (!isMacOS()) {
       hideRadius.value = true
     }
   } else {
-    maximised.value = false
     if (!isMacOS()) {
       hideRadius.value = false
     }
@@ -117,75 +95,22 @@ onMounted(async () => {
   onToggleFullscreen(fullscreen)
   const maximized = await runtime.WindowIsMinimised()
   onToggleMaximize(maximized)
-  window.addEventListener('keydown', onKeyShortCut)
-})
-
-const onKeyShortCut = (e: KeyboardEvent) => {
-  const isCtrlOn = isMacOS() ? e.metaKey : e.ctrlKey
-  switch (e.key) {
-    case 'w':
-      if (isCtrlOn) {
-        const tabStore = useTabStore()
-        const currentTab = tabStore.currentTab
-        if (!!currentTab) {
-          tabStore.closeTab(currentTab.name)
-        }
-      }
-      break
-  }
-}
-
-onUnmounted(() => {
-  window.removeEventListener('keydown', onKeyShortCut)
 })
 </script>
 
 <template>
   <n-spin :show="props.loading" :style="spinStyle" :theme-overrides="{ opacitySpinning: 0 }">
     <div id="app-content-wrapper" :style="wrapperStyle" class="flex-box-v">
-      <div
-        id="app-toolbar"
-        :style="{ height: data.toolbarHeight + 'px' }"
-        class="flex-box-h"
-        style="--wails-draggable: drag"
-        @dblclick="WindowToggleMaximise">
-        <div
-          id="app-toolbar-title"
-          :style="{
-            width: logoWrapperWidth,
-            minWidth: logoWrapperWidth,
-            paddingLeft: `${logoPaddingLeft}px`,
-          }">
-          <n-space :size="3" :wrap="false" :wrap-item="false" align="center">
-            <n-avatar :size="32" :src="iconUrl" color="#0000" style="min-width: 32px" />
-            <div style="min-width: 68px; white-space: nowrap; font-weight: 800">Vervet</div>
-            <transition name="fade">
-              <n-text
-                v-if="tabStore.nav === 'browser'"
-                class="ellipsis"
-                strong
-                style="font-size: 13px">
-                - {{ tabStore.currentTab?.name }}
-              </n-text>
-            </transition>
-          </n-space>
-        </div>
-        <div v-show="tabStore.nav !== 'browser'" class="app-toolbar-tab flex-item-expand">
-          <div>content-value-tab</div>
-        </div>
-        <div class="flex-item-expand" style="min-width: 15px"></div>
-        <toolbar-control-widget
-          v-if="!isMacOS()"
-          :maximised="maximised"
-          :size="data.toolbarHeight"
-          style="align-self: flex-start" />
-      </div>
+      <!-- title bar -->
+      <title-bar :nav-menu-width="data.navMenuWidth" :toolbar-height="data.toolbarHeight" />
+
+      <!-- content area -->
       <div
         id="app-content"
         :style="settingsStore.uiFont"
         class="flex-box-h flex-item-expand"
         style="--wails-draggable: none">
-        <ribbon v-model:value="tabStore.nav" :width="data.navMenuWidth" />
+        <left-ribbon v-model:value="tabStore.nav" :width="data.navMenuWidth" />
         <div v-show="tabStore.nav === 'browser'" class="content-area flex-box-h flex-item-expand">
           <resizeable-wrapper
             :min-size="300"
@@ -197,13 +122,15 @@ onUnmounted(() => {
               class="app-side flex-item-expand" />
             />
           </resizeable-wrapper>
-          <content-pane
-            v-for="t in tabStore.tabs"
-            v-show="t.name === tabStore.currentTab?.name"
-            :key="t.name"
-            class="flex-item-expand" />
+          <!--          <connected-server-tabs-->
+          <!--            v-for="t in tabStore.tabs"-->
+          <!--            v-show="t.serverId === tabStore.currentTab?.serverId"-->
+          <!--            :key="t.serverId"-->
+          <!--            class="flex-item-expand" />-->
         </div>
-        <div v-show="tabStore.nav === 'servers'" class="content-area flex-box-h flex-item-expand">
+        <div
+          v-show="tabStore.nav === NavType.Servers"
+          class="content-area flex-box-h flex-item-expand">
           <resizeable-wrapper
             v-model:size="settingsStore.window.asideWidth"
             :min-size="300"
@@ -212,10 +139,7 @@ onUnmounted(() => {
             @update:size="handleResize">
             <server-pane class="app-side flex-item-expand" />
           </resizeable-wrapper>
-          <!--          <content-server-pane class="flex-item-expand" />-->
-        </div>
-        <div v-show="tabStore.nav === 'log'" class="content-area flex-box-h flex-item-expand">
-          <content-log-pane ref="logPaneRef" class="flex-item-expand" />
+          <unconnected-content class="flex-item-expand" />
         </div>
       </div>
     </div>
@@ -230,26 +154,6 @@ onUnmounted(() => {
   box-sizing: border-box;
   background-color: v-bind('themeVars.bodyColor');
   color: v-bind('themeVars.textColorBase');
-
-  #app-toolbar {
-    background-color: v-bind('exThemeVars.titleColor');
-    border-bottom: 1px solid v-bind('exThemeVars.splitColor');
-
-    &-title {
-      padding-left: 10px;
-      padding-right: 10px;
-      box-sizing: border-box;
-      align-self: center;
-      align-items: baseline;
-    }
-  }
-
-  .app-toolbar-tab {
-    align-self: flex-end;
-    margin-bottom: -1px;
-    margin-left: 3px;
-    overflow: auto;
-  }
 
   #app-content {
     height: calc(100% - 60px);

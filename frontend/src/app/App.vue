@@ -6,6 +6,7 @@ import { WindowSetDarkTheme, WindowSetLightTheme } from 'wailsjs/runtime'
 import { darkTheme, type NLocale } from 'naive-ui'
 import { darkThemeOverrides, themeOverrides } from '@/utils/theme'
 import { useServerStore } from '@/features/server-pane/serverStore.ts'
+import * as connectionsProxy from 'wailsjs/go/api/ConnectionsProxy'
 import AppContent from '@/app/AppContent.vue'
 import AboutDialog from '@/features/about/AboutDialog.vue'
 import GroupDialog from '@/features/server-pane/GroupDialog.vue'
@@ -25,6 +26,7 @@ onMounted(async () => {
     await settingsStore.loadSettings()
     await settingsStore.loadFontList()
     await serverStore.refreshServers()
+    await connectionsProxy.DisconnectAll()
   } finally {
     initializing.value = false
   }
@@ -33,7 +35,11 @@ onMounted(async () => {
 watch(
   () => settingsStore.isDark,
   (isDark: boolean) => {
-    isDark ? WindowSetDarkTheme() : WindowSetLightTheme()
+    if (isDark) {
+      WindowSetDarkTheme()
+    } else {
+      WindowSetLightTheme()
+    }
   },
 )
 

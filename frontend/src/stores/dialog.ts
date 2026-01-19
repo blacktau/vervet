@@ -1,15 +1,15 @@
 import { defineStore } from 'pinia'
-import { type servers } from 'wailsjs/go/models'
+import { type models } from 'wailsjs/go/models.ts'
 
 export enum DialogMode {
   New = 0,
-  Edit
+  Edit,
 }
 
 type DialogState = {
-  visible: boolean,
+  visible: boolean
   type: DialogMode
-  serverDetails?: servers.RegisteredServer,
+  serverDetails?: models.RegisteredServer
   data?: unknown
 }
 
@@ -17,11 +17,11 @@ export const enum DialogType {
   Server = 'server',
   Group = 'group',
   Settings = 'settings',
-  About = 'about'
+  About = 'about',
 }
 
 export type ServerDialogData = {
-  serverId: string,
+  serverId: string
   mode: 'edit' | 'clone'
 }
 
@@ -37,12 +37,12 @@ export const useDialogStore = defineStore('dialog', {
         type: DialogMode.New,
       } as DialogState,
       [DialogType.Settings]: {
-         visible: false,
-         type: DialogMode.New,
+        visible: false,
+        type: DialogMode.New,
       },
       [DialogType.About]: {
         visible: false,
-      }
+      },
     } as Record<DialogType, DialogState>,
   }),
   actions: {
@@ -68,7 +68,7 @@ export const useDialogStore = defineStore('dialog', {
 
       this.dialogs[dialog] = {
         visible: false,
-        type: DialogMode.New
+        type: DialogMode.New,
       }
     },
     showEditDialog<T>(dialog: DialogType, data: T) {
@@ -124,7 +124,7 @@ export const useDialogStore = defineStore('dialog', {
     },
     closeRenameGroupDialog() {
       this.hide(DialogType.Group)
-    }
+    },
   },
   getters: {
     serverDialogData(state): ServerDialogData | undefined {
@@ -145,7 +145,6 @@ export const useDialogStore = defineStore('dialog', {
         const data = state.dialogs[dialog].data as T | undefined
         return data
       }
-    }
-
+    },
   },
 })
