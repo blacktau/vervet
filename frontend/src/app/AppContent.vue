@@ -14,6 +14,7 @@ import ServerPane from '@/features/server-pane/ServerPane.vue'
 import DataBrowserPane from '@/features/data-browser/DataBrowserPane.vue'
 import UnconnectedContent from '@/features/unconnected-content/UnconnectedContent.vue'
 import TitleBar from '@/app/TitleBar.vue'
+import QueryContentPane from '@/features/queries/QueryContentPane.vue'
 
 const themeVars = useThemeVars()
 const props = defineProps<{
@@ -21,7 +22,7 @@ const props = defineProps<{
 }>()
 
 const tabStore = useTabStore()
-const connectionsStore = useDataBrowserStore()
+const dataBrowserStore = useDataBrowserStore()
 const settingsStore = useSettingsStore()
 
 const data = reactive({
@@ -113,20 +114,16 @@ onMounted(async () => {
         <left-ribbon v-model:value="tabStore.nav" :width="data.navMenuWidth" />
         <div v-show="tabStore.nav === 'browser'" class="content-area flex-box-h flex-item-expand">
           <resizeable-wrapper
+            v-model:size="settingsStore.window.asideWidth"
             :min-size="300"
             :offset="data.navMenuWidth"
             class="flex-item"
             @update:size="handleResize">
             <data-browser-pane
-              v-show="connectionsStore.hasOpenConnections"
+              v-show="dataBrowserStore.hasOpenConnections"
               class="app-side flex-item-expand" />
-            />
           </resizeable-wrapper>
-          <!--          <connected-server-tabs-->
-          <!--            v-for="t in tabStore.tabs"-->
-          <!--            v-show="t.serverId === tabStore.currentTab?.serverId"-->
-          <!--            :key="t.serverId"-->
-          <!--            class="flex-item-expand" />-->
+          <query-content-pane class="flex-item-expand" />
         </div>
         <div
           v-show="tabStore.nav === NavType.Servers"
