@@ -8,44 +8,31 @@ import (
 	"sync"
 	"vervet/internal/connectionStrings"
 	"vervet/internal/logging"
+	"vervet/internal/models"
 
 	"github.com/google/uuid"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"go.mongodb.org/mongo-driver/v2/x/mongo/driver/connstring"
 )
 
-type Manager interface {
-	Init(ctx context.Context) error
-	GetServers() ([]RegisteredServer, error)
-	AddServer(parentID, name, uri, colour string) error
-	UpdateServer(serverID, name, uri, parentID, colour string) error
-	RemoveNode(id string) error
-	GetURI(id string) (string, error)
-	CreateGroup(parentID, name string) error
-	UpdateGroup(groupID, name, parentID string) error
-	GetServer(id string) (*RegisteredServerConnection, error)
-}
-
-// ServerManagerImpl manages MongoDB server registeredServer strings
-type ServerManagerImpl struct {
+type ServerManager struct {
 	ctx               context.Context
+	log               *slog.Logger
 	store             ServerStore
 	connectionStrings connectionStrings.Store
 	mu                sync.RWMutex
-	log               *slog.Logger
 }
 
-func NewManager(log *slog.Logger) Manager {
+func NewManager(log *slog.Logger) *ServerManager {
 	logger := log.With(slog.String(logging.SourceKey, "ServerManager"))
-	return &ServerManagerImpl{
+	return &ServerManager{
 		log:               logger,
 		mu:                sync.RWMutex{},
 		connectionStrings: connectionStrings.NewStore(logger),
 	}
 }
 
-// Init initializes the manager.
-func (sm *ServerManagerImpl) Init(ctx context.Context) error {
+func (sm *ServerManager) Init(ctx context.Context) error {
 	sm.log.Debug("Initializing Server Manager")
 	sm.ctx = ctx
 
@@ -65,46 +52,66 @@ func (sm *ServerManagerImpl) Init(ctx context.Context) error {
 	return nil
 }
 
-// GetServers returns the list of registeredServers and groups for the tree of connections
-func (sm *ServerManagerImpl) GetServers() ([]RegisteredServer, error) {
-	sm.log.Debug("Getting All RegisteredServers")
+func (sm *ServerManager) GetServers() ([]models.RegisteredServer, error) {
+	sm.log.Debug("Getting All models.RegisteredServers")
 	registeredServers, err := sm.store.LoadServers()
 	if err != nil {
-		sm.log.Error("error getting RegisteredServers", slog.Any("error", err))
-		return nil, fmt.Errorf("error getting RegisteredServers: %w", err)
+		sm.log.Error("error getting models.RegisteredServers", slog.Any("error", err))
+		return nil, fmt.Errorf("error getting models.RegisteredServers: %w", err)
 	}
 	return registeredServers, nil
 }
 
-func (sm *ServerManagerImpl) GetServer(id string) (*RegisteredServerConnection, error) {
+func (sm *ServerManager) GetServerConfiguration(id string) (*models.RegisteredServerConnection, error) {
 	log := sm.log.With(slog.String("serverID", id))
-	log.Debug("Getting Server Details for Server")
+	log.Debug("Getting Server Configuration for Server")
 	registeredServers, err := sm.store.LoadServers()
 	if err != nil {
-		log.Error("error getting RegisteredServers", slog.Any("error", err))
-		return nil, fmt.Errorf("error getting RegisteredServers: %w", err)
-	}
-	for _, server := range registeredServers {
-		if server.ID == id {
-			uri, err := sm.GetURI(server.ID)
-			if err != nil {
-				log.Error("error getting URI for server", slog.Any("error", err))
-				return nil, fmt.Errorf("error getting URI for server: %w", err)
-			}
-
-			return &RegisteredServerConnection{
-				RegisteredServer: server,
-				URI:              uri,
-			}, nil
-		}
+		log.Error("error getting RegisteredServer", slog.Any("error", err))
+		return nil, fmt.Errorf("error getting models.RegisteredServers: %w", err)
 	}
 
-	log.Error("server not found")
+	server, _ := findServer(id, registeredServers)
+
+
+	if server == nil {
+		return nil, fmt.Errorf("server with ID %s not found", id)
+	}
+
+	uri, err := sm.GetURI(server.ID)
+	if err != nil {
+		log.Error("error getting URI for server", slog.Any("error", err))
+		return nil, fmt.Errorf("error getting URI for server: %w", err)
+	}
+
+	return &models.RegisteredServerConnection{
+		RegisteredServer: 		*server,
+		URI:                     uri,
+	}, nil
+}
+
+func (sm *ServerManager) GetServer(id string) (*models.RegisteredServer, error) {
+	log := sm.log.With(slog.String("serverID", id))
+	log.Debug("Getting Server Configuration for Server")
+	registeredServers, err := sm.store.LoadServers()
+
+	if err != nil {
+		log.Error("error getting RegisteredServer", slog.Any("error", err))
+		return nil, fmt.Errorf("error getting models.RegisteredServers: %w", err)
+	}
+
+	server, _ := findServer(id, registeredServers)
+
+	if server != nil {
+		return server, nil
+	}
+
+
 	return nil, fmt.Errorf("server with ID %s not found", id)
 }
 
 // AddServer saves the metadata and the URI securely.
-func (sm *ServerManagerImpl) AddServer(parentID, name, uri, colour string) error {
+func (sm *ServerManager) AddServer(parentID, name, uri, colour string) error {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
@@ -112,6 +119,10 @@ func (sm *ServerManagerImpl) AddServer(parentID, name, uri, colour string) error
 	log.Debug("Adding Server")
 
 	servers, err := sm.store.LoadServers()
+	if err != nil {
+		log.Error("Failed to load registered servers", slog.Any("error", err))
+		return fmt.Errorf("failed to load registered servers: %w", err)
+	}
 
 	newId := uuid.New().String()
 
@@ -126,10 +137,10 @@ func (sm *ServerManagerImpl) AddServer(parentID, name, uri, colour string) error
 		return fmt.Errorf("failed to parse connection string: %w", err)
 	}
 
-	isCluster := connString.Hosts != nil && len(connString.Hosts) > 1
+	isCluster := len(connString.Hosts) > 1
 	isSrv := connString.Scheme == connstring.SchemeMongoDBSRV
 
-	servers = append(servers, RegisteredServer{
+	servers = append(servers, models.RegisteredServer{
 		ID:        newId,
 		Name:      name,
 		ParentID:  parentID,
@@ -154,7 +165,7 @@ func (sm *ServerManagerImpl) AddServer(parentID, name, uri, colour string) error
 	return nil
 }
 
-func (sm *ServerManagerImpl) UpdateServer(serverID, name, uri, parentID, colour string) error {
+func (sm *ServerManager) UpdateServer(serverID, name, uri, parentID, colour string) error {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 	log := sm.log.With(
@@ -197,7 +208,7 @@ func (sm *ServerManagerImpl) UpdateServer(serverID, name, uri, parentID, colour 
 }
 
 // RemoveNode removes a group or registeredServer and its uri
-func (sm *ServerManagerImpl) RemoveNode(id string) error {
+func (sm *ServerManager) RemoveNode(id string) error {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
@@ -238,7 +249,7 @@ func (sm *ServerManagerImpl) RemoveNode(id string) error {
 	return nil
 }
 
-func (sm *ServerManagerImpl) GetURI(id string) (string, error) {
+func (sm *ServerManager) GetURI(id string) (string, error) {
 	log := sm.log.With(slog.String("serverID", id))
 
 	uri, err := sm.connectionStrings.GetRegisteredServerURI(id)
@@ -250,7 +261,7 @@ func (sm *ServerManagerImpl) GetURI(id string) (string, error) {
 	return uri, nil
 }
 
-func findServer(serverId string, servers []RegisteredServer) (*RegisteredServer, int) {
+func findServer(serverId string, servers []models.RegisteredServer) (*models.RegisteredServer, int) {
 	if len(servers) == 0 {
 		return nil, -1
 	}
@@ -264,7 +275,7 @@ func findServer(serverId string, servers []RegisteredServer) (*RegisteredServer,
 	return nil, -1
 }
 
-func hasChildren(parentId string, servers []RegisteredServer) bool {
+func hasChildren(parentId string, servers []models.RegisteredServer) bool {
 	if len(servers) == 0 {
 		return false
 	}

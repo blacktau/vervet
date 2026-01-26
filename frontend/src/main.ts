@@ -1,13 +1,12 @@
-import dayjs from 'dayjs';
-import duration from 'dayjs/plugin/duration';
-import relativeTime from 'dayjs/plugin/relativeTime';
+import dayjs from 'dayjs'
+import duration from 'dayjs/plugin/duration'
+import relativeTime from 'dayjs/plugin/relativeTime'
 import { createApp, nextTick } from 'vue'
 import App from './app/App.vue'
 import { createPinia } from 'pinia'
 import { loadEnvironment } from './init/environment'
 import { initMonaco } from './init/monaco'
 import { initCharts } from './init/charts'
-import { useSettingsStore } from './features/settings/settingsStore.ts'
 import { initDiscreteApi } from './init/discreate'
 import { useNotifier } from '@/utils/dialog'
 import { i18n } from '@/i18n'
@@ -24,8 +23,7 @@ async function initApp() {
   await loadEnvironment()
   initMonaco()
   initCharts()
-  const configurationStore = useSettingsStore()
-  // await configurationStore.loadSettings()
+
   await initDiscreteApi()
   app.config.errorHandler = (err, instance, info) => {
     nextTick().then(() => {
@@ -35,14 +33,16 @@ async function initApp() {
         const notifier = useNotifier()
         notifier.error(content, {
           title: i18n.global.t('common.error'),
-          meta: 'Please see console for details'
+          meta: 'Please see console for details',
         })
         console.error(err)
-      } catch (e) {}
+      } catch (e) {
+        console.error(e)
+      }
     })
   }
 
   app.mount('#app')
 }
 
-initApp();
+initApp()

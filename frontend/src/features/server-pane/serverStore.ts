@@ -1,26 +1,26 @@
 import { defineStore } from 'pinia'
 import * as serversProxy from 'wailsjs/go/api/ServersProxy'
-import type { servers } from 'wailsjs/go/models.ts'
+import { type models } from 'wailsjs/go/models.ts'
 import { isEmpty, union } from 'lodash'
 import { useNotifier } from '@/utils/dialog.ts'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
-import { ServerNodeType, type ServerTreeNode } from '@/features/server-pane/types.ts'
 
-export interface RegisteredServerNode extends servers.RegisteredServer {
-  children?: RegisteredServerNode[];
-  isLeaf?: boolean;
+export interface RegisteredServerNode extends models.RegisteredServer {
+  children?: RegisteredServerNode[]
+  isLeaf?: boolean
 }
 
 type ServerStoreState = {
-  serverTree: RegisteredServerNode[],
+  serverTree: RegisteredServerNode[]
 }
 
 export const useServerStore = defineStore('server', {
-  state: () => ({
-    serverTree: [],
-  } as ServerStoreState),
+  state: () =>
+    ({
+      serverTree: [],
+    }) as ServerStoreState,
   actions: {
-    refreshServers: async function(force: boolean = false) {
+    refreshServers: async function (force: boolean = false) {
       if (!force && !isEmpty(this.serverTree)) {
         return
       }
@@ -53,7 +53,11 @@ export const useServerStore = defineStore('server', {
           const parentNode = nodeMap[node.parentID]
           if (parentNode) {
             const child = nodeMap[node.id]
-            if (child && parentNode.children && !parentNode.children.some((x) => x.id === child.id)) {
+            if (
+              child &&
+              parentNode.children &&
+              !parentNode.children.some((x) => x.id === child.id)
+            ) {
               parentNode.children.push(child)
               parentNode.children.sort(nodeComparator)
             }
@@ -79,14 +83,17 @@ export const useServerStore = defineStore('server', {
       notifier.error(`error retrieving registered server: ${response.error}`)
       return undefined
     },
-    mergeServerDetails(dst: servers.RegisteredServer, src?: servers.RegisteredServer) {
+    mergeServerDetails(dst: models.RegisteredServer, src?: models.RegisteredServer) {
       if (!src) {
         return dst
       }
 
-      return merge(dst, src) as servers.RegisteredServer
+      return merge(
+        dst as unknown as Record<string, unknown>,
+        src as unknown as Record<string, unknown>,
+      ) as unknown as models.RegisteredServer
     },
-    createDefaultServer(serverId: string): servers.RegisteredServer {
+    createDefaultServer(serverId: string): models.RegisteredServer {
       return {
         id: serverId,
         name: '',
@@ -94,10 +101,15 @@ export const useServerStore = defineStore('server', {
         connectionID: '',
         serverName: '',
         isGroup: false,
-      } as unknown as servers.RegisteredServer
+      } as unknown as models.RegisteredServer
     },
     async saveServer(name: string, connectionString: string, parentId?: string, colour?: string) {
-      const result = await serversProxy.SaveServer(parentId || '', name, connectionString, colour || '')
+      const result = await serversProxy.SaveServer(
+        parentId || '',
+        name,
+        connectionString,
+        colour || '',
+      )
       if (!result.isSuccess) {
         return { success: false, msg: result.error }
       }
@@ -105,12 +117,24 @@ export const useServerStore = defineStore('server', {
       await this.refreshServers(true)
       return { success: true }
     },
-    async updateServer(serverId: string | null, name: string, connectionString: string, parentId?: string, colour?: string) {
+    async updateServer(
+      serverId: string | null,
+      name: string,
+      connectionString: string,
+      parentId?: string,
+      colour?: string,
+    ) {
       console.log('updateServer', serverId, name, connectionString, parentId, colour)
       if (serverId == null) {
         return { success: false, msg: 'serverId is required' }
       }
-      const result = await serversProxy.UpdateServer(serverId, name, connectionString, parentId || '', colour || '')
+      const result = await serversProxy.UpdateServer(
+        serverId,
+        name,
+        connectionString,
+        parentId || '',
+        colour || '',
+      )
       if (!result.isSuccess) {
         return { success: false, msg: result.error }
       }
@@ -161,18 +185,21 @@ export const useServerStore = defineStore('server', {
       }
       await this.refreshServers(true)
       return { success: true }
-    }
+    },
   },
   getters: {
     findServerById(state: ServerStoreState) {
       return (id: string) => {
         return findServerById(id, state.serverTree)
       }
-    }
+    },
   },
 })
 
-function findServerById(id: string, nodeList?: RegisteredServerNode[]): RegisteredServerNode | undefined {
+function findServerById(
+  id: string,
+  nodeList?: RegisteredServerNode[],
+): RegisteredServerNode | undefined {
   if (!nodeList) {
     return undefined
   }
@@ -190,7 +217,10 @@ function findServerById(id: string, nodeList?: RegisteredServerNode[]): Register
   return undefined
 }
 
-function nodeComparator(a: RegisteredServerNode | servers.RegisteredServer, b: RegisteredServerNode | servers.RegisteredServer) {
+function nodeComparator(
+  a: RegisteredServerNode | models.RegisteredServer,
+  b: RegisteredServerNode | models.RegisteredServer,
+) {
   if (a.isGroup && !b.isGroup) {
     return -1
   }
@@ -201,7 +231,7 @@ function nodeComparator(a: RegisteredServerNode | servers.RegisteredServer, b: R
   return a.name.localeCompare(b.name)
 }
 
-function merge(dst: Record<string, any>, src: Record<string, any>) {
+function merge(dst: Record<string, unknown>, src: Record<string, unknown>) {
   const keys = union(Object.keys(dst), Object.keys(src))
   for (const key of keys) {
     const t = typeof src[key]
@@ -212,36 +242,10 @@ function merge(dst: Record<string, any>, src: Record<string, any>) {
     } else if (t === 'boolean') {
       dst[key] = src[key] || dst[key] || false
     } else if (t === 'object') {
-      merge(dst[key], src[key] || {})
+      merge(dst[key] as Record<string, unknown>, (src[key] as Record<string, unknown>) || {})
     } else {
       dst[key] = src[key]
     }
   }
   return dst
 }
-
-const mapNode = (node: RegisteredServerNode, path: string = ''): ServerTreeNode => {
-  if (node.isGroup) {
-    const thisPath = `${path}/${node.id}`
-    return {
-      key: node.id,
-      label: node.name,
-      children: node.children?.map((x) => mapNode(x, thisPath)),
-      type: ServerNodeType.Group,
-      path: path,
-      isGroup: true,
-    }
-  } else {
-    return {
-      key: node.id,
-      label: node.name,
-      type: ServerNodeType.Server,
-      isSrv: node.isSrv,
-      isCluster: node.isCluster,
-      colour: node.colour,
-      path: path,
-      isLeaf: true,
-    }
-  }
-}
-
