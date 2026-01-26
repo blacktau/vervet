@@ -3,12 +3,13 @@ package servers
 import (
 	"fmt"
 	"log/slog"
+	"vervet/internal/models"
 
 	"github.com/google/uuid"
 )
 
 // CreateGroup creates a new group node.
-func (sm *ServerManagerImpl) CreateGroup(parentID, name string) error {
+func (sm *ServerManager) CreateGroup(parentID, name string) error {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 	log := sm.log.With(slog.String("parentID", parentID), slog.String("name", name))
@@ -29,7 +30,7 @@ func (sm *ServerManagerImpl) CreateGroup(parentID, name string) error {
 		parentID = ""
 	}
 
-	newServer := RegisteredServer{
+	newServer := models.RegisteredServer{
 		ID:       uuid.New().String(),
 		Name:     name,
 		IsGroup:  true,
@@ -50,7 +51,7 @@ func (sm *ServerManagerImpl) CreateGroup(parentID, name string) error {
 	return nil
 }
 
-func (sm *ServerManagerImpl) UpdateGroup(groupID, name, parentID string) error {
+func (sm *ServerManager) UpdateGroup(groupID, name, parentID string) error {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
@@ -87,7 +88,7 @@ func (sm *ServerManagerImpl) UpdateGroup(groupID, name, parentID string) error {
 	return nil
 }
 
-func findGroup(groupID string, servers []RegisteredServer) *RegisteredServer {
+func findGroup(groupID string, servers []models.RegisteredServer) *models.RegisteredServer {
 	node, _ := findServer(groupID, servers)
 	if node == nil || !node.IsGroup {
 		return nil

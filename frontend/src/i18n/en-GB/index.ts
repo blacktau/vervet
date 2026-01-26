@@ -175,4 +175,8 @@ export default {
     unescapedPassword: 'password must be url-encoded',
     invalidQueryOption: 'invalid option "{option}"',
   },
+  unconnected: {
+    emptyContent: 'Choose and open a collection from the panel on the left',
+    newConnection: 'Add Connection',
+  },
 }

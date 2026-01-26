@@ -23,16 +23,16 @@ var AllOperatingSystems = []struct {
 }
 
 type SystemProxy struct {
-	service Service
+	service SystemProvider
 }
 
-type Service interface {
+type SystemProvider interface {
 	Init(ctx context.Context) error
 	SelectFile(title string, extensions *[]string) (string, error)
 	SaveFile(title *string, name *string, extensions *[]string) (string, error)
 }
 
-func NewSystemProxy(ss Service) *SystemProxy {
+func NewSystemProxy(ss SystemProvider) *SystemProxy {
 	return &SystemProxy{
 		service: ss,
 	}

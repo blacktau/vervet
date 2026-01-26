@@ -14,8 +14,8 @@ export function DisconnectAll() {
   return window['go']['api']['ConnectionsProxy']['DisconnectAll']();
 }
 
-export function GetConnectionIDs() {
-  return window['go']['api']['ConnectionsProxy']['GetConnectionIDs']();
+export function GetConnections() {
+  return window['go']['api']['ConnectionsProxy']['GetConnections']();
 }
 
 export function GetDatabases(arg1) {

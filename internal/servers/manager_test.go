@@ -65,9 +65,9 @@ func (m *MockConnectionStringsStore) DeleteRegisteredServerURI(id string) error 
 	return nil
 }
 
-func newTestServerManager(serverStore ServerStore, connectionStringsStore connectionStrings.Store) *ServerManagerImpl {
+func newTestServerManager(serverStore ServerStore, connectionStringsStore connectionStrings.Store) *ServerManager {
 	log := slog.Default()
-	return &ServerManagerImpl{
+	return &ServerManager{
 		log:               log,
 		mu:                sync.RWMutex{},
 		connectionStrings: connectionStringsStore,

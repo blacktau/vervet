@@ -13,7 +13,6 @@ type LogAdapter struct {
 }
 
 func NewLogger(logger *slog.Logger) LogAdapter {
-
 	return LogAdapter{
 		logger,
 	}

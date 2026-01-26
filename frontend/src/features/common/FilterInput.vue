@@ -1,12 +1,20 @@
-<script setup lang="ts">
-import { computed, nextTick, reactive } from 'vue'
+<script lang="ts" setup>
+import {
+  computed,
+  type FunctionalComponent,
+  type HTMLAttributes,
+  nextTick,
+  reactive,
+  type VNode,
+  type VNodeProps,
+} from 'vue'
 import { debounce, isEmpty, trim } from 'lodash'
 import { EqualsIcon } from '@heroicons/vue/24/outline'
 import IconButton from '@/features/common/IconButton.vue'
 
 const props = withDefaults(
   defineProps<{
-    fullSearchIcon?: string | object
+    fullSearchIcon?: string | object | VNode | FunctionalComponent<HTMLAttributes & VNodeProps>
     debounceDelayMs?: number
     small?: boolean
     useGlob?: boolean
@@ -171,7 +179,7 @@ defineExpose({
   </n-input-group>
 </template>
 
-<style scoped lang="scss">
+<style lang="scss" scoped>
 :deep(.n-input) {
   width: 100%;
   overflow: hidden;

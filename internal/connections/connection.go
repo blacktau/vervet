@@ -8,18 +8,20 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-type ActiveConnection struct {
-	serverID string
+type activeConnection struct {
 	client   *mongo.Client
+	serverID string
+	name     string
 }
 
-func newActiveConnection(serverID string) ActiveConnection {
-	return ActiveConnection{
+func newActiveConnection(serverID, name string) activeConnection {
+	return activeConnection{
 		serverID: serverID,
+		name:     name,
 	}
 }
 
-func (ac *ActiveConnection) Disconnect(ctx context.Context) error {
+func (ac *activeConnection) Disconnect(ctx context.Context) error {
 	err := ac.client.Disconnect(ctx)
 	if err != nil {
 		return fmt.Errorf("error during mongo disconnection: %w", err)
@@ -29,7 +31,7 @@ func (ac *ActiveConnection) Disconnect(ctx context.Context) error {
 	return nil
 }
 
-func (ac *ActiveConnection) Query(ctx context.Context, dbName string) ([]string, error) {
+func (ac *activeConnection) Query(ctx context.Context, dbName string) ([]string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 

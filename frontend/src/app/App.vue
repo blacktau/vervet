@@ -11,9 +11,12 @@ import AboutDialog from '@/features/about/AboutDialog.vue'
 import GroupDialog from '@/features/server-pane/GroupDialog.vue'
 import ServerDialog from '@/features/server-pane/ServerDialog.vue'
 import SettingsDialog from '@/features/settings/SettingsDialog.vue'
+import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 
 const settingsStore = useSettingsStore()
 const serverStore = useServerStore()
+const browserStore = useDataBrowserStore()
+
 const i18n = useI18n()
 const initializing = ref(true)
 
@@ -25,6 +28,7 @@ onMounted(async () => {
     await settingsStore.loadSettings()
     await settingsStore.loadFontList()
     await serverStore.refreshServers()
+    await browserStore.refreshConnectedServers(true)
   } finally {
     initializing.value = false
   }
@@ -33,7 +37,11 @@ onMounted(async () => {
 watch(
   () => settingsStore.isDark,
   (isDark: boolean) => {
-    isDark ? WindowSetDarkTheme() : WindowSetLightTheme()
+    if (isDark) {
+      WindowSetDarkTheme()
+    } else {
+      WindowSetLightTheme()
+    }
   },
 )
 
