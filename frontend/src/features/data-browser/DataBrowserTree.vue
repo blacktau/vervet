@@ -20,7 +20,7 @@ const treeroots = computed(() => {
   return browserStore.connections.map((x) => {
     return {
       label: x.name,
-      key: x.serverId,
+      key: x.serverID,
       isLeaf: false,
       type: DataNodeType.Server,
     } as DataTreeNode
@@ -29,9 +29,16 @@ const treeroots = computed(() => {
 </script>
 
 <template>
-  <div class="flex-box-v browser-treee-wrapper" @contextmenu="(e) => e.preventDefault()">
+  <div class="browser-tree-wrapper" @contextmenu="(e) => e.preventDefault()">
     <n-tree :data="treeroots" block-line></n-tree>
   </div>
 </template>
 
-<style lang="scss" scoped></style>
+<style lang="scss" scoped>
+@use '@/css/content';
+
+.browser-tree-wrapper {
+  height: 100%;
+  overflow: hidden;
+}
+</style>

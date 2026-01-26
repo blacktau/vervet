@@ -1,4 +1,4 @@
-<script setup lang="ts">
+<script lang="ts" setup>
 import { type DropdownOption, useThemeVars } from 'naive-ui'
 import { useRender } from '@/utils/render'
 import { computed } from 'vue'
@@ -156,7 +156,7 @@ const exThemeVars = computed(() => {
   </div>
 </template>
 
-<style scoped lang="scss">
+<style lang="scss" scoped>
 #app-ribbon {
   //height: 100vh;
   border-right: v-bind('exThemeVars.splitColor') solid 1px;

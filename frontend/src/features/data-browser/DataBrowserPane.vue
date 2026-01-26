@@ -7,6 +7,7 @@ import { useServerStore } from '@/features/server-pane/serverStore.ts'
 import { useRender } from '@/utils/render.ts'
 import { ref } from 'vue'
 import BrowserPaneBar from '@/features/data-browser/BrowserPaneBar.vue'
+import DataBrowserTree from '@/features/data-browser/DataBrowserTree.vue'
 
 const themeVars = useThemeVars()
 const i18n = useI18n()
@@ -26,6 +27,7 @@ const inCheckedState = ref<boolean>(false)
 <template>
   <div class="nav-pane-container flex-box-v">
     <browser-pane-bar />
+    <data-browser-tree :loading="loading" />
   </div>
 </template>
 

@@ -6,15 +6,17 @@ import { WindowSetDarkTheme, WindowSetLightTheme } from 'wailsjs/runtime'
 import { darkTheme, type NLocale } from 'naive-ui'
 import { darkThemeOverrides, themeOverrides } from '@/utils/theme'
 import { useServerStore } from '@/features/server-pane/serverStore.ts'
-import * as connectionsProxy from 'wailsjs/go/api/ConnectionsProxy'
 import AppContent from '@/app/AppContent.vue'
 import AboutDialog from '@/features/about/AboutDialog.vue'
 import GroupDialog from '@/features/server-pane/GroupDialog.vue'
 import ServerDialog from '@/features/server-pane/ServerDialog.vue'
 import SettingsDialog from '@/features/settings/SettingsDialog.vue'
+import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 
 const settingsStore = useSettingsStore()
 const serverStore = useServerStore()
+const browserStore = useDataBrowserStore()
+
 const i18n = useI18n()
 const initializing = ref(true)
 
@@ -26,7 +28,7 @@ onMounted(async () => {
     await settingsStore.loadSettings()
     await settingsStore.loadFontList()
     await serverStore.refreshServers()
-    await connectionsProxy.DisconnectAll()
+    await browserStore.refreshConnectedServers(true)
   } finally {
     initializing.value = false
   }
