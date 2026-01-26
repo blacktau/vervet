@@ -10,9 +10,9 @@
     "lint": "eslint -c ./eslint.config.js \"./src*/**/*.{ts,js,cjs,mjs,vue}\"",
     "format": "prettier --write \"**/*.{js,ts,vue,scss,html,md,json}\" --ignore-path .gitignore",
     "test": "vitest",
-    "dev": "vite",
-    "build": "vue-tsc --noEmit && vite build",
-    "preview": "vite preview"
+    "dev": "bunx --bun vite",
+    "build": "bunx --bun vue-tsc --noEmit && bunx --bun vite build",
+    "preview": "bunx --bun vite preview"
   },
   "dependencies": {
     "@heroicons/vue": "^2.2.0",
