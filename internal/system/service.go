@@ -77,3 +77,18 @@ func (ss *Service) SaveFile(title *string, name *string, extensions *[]string) (
 
 	return filepath, nil
 }
+
+func (ss *Service) Log(level string, message string) {
+	switch level {
+	case "debug":
+		ss.log.Debug(fmt.Sprintf("[UI] %s", message))
+	case "info":
+		ss.log.Info(fmt.Sprintf("[UI] %s",message))
+	case "warn":
+		ss.log.Warn(fmt.Sprintf("[UI] %s", message))
+	case "error":
+		ss.log.Error(fmt.Sprintf("[UI] %s", message))
+	default:
+		ss.log.Info(fmt.Sprintf("[UI] %s", message))
+	}
+}

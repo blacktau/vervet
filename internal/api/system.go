@@ -30,6 +30,7 @@ type SystemProvider interface {
 	Init(ctx context.Context) error
 	SelectFile(title string, extensions *[]string) (string, error)
 	SaveFile(title *string, name *string, extensions *[]string) (string, error)
+	Log(level string, message string)
 }
 
 func NewSystemProxy(ss SystemProvider) *SystemProxy {
@@ -85,4 +86,8 @@ func (sp *SystemProxy) SaveFile(title, defaultName *string, extensions *[]string
 		IsSuccess: true,
 		Data:      path,
 	}
+}
+
+func (sp *SystemProxy) Log(level string, message string) {
+	sp.service.Log(level, message)
 }

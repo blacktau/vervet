@@ -243,12 +243,31 @@ func (cm *ConnectionManager) getClient(serverID string) (*activeConnection, erro
 }
 
 func (cm *ConnectionManager) GetDatabases(serverID string) ([]string, error) {
+	cm.log.Debug("Getting databases for mongo instance", slog.String("serverID", serverID))
+	connection, err := cm.getClient(serverID)
+	if err != nil {
+		cm.log.Error("Failed to get client", slog.String("serverID", serverID), slog.Any("error", err))
+		return nil, err
+	}
+
+	names, err := connection.client.ListDatabaseNames(cm.ctx, bson.D{})
+	if err != nil {
+		cm.log.Error("Failed to list databases", slog.String("serverID", serverID), slog.Any("error", err))
+		return nil, err
+	}
+	cm.log.Debug("Got databases", slog.String("serverID", serverID), slog.Any("databases", names))
+	return names, nil
+}
+
+func (cm *ConnectionManager) GetCollections(serverID string, dbName string) ([]string, error) {
+	cm.log.Debug("Getting collections for mongo instance", slog.String("serverID", serverID), slog.String("dbName", dbName))
 	connection, err := cm.getClient(serverID)
 	if err != nil {
 		return nil, err
 	}
 
-	return connection.client.ListDatabaseNames(cm.ctx, bson.D{})
+	db := connection.client.Database(dbName)
+	return db.ListCollectionNames(cm.ctx, bson.D{})
 }
 
 func cleanConnectionString(uri string) string {
