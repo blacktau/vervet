@@ -7,24 +7,25 @@ import (
 	"sync"
 	"testing"
 	"vervet/internal/connectionStrings"
+	"vervet/internal/models"
 
 	"github.com/stretchr/testify/assert"
 )
 
 // MockServerStore is a mock implementation of ServerStore for testing.
 type MockServerStore struct {
-	servers []RegisteredServer
+	servers []models.RegisteredServer
 	err     error
 }
 
-func (m *MockServerStore) LoadServers() ([]RegisteredServer, error) {
+func (m *MockServerStore) LoadServers() ([]models.RegisteredServer, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
 	return m.servers, nil
 }
 
-func (m *MockServerStore) SaveServers(servers []RegisteredServer) error {
+func (m *MockServerStore) SaveServers(servers []models.RegisteredServer) error {
 	if m.err != nil {
 		return m.err
 	}
@@ -80,7 +81,7 @@ func TestGetServers(t *testing.T) {
 	// Test case 1: Successful get servers
 	t.Run("successful get servers", func(t *testing.T) {
 		mockStore := &MockServerStore{
-			servers: []RegisteredServer{
+			servers: []models.RegisteredServer{
 				{ID: "1", Name: "Server 1"},
 				{ID: "2", Name: "Server 2"},
 			},
@@ -110,7 +111,7 @@ func TestGetServers(t *testing.T) {
 func TestAddServer(t *testing.T) {
 	t.Run("successful add", func(t *testing.T) {
 		mockStore := &MockServerStore{
-			servers: []RegisteredServer{
+			servers: []models.RegisteredServer{
 				{ID: "parent", Name: "Parent Group", IsGroup: true},
 			},
 		}
@@ -130,7 +131,7 @@ func TestAddServer(t *testing.T) {
 func TestUpdateServer(t *testing.T) {
 	t.Run("successful update", func(t *testing.T) {
 		mockStore := &MockServerStore{
-			servers: []RegisteredServer{
+			servers: []models.RegisteredServer{
 				{ID: "1", Name: "Server 1"},
 			},
 		}
@@ -148,7 +149,7 @@ func TestUpdateServer(t *testing.T) {
 
 	t.Run("server not found", func(t *testing.T) {
 		mockStore := &MockServerStore{
-			servers: []RegisteredServer{},
+			servers: []models.RegisteredServer{},
 		}
 		sm := newTestServerManager(mockStore, &MockConnectionStringsStore{})
 
@@ -161,7 +162,7 @@ func TestUpdateServer(t *testing.T) {
 func TestRemoveNode(t *testing.T) {
 	t.Run("successful remove server", func(t *testing.T) {
 		mockStore := &MockServerStore{
-			servers: []RegisteredServer{
+			servers: []models.RegisteredServer{
 				{ID: "1", Name: "Server 1"},
 			},
 		}
@@ -179,7 +180,7 @@ func TestRemoveNode(t *testing.T) {
 
 	t.Run("successful remove group", func(t *testing.T) {
 		mockStore := &MockServerStore{
-			servers: []RegisteredServer{
+			servers: []models.RegisteredServer{
 				{ID: "1", Name: "Group 1", IsGroup: true},
 			},
 		}
@@ -193,7 +194,7 @@ func TestRemoveNode(t *testing.T) {
 
 	t.Run("node not found", func(t *testing.T) {
 		mockStore := &MockServerStore{
-			servers: []RegisteredServer{},
+			servers: []models.RegisteredServer{},
 		}
 		sm := newTestServerManager(mockStore, &MockConnectionStringsStore{})
 
@@ -204,7 +205,7 @@ func TestRemoveNode(t *testing.T) {
 
 	t.Run("cannot remove group with children", func(t *testing.T) {
 		mockStore := &MockServerStore{
-			servers: []RegisteredServer{
+			servers: []models.RegisteredServer{
 				{ID: "1", Name: "Group 1", IsGroup: true},
 				{ID: "2", Name: "Server 2", ParentID: "1"},
 			},

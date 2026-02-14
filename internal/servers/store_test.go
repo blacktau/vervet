@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"vervet/internal/models"
 )
 
 type MockConfigurationStore struct {
@@ -80,7 +81,7 @@ func TestSaveServers(t *testing.T) {
 	t.Run("successful save", func(t *testing.T) {
 		mockCfgStore := &MockConfigurationStore{}
 		store := &Store{cfgStore: mockCfgStore, log: slog.Default()}
-		servers := []RegisteredServer{
+		servers := []models.RegisteredServer{
 			{ID: "1", Name: "Server 1"},
 		}
 		err := store.SaveServers(servers)
@@ -93,7 +94,7 @@ func TestSaveServers(t *testing.T) {
 			err: errors.New("save error"),
 		}
 		store := &Store{cfgStore: mockCfgStore, log: slog.Default()}
-		var servers []RegisteredServer
+		var servers []models.RegisteredServer
 		err := store.SaveServers(servers)
 		assert.Error(t, err)
 	})

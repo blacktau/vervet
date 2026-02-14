@@ -8,6 +8,7 @@ import (
 	"path"
 	"testing"
 	"vervet/internal/infrastructure"
+	"vervet/internal/models"
 	"vervet/internal/settings"
 
 	"github.com/stretchr/testify/assert"
@@ -109,7 +110,7 @@ func Test_SettingsManager_SetSettings(t *testing.T) {
 		m := newTestManager(&storeStub{
 			err: errors.New("write error"),
 		}, nil)
-		err := m.SetSettings(&settings.Settings{})
+		err := m.SetSettings(&models.Settings{})
 		if err == nil {
 			t.Error("expected an error, got nil")
 		}
@@ -140,7 +141,7 @@ func Test_SettingsManager_SaveWindowState(t *testing.T) {
 	t.Run("saves window state", func(t *testing.T) {
 		store := &storeStub{}
 		m := newTestManager(store, nil)
-		err := m.SaveWindowState(settings.WindowState{
+		err := m.SaveWindowState(models.WindowState{
 			X: 10, Y: 20, Width: 1280, Height: 960,
 		})
 		if err != nil {
@@ -155,7 +156,7 @@ func Test_SettingsManager_SaveWindowState(t *testing.T) {
 
 	t.Run("returns error for invalid window state", func(t *testing.T) {
 		m := newTestManager(nil, nil)
-		err := m.SaveWindowState(settings.WindowState{
+		err := m.SaveWindowState(models.WindowState{
 			Width: -1,
 		})
 		if err == nil {
@@ -164,28 +165,28 @@ func Test_SettingsManager_SaveWindowState(t *testing.T) {
 	})
 }
 
-func expectedSettings() settings.Settings {
-	return settings.Settings{
-		Window: settings.WindowSettings{
+func expectedSettings() models.Settings {
+	return models.Settings{
+		Window: models.WindowSettings{
 			Width:      settings.DefaultWindowWidth,
 			Height:     settings.DefaultWindowHeight,
 			AsideWidth: settings.DefaultAsideWidth,
 		},
-		General: settings.GeneralSettings{
+		General: models.GeneralSettings{
 			Theme:    "auto",
 			Language: "auto",
-			Font: settings.FontSettings{
+			Font: models.FontSettings{
 				Size: settings.DefaultFontSize,
 			},
 		},
-		Editor: settings.EditorSettings{
-			Font: settings.FontSettings{
+		Editor: models.EditorSettings{
+			Font: models.FontSettings{
 				Size: settings.DefaultFontSize,
 			},
 			LineNumbers: true,
 		},
-		Terminal: settings.TerminalSettings{
-			Font: settings.FontSettings{
+		Terminal: models.TerminalSettings{
+			Font: models.FontSettings{
 				Size: settings.DefaultFontSize,
 			},
 			CursorStyle: "block",
