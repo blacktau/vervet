@@ -78,19 +78,48 @@ export const useDataBrowserStore = defineStore('browser', {
     async getDatabaseList(serverId: string, force: boolean = false): Promise<Database[]> {
       const connection = this.connections.find((x) => x.serverID === serverId)
       if (connection != null) {
-        if (!force && connection.databases != null) {
-          const databases = await connectionsProxy.GetDatabases(serverId)
-          if (databases.isSuccess) {
-            connection.databases = databases.data.map((db) => ({ name: db, collections: [] }))
-            return connection.databases
+        if (!force && connection.databases != null && connection.databases.length > 0) {
+          return connection.databases
+        }
+        const databases = await connectionsProxy.GetDatabases(serverId)
+        if (databases.isSuccess) {
+          connection.databases = databases.data.map((db) => ({ name: db, collections: [] }))
+          return connection.databases
+        } else {
+          const notifier = useNotifier()
+          notifier.error(`error retrieving databases: ${databases.error}`)
+          return []
+        }
+      }
+      return []
+    },
+    async getCollectionList(serverId: string, dbName: string, force: boolean = false): Promise<Collection[]> {
+      const connection = this.connections.find((x) => x.serverID === serverId)
+      if (connection != null && connection.databases != null) {
+        const database = connection.databases.find((x) => x.name === dbName)
+        if (database != null) {
+          if (!force && database.collections != null && database.collections.length > 0) {
+            return database.collections
+          }
+          const collections = await connectionsProxy.GetCollections(serverId, dbName)
+          if (collections.isSuccess) {
+            database.collections = collections.data.map((col) => ({ name: col, indexes: [] }))
+            return database.collections
           } else {
             const notifier = useNotifier()
-            notifier.error(`error retrieving databases: ${databases.error}`)
+            notifier.error(`error retrieving collections: ${collections.error}`)
             return []
           }
         }
       }
       return []
+    },
+    findDatabase(serverId: string, dbName: string): Database | undefined {
+      const connection = this.connections.find((x) => x.serverID === serverId)
+      if (connection?.databases != null) {
+        return connection.databases.find((x) => x.name === dbName)
+      }
+      return undefined
     },
     async connect(serverId: string, reload: boolean = false) {
       if (this.isConnected(serverId)) {

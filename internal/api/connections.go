@@ -18,6 +18,7 @@ type ConnectionsProvider interface {
 	DisconnectAll() error
 	GetConnections() []models.Connection
 	GetDatabases(serverID string) ([]string, error)
+	GetCollections(serverID string, dbName string) ([]string, error)
 }
 
 func NewConnectionsProxy(provider ConnectionsProvider) *ConnectionsProxy {
@@ -77,6 +78,21 @@ func (cp *ConnectionsProxy) TestConnection(uri string) EmptyResult {
 
 func (cp *ConnectionsProxy) GetDatabases(serverID string) Result[[]string] {
 	result, err := cp.provider.GetDatabases(serverID)
+	if err != nil {
+		return Result[[]string]{
+			IsSuccess: false,
+			Error:     err.Error(),
+		}
+	}
+
+	return Result[[]string]{
+		IsSuccess: true,
+		Data:      result,
+	}
+}
+
+func (cp *ConnectionsProxy) GetCollections(serverID string, dbName string) Result[[]string] {
+	result, err := cp.provider.GetCollections(serverID, dbName)
 	if err != nil {
 		return Result[[]string]{
 			IsSuccess: false,

@@ -11,6 +11,7 @@ import { initDiscreteApi } from './init/discreate'
 import { useNotifier } from '@/utils/dialog'
 import { i18n } from '@/i18n'
 import './css/app.scss'
+import '@/utils/logging'
 
 dayjs.extend(duration)
 dayjs.extend(relativeTime)
