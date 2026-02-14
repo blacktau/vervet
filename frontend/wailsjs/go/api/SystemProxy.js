@@ -6,6 +6,10 @@ export function GetOs() {
   return window['go']['api']['SystemProxy']['GetOs']();
 }
 
+export function Log(arg1, arg2) {
+  return window['go']['api']['SystemProxy']['Log'](arg1, arg2);
+}
+
 export function SaveFile(arg1, arg2, arg3) {
   return window['go']['api']['SystemProxy']['SaveFile'](arg1, arg2, arg3);
 }

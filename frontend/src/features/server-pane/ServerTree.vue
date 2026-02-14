@@ -510,7 +510,7 @@ const onCancelConnecting = async () => {
         <n-spin>
           <template #description>
             <n-space vertical>
-              <n-text strong>{{ $t('common.dialog.connecting') }}}</n-text>
+              <n-text strong>{{ $t('common.dialog.connecting') }}</n-text>
               <n-button :focusable="false" secondary size="small" @click="onCancelConnecting">
                 {{ $t('common.dialog.cancelConnecting') }}
               </n-button>
