@@ -26,7 +26,7 @@ async function initApp() {
   initCharts()
 
   await initDiscreteApi()
-  app.config.errorHandler = (err, instance, info) => {
+  app.config.errorHandler = (err) => {
     nextTick().then(() => {
       try {
         const error = err as Error

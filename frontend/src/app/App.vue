@@ -47,7 +47,7 @@ watch(
 
 watch(
   () => settingsStore.general.language,
-  (lang: string) => {
+  () => {
     i18n.locale.value = settingsStore.currentLanguage
   },
 )

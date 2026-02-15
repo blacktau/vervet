@@ -1,5 +1,5 @@
-<script setup lang="ts">
-import { type SelectOption, useThemeVars } from 'naive-ui'
+<script lang="ts" setup>
+import { type SelectOption } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import { computed, h, reactive, ref } from 'vue'
 import dayjs from 'dayjs'
@@ -20,7 +20,6 @@ interface LogData {
   history: CmdHistoryItem[]
 }
 
-const themeVars = useThemeVars()
 const i18n = useI18n()
 const data = reactive<LogData>({
   loading: false,
@@ -53,7 +52,7 @@ const columns = computed(() => [
     width: 180,
     align: 'center',
     titleAlign: 'center',
-    render: ({ timestamp }: CmdHistoryItem, index: number) => {
+    render: ({ timestamp }: CmdHistoryItem) => {
       return dayjs(timestamp).format('YYYY-MM-DD HH:mm:ss')
     },
   },
@@ -80,7 +79,7 @@ const columns = computed(() => [
     filter: (value: string, row: CmdHistoryItem) => {
       return value === '' || !!~row.cmd.indexOf(value.toString())
     },
-    render: ({ cmd }: CmdHistoryItem, index: number) => {
+    render: ({ cmd }: CmdHistoryItem) => {
       const cmdList = split(cmd, '\n')
       if (size(cmdList) > 1) {
         return h(
@@ -104,11 +103,13 @@ const columns = computed(() => [
           v-model:value="data.server"
           :consistent-menu-width="false"
           :options="filterServerOptions"
-          :render-label="({ label, value }: SelectOption) => (value === '' ? $t(label) : label)"
+          :render-label="
+            ({ label, value }: SelectOption) => (value === '' ? $t(label as string) : label)
+          "
           style="min-width: 100px" />
       </n-form-item>
       <n-form-item :label="$t('log.filter_keyword')">
-        <n-input v-model:value="data.keyword" placeholder="" clearable />
+        <n-input v-model:value="data.keyword" clearable placeholder="" />
       </n-form-item>
       <n-form-item label="&nbsp;">
         <icon-button :icon="ArrowPathIcon" border t-tooltip="log.refresh" />
@@ -128,6 +129,6 @@ const columns = computed(() => [
   </div>
 </template>
 
-<style scoped lang="scss">
+<style lang="scss" scoped>
 @use '@/css/content';
 </style>

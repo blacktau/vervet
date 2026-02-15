@@ -2,9 +2,6 @@
 import FilterInput from '@/features/common/FilterInput.vue'
 import { reactive, ref } from 'vue'
 import { MagnifyingGlassIcon } from '@heroicons/vue/24/outline'
-import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
-
-const browserStore = useDataBrowserStore()
 
 const filterInputRef = ref(null)
 const loading = ref(false)

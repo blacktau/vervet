@@ -1,7 +1,13 @@
 import { useSettingsStore } from '@/features/settings/settingsStore.ts'
 import { computed, type VNodeChild } from 'vue'
-import { createDiscreteApi, darkTheme, type DialogOptions, type MessageOptions, type NotificationReactive } from 'naive-ui'
-import { type MessageApiInjection  } from 'naive-ui/lib/message/src/MessageProvider'
+import {
+  createDiscreteApi,
+  darkTheme,
+  type DialogOptions,
+  type MessageOptions,
+  type NotificationReactive
+} from 'naive-ui'
+import { type MessageApiInjection } from 'naive-ui/lib/message/src/MessageProvider'
 import { type NotificationApiInjection } from 'naive-ui/es/notification/src/NotificationProvider'
 import { type NotificationOptions } from 'naive-ui/es/notification'
 import { darkThemeOverrides, themeOverrides } from '@/utils/theme'
@@ -15,25 +21,28 @@ export async function initDiscreteApi() {
     theme: settingsStore.isDark ? darkTheme : undefined,
     themeOverrides,
   }))
-  const {message, dialog, notification } = createDiscreteApi(['message', 'notification', 'dialog'], {
-    configProviderProps: settingsProviderProps,
-    messageProviderProps: {
-      placement: 'bottom',
-      keepAliveOnHover: true,
-      containerStyle: {
-        marginBottom: '38px',
+  const { message, dialog, notification } = createDiscreteApi(
+    ['message', 'notification', 'dialog'],
+    {
+      configProviderProps: settingsProviderProps,
+      messageProviderProps: {
+        placement: 'bottom',
+        keepAliveOnHover: true,
+        containerStyle: {
+          marginBottom: '38px',
+        },
+        themeOverrides: settingsStore.isDark ? darkThemeOverrides.Message : themeOverrides.Message,
       },
-      themeOverrides: settingsStore.isDark ? darkThemeOverrides.Message : themeOverrides.Message
+      notificationProviderProps: {
+        max: 5,
+        placement: 'bottom-right',
+        keepAliveOnHover: true,
+        containerStyle: {
+          marginBottom: '38px',
+        },
+      },
     },
-    notificationProviderProps: {
-      max: 5,
-      placement: 'bottom-right',
-      keepAliveOnHover: true,
-      containerStyle: {
-        marginBottom: '38px'
-      }
-    },
-  })
+  )
   window.$messager = createMessager(message)
   window.$notifier = createNotifier(notification)
   window.$dialoger = createDialoger(dialog)
@@ -42,11 +51,11 @@ export async function initDiscreteApi() {
 type ContentType = string | (() => VNodeChild)
 
 export interface Messager {
-  error: (content: ContentType, options?: MessageOptions | undefined) => void;
-  info: (content: ContentType, options?: MessageOptions | undefined) => void;
-  loading: (content: ContentType, options?: MessageOptions) => void;
-  success: (content: ContentType, options?: MessageOptions | undefined) => void;
-  warning: (content: ContentType, options?: MessageOptions | undefined) => void;
+  error: (content: ContentType, options?: MessageOptions | undefined) => void
+  info: (content: ContentType, options?: MessageOptions | undefined) => void
+  loading: (content: ContentType, options?: MessageOptions) => void
+  success: (content: ContentType, options?: MessageOptions | undefined) => void
+  warning: (content: ContentType, options?: MessageOptions | undefined) => void
 }
 
 function createMessager(message: MessageApiInjection): Messager {
@@ -73,23 +82,24 @@ function createMessager(message: MessageApiInjection): Messager {
 }
 
 interface Notification {
-  duration? : number,
-  title?: string,
-  meta?: string,
-  content?: string,
-  icon?: string | (() => VNodeChild),
-  action?: string | (() => VNodeChild),
+  duration?: number
+  title?: string
+  meta?: string
+  content?: string
+  icon?: string | (() => VNodeChild)
+  action?: string | (() => VNodeChild)
 }
 
 export interface Notifier {
-  show(option: NotificationOptions): NotificationReactive;
-  error: (content: string, option?: Notification) => void;
-  info: (content: string, option?: Notification) => void;
-  success: (content: string, option?: Notification) => void;
-  warning: (content: string, option?: Notification) => void;
+  error: (content: string, option?: Notification) => void
+  info: (content: string, option?: Notification) => void
+  success: (content: string, option?: Notification) => void
+  warning: (content: string, option?: Notification) => void
+
+  show(option: NotificationOptions): NotificationReactive
 }
 
-function createNotifier(notification: NotificationApiInjection) : Notifier {
+function createNotifier(notification: NotificationApiInjection): Notifier {
   return {
     show(option: NotificationOptions) {
       return notification.create(option)
@@ -139,9 +149,11 @@ function createDialoger(dialog: DialogApiInjection) {
         positiveText: i18nGlobal.t('common.confirm'),
         negativeText: i18nGlobal.t('common.cancel'),
         onPositiveClick: () => {
-          onConfirm && onConfirm()
+          if (onConfirm) {
+            onConfirm()
+          }
         },
       })
-    }
+    },
   }
 }
