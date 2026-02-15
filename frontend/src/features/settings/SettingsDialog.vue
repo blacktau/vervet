@@ -2,14 +2,12 @@
 import { useSettingsStore } from '@/features/settings/settingsStore.ts'
 import { ref, watchEffect } from 'vue'
 import { DialogType, useDialogStore } from '@/stores/dialog.ts'
-import { useI18n } from 'vue-i18n'
 import GeneralSettings from '@/features/settings/GeneralSettings.vue'
 import EditorSettings from '@/features/settings/EditorSettings.vue'
 import TerminalSettings from '@/features/settings/TerminalSettings.vue'
 
 const settingsStore = useSettingsStore()
 const dialogStore = useDialogStore()
-const i18n = useI18n()
 
 const previousSettings = ref({})
 const currentTab = ref('general')

@@ -1,57 +1,66 @@
 import { i18nGlobal } from '@/i18n'
 
 interface OptionValidator {
-  v: (value?: string) => boolean,
-  m: string,
+  v: (value?: string) => boolean
+  m: string
 }
 
 const uriOptions: Record<string, OptionValidator | null> = {
-  'appname': { v: validateAppName, m: 'uriParser.appNameTooLong' },
-  'authMechanism': { v: validateAuthMechanism, m: 'uriParser.invalidAuthMechanism' },
-  'authMechanismProperties': { v: validateAuthMechanismProps, m: 'uriParser.invalidAuthMechanismProps' },
-  'authSource': { v: validateNonEmptyString, m: 'uriParser.authSourceRequired' },
-  'compressors': { v: validateCompressors, m: 'uriParser.invalidCompressors' },
-  'connectTimeoutMS': { v: validateTimeout, m: 'uriParser.invalidTimeout' },
-  'directConnection': { v: validateBoolean, m: 'uriParser.invalidBoolean' },
-  'heartbeatFrequencyMS': { v: validateTimeout, m: 'uriParse.invalidTimeout' },
-  'journal': { v: validateBoolean, m: 'uriParse.invalidBoolean' },
-  'loadBalanced': null,
-  'localThresholdMS': { v: validatePositiveFloat, m: 'uriParser.invalidPositiveFloat' },
-  'maxIdleTimeMS': { v: validateTimeout, m: 'uriParser.invalidTimeout' },
-  'maxPoolSize': { v: validateNonNegativeInteger, m: 'uriParser.invalidNonNegativeInteger' },
-  'maxConnecting': { v: validatePositiveInteger, m: 'uriParser.invalidPositiveInteger' },
-  'maxStalenessSeconds': { v: validateMaxStaleness, m: 'uriParser.invalidMaxStaleness' },
-  'minPoolSize': { v: validateNonNegativeInteger, m: 'uriParser.invalidNonNegativeInteger' },
-  'proxyHost': null,
-  'proxyPort': null,
-  'proxyUsername': null,
-  'proxyPassword': null,
-  'readConcernLevel': null,
-  'readPreference': { v: validateReadPreferenceMode, m: 'uriParser.invalidReadPreferenceMode' },
-  'readPreferenceTags': null,
-  'replicaSet': null,
-  'retryReads': { v: validateBoolean, m: 'uriParser.invalidBoolean'},
-  'retryWrites': { v: validateBoolean, m: 'uriParser.invalidBoolean' },
-  'serverMonitoringMode': { v: validateServerMonitoringMode, m: 'uriParser.invalidServerMonitoringMode'},
-  'serverSelectionTimeoutMS': { v: validateTimeout, m: 'uriParser.invalidTimeout' },
-  'serverSelectionTryOnce': null,
-  'socketTimeoutMS': { v: validateTimeout, m: 'uriParser.invalidTimeout' },
-  'srvMaxHosts': { v: validateNonNegativeInteger, m: 'uriParser.invalidNonNegativeInteger' },
-  'srvServiceName': null,
-  'ssl': { v: validateBoolean, m: 'uriParser.invalidBoolean'},
-  'tls': { v: validateBoolean, m: 'uriParser.invalidBoolean'},
-  'tlsAllowInvalidCertificates': { v: validateBoolean, m: 'uriParser.invalidBoolean'},
-  'tlsAllowInvalidHostnames': { v: validateBoolean, m: 'uriParser.invalidBoolean'},
-  'tlsCAFile': null,
-  'tlsCertificateKeyFile': null,
-  'tlsCertificateKeyFilePassword': null,
-  'tlsDisableCertificateRevocationCheck': { v: validateBoolean, m: 'uriParser.invalidBoolean'},
-  'tlsDisableOCSPEndpointCheck': { v: validateBoolean, m: 'uriParser.invalidBoolean'},
-  'tlsInsecure': { v: validateBoolean, m: 'uriParser.invalidBoolean'},
-  'w': { v: validateNonNegativeInteger, m: 'uriParser.invalidNonNegativeInteger' },
-  'waitQueueTimeoutMS': { v: validateTimeout, m: 'uriParser.invalidTimeout' },
-  'wTimeoutMS': { v: validateTimeout, m: 'uriParser.invalidTimeout' },
-  'zlibCompressionLevel': { v: validateZlibCompressionLevel, m: 'uriParser.invalidNonNegativeInteger' },
+  appname: { v: validateAppName, m: 'uriParser.appNameTooLong' },
+  authMechanism: { v: validateAuthMechanism, m: 'uriParser.invalidAuthMechanism' },
+  authMechanismProperties: {
+    v: validateAuthMechanismProps,
+    m: 'uriParser.invalidAuthMechanismProps',
+  },
+  authSource: { v: validateNonEmptyString, m: 'uriParser.authSourceRequired' },
+  compressors: { v: validateCompressors, m: 'uriParser.invalidCompressors' },
+  connectTimeoutMS: { v: validateTimeout, m: 'uriParser.invalidTimeout' },
+  directConnection: { v: validateBoolean, m: 'uriParser.invalidBoolean' },
+  heartbeatFrequencyMS: { v: validateTimeout, m: 'uriParse.invalidTimeout' },
+  journal: { v: validateBoolean, m: 'uriParse.invalidBoolean' },
+  loadBalanced: null,
+  localThresholdMS: { v: validatePositiveFloat, m: 'uriParser.invalidPositiveFloat' },
+  maxIdleTimeMS: { v: validateTimeout, m: 'uriParser.invalidTimeout' },
+  maxPoolSize: { v: validateNonNegativeInteger, m: 'uriParser.invalidNonNegativeInteger' },
+  maxConnecting: { v: validatePositiveInteger, m: 'uriParser.invalidPositiveInteger' },
+  maxStalenessSeconds: { v: validateMaxStaleness, m: 'uriParser.invalidMaxStaleness' },
+  minPoolSize: { v: validateNonNegativeInteger, m: 'uriParser.invalidNonNegativeInteger' },
+  proxyHost: null,
+  proxyPort: null,
+  proxyUsername: null,
+  proxyPassword: null,
+  readConcernLevel: null,
+  readPreference: { v: validateReadPreferenceMode, m: 'uriParser.invalidReadPreferenceMode' },
+  readPreferenceTags: null,
+  replicaSet: null,
+  retryReads: { v: validateBoolean, m: 'uriParser.invalidBoolean' },
+  retryWrites: { v: validateBoolean, m: 'uriParser.invalidBoolean' },
+  serverMonitoringMode: {
+    v: validateServerMonitoringMode,
+    m: 'uriParser.invalidServerMonitoringMode',
+  },
+  serverSelectionTimeoutMS: { v: validateTimeout, m: 'uriParser.invalidTimeout' },
+  serverSelectionTryOnce: null,
+  socketTimeoutMS: { v: validateTimeout, m: 'uriParser.invalidTimeout' },
+  srvMaxHosts: { v: validateNonNegativeInteger, m: 'uriParser.invalidNonNegativeInteger' },
+  srvServiceName: null,
+  ssl: { v: validateBoolean, m: 'uriParser.invalidBoolean' },
+  tls: { v: validateBoolean, m: 'uriParser.invalidBoolean' },
+  tlsAllowInvalidCertificates: { v: validateBoolean, m: 'uriParser.invalidBoolean' },
+  tlsAllowInvalidHostnames: { v: validateBoolean, m: 'uriParser.invalidBoolean' },
+  tlsCAFile: null,
+  tlsCertificateKeyFile: null,
+  tlsCertificateKeyFilePassword: null,
+  tlsDisableCertificateRevocationCheck: { v: validateBoolean, m: 'uriParser.invalidBoolean' },
+  tlsDisableOCSPEndpointCheck: { v: validateBoolean, m: 'uriParser.invalidBoolean' },
+  tlsInsecure: { v: validateBoolean, m: 'uriParser.invalidBoolean' },
+  w: { v: validateNonNegativeInteger, m: 'uriParser.invalidNonNegativeInteger' },
+  waitQueueTimeoutMS: { v: validateTimeout, m: 'uriParser.invalidTimeout' },
+  wTimeoutMS: { v: validateTimeout, m: 'uriParser.invalidTimeout' },
+  zlibCompressionLevel: {
+    v: validateZlibCompressionLevel,
+    m: 'uriParser.invalidNonNegativeInteger',
+  },
 }
 
 const implicitTlsInsecureOptions = [
@@ -75,11 +84,7 @@ const AuthMechanism = [
   'SCRAM-SHA-256',
 ]
 
-const SupportedCompressors = [
-  'snappy',
-  'zlib',
-  'zstd',
-]
+const SupportedCompressors = ['snappy', 'zlib', 'zstd']
 
 const ReadPreferenceMode = [
   'primary',
@@ -89,30 +94,28 @@ const ReadPreferenceMode = [
   'nearest',
 ]
 
-const DefaultPort:number = 27017
-
 type ParseResult<T> = {
-  success: boolean,
-  error?: string,
-  data?: T,
+  success: boolean
+  error?: string
+  data?: T
 }
 
 type UriData = {
-  nodelist: Address[],
-  username?: string,
-  password?: string,
-  database: string | undefined,
-  collection: string | undefined,
-  options?: UriOptions,
-  isSrv: boolean,
-  fqdn?: string,
+  nodelist: Address[]
+  username?: string
+  password?: string
+  database: string | undefined
+  collection: string | undefined
+  options?: UriOptions
+  isSrv: boolean
+  fqdn?: string
 }
 
 type UriOptions = Record<string, string | string[] | Record<string, string> | boolean | number>
 
 const badDatabaseChars = /[\/ "$]/
 
-export const parseUri = (uri: string) : ParseResult<UriData> => {
+export const parseUri = (uri: string): ParseResult<UriData> => {
   const result = parseAndValidateUri(uri)
   if (!result.success) {
     return result
@@ -120,11 +123,11 @@ export const parseUri = (uri: string) : ParseResult<UriData> => {
 
   return {
     success: true,
-    data: result.data!
+    data: result.data!,
   }
 }
 
-const parseAndValidateUri = (uri: string) : ParseResult<UriData> => {
+const parseAndValidateUri = (uri: string): ParseResult<UriData> => {
   let isSrv = false
   let schemeLess = ''
   if (uri.startsWith(Scheme.MONGODB)) {
@@ -136,14 +139,14 @@ const parseAndValidateUri = (uri: string) : ParseResult<UriData> => {
   } else {
     return {
       success: false,
-      error: i18nGlobal.t('uriParser.invalidScheme')
+      error: i18nGlobal.t('uriParser.invalidScheme'),
     }
   }
 
   if (schemeLess.length === 0) {
     return {
       success: false,
-      error: i18nGlobal.t('uriParser.emptyUri')
+      error: i18nGlobal.t('uriParser.emptyUri'),
     }
   }
 
@@ -174,7 +177,7 @@ const parseAndValidateUri = (uri: string) : ParseResult<UriData> => {
   if (!queryResult.success) {
     return {
       success: false,
-      error: queryResult.error
+      error: queryResult.error,
     }
   }
 
@@ -184,8 +187,7 @@ const parseAndValidateUri = (uri: string) : ParseResult<UriData> => {
   let password: string | undefined
 
   if (host!.indexOf('@') >= 0) {
-
-    let userinfo = host!.substring(0, host!.lastIndexOf('@'))
+    const userinfo = host!.substring(0, host!.lastIndexOf('@'))
     host = host!.substring(host!.lastIndexOf('@') + 1)
     const userResult = parseUserInfo(userinfo)
 
@@ -203,7 +205,7 @@ const parseAndValidateUri = (uri: string) : ParseResult<UriData> => {
   if (host!.indexOf('/') >= 0) {
     return {
       success: false,
-      error: i18nGlobal.t('uriParser.invalidHostSlash', { host: host! })
+      error: i18nGlobal.t('uriParser.invalidHostSlash', { host: host! }),
     }
   }
 
@@ -211,10 +213,13 @@ const parseAndValidateUri = (uri: string) : ParseResult<UriData> => {
   let nodes: Address[]
   const srvMaxHosts = options['srvMaxHosts']
   if (isSrv) {
-    if (options['directConnection'] && (options['directConnection'] as string).toLowerCase() === 'true') {
+    if (
+      options['directConnection'] &&
+      (options['directConnection'] as string).toLowerCase() === 'true'
+    ) {
       return {
         success: false,
-        error: i18nGlobal.t('uriParser.srvDirectConnection')
+        error: i18nGlobal.t('uriParser.srvDirectConnection'),
       }
     }
 
@@ -222,7 +227,7 @@ const parseAndValidateUri = (uri: string) : ParseResult<UriData> => {
     if (!nodeResult.success) {
       return {
         success: false,
-        error: nodeResult.error
+        error: nodeResult.error,
       }
     }
 
@@ -231,41 +236,45 @@ const parseAndValidateUri = (uri: string) : ParseResult<UriData> => {
     if (nodes.length !== 1) {
       return {
         success: false,
-        error: i18nGlobal.t('uriParser.srvMultipleHosts')
+        error: i18nGlobal.t('uriParser.srvMultipleHosts'),
       }
     }
 
     if (nodes[0]?.port !== null) {
       return {
         success: false,
-        error: i18nGlobal.t('uriParser.srvPortSpecified')
+        error: i18nGlobal.t('uriParser.srvPortSpecified'),
       }
     }
   } else if (!isSrv && options['srvServiceName']) {
     return {
       success: false,
-      error: i18nGlobal.t('uriParser.srvServiceNameNotSrv')
+      error: i18nGlobal.t('uriParser.srvServiceNameNotSrv'),
     }
   } else if (!isSrv && srvMaxHosts) {
     return {
       success: false,
-      error: i18nGlobal.t('uriParser.srvMaxHostsNotSrv')
+      error: i18nGlobal.t('uriParser.srvMaxHostsNotSrv'),
     }
   } else {
     const nodeResult2 = splitHosts(host!, null)
     if (!nodeResult2.success) {
       return {
         success: false,
-        error: nodeResult2.error
+        error: nodeResult2.error,
       }
     }
     nodes = nodeResult2.data!
   }
 
-  if (nodes.length > 1 && options['directConnection'] && (options['directConnection'] as string).toLowerCase() === 'true') {
+  if (
+    nodes.length > 1 &&
+    options['directConnection'] &&
+    (options['directConnection'] as string).toLowerCase() === 'true'
+  ) {
     return {
       success: false,
-      error: i18nGlobal.t('uriParser.directConnectionMultipleHosts')
+      error: i18nGlobal.t('uriParser.directConnectionMultipleHosts'),
     }
   }
 
@@ -273,21 +282,24 @@ const parseAndValidateUri = (uri: string) : ParseResult<UriData> => {
     if (nodes.length > 1) {
       return {
         success: false,
-        error: i18nGlobal.t('uriParser.loadBalancedMultipleHosts')
+        error: i18nGlobal.t('uriParser.loadBalancedMultipleHosts'),
       }
     }
 
-    if (options['directConnection'] && (options['directConnection'] as string).toLowerCase() === 'true') {
+    if (
+      options['directConnection'] &&
+      (options['directConnection'] as string).toLowerCase() === 'true'
+    ) {
       return {
         success: false,
-        error: i18nGlobal.t('uriParser.loadBalancedDirectConnection')
+        error: i18nGlobal.t('uriParser.loadBalancedDirectConnection'),
       }
     }
 
     if (options['replicaSet'] && (options['replicaSet'] as string).toLowerCase() === 'true') {
       return {
         success: false,
-        error: i18nGlobal.t('uriParser.loadBalancedReplicaSet')
+        error: i18nGlobal.t('uriParser.loadBalancedReplicaSet'),
       }
     }
   }
@@ -302,14 +314,14 @@ const parseAndValidateUri = (uri: string) : ParseResult<UriData> => {
       collection,
       options: Object.keys(options).length === 0 ? undefined : options,
       isSrv,
-      fqdn
-    }
+      fqdn,
+    },
   }
 }
 
 type Address = {
-  host: string,
-  port?: number | undefined | null,
+  host: string
+  port?: number | undefined | null
 }
 
 function chopAtLast(target: string, separator: string) {
@@ -332,13 +344,12 @@ function chopFirst(target: string, separator: string) {
   return [leader, tail] as [string, string | undefined]
 }
 
-
-function splitHosts(hosts: string, defaultPort: number | undefined | null) : ParseResult<Address[]> {
+function splitHosts(hosts: string, defaultPort: number | undefined | null): ParseResult<Address[]> {
   const hostEntries = hosts.split(',')
   if (hostEntries.length === 0) {
     return {
       success: false,
-      error: i18nGlobal.t('uriParser.emptyHostList')
+      error: i18nGlobal.t('uriParser.emptyHostList'),
     }
   }
 
@@ -348,7 +359,7 @@ function splitHosts(hosts: string, defaultPort: number | undefined | null) : Par
     if (host!.indexOf(':') >= 0 && host!.indexOf(']') < 0) {
       return {
         success: false,
-        error: i18nGlobal.t('uriParser.invalidHostEntry', { host: hostEntry })
+        error: i18nGlobal.t('uriParser.invalidHostEntry', { host: hostEntry }),
       }
     }
 
@@ -359,7 +370,7 @@ function splitHosts(hosts: string, defaultPort: number | undefined | null) : Par
       } else {
         return {
           success: false,
-          error: i18nGlobal.t('uriParser.invalidPort', { port: port })
+          error: i18nGlobal.t('uriParser.invalidPort', { port: port }),
         }
       }
     } else {
@@ -373,14 +384,18 @@ function splitHosts(hosts: string, defaultPort: number | undefined | null) : Par
   }
 }
 
-function parseUserInfo(userInfo: string) : ParseResult<{ username?: string, password?: string }> {
+function parseUserInfo(userInfo: string): ParseResult<{ username?: string; password?: string }> {
   if (userInfo.indexOf('/') >= 0) {
     console.warn(`UserInfo contains escaped slash: ${userInfo}`)
   }
-  if (userInfo.indexOf('@') >= 0 || (userInfo.match(/:/g) || []).length > 1 || unquotedPercent(userInfo)) {
+  if (
+    userInfo.indexOf('@') >= 0 ||
+    (userInfo.match(/:/g) || []).length > 1 ||
+    unquotedPercent(userInfo)
+  ) {
     return {
       success: false,
-      error: i18nGlobal.t('uriParser.invalidUserInfo')
+      error: i18nGlobal.t('uriParser.invalidUserInfo'),
     }
   }
 
@@ -396,35 +411,36 @@ function parseUserInfo(userInfo: string) : ParseResult<{ username?: string, pass
   if ((username!.match(/\//g) || []).length > 0) {
     return {
       success: false,
-      error: i18nGlobal.t('uriParser.unescapedUsername')
+      error: i18nGlobal.t('uriParser.unescapedUsername'),
     }
   }
 
   if (password && (password.match(/\//g) || []).length > 0) {
     return {
       success: false,
-      error: i18nGlobal.t('uriParser.unescapedPassword')
+      error: i18nGlobal.t('uriParser.unescapedPassword'),
     }
   }
 
   return {
     success: true,
     data: {
-      username: username == null ? username : decodeURIComponent(username),
-      password: password == null ? password : decodeURIComponent(password) },
+      username: decodeURIComponent(username),
+      password: password == null ? password : decodeURIComponent(password),
+    },
   }
 }
 
 function unquotedPercent(s: string) {
   try {
     decodeURIComponent(s)
-  } catch (e) {
+  } catch {
     return true
   }
   return false
 }
 
-const parseAndValidateOptions = (query: string) : ParseResult<UriOptions> => {
+const parseAndValidateOptions = (query: string): ParseResult<UriOptions> => {
   if (!query || query.length === 0) {
     return {
       success: true,
@@ -432,14 +448,14 @@ const parseAndValidateOptions = (query: string) : ParseResult<UriOptions> => {
     }
   }
 
-  let ampIdx = query.indexOf('&')
-  let semicolonIdx = query.indexOf(';')
+  const ampIdx = query.indexOf('&')
+  const semicolonIdx = query.indexOf(';')
   let options = {} as UriOptions
 
   if (ampIdx >= 0 && semicolonIdx >= 0) {
     return {
       success: false,
-      error: i18nGlobal.t('uriParser.invalidQueryMixingSeparators')
+      error: i18nGlobal.t('uriParser.invalidQueryMixingSeparators'),
     }
   } else if (ampIdx >= 0) {
     const optionResult = parseOptions(query, '&')
@@ -462,21 +478,21 @@ const parseAndValidateOptions = (query: string) : ParseResult<UriOptions> => {
   } else {
     return {
       success: false,
-      error: i18nGlobal.t('uriParser.invalidQueryFormat')
+      error: i18nGlobal.t('uriParser.invalidQueryFormat'),
     }
   }
 
-  let result = handleSecurityOptions(options)
+  const result = handleSecurityOptions(options)
   if (!result.success) {
     return result
   }
 
   options = result.data!
 
-  if (options['authSource'] === '' ) {
+  if (options['authSource'] === '') {
     return {
       success: false,
-      error: i18nGlobal.t('uriParser.authSourceRequired')
+      error: i18nGlobal.t('uriParser.authSourceRequired'),
     }
   }
 
@@ -502,7 +518,7 @@ const parseAndValidateOptions = (query: string) : ParseResult<UriOptions> => {
     if (!uriOptions[key]?.v(options[key]?.toString())) {
       return {
         success: false,
-        error: i18nGlobal.t(uriOptions[key]?.m!, { key: key, value: options[key] })
+        error: i18nGlobal.t(uriOptions[key]?.m, { key: key, value: options[key] }),
       }
     }
   }
@@ -519,7 +535,10 @@ const handleSecurityOptions = (options: UriOptions) => {
       if (option in options) {
         return {
           success: false,
-          error: i18nGlobal.t('uriParser.conflictingOptions', { option1: 'tlsInsecure', option2: option })
+          error: i18nGlobal.t('uriParser.conflictingOptions', {
+            option1: 'tlsInsecure',
+            option2: option,
+          }),
         }
       }
     }
@@ -528,7 +547,10 @@ const handleSecurityOptions = (options: UriOptions) => {
   if (options['tlsAllowInvalidCertificates'] && options['tlsDisableOCSPEndpointCheck']) {
     return {
       success: false,
-      error: i18nGlobal.t('uriParser.conflictingOptions', { option1: 'tlsAllowInvalidCertificates', option2: 'tlsDisableOCSPEndpointCheck' })
+      error: i18nGlobal.t('uriParser.conflictingOptions', {
+        option1: 'tlsAllowInvalidCertificates',
+        option2: 'tlsDisableOCSPEndpointCheck',
+      }),
     }
   }
 
@@ -536,7 +558,7 @@ const handleSecurityOptions = (options: UriOptions) => {
     if (options['tls'] !== options['ssl']) {
       return {
         success: false,
-        error: i18nGlobal.t('uriParser.tlsAndSslConflict')
+        error: i18nGlobal.t('uriParser.tlsAndSslConflict'),
       }
     }
   }
@@ -547,20 +569,17 @@ const handleSecurityOptions = (options: UriOptions) => {
   }
 }
 
-
-const parseOptions = (query: string, separator?: string) : ParseResult<UriOptions> => {
+const parseOptions = (query: string, separator?: string): ParseResult<UriOptions> => {
   const options = {} as UriOptions
 
-  let parts = separator
-    ? query.split(separator)
-    : [query]
+  const parts = separator ? query.split(separator) : [query]
 
   for (const part of parts) {
     const optionParts = part.split('=')
     if (optionParts.length !== 2) {
       return {
         success: false,
-        error: i18nGlobal.t('uriParser.invalidQueryOption', { option: part })
+        error: i18nGlobal.t('uriParser.invalidQueryOption', { option: part }),
       }
     }
     const key = optionParts[0]
@@ -615,10 +634,7 @@ const normalizeKey = (key: string) => {
   return key
 }
 
-const isDuplicateOption = (
-  key: string,
-  options: UriOptions
-) => {
+const isDuplicateOption = (key: string, options: UriOptions) => {
   return key in options
 }
 
@@ -627,7 +643,7 @@ function validateAppName(appName?: string) {
     return true
   }
 
-  return (new TextEncoder()).encode(appName).length <= 128
+  return new TextEncoder().encode(appName).length <= 128
 }
 
 function validateAuthMechanism(authMechanism?: string) {
@@ -661,13 +677,12 @@ function validatePositiveInteger(value?: string) {
   try {
     const n = Number.parseInt(value)
     return n > 0
-  } catch (e) {
+  } catch {
     return false
   }
 }
 
 function validateNonNegativeInteger(value?: string) {
-
   if (!value) {
     return false
   }
@@ -675,7 +690,7 @@ function validateNonNegativeInteger(value?: string) {
   try {
     const n = Number.parseInt(value)
     return n >= 0
-  } catch (e) {
+  } catch {
     return false
   }
 }
@@ -696,7 +711,7 @@ function validateTimeout(value?: string) {
   try {
     const n = Number.parseInt(value)
     return n >= 0
-  } catch (e) {
+  } catch {
     return false
   }
 }
@@ -724,7 +739,7 @@ function validatePositiveFloat(value?: string) {
   try {
     const n = Number.parseFloat(value)
     return n >= 0
-  } catch (e) {
+  } catch {
     return false
   }
 }
@@ -765,7 +780,7 @@ function validateZlibCompressionLevel(value?: string) {
   try {
     const n = Number.parseInt(value)
     return n >= 0 && n <= 9
-  } catch (e) {
+  } catch {
     return false
   }
 }
