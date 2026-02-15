@@ -1,12 +1,5 @@
-<script setup lang="ts">
-import {
-  computed,
-  type FunctionalComponent,
-  type HTMLAttributes,
-  useSlots,
-  type VNode,
-  type VNodeProps,
-} from 'vue'
+<script lang="ts" setup>
+import { computed, type FunctionalComponent, type HTMLAttributes, useSlots, type VNodeProps } from 'vue'
 
 interface Props {
   tooltip?: string
@@ -102,4 +95,4 @@ const hasTooltip = computed(() => {
   </n-button>
 </template>
 
-<style scoped lang="scss"></style>
+<style lang="scss" scoped></style>

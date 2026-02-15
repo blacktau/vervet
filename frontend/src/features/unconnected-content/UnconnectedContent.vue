@@ -1,10 +1,8 @@
 <script lang="ts" setup>
-import { useThemeVars } from 'naive-ui'
 import { useDialogStore } from '@/stores/dialog.ts'
 import { PlusIcon } from '@heroicons/vue/24/outline'
 
 const dialogStore = useDialogStore()
-const themeVars = useThemeVars()
 </script>
 
 <template>

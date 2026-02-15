@@ -77,41 +77,51 @@ export const useDataBrowserStore = defineStore('browser', {
     },
     async getDatabaseList(serverId: string, force: boolean = false): Promise<Database[]> {
       const connection = this.connections.find((x) => x.serverID === serverId)
-      if (connection != null) {
-        if (!force && connection.databases != null && connection.databases.length > 0) {
-          return connection.databases
-        }
-        const databases = await connectionsProxy.GetDatabases(serverId)
-        if (databases.isSuccess) {
-          connection.databases = databases.data.map((db) => ({ name: db, collections: [] }))
-          return connection.databases
-        } else {
-          const notifier = useNotifier()
-          notifier.error(`error retrieving databases: ${databases.error}`)
-          return []
-        }
+      if (connection == null) {
+        return []
       }
+
+      if (!force && connection.databases != null && connection.databases.length > 0) {
+        return connection.databases
+      }
+
+      const databases = await connectionsProxy.GetDatabases(serverId)
+      if (databases.isSuccess) {
+        connection.databases = databases.data.map((db) => ({ name: db, collections: [] }))
+        return connection.databases
+      }
+
+      const notifier = useNotifier()
+      notifier.error(`error retrieving databases: ${databases.error}`)
       return []
     },
-    async getCollectionList(serverId: string, dbName: string, force: boolean = false): Promise<Collection[]> {
+    async getCollectionList(
+      serverId: string,
+      dbName: string,
+      force: boolean = false,
+    ): Promise<Collection[]> {
       const connection = this.connections.find((x) => x.serverID === serverId)
-      if (connection != null && connection.databases != null) {
-        const database = connection.databases.find((x) => x.name === dbName)
-        if (database != null) {
-          if (!force && database.collections != null && database.collections.length > 0) {
-            return database.collections
-          }
-          const collections = await connectionsProxy.GetCollections(serverId, dbName)
-          if (collections.isSuccess) {
-            database.collections = collections.data.map((col) => ({ name: col, indexes: [] }))
-            return database.collections
-          } else {
-            const notifier = useNotifier()
-            notifier.error(`error retrieving collections: ${collections.error}`)
-            return []
-          }
-        }
+      if (connection == null || connection.databases == null) {
+        return []
       }
+
+      const database = connection.databases.find((x) => x.name === dbName)
+      if (database == null) {
+        return []
+      }
+
+      if (!force && database.collections != null && database.collections.length > 0) {
+        return database.collections
+      }
+
+      const collections = await connectionsProxy.GetCollections(serverId, dbName)
+      if (collections.isSuccess) {
+        database.collections = collections.data.map((col) => ({ name: col, indexes: [] }))
+        return database.collections
+      }
+
+      const notifier = useNotifier()
+      notifier.error(`error retrieving collections: ${collections.error}`)
       return []
     },
     findDatabase(serverId: string, dbName: string): Database | undefined {

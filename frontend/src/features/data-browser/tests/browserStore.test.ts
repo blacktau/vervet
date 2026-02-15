@@ -1,6 +1,8 @@
-import { describe, expect, test, vi, beforeEach } from 'vitest'
-import { setActivePinia, createPinia } from 'pinia'
+import { beforeEach, describe, expect, test, vi } from 'vitest'
+import { createPinia, setActivePinia } from 'pinia'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
+import * as connectionsProxy from 'wailsjs/go/api/ConnectionsProxy'
+import { api } from 'wailsjs/go/models.ts'
 
 vi.mock('wailsjs/go/api/ConnectionsProxy', () => ({
   GetDatabases: vi.fn(),
@@ -20,8 +22,6 @@ vi.mock('@/utils/dialog.ts', () => ({
   })),
 }))
 
-import * as connectionsProxy from 'wailsjs/go/api/ConnectionsProxy'
-
 describe('browserStore', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -31,12 +31,12 @@ describe('browserStore', () => {
   describe('getDatabaseList', () => {
     test('should fetch databases from backend when connection exists', async () => {
       const store = useDataBrowserStore()
-      store.connections = [{ serverID: 'server1', name: 'Test Server' }] as any
+      store.connections = [{ serverID: 'server1', name: 'Test Server' }] as never
 
       vi.mocked(connectionsProxy.GetDatabases).mockResolvedValue({
         isSuccess: true,
         data: ['db1', 'db2'],
-      })
+      } as api.Result___string_)
 
       const result = await store.getDatabaseList('server1', true)
 
@@ -53,11 +53,13 @@ describe('browserStore', () => {
 
     test('should return cached databases when not forcing reload', async () => {
       const store = useDataBrowserStore()
-      store.connections = [{
-        serverID: 'server1',
-        name: 'Test Server',
-        databases: [{ name: 'cachedDb', collections: [] }],
-      }] as any
+      store.connections = [
+        {
+          serverID: 'server1',
+          name: 'Test Server',
+          databases: [{ name: 'cachedDb', collections: [] }],
+        },
+      ] as never
 
       const result = await store.getDatabaseList('server1', false)
 
@@ -76,12 +78,12 @@ describe('browserStore', () => {
 
     test('should return empty array when backend returns error', async () => {
       const store = useDataBrowserStore()
-      store.connections = [{ serverID: 'server1', name: 'Test Server' }] as any
+      store.connections = [{ serverID: 'server1', name: 'Test Server' }] as never
 
       vi.mocked(connectionsProxy.GetDatabases).mockResolvedValue({
         isSuccess: false,
         error: 'Connection failed',
-      })
+      } as api.Result___string_)
 
       const result = await store.getDatabaseList('server1', true)
 
@@ -92,16 +94,18 @@ describe('browserStore', () => {
   describe('getCollectionList', () => {
     test('should fetch collections from backend when database exists', async () => {
       const store = useDataBrowserStore()
-      store.connections = [{
-        serverID: 'server1',
-        name: 'Test Server',
-        databases: [{ name: 'db1', collections: [] }],
-      }] as any
+      store.connections = [
+        {
+          serverID: 'server1',
+          name: 'Test Server',
+          databases: [{ name: 'db1', collections: [] }],
+        },
+      ] as never
 
       vi.mocked(connectionsProxy.GetCollections).mockResolvedValue({
         isSuccess: true,
         data: ['collection1', 'collection2'],
-      })
+      } as api.Result___string_)
 
       const result = await store.getCollectionList('server1', 'db1', true)
 
@@ -114,14 +118,18 @@ describe('browserStore', () => {
 
     test('should return cached collections when not forcing reload', async () => {
       const store = useDataBrowserStore()
-      store.connections = [{
-        serverID: 'server1',
-        name: 'Test Server',
-        databases: [{
-          name: 'db1',
-          collections: [{ name: 'cachedCol', indexes: [] }],
-        }],
-      }] as any
+      store.connections = [
+        {
+          serverID: 'server1',
+          name: 'Test Server',
+          databases: [
+            {
+              name: 'db1',
+              collections: [{ name: 'cachedCol', indexes: [] }],
+            },
+          ],
+        },
+      ] as never
 
       const result = await store.getCollectionList('server1', 'db1', false)
 
@@ -133,11 +141,13 @@ describe('browserStore', () => {
   describe('findDatabase', () => {
     test('should find database by server and database name', () => {
       const store = useDataBrowserStore()
-      store.connections = [{
-        serverID: 'server1',
-        name: 'Test Server',
-        databases: [{ name: 'db1', collections: [] }],
-      }] as any
+      store.connections = [
+        {
+          serverID: 'server1',
+          name: 'Test Server',
+          databases: [{ name: 'db1', collections: [] }],
+        },
+      ] as never
 
       const result = store.findDatabase('server1', 'db1')
 
@@ -146,11 +156,13 @@ describe('browserStore', () => {
 
     test('should return undefined when database not found', () => {
       const store = useDataBrowserStore()
-      store.connections = [{
-        serverID: 'server1',
-        name: 'Test Server',
-        databases: [],
-      }] as any
+      store.connections = [
+        {
+          serverID: 'server1',
+          name: 'Test Server',
+          databases: [],
+        },
+      ] as never
 
       const result = store.findDatabase('server1', 'nonexistent')
 

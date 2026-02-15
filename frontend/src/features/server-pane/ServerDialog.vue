@@ -1,5 +1,5 @@
-<script setup lang="ts">
-import { type FormInst, type FormRules, type TreeSelectOption, useThemeVars } from 'naive-ui'
+<script lang="ts" setup>
+import { type FormInst, type FormRules, useThemeVars } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import { computed, nextTick, ref, watch } from 'vue'
 import { every, includes, isEmpty } from 'lodash'
@@ -143,7 +143,7 @@ const groupOptions = computed(() => {
     isCluster: false,
     isSrv: false,
     children: [],
-    colour: ''
+    colour: '',
   })
   return options
 })
@@ -263,7 +263,11 @@ const onTestConnection = async () => {
                   :placeholder="$t('serverPane.dialogs.server.nameTip')" />
               </n-form-item-gi>
               <n-form-item-gi :label="$t('serverPane.dialogs.server.group')" :span="24" required>
-                <n-tree-select :options="groupOptions" v-model:value="generalForm.parentId" key-field="id" label-field="name" />
+                <n-tree-select
+                  v-model:value="generalForm.parentId"
+                  :options="groupOptions"
+                  key-field="id"
+                  label-field="name" />
               </n-form-item-gi>
               <n-form-item-gi
                 :label="$t('serverPane.dialogs.server.connectionString')"
@@ -339,7 +343,7 @@ const onTestConnection = async () => {
   </n-modal>
 </template>
 
-<style scoped lang="scss">
+<style lang="scss" scoped>
 .color-preset-item {
   width: 24px;
   height: 24px;
