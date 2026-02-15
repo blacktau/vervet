@@ -159,7 +159,7 @@ function runScenario(scenario: Scenario) {
 
     for(let i = 0; i < ScenarioKeys.length; i++) {
       let found = false
-      let scenarioKey = ScenarioKeys[i]!.toLowerCase()
+      const scenarioKey = ScenarioKeys[i]!.toLowerCase()
 
       if (scenarioKey === 'authmechanismproperties') {
         // skip this here to be done below
@@ -198,13 +198,13 @@ function runScenario(scenario: Scenario) {
 
       for(let i = 0, ln = scenarioAuthMechKeys.length; i < ln; i++) {
         let found = false
-        let scenarioAuthMechKey = scenarioAuthMechKeys[i]!
-        let scenarioAuthMechValue = scenarioAuthMech[scenarioAuthMechKey!]!
+        const scenarioAuthMechKey = scenarioAuthMechKeys[i]!
+        const scenarioAuthMechValue = scenarioAuthMech[scenarioAuthMechKey!]!
         for (let j = 0, ln = resultAuthMechKeys.length; j < ln; j++) {
-          let resultAuthMechKey = resultAuthMechKeys[j]!
+          const resultAuthMechKey = resultAuthMechKeys[j]!
           if (scenarioAuthMechKey === resultAuthMechKey) {
             found = true
-            let resultAuthMechValue = resultAuthMech[resultAuthMechKeys[j]!]!
+            const resultAuthMechValue = resultAuthMech[resultAuthMechKeys[j]!]!
             expect(resultAuthMechValue, `options.authMechanismProperties.${resultAuthMechValue} incorrect`)
               .toBe(scenarioAuthMechValue)
           }

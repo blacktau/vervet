@@ -16,7 +16,7 @@ import {
   WrenchScrewdriverIcon,
 } from '@heroicons/vue/24/outline'
 
-import Github from '@/features/icon/Github.vue'
+import GithubIcon from '@/features/icon/GithubIcon.vue'
 
 const themeVars = useThemeVars()
 const render = useRender()
@@ -147,7 +147,7 @@ const exThemeVars = computed(() => {
         <icon-button :icon="Cog8ToothIcon" :size="iconSize" :stroke-width="3" />
       </n-dropdown>
       <icon-button
-        :icon="Github"
+        :icon="GithubIcon"
         :size="iconSize"
         :tooltip-delay="100"
         t-tooltip="ribbon.github"
