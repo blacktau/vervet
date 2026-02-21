@@ -312,7 +312,6 @@ const nodeProps = computed(() => (x: { option: RegisteredServerNode }) => {
       }
     },
     onContextmenu(e: PointerEvent) {
-      console.log('onContextMenu', e)
       e.preventDefault()
       const type = option.isGroup ? ServerNodeType.Group : ServerNodeType.Server
       const mop = menuOptions[type]
@@ -321,7 +320,6 @@ const nodeProps = computed(() => (x: { option: RegisteredServerNode }) => {
       }
       contextMenuParams.show = false
       nextTick().then(() => {
-        console.log('tick...')
         contextMenuParams.options = markRaw(mop(option)) as never
         contextMenuParams.currentNode = option
         contextMenuParams.x = e.clientX
@@ -405,7 +403,6 @@ const expandKey = (key: string) => {
 
 const handleSelectContextMenu = (key: string) => {
   contextMenuParams.show = false
-  console.log('handleSelectContextMenu: ', key, selectedKeys.value.join(';'))
   const selectedKey = selectedKeys.value.length > 0 ? selectedKeys.value[0] : undefined
   if (!selectedKey) {
     return

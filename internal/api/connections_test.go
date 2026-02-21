@@ -17,9 +17,11 @@ type MockConnectionsProvider struct {
 	testConnErr       error
 	getDatabasesErr   error
 	getCollectionsErr error
+	getViewsErr       error
 	connections       []models.Connection
 	databases         []string
 	collections       []string
+	views             []string
 }
 
 func (m *MockConnectionsProvider) Init(ctx context.Context) error {
@@ -64,6 +66,13 @@ func (m *MockConnectionsProvider) GetCollections(serverID string, dbName string)
 		return nil, m.getCollectionsErr
 	}
 	return m.collections, nil
+}
+
+func (m *MockConnectionsProvider) GetViews(serverID string, dbName string) ([]string, error) {
+	if m.getViewsErr != nil {
+		return nil, m.getViewsErr
+	}
+	return m.views, nil
 }
 
 func TestConnectionsProxy_Connect(t *testing.T) {

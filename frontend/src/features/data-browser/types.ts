@@ -5,6 +5,7 @@ export enum DataNodeType {
   Database,
   Folder,
   Collection,
+  View,
   IndexCollection,
   Index,
 }

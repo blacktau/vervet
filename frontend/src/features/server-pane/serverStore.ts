@@ -124,7 +124,6 @@ export const useServerStore = defineStore('server', {
       parentId?: string,
       colour?: string,
     ) {
-      console.log('updateServer', serverId, name, connectionString, parentId, colour)
       if (serverId == null) {
         return { success: false, msg: 'serverId is required' }
       }

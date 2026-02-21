@@ -7,6 +7,9 @@ interface TreeNode extends DataTreeNode {
   children: TreeNode[]
 }
 
+const FOLDER_COLLECTIONS = 'Collections'
+const FOLDER_VIEWS = 'Views'
+
 export function useDataTree() {
   const browserStore = useDataBrowserStore()
   const tabStore = useTabStore()
@@ -43,6 +46,11 @@ export function useDataTree() {
 
     if (node.type === DataNodeType.Database) {
       await expandDatabase(node)
+      return
+    }
+
+    if (node.type === DataNodeType.Folder) {
+      await expandFolder(node)
     }
   }
 
@@ -67,10 +75,6 @@ export function useDataTree() {
 
     loadedKeys.value = [...loadedKeys.value, key]
     expandedKeys.value = [...expandedKeys.value, key]
-
-    for (const child of node.children) {
-      await expandNode(child.key as string)
-    }
   }
 
   async function expandDatabase(node: TreeNode) {
@@ -81,20 +85,68 @@ export function useDataTree() {
     if (!serverId || !dbName) return
 
     await browserStore.getCollectionList(serverId, dbName, true)
-    const database = browserStore.findDatabase(serverId, dbName)
-    if (!database?.collections) return
+    await browserStore.getViewList(serverId, dbName, true)
 
-    node.children = database.collections.map((col) => ({
-      label: col.name,
-      key: `${serverId}:${dbName}:${col.name}`,
-      isLeaf: true,
-      type: DataNodeType.Collection,
-      children: [],
-    }))
+    node.children = [
+      {
+        label: FOLDER_COLLECTIONS,
+        key: `${dbKey}:${FOLDER_COLLECTIONS}`,
+        isLeaf: false,
+        type: DataNodeType.Folder,
+        children: [],
+      },
+      {
+        label: FOLDER_VIEWS,
+        key: `${dbKey}:${FOLDER_VIEWS}`,
+        isLeaf: false,
+        type: DataNodeType.Folder,
+        children: [],
+      },
+    ]
 
-    node.isLeaf = true
     loadedKeys.value = [...loadedKeys.value, dbKey]
     expandedKeys.value = [...expandedKeys.value, dbKey]
+  }
+
+  async function expandFolder(node: TreeNode) {
+    const folderKey = node.key as string
+    if (!folderKey || loadedKeys.value.includes(folderKey)) return
+
+    const parts = folderKey.split(':')
+    if (parts.length < 3) return
+
+    const serverId = parts[0]
+    const dbName = parts[1]
+    const folderName = parts[2]
+
+    const isCollectionsFolder = folderName === FOLDER_COLLECTIONS
+    const isViewsFolder = folderName === FOLDER_VIEWS
+
+    if (!isCollectionsFolder && !isViewsFolder) return
+
+    const database = browserStore.findDatabase(serverId, dbName)
+    if (!database) return
+
+    if (isCollectionsFolder && database.collections) {
+      node.children = database.collections.map((col) => ({
+        label: col.name,
+        key: `${folderKey}:${col.name}`,
+        isLeaf: true,
+        type: DataNodeType.Collection,
+        children: [],
+      }))
+    } else if (isViewsFolder && database.views) {
+      node.children = database.views.map((view) => ({
+        label: view,
+        key: `${folderKey}:${view}`,
+        isLeaf: true,
+        type: DataNodeType.View,
+        children: [],
+      }))
+    }
+
+    loadedKeys.value = [...loadedKeys.value, folderKey]
+    expandedKeys.value = [...expandedKeys.value, folderKey]
   }
 
   function findNode(nodes: TreeNode[], key: string | number): TreeNode | null {

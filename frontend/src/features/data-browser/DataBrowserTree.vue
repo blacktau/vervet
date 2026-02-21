@@ -2,7 +2,7 @@
 import { h, watch } from 'vue'
 import { NIcon } from 'naive-ui'
 import CollectionIcon from '@/features/icon/CollectionIcon.vue'
-import { CircleStackIcon } from '@heroicons/vue/24/outline'
+import { CircleStackIcon, FolderIcon, FolderOpenIcon, EyeIcon } from '@heroicons/vue/24/outline'
 import { DataNodeType, type DataTreeNode } from '@/features/data-browser/types.ts'
 import { useDataTree } from '@/features/data-browser/useDataTree.ts'
 import { useTabStore } from '@/features/tabs/tabs.ts'
@@ -11,11 +11,19 @@ const tabStore = useTabStore()
 const { treeData, expandedKeys, handleExpand, updateTreeForCurrentServer } = useDataTree()
 
 const renderPrefix = ({ option }: { option: DataTreeNode }) => {
+  if (option.type === DataNodeType.Database) {
+    return h(NIcon, { size: 18 }, () => h(CircleStackIcon))
+  }
+  if (option.type === DataNodeType.Folder) {
+    const isExpanded = expandedKeys.value.includes(option.key as string)
+    const Icon = isExpanded ? FolderOpenIcon : FolderIcon
+    return h(NIcon, { size: 18 }, () => h(Icon))
+  }
   if (option.type === DataNodeType.Collection) {
     return h(NIcon, { size: 18 }, () => h(CollectionIcon))
   }
-  if (option.type === DataNodeType.Database) {
-    return h(NIcon, { size: 18 }, () => h(CircleStackIcon))
+  if (option.type === DataNodeType.View) {
+    return h(NIcon, { size: 18 }, () => h(EyeIcon))
   }
   return null
 }

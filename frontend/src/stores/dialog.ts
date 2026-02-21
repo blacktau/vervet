@@ -72,7 +72,6 @@ export const useDialogStore = defineStore('dialog', {
       }
     },
     showEditDialog<T>(dialog: DialogType, data: T) {
-      console.log('showEditDialog', dialog, data)
       if (!this.dialogs[dialog]) {
         this.dialogs[dialog] = {
           visible: true,

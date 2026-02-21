@@ -16,6 +16,7 @@ type ServerConnection = models.Connection & {
 type Database = {
   name: string
   collections: Collection[]
+  views: string[]
 }
 
 type Collection = {
@@ -87,7 +88,7 @@ export const useDataBrowserStore = defineStore('browser', {
 
       const databases = await connectionsProxy.GetDatabases(serverId)
       if (databases.isSuccess) {
-        connection.databases = databases.data.map((db) => ({ name: db, collections: [] }))
+        connection.databases = databases.data.map((db) => ({ name: db, collections: [], views: [] }))
         return connection.databases
       }
 
@@ -122,6 +123,31 @@ export const useDataBrowserStore = defineStore('browser', {
 
       const notifier = useNotifier()
       notifier.error(`error retrieving collections: ${collections.error}`)
+      return []
+    },
+    async getViewList(serverId: string, dbName: string, force: boolean = false): Promise<string[]> {
+      const connection = this.connections.find((x) => x.serverID === serverId)
+      if (connection == null || connection.databases == null) {
+        return []
+      }
+
+      const database = connection.databases.find((x) => x.name === dbName)
+      if (database == null) {
+        return []
+      }
+
+      if (!force && database.views != null) {
+        return database.views
+      }
+
+      const views = await connectionsProxy.GetViews(serverId, dbName)
+      if (views.isSuccess) {
+        database.views = views.data
+        return database.views
+      }
+
+      const notifier = useNotifier()
+      notifier.error(`error retrieving views: ${views.error}`)
       return []
     },
     findDatabase(serverId: string, dbName: string): Database | undefined {
