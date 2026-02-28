@@ -80,7 +80,7 @@ func TestConnectionsProxy_Connect(t *testing.T) {
 		provider := &MockConnectionsProvider{
 			connection: models.Connection{ServerID: "1", Name: "Server 1"},
 		}
-		proxy := NewConnectionsProxy(provider)
+		proxy := NewConnectionsProxy(provider, nil)
 
 		result := proxy.Connect("1")
 
@@ -93,7 +93,7 @@ func TestConnectionsProxy_Connect(t *testing.T) {
 		provider := &MockConnectionsProvider{
 			connectErr: errors.New("connection failed"),
 		}
-		proxy := NewConnectionsProxy(provider)
+		proxy := NewConnectionsProxy(provider, nil)
 
 		result := proxy.Connect("1")
 
@@ -106,7 +106,7 @@ func TestConnectionsProxy_Connect(t *testing.T) {
 func TestConnectionsProxy_Disconnect(t *testing.T) {
 	t.Run("successful disconnect", func(t *testing.T) {
 		provider := &MockConnectionsProvider{}
-		proxy := NewConnectionsProxy(provider)
+		proxy := NewConnectionsProxy(provider, nil)
 
 		result := proxy.Disconnect("1")
 
@@ -118,7 +118,7 @@ func TestConnectionsProxy_Disconnect(t *testing.T) {
 		provider := &MockConnectionsProvider{
 			disconnectErr: errors.New("disconnect failed"),
 		}
-		proxy := NewConnectionsProxy(provider)
+		proxy := NewConnectionsProxy(provider, nil)
 
 		result := proxy.Disconnect("1")
 
@@ -130,7 +130,7 @@ func TestConnectionsProxy_Disconnect(t *testing.T) {
 func TestConnectionsProxy_DisconnectAll(t *testing.T) {
 	t.Run("successful disconnect all", func(t *testing.T) {
 		provider := &MockConnectionsProvider{}
-		proxy := NewConnectionsProxy(provider)
+		proxy := NewConnectionsProxy(provider, nil)
 
 		result := proxy.DisconnectAll()
 
@@ -142,7 +142,7 @@ func TestConnectionsProxy_DisconnectAll(t *testing.T) {
 		provider := &MockConnectionsProvider{
 			disconnectErr: errors.New("disconnect failed"),
 		}
-		proxy := NewConnectionsProxy(provider)
+		proxy := NewConnectionsProxy(provider, nil)
 
 		result := proxy.DisconnectAll()
 
@@ -159,7 +159,7 @@ func TestConnectionsProxy_GetConnections(t *testing.T) {
 				{ServerID: "2", Name: "Server 2"},
 			},
 		}
-		proxy := NewConnectionsProxy(provider)
+		proxy := NewConnectionsProxy(provider, nil)
 
 		result := proxy.GetConnections()
 
@@ -171,7 +171,7 @@ func TestConnectionsProxy_GetConnections(t *testing.T) {
 func TestConnectionsProxy_TestConnection(t *testing.T) {
 	t.Run("successful test connection", func(t *testing.T) {
 		provider := &MockConnectionsProvider{}
-		proxy := NewConnectionsProxy(provider)
+		proxy := NewConnectionsProxy(provider, nil)
 
 		result := proxy.TestConnection("mongodb://localhost")
 
@@ -183,7 +183,7 @@ func TestConnectionsProxy_TestConnection(t *testing.T) {
 		provider := &MockConnectionsProvider{
 			testConnErr: errors.New("connection failed"),
 		}
-		proxy := NewConnectionsProxy(provider)
+		proxy := NewConnectionsProxy(provider, nil)
 
 		result := proxy.TestConnection("mongodb://localhost")
 
@@ -197,7 +197,7 @@ func TestConnectionsProxy_GetDatabases(t *testing.T) {
 		provider := &MockConnectionsProvider{
 			databases: []string{"db1", "db2"},
 		}
-		proxy := NewConnectionsProxy(provider)
+		proxy := NewConnectionsProxy(provider, nil)
 
 		result := proxy.GetDatabases("1")
 
@@ -209,7 +209,7 @@ func TestConnectionsProxy_GetDatabases(t *testing.T) {
 		provider := &MockConnectionsProvider{
 			getDatabasesErr: errors.New("failed to get databases"),
 		}
-		proxy := NewConnectionsProxy(provider)
+		proxy := NewConnectionsProxy(provider, nil)
 
 		result := proxy.GetDatabases("1")
 
@@ -223,7 +223,7 @@ func TestConnectionsProxy_GetCollections(t *testing.T) {
 		provider := &MockConnectionsProvider{
 			collections: []string{"coll1", "coll2"},
 		}
-		proxy := NewConnectionsProxy(provider)
+		proxy := NewConnectionsProxy(provider, nil)
 
 		result := proxy.GetCollections("1", "db1")
 
@@ -235,7 +235,7 @@ func TestConnectionsProxy_GetCollections(t *testing.T) {
 		provider := &MockConnectionsProvider{
 			getCollectionsErr: errors.New("failed to get collections"),
 		}
-		proxy := NewConnectionsProxy(provider)
+		proxy := NewConnectionsProxy(provider, nil)
 
 		result := proxy.GetCollections("1", "db1")
 

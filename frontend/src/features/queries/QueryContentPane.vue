@@ -10,17 +10,13 @@ const { t } = useI18n()
 </script>
 
 <template>
-  <div class="content-container flex-box-v">
+  <div class="content-container flex-box-v" style="margin-right: 5px">
     <n-tabs
       :value="tabStore.currentSubTab"
       type="line"
       animated
-      @update:value="tabStore.switchSubTab"
-    >
-      <n-tab-pane
-        :name="BrowserSubTabType.Query"
-        display-directive="show:lazy"
-      >
+      @update:value="tabStore.switchSubTab">
+      <n-tab-pane :name="BrowserSubTabType.Query" display-directive="show:lazy">
         <template #tab>
           <n-icon :component="CodeBracketSquareIcon" style="margin-right: 4px" />
           {{ t('dataBrowser.subTab.query') }}
