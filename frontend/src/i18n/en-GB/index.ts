@@ -84,6 +84,9 @@ export default {
     tree: {
       empty: 'Connect to a server to view its contents',
     },
+    subTab: {
+      query: 'Query',
+    },
   },
   serverPane: {
     serverTree: {
