@@ -1,4 +1,4 @@
-import { computed, ref } from 'vue'
+import { computed, reactive } from 'vue'
 import { DataNodeType, type DataTreeNode } from '@/features/data-browser/types.ts'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 import { useTabStore } from '@/features/tabs/tabs.ts'
@@ -7,18 +7,75 @@ interface TreeNode extends DataTreeNode {
   children: TreeNode[]
 }
 
+interface ServerTreeState {
+  expandedKeys: string[]
+  loadedKeys: string[]
+  treeData: TreeNode[]
+}
+
 const FOLDER_COLLECTIONS = 'Collections'
 const FOLDER_VIEWS = 'Views'
+
+const serverStates = reactive<Record<string, ServerTreeState>>({})
 
 export function useDataTree() {
   const browserStore = useDataBrowserStore()
   const tabStore = useTabStore()
 
-  const expandedKeys = ref<string[]>([])
-  const loadedKeys = ref<string[]>([])
-  const treeData = ref<TreeNode[]>([])
-
   const currentServerId = computed(() => tabStore.currentTabId)
+
+  function getOrCreateServerState(serverId: string): ServerTreeState {
+    if (!serverStates[serverId]) {
+      serverStates[serverId] = {
+        expandedKeys: [],
+        loadedKeys: [],
+        treeData: [],
+      }
+    }
+    return serverStates[serverId]
+  }
+
+  const expandedKeys = computed({
+    get: () => {
+      const serverId = currentServerId.value
+      if (!serverId) return []
+      return getOrCreateServerState(serverId).expandedKeys
+    },
+    set: (val: string[]) => {
+      const serverId = currentServerId.value
+      if (serverId) {
+        getOrCreateServerState(serverId).expandedKeys = val
+      }
+    },
+  })
+
+  const loadedKeys = computed({
+    get: () => {
+      const serverId = currentServerId.value
+      if (!serverId) return []
+      return getOrCreateServerState(serverId).loadedKeys
+    },
+    set: (val: string[]) => {
+      const serverId = currentServerId.value
+      if (serverId) {
+        getOrCreateServerState(serverId).loadedKeys = val
+      }
+    },
+  })
+
+  const treeData = computed({
+    get: () => {
+      const serverId = currentServerId.value
+      if (!serverId) return []
+      return getOrCreateServerState(serverId).treeData
+    },
+    set: (val: TreeNode[]) => {
+      const serverId = currentServerId.value
+      if (serverId) {
+        getOrCreateServerState(serverId).treeData = val
+      }
+    },
+  })
 
   function buildTreeForServer(serverId: string): TreeNode[] {
     const connection = browserStore.connections.find((c) => c.serverID === serverId)
@@ -176,17 +233,21 @@ export function useDataTree() {
     const serverId = currentServerId.value
     if (!serverId) {
       treeData.value = []
-      expandedKeys.value = []
-      loadedKeys.value = []
       return
     }
 
-    treeData.value = buildTreeForServer(serverId)
+    const state = getOrCreateServerState(serverId)
 
-    const firstKey = treeData.value[0]?.key as string
-    if (firstKey) {
-      expandedKeys.value = [firstKey]
-      expandNode(firstKey)
+    if (state.treeData.length === 0) {
+      state.treeData = buildTreeForServer(serverId)
+
+      const firstKey = state.treeData[0]?.key as string
+      if (firstKey) {
+        state.expandedKeys = [firstKey]
+        expandNode(firstKey)
+      }
+    } else {
+      treeData.value = state.treeData
     }
   }
 
