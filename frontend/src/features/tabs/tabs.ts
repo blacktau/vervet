@@ -54,7 +54,7 @@ export const useTabStore = defineStore('tabs', {
     },
   } as TabStoreGetters,
   actions: {
-    _setActivatedIndex(index: number, switchNav: boolean) {
+    _setActivatedIndex(index: number, switchNav: boolean, subTabIdx: number = 0) {
       this.activeTabIndex = index
       if (switchNav) {
         this.nav = index >= 0 ? NavType.Browser : NavType.Servers
