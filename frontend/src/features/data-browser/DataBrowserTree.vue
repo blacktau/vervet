@@ -31,11 +31,16 @@ const renderPrefix = ({ option }: { option: DataTreeNode }) => {
   return null
 }
 
-function handleTreeContextMenu(option: DataTreeNode, e: MouseEvent) {
-  contextMenu.openMenu(option, e)
-}
-
 function handleContextMenuSelect() {}
+
+const nodeProps = ({ option }: { option: DataTreeNode }) => {
+  return {
+    onContextmenu(e: MouseEvent) {
+      e.preventDefault()
+      contextMenu.openMenu(option as DataTreeNode, e)
+    },
+  }
+}
 
 watch(
   () => tabStore.currentTabId,
@@ -52,12 +57,12 @@ watch(
       :cancelable="false"
       :data="treeData"
       :expanded-keys="expandedKeys"
+      :node-props="nodeProps"
       :render-prefix="renderPrefix"
       block-line
       block-node
       virtual-scroll
-      @update:expanded-keys="handleExpand"
-      @context-menu="handleTreeContextMenu">
+      @update:expanded-keys="handleExpand">
       <template #empty>
         <n-empty :description="$t('dataBrowser.tree.temp')" />
       </template>
