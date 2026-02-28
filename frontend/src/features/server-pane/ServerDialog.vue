@@ -167,7 +167,7 @@ watch(
     if (visible) {
       resetForm()
       const data = dialogStore.serverDialogData
-      if (data?.mode == 'edit') {
+      if (data?.mode == 'edit' || data?.mode == 'clone') {
         editServerID.value = data?.serverId
         const server = await serverStore.getServerDetails(data?.serverId)
         if (server != null) {
