@@ -4,7 +4,6 @@ import { NIcon } from 'naive-ui'
 import CollectionIcon from '@/features/icon/CollectionIcon.vue'
 import { CircleStackIcon, EyeIcon, FolderIcon, FolderOpenIcon } from '@heroicons/vue/24/outline'
 import { DataNodeType, type DataTreeNode } from '@/features/data-browser/types.ts'
-import { useDataTree } from '@/features/data-browser/useDataTree.ts'
 import { useDataTreeContextMenu } from '@/features/data-browser/useDataTreeContextMenu.ts'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 import { useTabStore } from '@/features/tabs/tabs.ts'
@@ -12,7 +11,6 @@ import DataTreeContextMenu from '@/features/data-browser/DataTreeContextMenu.vue
 
 const tabStore = useTabStore()
 const browserStore = useDataBrowserStore()
-const { treeData, expandedKeys, handleExpand, updateTreeForCurrentServer } = useDataTree()
 const contextMenu = useDataTreeContextMenu()
 
 const renderPrefix = ({ option }: { option: DataTreeNode }) => {
@@ -20,7 +18,7 @@ const renderPrefix = ({ option }: { option: DataTreeNode }) => {
     return h(NIcon, { size: 18 }, () => h(CircleStackIcon))
   }
   if (option.type === DataNodeType.Folder) {
-    const isExpanded = expandedKeys.value.includes(option.key as string)
+    const isExpanded = browserStore.currentExpandedKeys.includes(option.key as string)
     const Icon = isExpanded ? FolderOpenIcon : FolderIcon
     return h(NIcon, { size: 18 }, () => h(Icon))
   }
@@ -54,8 +52,8 @@ const nodeProps = ({ option }: { option: DataTreeNode }) => {
 
 watch(
   () => tabStore.currentTabId,
-  () => {
-    updateTreeForCurrentServer()
+  (serverId) => {
+    browserStore.updateTreeForServer(serverId)
   },
   { immediate: true },
 )
@@ -64,16 +62,16 @@ watch(
 <template>
   <div class="browser-tree-wrapper" @contextmenu="(e) => e.preventDefault()">
     <n-tree
-      v-if="treeData.length > 0"
+      v-if="browserStore.currentTreeData.length > 0"
       :cancelable="false"
-      :data="treeData"
-      :expanded-keys="expandedKeys"
+      :data="browserStore.currentTreeData"
+      :expanded-keys="browserStore.currentExpandedKeys"
       :node-props="nodeProps"
       :render-prefix="renderPrefix"
       block-line
       block-node
       virtual-scroll
-      @update:expanded-keys="handleExpand">
+      @update:expanded-keys="browserStore.handleExpand">
       <template #empty>
         <n-empty :description="$t('dataBrowser.tree.temp')" />
       </template>

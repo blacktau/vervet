@@ -7,7 +7,10 @@ import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 import { useSettingsStore } from '@/features/settings/settingsStore.ts'
 import { includes, indexOf } from 'lodash'
 import { useServerConnection } from '@/features/server-pane/useServerConnection.ts'
-import { MenuKeys, useServerTreeContextMenu } from '@/features/server-pane/useServerTreeContextMenu.ts'
+import {
+  MenuKeys,
+  useServerTreeContextMenu,
+} from '@/features/server-pane/useServerTreeContextMenu.ts'
 import PlugConnected from '@/features/icon/PlugConnected.vue'
 import IconButton from '@/features/common/IconButton.vue'
 import PlugDisconnected from '@/features/icon/PlugDisconnected.vue'
@@ -19,7 +22,7 @@ import {
   FolderOpenIcon,
   ServerIcon,
   ServerStackIcon,
-  TrashIcon
+  TrashIcon,
 } from '@heroicons/vue/24/outline'
 
 const props = defineProps<{
