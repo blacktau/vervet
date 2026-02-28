@@ -34,6 +34,11 @@ export namespace api {
 	    data: models.RegisteredServer[];
 	    error: string;
 	}
+	export interface Result_bool_ {
+	    isSuccess: boolean;
+	    data: boolean;
+	    error: string;
+	}
 	export interface Result_string_ {
 	    isSuccess: boolean;
 	    data: string;
