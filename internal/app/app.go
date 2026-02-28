@@ -24,6 +24,7 @@ type App struct {
 
 	serverManager     *servers.ServerManager
 	connectionManager *connections.ConnectionManager
+	shellManager      *connections.ShellManager
 	settingsManager   settings.Manager
 	systemService     *system.Service
 }
@@ -33,6 +34,7 @@ func NewApp(log *slog.Logger) *App {
 	serverManager := servers.NewManager(log)
 	connectionStringsStore := connectionStrings.NewStore(log)
 	connectionManager := connections.NewManager(log, connectionStringsStore, serverManager)
+	shellManager := connections.NewShellManager(log, connectionManager)
 	settingsManager := settings.NewManager(log)
 	systemService := system.NewSystemService(log)
 	fontService := system.NewFontService(log)
@@ -41,10 +43,11 @@ func NewApp(log *slog.Logger) *App {
 		log:               log,
 		serverManager:     serverManager,
 		connectionManager: connectionManager,
+		shellManager:      shellManager,
 		settingsManager:   settingsManager,
 		systemService:     systemService,
 		ServersProxy:      api.NewServersProxy(serverManager),
-		ConnectionsProxy:  api.NewConnectionsProxy(connectionManager),
+		ConnectionsProxy:  api.NewConnectionsProxy(connectionManager, shellManager),
 		SystemProxy:       api.NewSystemProxy(systemService),
 		SettingsProxy:     api.NewSettingsProxy(settingsManager, fontService),
 	}
@@ -54,6 +57,8 @@ func NewApp(log *slog.Logger) *App {
 func (a *App) Startup(ctx context.Context) {
 	// Perform your setup here
 	a.ctx = ctx
+
+	a.shellManager.Init(ctx)
 
 	err := a.serverManager.Init(ctx)
 	if err != nil {
@@ -94,7 +99,10 @@ func (a *App) BeforeClose(ctx context.Context) (prevent bool) {
 
 // Shutdown is called at application termination
 func (a *App) Shutdown(ctx context.Context) {
-	// Perform your teardown here
+	// Cancel any in-flight mongosh queries
+	a.shellManager.CloseAll()
+
+	// Disconnect all MongoDB connections
 	err := a.connectionManager.DisconnectAll()
 	if err != nil {
 		a.log.Error("Failed to disconnect from all connections", slog.Any("error", err))
