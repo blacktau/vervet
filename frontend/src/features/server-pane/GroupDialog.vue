@@ -65,7 +65,7 @@ const onConfirm = async () => {
         messager.error(msg!)
       }
     } else {
-      const { success, msg } = await serverStore.createGroup(name)
+      const { success, msg } = await serverStore.createGroup(name, parentId)
       if (success) {
         messager.success(i18n.t('common.dialog.handleSuccess'))
       } else {
