@@ -72,11 +72,14 @@ const onForceFullSearch = () => {
   emit('matchChanged', inputData.match, inputData.filter, inputData.exact)
 }
 
+const debouncedEmitFilter = debounce(
+  () => emit('filterChanged', inputData.filter, inputData.exact),
+  props.debounceDelayMs,
+  { leading: true, trailing: true },
+)
+
 const onInput = () => {
-  debounce(() => emit('filterChanged', inputData.filter, inputData.exact), props.debounceDelayMs, {
-    leading: true,
-    trailing: true,
-  })
+  debouncedEmitFilter()
 }
 
 const onClearFilter = () => {

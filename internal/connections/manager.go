@@ -270,6 +270,18 @@ func (cm *ConnectionManager) GetCollections(serverID string, dbName string) ([]s
 	return db.ListCollectionNames(cm.ctx, bson.D{})
 }
 
+func (cm *ConnectionManager) GetViews(serverID string, dbName string) ([]string, error) {
+	cm.log.Debug("Getting views for mongo instance", slog.String("serverID", serverID), slog.String("dbName", dbName))
+	connection, err := cm.getClient(serverID)
+	if err != nil {
+		return nil, err
+	}
+
+	db := connection.client.Database(dbName)
+	filter := bson.D{{Key: "type", Value: "view"}}
+	return db.ListCollectionNames(cm.ctx, filter)
+}
+
 func cleanConnectionString(uri string) string {
 	idx := strings.Index(uri, "@")
 	if idx == -1 {

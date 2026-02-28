@@ -89,7 +89,6 @@ const closingConnection = computed(() => {
 })
 
 const onSaveServer = async () => {
-  console.log('onSaveServer', generalFormRef.value)
   await generalFormRef.value?.validate((err) => {
     if (err) {
       nextTick(() => (tab.value = 'general'))
@@ -108,8 +107,6 @@ const onSaveServer = async () => {
       return
     }
   } else {
-    console.log('editServerID', editServerID.value)
-
     const result = await serverStore.updateServer(
       editServerID.value || null,
       generalForm.value.name,
@@ -167,12 +164,10 @@ const resetForm = () => {
 watch(
   () => dialogStore.dialogs[DialogType.Server].visible,
   async (visible: boolean) => {
-    console.log('ServerDialog->watch.visible:', visible)
     if (visible) {
       resetForm()
       const data = dialogStore.serverDialogData
-      console.log('dialog data', data)
-      if (dialogStore.serverDialogData?.mode == 'edit') {
+      if (data?.mode == 'edit' || data?.mode == 'clone') {
         editServerID.value = data?.serverId
         const server = await serverStore.getServerDetails(data?.serverId)
         if (server != null) {
@@ -187,6 +182,7 @@ watch(
       }
     }
   },
+  { immediate: true },
 )
 
 const onTestConnection = async () => {

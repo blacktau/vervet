@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import * as serversProxy from 'wailsjs/go/api/ServersProxy'
 import { type models } from 'wailsjs/go/models.ts'
-import { isEmpty, union } from 'lodash'
+import { isEmpty } from 'lodash'
 import { useNotifier } from '@/utils/dialog.ts'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 
@@ -74,34 +74,23 @@ export const useServerStore = defineStore('server', {
       }
 
       const response = await serversProxy.GetServer(id)
-      if (response.isSuccess) {
-        return {
-          ...response.data,
-        }
-      }
-      const notifier = useNotifier()
-      notifier.error(`error retrieving registered server: ${response.error}`)
-      return undefined
-    },
-    mergeServerDetails(dst: models.RegisteredServer, src?: models.RegisteredServer) {
-      if (!src) {
-        return dst
+      if (!response.isSuccess) {
+        const notifier = useNotifier()
+        notifier.error(`error retrieving registered server: ${response.error}`)
+        return undefined
       }
 
-      return merge(
-        dst as unknown as Record<string, unknown>,
-        src as unknown as Record<string, unknown>,
-      ) as unknown as models.RegisteredServer
-    },
-    createDefaultServer(serverId: string): models.RegisteredServer {
+      const uriResponse = await serversProxy.GetURI(id)
+      if (!uriResponse.isSuccess) {
+        const notifier = useNotifier()
+        notifier.error(`error retrieving server URI: ${uriResponse.error}`)
+        return undefined
+      }
+
       return {
-        id: serverId,
-        name: '',
-        parentID: '',
-        connectionID: '',
-        serverName: '',
-        isGroup: false,
-      } as unknown as models.RegisteredServer
+        ...response.data,
+        uri: uriResponse.data,
+      }
     },
     async saveServer(name: string, connectionString: string, parentId?: string, colour?: string) {
       const result = await serversProxy.SaveServer(
@@ -124,7 +113,6 @@ export const useServerStore = defineStore('server', {
       parentId?: string,
       colour?: string,
     ) {
-      console.log('updateServer', serverId, name, connectionString, parentId, colour)
       if (serverId == null) {
         return { success: false, msg: 'serverId is required' }
       }
@@ -229,23 +217,4 @@ function nodeComparator(
   }
 
   return a.name.localeCompare(b.name)
-}
-
-function merge(dst: Record<string, unknown>, src: Record<string, unknown>) {
-  const keys = union(Object.keys(dst), Object.keys(src))
-  for (const key of keys) {
-    const t = typeof src[key]
-    if (t === 'string') {
-      dst[key] = src[key] || dst[key] || ''
-    } else if (t === 'number') {
-      dst[key] = src[key] || dst[key] || 0
-    } else if (t === 'boolean') {
-      dst[key] = src[key] || dst[key] || false
-    } else if (t === 'object') {
-      merge(dst[key] as Record<string, unknown>, (src[key] as Record<string, unknown>) || {})
-    } else {
-      dst[key] = src[key]
-    }
-  }
-  return dst
 }

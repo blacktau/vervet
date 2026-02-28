@@ -16,7 +16,6 @@ const settingsStore = useSettingsStore()
 const themeVars = useThemeVars()
 
 const onCloseTab = (tabIndex: number) => {
-  console.log('closeTab', tabIndex)
   const tab = get(tabStore.tabs, tabIndex)
   tabStore.closeTab(tab.serverId)
 }
@@ -28,7 +27,6 @@ const tabBackgroundColor = computed(() => {
   }
 
   const { colour = '' } = serverStore.findServerById(serverId) || {}
-  console.log(colour)
   return colour
 })
 
@@ -47,8 +45,6 @@ const tabClass = (idx: number) => {
 }
 
 const calcTabColor = (tab: ServerTabItem) => {
-  console.log(tab)
-
   const { colour = '' } = serverStore.findServerById(tab.serverId) || {}
   if (colour === '') {
     return colour
