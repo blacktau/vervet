@@ -12,7 +12,6 @@ import PlugConnected from '@/features/icon/PlugConnected.vue'
 import IconButton from '@/features/common/IconButton.vue'
 import PlugDisconnected from '@/features/icon/PlugDisconnected.vue'
 import SrvIcon from '@/features/icon/SrvIcon.vue'
-import { getServerColour } from '@/features/server-pane/helpers.ts'
 
 import {
   Cog8ToothIcon,
@@ -114,16 +113,32 @@ const renderPrefix = ({ option }: { option: RegisteredServerNode }) => {
 }
 
 const renderSuffix = ({ option }: { option: RegisteredServerNode }) => {
-  if (!includes(selectedKeys.value, option.id)) {
-    return undefined
+  const items: VNodeArrayChildren = []
+
+  if (includes(selectedKeys.value, option.id)) {
+    if (option.isGroup) {
+      items.push(...getGroupMenu())
+    } else {
+      const connected = browserStore.isConnected(option.id)
+      items.push(...getServerMenu(connected))
+    }
   }
 
-  if (option.isGroup) {
-    return renderIconMenu(getGroupMenu())
-  } else {
-    const connected = browserStore.isConnected(option.id)
-    return renderIconMenu(getServerMenu(connected))
-  }
+  items.push(
+    h('span', {
+      style: {
+        display: 'inline-block',
+        width: '10px',
+        height: '10px',
+        marginLeft: '3px',
+        borderRadius: '50%',
+        backgroundColor: option.colour || 'transparent',
+        flexShrink: 0,
+      },
+    }),
+  )
+
+  return renderIconMenu(items)
 }
 
 const getServerMenu = (connected: boolean) => {
@@ -178,21 +193,8 @@ const getGroupMenu = () => {
   ]
 }
 
-const colorCalc = (node: RegisteredServerNode) => {
-  if (node?.id == null) {
-    return undefined
-  }
-
-  const isSelected = selectedKeys.value.indexOf(node.id) > -1
-
-  return getServerColour(node, isSelected, settingsStore.isDark)
-}
-
 const nodeProps = ({ option }: { option: RegisteredServerNode }) => {
   return {
-    style: {
-      backgroundColor: colorCalc(option),
-    },
     onDblclick: async () => {
       if (option.isGroup) {
         nextTick().then(() => expandKey(option.id))
