@@ -284,7 +284,7 @@ const expandKey = (key: string) => {
       :y="contextMenuParams.y"
       placement="bottom-start"
       trigger="manual"
-      @clickoutside="() => (contextMenuParams.show = false)"
+      @clickoutside="contextMenuParams.show = false"
       @select="handleSelectContextMenu" />
   </div>
 </template>

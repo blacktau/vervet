@@ -1,7 +1,5 @@
 import { markRaw, nextTick, reactive, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { MenuDividerOption } from 'naive-ui'
-import type { MenuRenderOption } from 'naive-ui/es/menu/src/interface'
 import {
   Cog8ToothIcon,
   DocumentDuplicateIcon,
@@ -25,7 +23,12 @@ export const MenuKeys = {
   ServerDelete: 'server_delete',
 } as const
 
-type ContextMenuEntry = MenuRenderOption | MenuDividerOption
+type ContextMenuEntry = {
+  key: string
+  label: string
+  icon?: unknown
+  type?: 'divider'
+}
 
 export function useServerTreeContextMenu(
   selectedKeys: Ref<string[]>,
@@ -57,14 +60,12 @@ export function useServerTreeContextMenu(
           key: MenuKeys.GroupRename,
           label: 'serverPane.serverTree.renameGroup',
           icon: PencilSquareIcon,
-          type: 'render',
-        } as MenuRenderOption,
+        },
         {
           key: MenuKeys.GroupDelete,
           label: 'serverPane.serverTree.deleteGroup',
           icon: TrashIcon,
-          type: 'render',
-        } as MenuRenderOption,
+        },
       ]
     }
 
@@ -73,21 +74,18 @@ export function useServerTreeContextMenu(
         key: MenuKeys.ServerEdit,
         label: 'serverPane.serverTree.editServer',
         icon: Cog8ToothIcon,
-        type: 'render',
-      } as MenuRenderOption,
+      },
       {
         key: MenuKeys.ServerClone,
         label: 'serverPane.serverTree.cloneServer',
         icon: DocumentDuplicateIcon,
-        type: 'render',
-      } as MenuRenderOption,
-      { type: 'divider', key: 'd1' } as MenuDividerOption,
+      },
+      { type: 'divider', key: 'd1' },
       {
         key: MenuKeys.ServerDelete,
         label: 'serverPane.serverTree.deleteServer',
         icon: TrashIcon,
-        type: 'render',
-      } as MenuRenderOption,
+      },
     ]
 
     if (browserStore.isConnected(option.id)) {
@@ -97,8 +95,7 @@ export function useServerTreeContextMenu(
           key: MenuKeys.ServerDisconnect,
           label: 'serverPane.serverTree.disconnect',
           icon: PlugDisconnected,
-          type: 'render',
-        } as MenuRenderOption,
+        },
       ]
     }
     return [
@@ -107,8 +104,7 @@ export function useServerTreeContextMenu(
         key: MenuKeys.ServerConnect,
         label: 'serverPane.serverTree.connectServer',
         icon: PlugConnected,
-        type: 'render',
-      } as MenuRenderOption,
+      },
     ]
   }
 
