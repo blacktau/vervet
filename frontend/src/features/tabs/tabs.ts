@@ -2,8 +2,9 @@ import { defineStore } from 'pinia'
 import { type ServerTabItem } from '@/types/ServerTabItem.ts'
 import { useDialoger } from '@/utils/dialog.ts'
 import { i18nGlobal } from '@/i18n'
-import { findIndex, set } from 'lodash'
+import { findIndex } from 'lodash'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
+import { BrowserSubTabType } from '@/consts/BrowserSubTabType.ts'
 
 interface TabStoreState {
   nav: NavType
@@ -16,6 +17,7 @@ type TabStoreGetters = {
   tabs: () => ServerTabItem[]
   currentTab: () => ServerTabItem | undefined
   currentTabId: () => string
+  currentSubTab: () => BrowserSubTabType | undefined
 }
 
 type TabUpsertOptions = ServerTabItem & {
@@ -47,13 +49,15 @@ export const useTabStore = defineStore('tabs', {
     currentTabId(state: TabStoreState) {
       return state.tabItems[state.activeTabIndex]?.serverId
     },
+    currentSubTab(state: TabStoreState) {
+      return state.tabItems[state.activeTabIndex]?.subTab
+    },
   } as TabStoreGetters,
   actions: {
-    _setActivatedIndex(index: number, switchNav: boolean, subTabIdx: number = 0) {
+    _setActivatedIndex(index: number, switchNav: boolean) {
       this.activeTabIndex = index
       if (switchNav) {
         this.nav = index >= 0 ? NavType.Browser : NavType.Servers
-        set(this.tabItems, [index, 'subTabIdx'], subTabIdx)
       } else {
         if (index < 0) {
           this.nav = NavType.Servers
@@ -78,10 +82,11 @@ export const useTabStore = defineStore('tabs', {
           serverId: options.serverId,
           title: options.title,
           blank: false,
+          subTab: BrowserSubTabType.Query,
         }
         this.tabItems.push(tabItem)
         tabIndex = this.tabItems.length - 1
-        this._setActivatedIndex(tabIndex, true, -1)
+        this._setActivatedIndex(tabIndex, true)
       } else {
         const tab = this.tabItems[tabIndex]
         if (tab == null) {
@@ -93,7 +98,7 @@ export const useTabStore = defineStore('tabs', {
         tab.serverId = options.serverId
 
         if (options.forceSwitch === true) {
-          this._setActivatedIndex(tabIndex, true, -1)
+          this._setActivatedIndex(tabIndex, true)
         }
       }
     },
@@ -128,6 +133,13 @@ export const useTabStore = defineStore('tabs', {
     removeAllTabs() {
       this.tabItems = []
       this._setActivatedIndex(-1, false)
+    },
+
+    switchSubTab(name: BrowserSubTabType) {
+      const tab = this.tabItems[this.activeTabIndex]
+      if (tab != null) {
+        tab.subTab = name
+      }
     },
 
     setActiveTab(tab: ServerTabItem) {
