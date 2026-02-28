@@ -14,4 +14,6 @@ export function GetConnections():Promise<api.Result___vervet_internal_models_Con
 
 export function GetDatabases(arg1:string):Promise<api.Result___string_>;
 
+export function GetViews(arg1:string,arg2:string):Promise<api.Result___string_>;
+
 export function TestConnection(arg1:string):Promise<api.EmptyResult>;

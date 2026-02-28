@@ -12,10 +12,12 @@ import GroupDialog from '@/features/server-pane/GroupDialog.vue'
 import ServerDialog from '@/features/server-pane/ServerDialog.vue'
 import SettingsDialog from '@/features/settings/SettingsDialog.vue'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
+import { DialogType, useDialogStore } from '@/stores/dialog.ts'
 
 const settingsStore = useSettingsStore()
 const serverStore = useServerStore()
 const browserStore = useDataBrowserStore()
+const dialogStore = useDialogStore()
 
 const i18n = useI18n()
 const initializing = ref(true)
@@ -71,10 +73,10 @@ watch(
     class="fill-height">
     <n-dialog-provider>
       <app-content :loading="initializing" />
-      <server-dialog />
-      <group-dialog />
-      <settings-dialog />
-      <about-dialog />
+      <server-dialog v-if="dialogStore.isVisible(DialogType.Server)" />
+      <group-dialog v-if="dialogStore.isVisible(DialogType.Group)" />
+      <settings-dialog v-if="dialogStore.isVisible(DialogType.Settings)" />
+      <about-dialog v-if="dialogStore.isVisible(DialogType.About)" />
     </n-dialog-provider>
   </n-config-provider>
 </template>

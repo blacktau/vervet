@@ -50,7 +50,6 @@ export const useTabStore = defineStore('tabs', {
   } as TabStoreGetters,
   actions: {
     _setActivatedIndex(index: number, switchNav: boolean, subTabIdx: number = 0) {
-      console.log('_setActivatedIndex', index, switchNav, subTabIdx)
       this.activeTabIndex = index
       if (switchNav) {
         this.nav = index >= 0 ? NavType.Browser : NavType.Servers
@@ -62,21 +61,17 @@ export const useTabStore = defineStore('tabs', {
       }
     },
     closeTab(serverId: string) {
-      console.log('closeTab', serverId)
       const d = useDialoger()
       const tab = this.tabItems.find((x) => x.serverId === serverId)
-      console.log('closeTab', serverId, tab)
       if (tab == null) {
         return
       }
       d.warning(i18nGlobal.t('dialog.closeConfirm', { name: tab.title }), async () => {
-        console.log('closeTab confirmed', serverId)
         const connectionStore = useDataBrowserStore()
         await connectionStore.disconnect(tab.serverId)
       })
     },
     upsertTab: function (options: TabUpsertOptions) {
-      console.log('upsertTab', options)
       let tabIndex = findIndex(this.tabItems, { serverId: options.serverId })
       if (tabIndex === -1) {
         const tabItem: ServerTabItem = {
@@ -104,13 +99,9 @@ export const useTabStore = defineStore('tabs', {
     },
     removeTabById(serverId: string) {
       const tabIndex = findIndex(this.tabItems, { serverId: serverId })
-
-      console.log('removeTabById', serverId, tabIndex)
-
       this.removeTab(tabIndex)
     },
     removeTab(tabIndex: number) {
-      console.log('removeTab', tabIndex)
       const len = this.tabItems.length
       if (len === 1 && this.tabs[0]?.blank) {
         return undefined

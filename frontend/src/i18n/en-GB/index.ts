@@ -80,6 +80,11 @@ export default {
       about: 'About',
     },
   },
+  dataBrowser: {
+    tree: {
+      empty: 'Connect to a server to view its contents',
+    },
+  },
   serverPane: {
     serverTree: {
       renameGroup: 'Rename Group',

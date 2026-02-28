@@ -9,6 +9,9 @@ export function useRender() {
       }
       return h(NIcon, null, { default: () => h(icon, props) })
     },
-    renderLabel: (label: string, props = {}) => { return h('div', props, label)}
+    renderLabel: (label: string, props = {}) => {
+      console.log('renderLabel', label)
+      return h('div', props, label)
+    },
   }
 }
