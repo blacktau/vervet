@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import * as serversProxy from 'wailsjs/go/api/ServersProxy'
 import { type models } from 'wailsjs/go/models.ts'
-import { isEmpty, union } from 'lodash'
+import { isEmpty } from 'lodash'
 import { useNotifier } from '@/utils/dialog.ts'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 
@@ -82,26 +82,6 @@ export const useServerStore = defineStore('server', {
       const notifier = useNotifier()
       notifier.error(`error retrieving registered server: ${response.error}`)
       return undefined
-    },
-    mergeServerDetails(dst: models.RegisteredServer, src?: models.RegisteredServer) {
-      if (!src) {
-        return dst
-      }
-
-      return merge(
-        dst as unknown as Record<string, unknown>,
-        src as unknown as Record<string, unknown>,
-      ) as unknown as models.RegisteredServer
-    },
-    createDefaultServer(serverId: string): models.RegisteredServer {
-      return {
-        id: serverId,
-        name: '',
-        parentID: '',
-        connectionID: '',
-        serverName: '',
-        isGroup: false,
-      } as unknown as models.RegisteredServer
     },
     async saveServer(name: string, connectionString: string, parentId?: string, colour?: string) {
       const result = await serversProxy.SaveServer(
@@ -228,23 +208,4 @@ function nodeComparator(
   }
 
   return a.name.localeCompare(b.name)
-}
-
-function merge(dst: Record<string, unknown>, src: Record<string, unknown>) {
-  const keys = union(Object.keys(dst), Object.keys(src))
-  for (const key of keys) {
-    const t = typeof src[key]
-    if (t === 'string') {
-      dst[key] = src[key] || dst[key] || ''
-    } else if (t === 'number') {
-      dst[key] = src[key] || dst[key] || 0
-    } else if (t === 'boolean') {
-      dst[key] = src[key] || dst[key] || false
-    } else if (t === 'object') {
-      merge(dst[key] as Record<string, unknown>, (src[key] as Record<string, unknown>) || {})
-    } else {
-      dst[key] = src[key]
-    }
-  }
-  return dst
 }

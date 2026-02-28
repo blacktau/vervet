@@ -1,49 +1,27 @@
 <script lang="ts" setup>
-import {
-  type DropdownOption,
-  type MenuDividerOption,
-  NIcon,
-  NSpace,
-  NText,
-  useThemeVars,
-} from 'naive-ui'
-import { useI18n } from 'vue-i18n'
+import { type DropdownOption, NIcon, NSpace, NText, useThemeVars } from 'naive-ui'
 import { useRender } from '@/utils/render.ts'
-import {
-  computed,
-  h,
-  type HTMLAttributes,
-  markRaw,
-  nextTick,
-  reactive,
-  ref,
-  type VNodeArrayChildren,
-} from 'vue'
+import { h, nextTick, ref, type VNodeArrayChildren, watch } from 'vue'
 import { type RegisteredServerNode, useServerStore } from '@/features/server-pane/serverStore.ts'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
-import { useTabStore } from '@/features/tabs/tabs.ts'
 import { useSettingsStore } from '@/features/settings/settingsStore.ts'
-import { useDialogStore } from '@/stores/dialog.ts'
-import { includes, indexOf, isEmpty } from 'lodash'
-import { useDialoger, useMessager } from '@/utils/dialog.ts'
+import { includes, indexOf } from 'lodash'
+import { useServerConnection } from '@/features/server-pane/useServerConnection.ts'
+import { MenuKeys, useServerTreeContextMenu } from '@/features/server-pane/useServerTreeContextMenu.ts'
 import PlugConnected from '@/features/icon/PlugConnected.vue'
 import IconButton from '@/features/common/IconButton.vue'
 import PlugDisconnected from '@/features/icon/PlugDisconnected.vue'
 import SrvIcon from '@/features/icon/SrvIcon.vue'
 import { getServerColour } from '@/features/server-pane/helpers.ts'
-import { ServerNodeType } from '@/features/server-pane/types.ts'
 
 import {
   Cog8ToothIcon,
-  DocumentDuplicateIcon,
   FolderIcon,
   FolderOpenIcon,
-  PencilSquareIcon,
   ServerIcon,
   ServerStackIcon,
-  TrashIcon,
+  TrashIcon
 } from '@heroicons/vue/24/outline'
-import type { MenuRenderOption } from 'naive-ui/es/menu/src/interface'
 
 const props = defineProps<{
   filterPattern?: string
@@ -51,112 +29,26 @@ const props = defineProps<{
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const themeVars = useThemeVars()
-const i18n = useI18n()
 const render = useRender()
 
 const browserStore = useDataBrowserStore()
-const tabStore = useTabStore()
 const settingsStore = useSettingsStore()
-const dialogStore = useDialogStore()
 const serverStore = useServerStore()
 
-const connectingServer = ref('')
+const { connectingServer, connectToServer, onCancelConnecting } = useServerConnection()
+
 const expandedKeys = ref<string[]>([])
 const selectedKeys = ref<string[]>([])
 
-const contextMenuParams = reactive<{
-  show: boolean
-  x: number
-  y: number
-  options: Array<MenuRenderOption | MenuDividerOption>
-  currentNode?: RegisteredServerNode
-}>({
-  show: false,
-  x: 0,
-  y: 0,
-  options: [],
-  currentNode: undefined,
-})
+const { contextMenuParams, openContextMenu, handleSelectContextMenu } = useServerTreeContextMenu(
+  selectedKeys,
+  connectToServer,
+)
 
-const MenuKeys = {
-  GroupRename: 'group_rename',
-  GroupDelete: 'group_delete',
-  ServerDisconnect: 'server_disconnect',
-  ServerEdit: 'server_edit',
-  ServerClone: 'server_clone',
-  ServerConnect: 'server_connect',
-  ServerDelete: 'server_delete',
-}
-
-const menuOptions: Record<
-  ServerNodeType,
-  (option: RegisteredServerNode) => Array<MenuRenderOption | MenuDividerOption>
-> = {
-  [ServerNodeType.Group]: () => [
-    {
-      key: MenuKeys.GroupRename,
-      label: 'serverPane.serverTree.renameGroup',
-      icon: PencilSquareIcon,
-      type: 'render',
-    } as MenuRenderOption,
-    {
-      key: MenuKeys.GroupDelete,
-      label: 'serverPane.serverTree.deleteGroup',
-      icon: TrashIcon,
-      type: 'render',
-    } as MenuRenderOption,
-  ],
-  [ServerNodeType.Server]: (option: RegisteredServerNode) => {
-    const serverId = option.id
-    const common = [
-      {
-        key: MenuKeys.ServerEdit,
-        label: 'serverPane.serverTree.editServer',
-        icon: Cog8ToothIcon,
-        type: 'render',
-      } as MenuRenderOption,
-      {
-        key: MenuKeys.ServerClone,
-        label: 'serverPane.serverTree.cloneServer',
-        icon: DocumentDuplicateIcon,
-        type: 'render',
-      } as MenuRenderOption,
-      {
-        type: 'divider',
-        key: 'd1',
-      } as MenuDividerOption,
-      {
-        key: MenuKeys.ServerDelete,
-        label: 'serverPane.serverTree.deleteServer',
-        icon: TrashIcon,
-        type: 'render',
-      } as MenuRenderOption,
-    ]
-
-    const connected = browserStore.isConnected(serverId)
-    if (connected) {
-      return [
-        ...common,
-        {
-          key: MenuKeys.ServerDisconnect,
-          label: 'serverPane.serverTree.disconnect',
-          icon: PlugDisconnected,
-          type: 'render',
-        } as MenuRenderOption,
-      ]
-    }
-
-    return [
-      ...common,
-      {
-        key: MenuKeys.ServerConnect,
-        label: 'serverPane.serverTree.connectServer',
-        icon: PlugConnected,
-        type: 'render',
-      } as MenuRenderOption,
-    ]
-  },
-}
+watch(
+  () => contextMenuParams.show,
+  (val) => console.log('[ServerTree] contextMenuParams.show changed:', val),
+)
 
 const renderLabel = (x: { option: RegisteredServerNode }) => {
   return h(NText, {}, () => x.option.name)
@@ -214,8 +106,7 @@ const renderPrefix = ({ option }: { option: RegisteredServerNode }) => {
       {
         default: () =>
           h(icon, {
-            inverse: false, //connected,
-            filColor: `rgba(56, 176, 0. ${iconTransparency})`,
+            fillColor: `rgba(56, 176, 0, ${iconTransparency})`,
           }),
       },
     )
@@ -297,9 +188,7 @@ const colorCalc = (node: RegisteredServerNode) => {
   return getServerColour(node, isSelected, settingsStore.isDark)
 }
 
-const nodeProps = computed(() => (x: { option: RegisteredServerNode }) => {
-  const option = x.option
-
+const nodeProps = ({ option }: { option: RegisteredServerNode }) => {
   return {
     style: {
       backgroundColor: colorCalc(option),
@@ -312,47 +201,9 @@ const nodeProps = computed(() => (x: { option: RegisteredServerNode }) => {
       }
     },
     onContextmenu(e: PointerEvent) {
-      e.preventDefault()
-      const type = option.isGroup ? ServerNodeType.Group : ServerNodeType.Server
-      const mop = menuOptions[type]
-      if (mop == null) {
-        return
-      }
-      contextMenuParams.show = false
-      nextTick().then(() => {
-        contextMenuParams.options = markRaw(mop(option)) as never
-        contextMenuParams.currentNode = option
-        contextMenuParams.x = e.clientX
-        contextMenuParams.y = e.clientY
-        contextMenuParams.show = true
-        selectedKeys.value = [option.id]
-      })
+      console.log('[ServerTree-Node] onContextmenu', e)
+      openContextMenu(option, e)
     },
-  } as HTMLAttributes
-})
-
-const connectToServer = async (serverId: string) => {
-  try {
-    connectingServer.value = serverId
-    const connectionResult = await browserStore.connect(serverId)
-    if (!connectionResult.success) {
-      return
-    }
-
-    if (!isEmpty(connectingServer.value)) {
-      tabStore.upsertTab({
-        serverId: serverId,
-        title: connectionResult.name || '',
-        forceSwitch: true,
-        blank: false,
-      })
-    }
-  } catch (e) {
-    const messager = useMessager()
-    const err = e as Error
-    messager.error(err.message)
-  } finally {
-    connectingServer.value = ''
   }
 }
 
@@ -363,35 +214,6 @@ const onUpdateSelectedKeys = (keys: string[]) => {
   selectedKeys.value = keys
 }
 
-const deleteServer = async (serverId: string) => {
-  const dialoger = useDialoger()
-  const server = serverStore.findServerById(serverId)
-  const name = server?.name ?? 'unknown'
-  dialoger.warning(
-    i18n.t('common.deleteTooltip', { type: i18n.t('serverPane.typeName'), name }),
-    async () => {
-      const { success, msg } = await serverStore.deleteServer(serverId)
-      if (!success) {
-        const messager = useMessager()
-        messager.error(msg || '')
-      }
-    },
-  )
-}
-
-const deleteGroup = async (serverId: string) => {
-  const dialoger = useDialoger()
-  const server = serverStore.findServerById(serverId)
-  const name = server?.name ?? 'unknown'
-  dialoger.warning(i18n.t('serverPane.serverTree.deleteGroupTooltip', { name }), async () => {
-    const { success, msg } = await serverStore.deleteGroup(serverId)
-    if (!success) {
-      const messager = useMessager()
-      messager.error(msg || '')
-    }
-  })
-}
-
 const expandKey = (key: string) => {
   const idx = expandedKeys.value.indexOf(key)
   if (idx === -1) {
@@ -399,74 +221,6 @@ const expandKey = (key: string) => {
   } else {
     expandedKeys.value.splice(idx, 1)
   }
-}
-
-const handleSelectContextMenu = (key: string) => {
-  contextMenuParams.show = false
-  const selectedKey = selectedKeys.value.length > 0 ? selectedKeys.value[0] : undefined
-  if (!selectedKey) {
-    return
-  }
-
-  const serverId = selectedKey
-
-  switch (key) {
-    case MenuKeys.ServerConnect:
-      connectToServer(serverId).then(() => {})
-      break
-    case MenuKeys.ServerEdit:
-      if (browserStore.isConnected(serverId)) {
-        const dialoger = useDialoger()
-        dialoger.warning(i18n.t('serverPane.serverTree.editDisconnectConfirmation'), () => {
-          browserStore.disconnect(serverId)
-          dialogStore.showServerEditDialog(serverId)
-        })
-      } else {
-        dialogStore.showServerEditDialog(serverId)
-      }
-      break
-    case MenuKeys.ServerClone:
-      dialogStore.showCloneServerDialog(serverId)
-      break
-    case MenuKeys.ServerDelete:
-      deleteServer(serverId)
-      break
-    case MenuKeys.ServerDisconnect:
-      browserStore.disconnect(serverId).then((closed) => {
-        if (!closed) {
-          return
-        }
-
-        const messager = useMessager()
-        messager.success(i18n.t('common.dialog.handleSuccess'))
-      })
-      break
-    case MenuKeys.GroupRename:
-      if (selectedKey.length == 0) {
-        return
-      }
-
-      dialogStore.openRenameGroupDialog(selectedKey)
-      break
-    case MenuKeys.GroupDelete:
-      if (selectedKey.length == 0) {
-        return
-      }
-
-      deleteGroup(selectedKey)
-      break
-    default:
-      console.warn(`missing context menu option handling for key '${key}'`)
-  }
-}
-
-const onCancelConnecting = async () => {
-  if (connectingServer.value === '') {
-    return
-  }
-
-  await browserStore.disconnect(connectingServer.value)
-  connectingServer.value = ''
 }
 </script>
 

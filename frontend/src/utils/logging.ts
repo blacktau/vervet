@@ -38,7 +38,9 @@ function createProxy(method: keyof typeof originalConsole, level: LogLevel) {
   }
 }
 
-if (typeof window !== 'undefined') {
+const enableLogging = true
+
+if (typeof window !== 'undefined' && enableLogging) {
   console.log = createProxy('log', 'info')
   console.debug = createProxy('debug', 'debug')
   console.info = createProxy('info', 'info')

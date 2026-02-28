@@ -84,7 +84,7 @@ const handleMouseOver = () => {
 </template>
 
 <style scoped lang="scss">
-.resize-wrapper {
+.resizeable-wrapper {
   position: relative;
 
   .resize-divider {

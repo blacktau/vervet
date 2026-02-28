@@ -1,4 +1,4 @@
-import { ref, computed } from 'vue'
+import { computed, ref } from 'vue'
 import { DataNodeType, type DataTreeNode } from '@/features/data-browser/types.ts'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 import { useTabStore } from '@/features/tabs/tabs.ts'
@@ -124,7 +124,7 @@ export function useDataTree() {
 
     if (!isCollectionsFolder && !isViewsFolder) return
 
-    const database = browserStore.findDatabase(serverId, dbName)
+    const database = browserStore.findDatabase(serverId!, dbName!)
     if (!database) return
 
     if (isCollectionsFolder && database.collections) {

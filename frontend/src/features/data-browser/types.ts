@@ -13,3 +13,10 @@ export enum DataNodeType {
 export type DataTreeNode = TreeOption & {
   type: DataNodeType
 }
+
+export interface ContextMenuOption {
+  label: string
+  key: string
+  disabled?: boolean
+  children?: ContextMenuOption[]
+}

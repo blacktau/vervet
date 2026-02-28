@@ -1,6 +1,6 @@
 export {};
 
-import { Dialoger, Messager, Notifier } from '@/init/discreate'
+import { Dialoger, Messager, Notifier } from '@/init/discrete'
 
 declare global {
   interface Window {
