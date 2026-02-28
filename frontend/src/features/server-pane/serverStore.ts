@@ -74,14 +74,23 @@ export const useServerStore = defineStore('server', {
       }
 
       const response = await serversProxy.GetServer(id)
-      if (response.isSuccess) {
-        return {
-          ...response.data,
-        }
+      if (!response.isSuccess) {
+        const notifier = useNotifier()
+        notifier.error(`error retrieving registered server: ${response.error}`)
+        return undefined
       }
-      const notifier = useNotifier()
-      notifier.error(`error retrieving registered server: ${response.error}`)
-      return undefined
+
+      const uriResponse = await serversProxy.GetURI(id)
+      if (!uriResponse.isSuccess) {
+        const notifier = useNotifier()
+        notifier.error(`error retrieving server URI: ${uriResponse.error}`)
+        return undefined
+      }
+
+      return {
+        ...response.data,
+        uri: uriResponse.data,
+      }
     },
     async saveServer(name: string, connectionString: string, parentId?: string, colour?: string) {
       const result = await serversProxy.SaveServer(

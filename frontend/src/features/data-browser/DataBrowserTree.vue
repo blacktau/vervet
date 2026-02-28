@@ -6,10 +6,12 @@ import { CircleStackIcon, EyeIcon, FolderIcon, FolderOpenIcon } from '@heroicons
 import { DataNodeType, type DataTreeNode } from '@/features/data-browser/types.ts'
 import { useDataTree } from '@/features/data-browser/useDataTree.ts'
 import { useDataTreeContextMenu } from '@/features/data-browser/useDataTreeContextMenu.ts'
+import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 import { useTabStore } from '@/features/tabs/tabs.ts'
 import DataTreeContextMenu from '@/features/data-browser/DataTreeContextMenu.vue'
 
 const tabStore = useTabStore()
+const browserStore = useDataBrowserStore()
 const { treeData, expandedKeys, handleExpand, updateTreeForCurrentServer } = useDataTree()
 const contextMenu = useDataTreeContextMenu()
 
@@ -31,7 +33,15 @@ const renderPrefix = ({ option }: { option: DataTreeNode }) => {
   return null
 }
 
-function handleContextMenuSelect() {}
+function handleContextMenuSelect(key: string) {
+  const node = contextMenu.selectedNode.value
+  if (!node) return
+
+  if (key === 'disconnect' && node.type === DataNodeType.Server) {
+    const serverId = node.key as string
+    browserStore.disconnect(serverId)
+  }
+}
 
 const nodeProps = ({ option }: { option: DataTreeNode }) => {
   return {
@@ -54,6 +64,7 @@ watch(
 <template>
   <div class="browser-tree-wrapper" @contextmenu="(e) => e.preventDefault()">
     <n-tree
+      v-if="treeData.length > 0"
       :cancelable="false"
       :data="treeData"
       :expanded-keys="expandedKeys"

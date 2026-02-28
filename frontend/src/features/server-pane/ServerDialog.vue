@@ -167,7 +167,7 @@ watch(
     if (visible) {
       resetForm()
       const data = dialogStore.serverDialogData
-      if (dialogStore.serverDialogData?.mode == 'edit') {
+      if (data?.mode == 'edit') {
         editServerID.value = data?.serverId
         const server = await serverStore.getServerDetails(data?.serverId)
         if (server != null) {
@@ -182,6 +182,7 @@ watch(
       }
     }
   },
+  { immediate: true },
 )
 
 const onTestConnection = async () => {
