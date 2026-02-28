@@ -51,8 +51,8 @@ function renderLabel(option: DropdownOption) {
   return h('span', { class: 'context-menu-item' }, (option.label as string) || '')
 }
 
-function handleSelect(option: DropdownOption) {
-  emit('select', option.key as string)
+function handleSelect(option: string) {
+  emit('select', option)
   emit('close')
 }
 </script>
