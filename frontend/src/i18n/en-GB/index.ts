@@ -88,6 +88,13 @@ export default {
       query: 'Query',
     },
   },
+  query: {
+    run: 'Run',
+    cancel: 'Cancel',
+    results: 'Results',
+    selectDatabase: 'Select database...',
+    mongoshNotFound: 'mongosh is not installed or not found in PATH. Install it to run queries.',
+  },
   serverPane: {
     serverTree: {
       renameGroup: 'Rename Group',

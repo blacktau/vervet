@@ -4,6 +4,7 @@ import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
 import AutoImport from 'unplugin-auto-import/vite'
 import Icons from 'unplugin-icons/vite'
+import monacoEditorPlugin from 'vite-plugin-monaco-editor'
 import { NaiveUiResolver } from 'unplugin-vue-components/resolvers'
 import Components from 'unplugin-vue-components/vite'
 import { defineConfig } from 'vite'
@@ -12,6 +13,7 @@ import { defineConfig } from 'vite'
 export default defineConfig({
   plugins: [
     vue(),
+    monacoEditorPlugin({}),
     AutoImport({
       imports: [
         {

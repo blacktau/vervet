@@ -42,12 +42,12 @@ describe('browserStore', () => {
 
       expect(connectionsProxy.GetDatabases).toHaveBeenCalledWith('server1')
       expect(result).toEqual([
-        { name: 'db1', collections: [] },
-        { name: 'db2', collections: [] },
+        { name: 'db1', collections: [], views: [] },
+        { name: 'db2', collections: [], views: [] },
       ])
       expect(store.connections[0]?.databases).toEqual([
-        { name: 'db1', collections: [] },
-        { name: 'db2', collections: [] },
+        { name: 'db1', collections: [], views: [] },
+        { name: 'db2', collections: [], views: [] },
       ])
     })
 
