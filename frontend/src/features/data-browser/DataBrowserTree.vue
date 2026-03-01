@@ -39,6 +39,29 @@ function handleContextMenuSelect(key: string) {
     const serverId = node.key as string
     browserStore.disconnect(serverId)
   }
+
+  if (key === 'openQuery') {
+    const nodeKey = node.key as string
+    const parts = nodeKey.split(':')
+
+    if (node.type === DataNodeType.Database) {
+      const serverId = parts[0]
+      const dbName = parts[1]
+      if (serverId && dbName) {
+        tabStore.openQuery(serverId, dbName)
+      }
+    }
+
+    if (node.type === DataNodeType.Collection || node.type === DataNodeType.View) {
+      const serverId = parts[0]
+      const dbName = parts[1]
+      const name = parts[3]
+      if (serverId && dbName && name) {
+        const queryText = `db.getCollection('${name}').find({}).limit(42)`
+        tabStore.openQuery(serverId, dbName, queryText)
+      }
+    }
+  }
 }
 
 const nodeProps = ({ option }: { option: DataTreeNode }) => {

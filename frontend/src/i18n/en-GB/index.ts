@@ -92,8 +92,10 @@ export default {
     run: 'Run',
     cancel: 'Cancel',
     results: 'Results',
+    database: 'Database',
     selectDatabase: 'Select database...',
     mongoshNotFound: 'mongosh is not installed or not found in PATH. Install it to run queries.',
+    emptyState: 'Right-click a database or collection to open a query',
   },
   serverPane: {
     serverTree: {
