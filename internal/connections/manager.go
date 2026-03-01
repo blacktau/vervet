@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -255,6 +256,7 @@ func (cm *ConnectionManager) GetDatabases(serverID string) ([]string, error) {
 		cm.log.Error("Failed to list databases", slog.String("serverID", serverID), slog.Any("error", err))
 		return nil, err
 	}
+	slices.Sort(names)
 	cm.log.Debug("Got databases", slog.String("serverID", serverID), slog.Any("databases", names))
 	return names, nil
 }
@@ -267,7 +269,12 @@ func (cm *ConnectionManager) GetCollections(serverID string, dbName string) ([]s
 	}
 
 	db := connection.client.Database(dbName)
-	return db.ListCollectionNames(cm.ctx, bson.D{})
+	names, err := db.ListCollectionNames(cm.ctx, bson.D{})
+	if err != nil {
+		return nil, err
+	}
+	slices.Sort(names)
+	return names, nil
 }
 
 func (cm *ConnectionManager) GetViews(serverID string, dbName string) ([]string, error) {
@@ -279,7 +286,12 @@ func (cm *ConnectionManager) GetViews(serverID string, dbName string) ([]string,
 
 	db := connection.client.Database(dbName)
 	filter := bson.D{{Key: "type", Value: "view"}}
-	return db.ListCollectionNames(cm.ctx, filter)
+	names, err := db.ListCollectionNames(cm.ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	slices.Sort(names)
+	return names, nil
 }
 
 func cleanConnectionString(uri string) string {
