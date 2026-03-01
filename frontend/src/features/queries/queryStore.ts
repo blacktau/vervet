@@ -8,6 +8,8 @@ interface QueryState {
   result: string
   error: string
   selectedDatabase: string
+  messages: string
+  activeResultTab: string
 }
 
 interface QueryStoreState {
@@ -21,6 +23,8 @@ function createQueryState(database: string): QueryState {
     result: '',
     error: '',
     selectedDatabase: database,
+    messages: '',
+    activeResultTab: 'results',
   }
 }
 
@@ -89,12 +93,18 @@ export const useQueryStore = defineStore('query', {
         if (result.isSuccess) {
           state.result = result.data
         } else {
+          const timestamp = new Date().toLocaleTimeString()
           state.error = result.error
+          state.messages += `--- ${timestamp} [ERROR] ---\n${result.error}\n\n`
+          state.activeResultTab = 'messages'
         }
       } catch (e) {
         const notifier = useNotifier()
         notifier.error(`Query execution failed: ${e}`)
         state.error = String(e)
+        const timestamp = new Date().toLocaleTimeString()
+        state.messages += `--- ${timestamp} [ERROR] ---\n${String(e)}\n\n`
+        state.activeResultTab = 'messages'
       } finally {
         state.loading = false
       }

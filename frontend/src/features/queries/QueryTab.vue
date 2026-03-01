@@ -150,14 +150,23 @@ onBeforeUnmount(() => {
         </div>
       </vertical-resizeable-wrapper>
       <div class="results-pane">
-        <div class="results-header">
-          {{ t('query.results') }}
-          <n-spin v-if="queryState.loading" :size="12" style="margin-left: 8px" />
-        </div>
-        <pre v-if="queryState.error" class="results-content results-error">{{
-          queryState.error
-        }}</pre>
-        <pre v-else class="results-content">{{ queryState.result }}</pre>
+        <n-tabs
+          v-model:value="queryState.activeResultTab"
+          type="line"
+          size="small"
+          pane-style="display: flex; flex-direction: column; flex: 1; min-height: 0;"
+        >
+          <n-tab-pane name="results" :tab="t('query.results')">
+            <n-spin v-if="queryState.loading" :size="12" style="margin: 8px" />
+            <pre v-else-if="queryState.error" class="results-content results-error">{{
+              queryState.error
+            }}</pre>
+            <pre v-else class="results-content">{{ queryState.result }}</pre>
+          </n-tab-pane>
+          <n-tab-pane name="messages" :tab="t('query.messages')">
+            <pre class="results-content messages-content">{{ queryState.messages }}</pre>
+          </n-tab-pane>
+        </n-tabs>
       </div>
     </div>
   </div>
@@ -206,21 +215,24 @@ onBeforeUnmount(() => {
 .results-pane {
   display: flex;
   flex-direction: column;
-  flex: 1;
-  min-height: 100px;
-  background-color: var(--n-color);
-  border: 1px solid var(--n-border-color);
-  border-radius: 4px;
+  height: 100%;
 
-  .results-header {
+  :deep(.n-tabs) {
+    height: 100%;
     display: flex;
-    align-items: center;
-    padding: 4px 8px;
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--n-text-color-3);
-    border-bottom: 1px solid var(--n-border-color);
-    flex-shrink: 0;
+    flex-direction: column;
+  }
+
+  :deep(.n-tabs .n-tab-pane) {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  :deep(.n-tabs .n-tabs-pane-wrapper) {
+    flex: 1;
+    min-height: 0;
   }
 
   .results-content {
@@ -239,6 +251,11 @@ onBeforeUnmount(() => {
 
   .results-error {
     color: var(--n-error-color);
+  }
+
+  .messages-content {
+    overflow: auto;
+    min-height: 0;
   }
 }
 </style>

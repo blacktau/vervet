@@ -92,6 +92,7 @@ export default {
     run: 'Run',
     cancel: 'Cancel',
     results: 'Results',
+    messages: 'Messages',
     database: 'Database',
     selectDatabase: 'Select database...',
     mongoshNotFound: 'mongosh is not installed or not found in PATH. Install it to run queries.',
