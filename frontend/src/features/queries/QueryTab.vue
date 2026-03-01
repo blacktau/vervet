@@ -1,19 +1,21 @@
 <script lang="ts" setup>
 import { useSettingsStore } from '@/features/settings/settingsStore'
 import { useQueryStore } from '@/features/queries/queryStore'
-import { useDataBrowserStore } from '@/features/data-browser/browserStore'
 import { useTabStore } from '@/features/tabs/tabs'
 import VerticalResizeableWrapper from '@/features/common/VerticalResizeableWrapper.vue'
-import { NButton, NIcon, NSpace, NSelect, NSpin } from 'naive-ui'
+import { NButton, NIcon, NSpace, NSpin } from 'naive-ui'
 import { PlayIcon, StopIcon } from '@heroicons/vue/24/solid'
 import { ref, onMounted, onBeforeUnmount, watch, shallowRef, computed } from 'vue'
 import * as monaco from 'monaco-editor'
 import { useI18n } from 'vue-i18n'
 
+const props = defineProps<{
+  queryId: string
+}>()
+
 const { t } = useI18n()
 const settingsStore = useSettingsStore()
 const queryStore = useQueryStore()
-const browserStore = useDataBrowserStore()
 const tabStore = useTabStore()
 
 const editorContainer = ref<HTMLElement | null>(null)
@@ -23,16 +25,16 @@ const editorHeight = ref(300)
 
 const defaultQuery = `// MongoDB Query
 // Example: db.collection.find({ field: value })
-
-db.users.find({})
 `
 
-const databaseOptions = computed(() => {
-  const serverId = tabStore.currentTabId
-  if (!serverId) return []
-  const connection = browserStore.connections.find((c) => c.serverID === serverId)
-  if (!connection?.databases) return []
-  return connection.databases.map((db) => ({ label: db.name, value: db.name }))
+const queryState = computed(() => queryStore.getQueryState(props.queryId))
+
+const queryTabItem = computed(() => {
+  const tab = tabStore.currentTab
+  if (!tab) {
+    return undefined
+  }
+  return tab.queries.find((q) => q.id === props.queryId)
 })
 
 const resizeOffset = computed(() => {
@@ -40,12 +42,17 @@ const resizeOffset = computed(() => {
 })
 
 const initMonaco = () => {
-  if (!editorContainer.value) return
+  if (!editorContainer.value) {
+    return
+  }
 
   const isDark = settingsStore.isDark
 
+  const initialText = queryTabItem.value?.initialText
+  const editorValue = initialText != null ? initialText : defaultQuery
+
   editor.value = monaco.editor.create(editorContainer.value, {
-    value: defaultQuery,
+    value: editorValue,
     language: 'javascript',
     theme: isDark ? 'vervet-dark' : 'vervet-light',
     automaticLayout: true,
@@ -59,17 +66,15 @@ const initMonaco = () => {
 }
 
 const runQuery = async () => {
-  if (!editor.value) return
+  if (!editor.value) {
+    return
+  }
   const query = editor.value.getValue()
-  await queryStore.executeQuery(query)
+  await queryStore.executeQuery(props.queryId, query)
 }
 
 const cancelQuery = () => {
-  queryStore.cancelQuery()
-}
-
-const handleDatabaseChange = (value: string) => {
-  queryStore.setDatabase(value)
+  queryStore.cancelQuery(props.queryId)
 }
 
 watch(
@@ -82,7 +87,18 @@ watch(
 )
 
 onMounted(async () => {
+  const item = queryTabItem.value
+  if (item) {
+    queryStore.initQueryState(props.queryId, item.database)
+  }
+
   initMonaco()
+
+  // Clear initialText after use
+  if (item) {
+    item.initialText = undefined
+  }
+
   await queryStore.checkMongosh()
 })
 
@@ -97,19 +113,14 @@ onBeforeUnmount(() => {
   <div class="query-tab">
     <div class="toolbar">
       <n-space align="center">
-        <n-select
-          :value="queryStore.selectedDatabase"
-          :options="databaseOptions"
-          :placeholder="t('query.selectDatabase')"
-          size="small"
-          style="width: 200px"
-          @update:value="handleDatabaseChange"
-        />
+        <span class="database-label">
+          {{ t('query.database') }}: <strong>{{ queryState.selectedDatabase }}</strong>
+        </span>
         <n-button
-          v-if="!queryStore.loading"
+          v-if="!queryState.loading"
           type="primary"
           size="small"
-          :disabled="!queryStore.selectedDatabase || queryStore.mongoshAvailable === false"
+          :disabled="!queryState.selectedDatabase || queryStore.mongoshAvailable === false"
           @click="runQuery"
         >
           <template #icon>
@@ -141,12 +152,12 @@ onBeforeUnmount(() => {
       <div class="results-pane">
         <div class="results-header">
           {{ t('query.results') }}
-          <n-spin v-if="queryStore.loading" :size="12" style="margin-left: 8px" />
+          <n-spin v-if="queryState.loading" :size="12" style="margin-left: 8px" />
         </div>
-        <pre v-if="queryStore.error" class="results-content results-error">{{
-          queryStore.error
+        <pre v-if="queryState.error" class="results-content results-error">{{
+          queryState.error
         }}</pre>
-        <pre v-else class="results-content">{{ queryStore.result }}</pre>
+        <pre v-else class="results-content">{{ queryState.result }}</pre>
       </div>
     </div>
   </div>
@@ -163,6 +174,11 @@ onBeforeUnmount(() => {
 
 .toolbar {
   flex-shrink: 0;
+}
+
+.database-label {
+  font-size: 13px;
+  color: var(--n-text-color-2);
 }
 
 .mongosh-warning {

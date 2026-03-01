@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { type ServerTabItem } from '@/types/ServerTabItem.ts'
+import { type QueryTabItem, type ServerTabItem } from '@/types/ServerTabItem.ts'
 import { useDialoger } from '@/utils/dialog.ts'
 import { i18nGlobal } from '@/i18n'
 import { findIndex } from 'lodash'
@@ -18,6 +18,7 @@ type TabStoreGetters = {
   currentTab: () => ServerTabItem | undefined
   currentTabId: () => string
   currentSubTab: () => BrowserSubTabType | undefined
+  currentQueries: () => QueryTabItem[]
 }
 
 type TabUpsertOptions = ServerTabItem & {
@@ -31,6 +32,8 @@ export const enum NavType {
   Servers = 'servers',
   Browser = 'browser',
 }
+
+let queryIdCounter = 0
 
 export const useTabStore = defineStore('tabs', {
   state: (): TabStoreState => ({
@@ -52,9 +55,12 @@ export const useTabStore = defineStore('tabs', {
     currentSubTab(state: TabStoreState) {
       return state.tabItems[state.activeTabIndex]?.subTab
     },
+    currentQueries(state: TabStoreState) {
+      return state.tabItems[state.activeTabIndex]?.queries ?? []
+    },
   } as TabStoreGetters,
   actions: {
-    _setActivatedIndex(index: number, switchNav: boolean, subTabIdx: number = 0) {
+    _setActivatedIndex(index: number, switchNav: boolean) {
       this.activeTabIndex = index
       if (switchNav) {
         this.nav = index >= 0 ? NavType.Browser : NavType.Servers
@@ -83,6 +89,8 @@ export const useTabStore = defineStore('tabs', {
           title: options.title,
           blank: false,
           subTab: BrowserSubTabType.Query,
+          queryOpen: false,
+          queries: [],
         }
         this.tabItems.push(tabItem)
         tabIndex = this.tabItems.length - 1
@@ -148,6 +156,72 @@ export const useTabStore = defineStore('tabs', {
 
     setActiveTabIndex(index: number) {
       this.activeTabIndex = index
+    },
+
+    openQuery(serverId: string, database: string, initialText?: string) {
+      const tabIndex = findIndex(this.tabItems, { serverId })
+      if (tabIndex === -1) {
+        return
+      }
+
+      const tab = this.tabItems[tabIndex]
+      if (!tab) {
+        return
+      }
+
+      const queryItem: QueryTabItem = {
+        id: `query-${++queryIdCounter}`,
+        database,
+        initialText,
+      }
+
+      tab.queries.push(queryItem)
+      tab.queryOpen = true
+      tab.activeQueryId = queryItem.id
+      this._setActivatedIndex(tabIndex, true)
+    },
+
+    closeQuery(serverId: string, queryId: string) {
+      const tabIndex = findIndex(this.tabItems, { serverId })
+      if (tabIndex === -1) {
+        return
+      }
+
+      const tab = this.tabItems[tabIndex]
+      if (!tab) {
+        return
+      }
+
+      const queryIndex = tab.queries.findIndex((q) => q.id === queryId)
+      if (queryIndex === -1) {
+        return
+      }
+
+      tab.queries.splice(queryIndex, 1)
+
+      if (tab.queries.length === 0) {
+        tab.queryOpen = false
+        tab.activeQueryId = undefined
+      } else if (tab.activeQueryId === queryId) {
+        const newIndex = Math.min(queryIndex, tab.queries.length - 1)
+        tab.activeQueryId = tab.queries[newIndex]?.id
+      }
+    },
+
+    setActiveQuery(queryId: string) {
+      const tab = this.tabItems[this.activeTabIndex]
+      if (tab) {
+        tab.activeQueryId = queryId
+      }
+    },
+
+    queryTabLabel(tab: ServerTabItem, query: QueryTabItem): string {
+      const sameDbQueries = tab.queries.filter((q) => q.database === query.database)
+      if (sameDbQueries.length <= 1) {
+        return query.database
+      }
+      const index = sameDbQueries.indexOf(query)
+      return index === 0 ? query.database : `${query.database} ${index + 1}`
     },
   },
 })
