@@ -64,10 +64,10 @@ export const useTabStore = defineStore('tabs', {
       this.activeTabIndex = index
       if (switchNav) {
         this.nav = index >= 0 ? NavType.Browser : NavType.Servers
-      } else {
-        if (index < 0) {
-          this.nav = NavType.Servers
-        }
+        return
+      }
+      if (index < 0) {
+        this.nav = NavType.Servers
       }
     },
     closeTab(serverId: string) {
@@ -95,19 +95,20 @@ export const useTabStore = defineStore('tabs', {
         this.tabItems.push(tabItem)
         tabIndex = this.tabItems.length - 1
         this._setActivatedIndex(tabIndex, true)
-      } else {
-        const tab = this.tabItems[tabIndex]
-        if (tab == null) {
-          return
-        }
+        return
+      }
 
-        tab.blank = false
-        tab.title = options.title
-        tab.serverId = options.serverId
+      const tab = this.tabItems[tabIndex]
+      if (tab == null) {
+        return
+      }
 
-        if (options.forceSwitch === true) {
-          this._setActivatedIndex(tabIndex, true)
-        }
+      tab.blank = false
+      tab.title = options.title
+      tab.serverId = options.serverId
+
+      if (options.forceSwitch === true) {
+        this._setActivatedIndex(tabIndex, true)
       }
     },
     removeTabById(serverId: string) {
@@ -127,11 +128,7 @@ export const useTabStore = defineStore('tabs', {
       const removed = this.tabItems.splice(tabIndex, 1)
       this.activeTabIndex -= 1
       if (this.activeTabIndex < 0) {
-        if (this.tabs.length > 0) {
-          this._setActivatedIndex(0, false)
-        } else {
-          this._setActivatedIndex(-1, false)
-        }
+        this._setActivatedIndex(this.tabs.length > 0 ? 0 : -1, false)
       } else {
         this._setActivatedIndex(this.activeTabIndex, false)
       }
@@ -145,9 +142,10 @@ export const useTabStore = defineStore('tabs', {
 
     switchSubTab(name: BrowserSubTabType) {
       const tab = this.tabItems[this.activeTabIndex]
-      if (tab != null) {
-        tab.subTab = name
+      if (tab == null) {
+        return
       }
+      tab.subTab = name
     },
 
     setActiveTab(tab: ServerTabItem) {
@@ -210,9 +208,10 @@ export const useTabStore = defineStore('tabs', {
 
     setActiveQuery(queryId: string) {
       const tab = this.tabItems[this.activeTabIndex]
-      if (tab) {
-        tab.activeQueryId = queryId
+      if (!tab) {
+        return
       }
+      tab.activeQueryId = queryId
     },
 
     queryTabLabel(tab: ServerTabItem, query: QueryTabItem): string {
