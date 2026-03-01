@@ -3,23 +3,52 @@ import * as connectionsProxy from 'wailsjs/go/api/ConnectionsProxy'
 import { useTabStore } from '@/features/tabs/tabs'
 import { useNotifier } from '@/utils/dialog'
 
-interface QueryStoreState {
+interface QueryState {
   loading: boolean
   result: string
   error: string
-  mongoshAvailable: boolean | null
   selectedDatabase: string
+}
+
+interface QueryStoreState {
+  queries: Record<string, QueryState>
+  mongoshAvailable: boolean | null
+}
+
+function createQueryState(database: string): QueryState {
+  return {
+    loading: false,
+    result: '',
+    error: '',
+    selectedDatabase: database,
+  }
 }
 
 export const useQueryStore = defineStore('query', {
   state: (): QueryStoreState => ({
-    loading: false,
-    result: '',
-    error: '',
+    queries: {},
     mongoshAvailable: null,
-    selectedDatabase: '',
   }),
   actions: {
+    getQueryState(queryId: string): QueryState {
+      if (!this.queries[queryId]) {
+        this.queries[queryId] = createQueryState('')
+      }
+      return this.queries[queryId]
+    },
+
+    initQueryState(queryId: string, database: string) {
+      if (!this.queries[queryId]) {
+        this.queries[queryId] = createQueryState(database)
+      }
+
+      this.queries[queryId].selectedDatabase = database
+    },
+
+    removeQueryState(queryId: string) {
+      delete this.queries[queryId]
+    },
+
     async checkMongosh() {
       const result = await connectionsProxy.CheckMongosh()
       if (result.isSuccess) {
@@ -27,61 +56,61 @@ export const useQueryStore = defineStore('query', {
       }
     },
 
-    async executeQuery(query: string) {
+    async executeQuery(queryId: string, query: string) {
       const tabStore = useTabStore()
       const serverId = tabStore.currentTabId
       if (!serverId) {
-        this.error = 'No server selected'
         return
       }
 
-      if (!this.selectedDatabase) {
-        this.error = 'No database selected'
+      const state = this.getQueryState(queryId)
+
+      if (!state.selectedDatabase) {
+        state.error = 'No database selected'
         return
       }
 
       if (this.mongoshAvailable === false) {
-        this.error = 'mongosh is not installed or not in PATH'
+        state.error = 'mongosh is not installed or not in PATH'
         return
       }
 
-      this.loading = true
-      this.result = ''
-      this.error = ''
+      state.loading = true
+      state.result = ''
+      state.error = ''
 
       try {
         const result = await connectionsProxy.ExecuteQuery(
           serverId,
-          this.selectedDatabase,
+          state.selectedDatabase,
           query,
         )
 
         if (result.isSuccess) {
-          this.result = result.data
+          state.result = result.data
         } else {
-          this.error = result.error
+          state.error = result.error
         }
       } catch (e) {
         const notifier = useNotifier()
         notifier.error(`Query execution failed: ${e}`)
-        this.error = String(e)
+        state.error = String(e)
       } finally {
-        this.loading = false
+        state.loading = false
       }
     },
 
-    async cancelQuery() {
+    async cancelQuery(queryId: string) {
       const tabStore = useTabStore()
       const serverId = tabStore.currentTabId
-      if (!serverId) return
+      if (!serverId) {
+        return
+      }
 
       await connectionsProxy.CancelQuery(serverId)
-      this.loading = false
-      this.error = 'Query cancelled'
-    },
-
-    setDatabase(dbName: string) {
-      this.selectedDatabase = dbName
+      const state = this.getQueryState(queryId)
+      state.loading = false
+      state.error = 'Query cancelled'
     },
   },
 })
