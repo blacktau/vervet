@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 	"vervet/internal/logging"
+	"vervet/internal/models"
 	"vervet/internal/shell"
 )
 
@@ -40,13 +41,13 @@ func (sm *ShellManager) Init(ctx context.Context) {
 
 // ExecuteQuery runs a mongosh query against the given server and database.
 // Only one query per server runs at a time; a new call cancels any in-flight query.
-func (sm *ShellManager) ExecuteQuery(serverID, dbName, query string) (string, error) {
+func (sm *ShellManager) ExecuteQuery(serverID, dbName, query string) (models.QueryResult, error) {
 	sm.log.Debug("Executing query", slog.String("serverID", serverID), slog.String("dbName", dbName))
 
 	uri, err := sm.getURI(serverID, dbName)
 	if err != nil {
 		sm.log.Error("Failed to get URI for query", slog.String("serverID", serverID), slog.Any("error", err))
-		return "", err
+		return models.QueryResult{}, err
 	}
 
 	// Cancel any in-flight query for this server
@@ -69,7 +70,7 @@ func (sm *ShellManager) ExecuteQuery(serverID, dbName, query string) (string, er
 	result, err := shell.Execute(queryCtx, uri, query, sm.cfg)
 	if err != nil {
 		sm.log.Error("Query execution failed", slog.String("serverID", serverID), slog.String("dbName", dbName), slog.Any("error", err))
-		return "", err
+		return models.QueryResult{}, err
 	}
 
 	sm.log.Debug("Query executed successfully", slog.String("serverID", serverID), slog.String("dbName", dbName))

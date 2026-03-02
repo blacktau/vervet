@@ -97,6 +97,13 @@ export default {
     selectDatabase: 'Select database...',
     mongoshNotFound: 'mongosh is not installed or not found in PATH. Install it to run queries.',
     emptyState: 'Right-click a database or collection to open a query',
+    documentCount: '{count} document(s)',
+    key: 'Key',
+    field: 'Field',
+    value: 'Value',
+    type: 'Type',
+    tableView: 'Table View',
+    jsonView: 'JSON View',
   },
   serverPane: {
     serverTree: {

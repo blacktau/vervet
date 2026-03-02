@@ -25,7 +25,7 @@ type ConnectionsProvider interface {
 }
 
 type ShellProvider interface {
-	ExecuteQuery(serverID, dbName, query string) (string, error)
+	ExecuteQuery(serverID, dbName, query string) (models.QueryResult, error)
 	CancelQuery(serverID string)
 	CheckMongosh() bool
 	CloseAll()
@@ -117,16 +117,16 @@ func (cp *ConnectionsProxy) GetCollections(serverID string, dbName string) Resul
 	}
 }
 
-func (cp *ConnectionsProxy) ExecuteQuery(serverID string, dbName string, query string) Result[string] {
+func (cp *ConnectionsProxy) ExecuteQuery(serverID string, dbName string, query string) Result[models.QueryResult] {
 	result, err := cp.shellMgr.ExecuteQuery(serverID, dbName, query)
 	if err != nil {
-		return Result[string]{
+		return Result[models.QueryResult]{
 			IsSuccess: false,
 			Error:     fmt.Sprintf("Query execution failed: %v", err),
 		}
 	}
 
-	return Result[string]{
+	return Result[models.QueryResult]{
 		IsSuccess: true,
 		Data:      result,
 	}

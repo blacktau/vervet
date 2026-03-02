@@ -29,6 +29,7 @@ declare module 'vue' {
     NInput: typeof import('naive-ui')['NInput']
     NInputGroup: typeof import('naive-ui')['NInputGroup']
     NInputNumber: typeof import('naive-ui')['NInputNumber']
+    NLog: typeof import('naive-ui')['NLog']
     NModal: typeof import('naive-ui')['NModal']
     NRadioButton: typeof import('naive-ui')['NRadioButton']
     NRadioGroup: typeof import('naive-ui')['NRadioGroup']

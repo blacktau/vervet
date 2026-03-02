@@ -12,7 +12,7 @@ export function Disconnect(arg1:string):Promise<api.EmptyResult>;
 
 export function DisconnectAll():Promise<api.EmptyResult>;
 
-export function ExecuteQuery(arg1:string,arg2:string,arg3:string):Promise<api.Result_string_>;
+export function ExecuteQuery(arg1:string,arg2:string,arg3:string):Promise<api.Result_vervet_internal_models_QueryResult_>;
 
 export function GetCollections(arg1:string,arg2:string):Promise<api.Result___string_>;
 

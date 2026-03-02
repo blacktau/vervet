@@ -3,8 +3,11 @@ import { useSettingsStore } from '@/features/settings/settingsStore'
 import { useQueryStore } from '@/features/queries/queryStore'
 import { useTabStore } from '@/features/tabs/tabs'
 import VerticalResizeableWrapper from '@/features/common/VerticalResizeableWrapper.vue'
+import DocumentTreeTable from '@/features/queries/DocumentTreeTable.vue'
+import JsonResultView from '@/features/queries/JsonResultView.vue'
 import { NButton, NIcon, NSpace, NSpin } from 'naive-ui'
 import { PlayIcon, StopIcon } from '@heroicons/vue/24/solid'
+import { TableCellsIcon, CodeBracketIcon } from '@heroicons/vue/24/outline'
 import { ref, onMounted, onBeforeUnmount, watch, shallowRef, computed } from 'vue'
 import * as monaco from 'monaco-editor'
 import { useI18n } from 'vue-i18n'
@@ -41,6 +44,9 @@ const resizeOffset = computed(() => {
   return queryContentRef.value?.getBoundingClientRect().top ?? 0
 })
 
+const hasDocuments = computed(() => queryState.value.documents.length > 0)
+const hasRawOutput = computed(() => queryState.value.rawOutput !== '')
+
 const initMonaco = () => {
   if (!editorContainer.value) {
     return
@@ -75,6 +81,10 @@ const runQuery = async () => {
 
 const cancelQuery = () => {
   queryStore.cancelQuery(props.queryId)
+}
+
+function setResultView(view: 'table' | 'json') {
+  queryState.value.resultView = view
 }
 
 watch(
@@ -156,15 +166,55 @@ onBeforeUnmount(() => {
           size="small"
           pane-style="display: flex; flex-direction: column; flex: 1; min-height: 0;"
         >
+          <template #suffix>
+            <n-space v-if="hasDocuments" :size="2" style="margin-right: 8px">
+              <n-button
+                size="tiny"
+                :type="queryState.resultView === 'table' ? 'primary' : 'default'"
+                quaternary
+                :title="t('query.tableView')"
+                @click="setResultView('table')"
+              >
+                <template #icon>
+                  <n-icon :component="TableCellsIcon" />
+                </template>
+              </n-button>
+              <n-button
+                size="tiny"
+                :type="queryState.resultView === 'json' ? 'primary' : 'default'"
+                quaternary
+                :title="t('query.jsonView')"
+                @click="setResultView('json')"
+              >
+                <template #icon>
+                  <n-icon :component="CodeBracketIcon" />
+                </template>
+              </n-button>
+            </n-space>
+          </template>
           <n-tab-pane name="results" :tab="t('query.results')">
             <n-spin v-if="queryState.loading" :size="12" style="margin: 8px" />
             <pre v-else-if="queryState.error" class="results-content results-error">{{
               queryState.error
             }}</pre>
-            <pre v-else class="results-content">{{ queryState.result }}</pre>
+            <template v-else-if="hasDocuments">
+              <div v-if="queryState.resultView === 'table'" class="structured-results">
+                <document-tree-table :documents="queryState.documents" />
+              </div>
+              <div v-else class="json-results">
+                <json-result-view :content="queryState.rawJson" />
+              </div>
+            </template>
+            <pre v-else-if="hasRawOutput" class="results-content">{{ queryState.rawOutput }}</pre>
           </n-tab-pane>
           <n-tab-pane name="messages" :tab="t('query.messages')">
-            <pre class="results-content messages-content">{{ queryState.messages }}</pre>
+            <n-log
+              class="messages-log"
+              :log="queryState.messages"
+              :font-size="13"
+              language="vervet-log"
+              trim
+            />
           </n-tab-pane>
         </n-tabs>
       </div>
@@ -253,9 +303,21 @@ onBeforeUnmount(() => {
     color: var(--n-error-color);
   }
 
-  .messages-content {
-    overflow: auto;
-    min-height: 0;
+  :deep(.messages-log) {
+    height: 0 !important;
+    flex: 1;
   }
+}
+
+.structured-results {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.json-results {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 </style>

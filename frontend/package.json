@@ -7,7 +7,7 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "lint": "eslint -c ./eslint.config.ts \"./src*/**/*.{ts,js,cjs,mjs,vue}\" && vue-tsc --noEmit --strict",
+    "lint": "bunx --bun eslint -c ./eslint.config.ts \"./src*/**/*.{ts,js,cjs,mjs,vue}\" && bunx --bun vue-tsc --noEmit --strict",
     "format": "prettier --write \"**/*.{js,ts,vue,scss,html,md,json}\" --ignore-path .gitignore",
     "test": "vitest",
     "dev": "bunx --bun vite",
@@ -20,6 +20,7 @@
     "color": "^5.0.3",
     "copy-text-to-clipboard": "^3.2.2",
     "dayjs": "^1.11.19",
+    "highlight.js": "^11.11.1",
     "lodash": "^4.17.23",
     "monaco-editor": "^0.55.1",
     "pinia": "^3.0.4",

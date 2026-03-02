@@ -54,6 +54,11 @@ export namespace api {
 	    data: models.Connection;
 	    error: string;
 	}
+	export interface Result_vervet_internal_models_QueryResult_ {
+	    isSuccess: boolean;
+	    data: models.QueryResult;
+	    error: string;
+	}
 	export interface Result_vervet_internal_models_RegisteredServer_ {
 	    isSuccess: boolean;
 	    data: models.RegisteredServer;
@@ -99,6 +104,10 @@ export namespace models {
 	    theme: string;
 	    language: string;
 	    font: FontSettings;
+	}
+	export interface QueryResult {
+	    documents: any[];
+	    rawOutput: string;
 	}
 	export interface RegisteredServer {
 	    id: string;

@@ -5,11 +5,16 @@ import { useNotifier } from '@/utils/dialog'
 
 interface QueryState {
   loading: boolean
-  result: string
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  documents: any[]
+  rawJson: string
+  rawOutput: string
   error: string
   selectedDatabase: string
   messages: string
   activeResultTab: string
+  resultView: 'table' | 'json'
+  selectedDocIndex: number
 }
 
 interface QueryStoreState {
@@ -20,11 +25,15 @@ interface QueryStoreState {
 function createQueryState(database: string): QueryState {
   return {
     loading: false,
-    result: '',
+    documents: [],
+    rawJson: '',
+    rawOutput: '',
     error: '',
     selectedDatabase: database,
     messages: '',
     activeResultTab: 'results',
+    resultView: 'table',
+    selectedDocIndex: 0,
   }
 }
 
@@ -80,8 +89,11 @@ export const useQueryStore = defineStore('query', {
       }
 
       state.loading = true
-      state.result = ''
+      state.documents = []
+      state.rawJson = ''
+      state.rawOutput = ''
       state.error = ''
+      state.selectedDocIndex = 0
 
       try {
         const result = await connectionsProxy.ExecuteQuery(
@@ -91,7 +103,13 @@ export const useQueryStore = defineStore('query', {
         )
 
         if (result.isSuccess) {
-          state.result = result.data
+          const data = result.data
+          if (data.documents && data.documents.length > 0) {
+            state.documents = data.documents
+            state.rawJson = JSON.stringify(data.documents, null, 2)
+          } else if (data.rawOutput) {
+            state.rawOutput = data.rawOutput
+          }
         } else {
           const timestamp = new Date().toLocaleTimeString()
           state.error = result.error
