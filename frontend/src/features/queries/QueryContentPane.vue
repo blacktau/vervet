@@ -48,6 +48,29 @@ function handleClose(queryId: string) {
 </template>
 
 <style lang="scss" scoped>
+.content-container {
+  :deep(.n-tabs) {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  :deep(.n-tabs .n-tab-pane) {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  :deep(.n-tabs .n-tabs-pane-wrapper) {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+}
+
 .empty-state {
   display: flex;
   align-items: center;

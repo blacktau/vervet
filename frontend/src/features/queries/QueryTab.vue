@@ -164,6 +164,7 @@ onBeforeUnmount(() => {
           v-model:value="queryState.activeResultTab"
           type="line"
           size="small"
+          :animated="false"
           pane-style="display: flex; flex-direction: column; flex: 1; min-height: 0;"
         >
           <template #suffix>
@@ -226,7 +227,8 @@ onBeforeUnmount(() => {
 .query-tab {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
   padding: 8px;
   gap: 8px;
 }
@@ -265,12 +267,19 @@ onBeforeUnmount(() => {
 .results-pane {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 
   :deep(.n-tabs) {
-    height: 100%;
+    flex: 1;
+    min-height: 0;
     display: flex;
     flex-direction: column;
+  }
+
+  :deep(.n-tabs .n-tabs-nav) {
+    flex-shrink: 0;
   }
 
   :deep(.n-tabs .n-tab-pane) {
@@ -283,6 +292,8 @@ onBeforeUnmount(() => {
   :deep(.n-tabs .n-tabs-pane-wrapper) {
     flex: 1;
     min-height: 0;
+    display: flex;
+    flex-direction: column;
   }
 
   .results-content {
