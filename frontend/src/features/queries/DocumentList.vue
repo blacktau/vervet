@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { getDocPreview, getDocId } from './documentListUtils'
 
 const props = defineProps<{
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -13,42 +14,6 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function getDocPreview(doc: any): string {
-  if (typeof doc !== 'object' || doc === null) {
-    return String(doc)
-  }
-
-  const parts: string[] = []
-  for (const [key, val] of Object.entries(doc)) {
-    if (key === '_id') {
-      continue
-    }
-    if (parts.length >= 3) {
-      break
-    }
-    if (val === null || typeof val === 'string' || typeof val === 'number' || typeof val === 'boolean') {
-      parts.push(`${key}: ${JSON.stringify(val)}`)
-    }
-  }
-  return parts.join(', ')
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function getDocId(doc: any): string {
-  if (typeof doc !== 'object' || doc === null) {
-    return ''
-  }
-  const id = doc._id
-  if (id === undefined) {
-    return ''
-  }
-  if (typeof id === 'object' && id !== null && '$oid' in id) {
-    return id.$oid
-  }
-  return String(id)
-}
 
 const documentCount = computed(() => {
   return t('query.documentCount', { count: props.documents.length })
