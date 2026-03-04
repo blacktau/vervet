@@ -104,6 +104,22 @@ export default {
     type: 'Type',
     tableView: 'Table View',
     jsonView: 'JSON View',
+    types: {
+      null: 'Null',
+      array: 'Array',
+      objectId: 'ObjectId',
+      date: 'Date',
+      decimal128: 'Decimal128',
+      long: 'Long',
+      int32: 'Int32',
+      double: 'Double',
+      binary: 'Binary',
+      regex: 'Regex',
+      timestamp: 'Timestamp',
+      document: 'Document',
+      string: 'String',
+      boolean: 'Boolean',
+    },
   },
   serverPane: {
     serverTree: {

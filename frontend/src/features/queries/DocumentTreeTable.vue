@@ -1,6 +1,8 @@
 <script lang="ts" setup>
-import { computed, reactive } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { getDocLabel, getTypeClass, getTypeName, buildRowMap } from './documentTreeUtils'
+import type { FlatRow } from './types'
 
 const props = defineProps<{
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -9,174 +11,9 @@ const props = defineProps<{
 
 const { t } = useI18n()
 
-interface FlatRow {
-  key: string
-  field: string
-  value: string
-  type: string
-  depth: number
-  hasChildren: boolean
-  expanded: boolean
-  childKeys: string[]
-  isDocRoot: boolean
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function getTypeName(val: any): string {
-  if (val === null) {
-    return 'Null'
-  }
-  if (Array.isArray(val)) {
-    return 'Array'
-  }
-  if (typeof val === 'object') {
-    if ('$oid' in val) {
-      return 'ObjectId'
-    }
-    if ('$date' in val) {
-      return 'Date'
-    }
-    if ('$numberDecimal' in val) {
-      return 'Decimal128'
-    }
-    if ('$numberLong' in val) {
-      return 'Long'
-    }
-    if ('$numberInt' in val) {
-      return 'Int32'
-    }
-    if ('$numberDouble' in val) {
-      return 'Double'
-    }
-    if ('$binary' in val) {
-      return 'Binary'
-    }
-    if ('$regex' in val) {
-      return 'Regex'
-    }
-    if ('$timestamp' in val) {
-      return 'Timestamp'
-    }
-    return 'Document'
-  }
-  if (typeof val === 'string') {
-    return 'String'
-  }
-  if (typeof val === 'number') {
-    return Number.isInteger(val) ? 'Int32' : 'Double'
-  }
-  if (typeof val === 'boolean') {
-    return 'Boolean'
-  }
-  return typeof val
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function getDisplayValue(val: any): string {
-  if (val === null) {
-    return 'null'
-  }
-  if (Array.isArray(val)) {
-    return `[ ${val.length} elements ]`
-  }
-  if (typeof val === 'object') {
-    if ('$oid' in val) {
-      return val.$oid
-    }
-    if ('$date' in val) {
-      return String(val.$date)
-    }
-    if ('$numberDecimal' in val) {
-      return val.$numberDecimal
-    }
-    if ('$numberLong' in val) {
-      return val.$numberLong
-    }
-    if ('$numberInt' in val) {
-      return val.$numberInt
-    }
-    if ('$numberDouble' in val) {
-      return val.$numberDouble
-    }
-    if ('$binary' in val) {
-      return `Binary (${val.$binary.subType})`
-    }
-    if ('$regex' in val) {
-      return `/${val.$regex}/${val.$options || ''}`
-    }
-    if ('$timestamp' in val) {
-      return `Timestamp(${val.$timestamp.t}, ${val.$timestamp.i})`
-    }
-    const keys = Object.keys(val)
-    return `{ ${keys.length} fields }`
-  }
-  if (typeof val === 'string') {
-    return val
-  }
-  return String(val)
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function getDocLabel(doc: any, index: number): string {
-  if (typeof doc !== 'object' || doc === null) {
-    return `(${index + 1})`
-  }
-  const id = doc._id
-  if (id !== undefined) {
-    const idStr = typeof id === 'object' && id !== null && '$oid' in id
-      ? id.$oid
-      : String(id)
-    return `(${index + 1}) {_id: ${idStr}}`
-  }
-  return `(${index + 1})`
-}
-
 // Build a flat map of all rows (keyed by path) for toggling
 const rowMap = reactive<Map<string, FlatRow>>(new Map())
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function buildRowMap(obj: any, prefix: string, depth: number) {
-  if (typeof obj !== 'object' || obj === null) {
-    return
-  }
-
-  const entries = Array.isArray(obj)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ? obj.map((v, i) => [String(i), v] as [string, any])
-    : Object.entries(obj)
-
-  for (const [key, val] of entries) {
-    const nodeKey = prefix ? `${prefix}.${key}` : key
-    const typeName = getTypeName(val)
-    const hasChildren = typeName === 'Document' || typeName === 'Array'
-
-    const childKeys: string[] = []
-    if (hasChildren && typeof val === 'object' && val !== null) {
-      const childEntries = Array.isArray(val)
-        ? val.map((_v, i) => String(i))
-        : Object.keys(val)
-      for (const ck of childEntries) {
-        childKeys.push(`${nodeKey}.${ck}`)
-      }
-    }
-
-    rowMap.set(nodeKey, {
-      key: nodeKey,
-      field: key,
-      value: getDisplayValue(val),
-      type: typeName,
-      depth,
-      hasChildren,
-      expanded: false,
-      childKeys,
-      isDocRoot: false,
-    })
-
-    if (hasChildren) {
-      buildRowMap(val, nodeKey, depth + 1)
-    }
-  }
-}
 
 // Build top-level document root nodes + their children
 const topLevelKeys = computed(() => {
@@ -207,7 +44,7 @@ const topLevelKeys = computed(() => {
       key: rootKey,
       field: getDocLabel(doc, i),
       value: `{ ${fieldCount} fields }`,
-      type: 'Document',
+      type: 'document',
       depth: 0,
       hasChildren: true,
       expanded: false,
@@ -217,7 +54,7 @@ const topLevelKeys = computed(() => {
 
     // Build the nested row map for this document
     if (typeof doc === 'object' && doc !== null) {
-      buildRowMap(doc, rootKey, 1)
+      buildRowMap(doc, rootKey, 1, rowMap)
     }
 
     rootKeys.push(rootKey)
@@ -253,31 +90,75 @@ function toggleExpand(row: FlatRow) {
   }
 }
 
-function getTypeClass(type: string): string {
-  switch (type) {
-    case 'String': return 'type-string'
-    case 'Int32':
-    case 'Double':
-    case 'Long':
-    case 'Decimal128': return 'type-number'
-    case 'Boolean': return 'type-boolean'
-    case 'Null': return 'type-null'
-    case 'ObjectId': return 'type-objectid'
-    case 'Date': return 'type-date'
-    case 'Document':
-    case 'Array': return 'type-composite'
-    default: return ''
+const colKeyWidth = ref(0)
+const colValueWidth = ref(0)
+const tableRef = ref<HTMLElement | null>(null)
+
+function getColumnStyles() {
+  if (colKeyWidth.value > 0 && colValueWidth.value > 0) {
+    return {
+      key: { width: colKeyWidth.value + 'px', flex: 'none' },
+      value: { width: colValueWidth.value + 'px', flex: 'none' },
+      type: { flex: '1', minWidth: '80px' },
+    }
   }
+  return {
+    key: { flex: '2' },
+    value: { flex: '2' },
+    type: { flex: '1', minWidth: '80px' },
+  }
+}
+
+const colStyles = computed(() => getColumnStyles())
+
+function startResize(colIndex: number, event: MouseEvent) {
+  event.preventDefault()
+  const startX = event.clientX
+  const table = tableRef.value
+  if (!table) {
+    return
+  }
+
+  const headerCells = table.querySelectorAll('.tree-header > .col-key, .tree-header > .col-value, .tree-header > .col-type')
+  const startKeyWidth = (headerCells[0] as HTMLElement).offsetWidth
+  const startValueWidth = (headerCells[1] as HTMLElement).offsetWidth
+
+  const onMouseMove = (e: MouseEvent) => {
+    const delta = e.clientX - startX
+    if (colIndex === 0) {
+      const newKey = Math.max(60, startKeyWidth + delta)
+      colKeyWidth.value = newKey
+      if (colValueWidth.value === 0) {
+        colValueWidth.value = startValueWidth
+      }
+    } else {
+      const newValue = Math.max(60, startValueWidth + delta)
+      colValueWidth.value = newValue
+      if (colKeyWidth.value === 0) {
+        colKeyWidth.value = startKeyWidth
+      }
+    }
+  }
+
+  const onMouseUp = () => {
+    document.removeEventListener('mousemove', onMouseMove)
+    document.removeEventListener('mouseup', onMouseUp)
+  }
+
+  document.addEventListener('mousemove', onMouseMove)
+  document.addEventListener('mouseup', onMouseUp)
 }
 
 </script>
 
 <template>
-  <div class="tree-table">
+  <div ref="tableRef" class="tree-table">
     <div class="tree-header">
-      <span class="col-key">{{ t('query.key') }}</span>
-      <span class="col-value">{{ t('query.value') }}</span>
-      <span class="col-type">{{ t('query.type') }}</span>
+      <span class="col-key" :style="colStyles.key">{{ t('query.key') }}</span>
+      <span class="resize-handle" @mousedown="startResize(0, $event)" />
+      <span class="col-value" :style="colStyles.value">{{ t('query.value') }}</span>
+      <span class="resize-handle" @mousedown="startResize(1, $event)" />
+      <span class="col-type" :style="colStyles.type">{{ t('query.type') }}</span>
     </div>
     <div class="tree-body">
       <div
@@ -287,15 +168,15 @@ function getTypeClass(type: string): string {
         :class="{ clickable: row.hasChildren, 'doc-root': row.isDocRoot }"
         @click="toggleExpand(row)"
       >
-        <span class="col-key" :style="{ paddingLeft: row.depth * 16 + 4 + 'px' }">
+        <span class="col-key" :style="{ ...colStyles.key, paddingLeft: row.depth * 16 + 4 + 'px' }">
           <span v-if="row.hasChildren" class="expand-icon">
             {{ row.expanded ? '▼' : '▶' }}
           </span>
           <span v-else class="expand-spacer" />
           <span class="field-name">{{ row.field }}</span>
         </span>
-        <span class="col-value" :class="getTypeClass(row.type)">{{ row.value }}</span>
-        <span class="col-type type-badge">{{ row.type }}</span>
+        <span class="col-value" :style="colStyles.value" :class="getTypeClass(row.type)">{{ row.value }}</span>
+        <span class="col-type type-badge" :style="colStyles.type">{{ getTypeName(row.type) }}</span>
       </div>
     </div>
   </div>
@@ -319,7 +200,7 @@ function getTypeClass(type: string): string {
   color: var(--n-text-color-3);
   flex-shrink: 0;
 
-  .col-key, .col-value, .col-type {
+  > .col-key, > .col-value, > .col-type {
     padding: 4px 8px;
   }
 }
@@ -351,26 +232,37 @@ function getTypeClass(type: string): string {
 }
 
 .col-key {
-  flex: 2;
   display: flex;
   align-items: center;
   gap: 4px;
   padding: 3px 4px;
   overflow: hidden;
+  box-sizing: border-box;
 }
 
 .col-value {
-  flex: 2;
   padding: 3px 8px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  box-sizing: border-box;
 }
 
 .col-type {
-  flex: 1;
   padding: 3px 8px;
-  min-width: 80px;
+  box-sizing: border-box;
+}
+
+.resize-handle {
+  width: 5px;
+  flex-shrink: 0;
+  align-self: stretch;
+  cursor: col-resize;
+  background: linear-gradient(to right, transparent 2px, var(--n-text-color-3) 2px, var(--n-text-color-3) 3px, transparent 3px);
+
+  &:hover {
+    background: linear-gradient(to right, transparent 1px, var(--n-primary-color, #18a058) 1px, var(--n-primary-color, #18a058) 4px, transparent 4px);
+  }
 }
 
 .expand-icon {
