@@ -48,7 +48,7 @@ export function getDisplayValue(val: unknown): string {
     return 'null'
   }
   if (Array.isArray(val)) {
-    return `[ ${val.length} elements ]`
+    return i18nGlobal.t('query.arrayElements', { count: val.length })
   }
   if (typeof val === 'object') {
     const obj = val as Record<string, unknown>
@@ -72,17 +72,17 @@ export function getDisplayValue(val: unknown): string {
     }
     if ('$binary' in obj) {
       const binary = obj.$binary as Record<string, unknown>
-      return `Binary (${binary.subType})`
+      return i18nGlobal.t('query.binaryValue', { subType: binary.subType })
     }
     if ('$regex' in obj) {
       return `/${obj.$regex}/${obj.$options || ''}`
     }
     if ('$timestamp' in obj) {
       const ts = obj.$timestamp as Record<string, unknown>
-      return `Timestamp(${ts.t}, ${ts.i})`
+      return i18nGlobal.t('query.timestampValue', { t: ts.t, i: ts.i })
     }
     const keys = Object.keys(obj)
-    return `{ ${keys.length} fields }`
+    return i18nGlobal.t('query.objectFields', { count: keys.length })
   }
   if (typeof val === 'string') {
     return val
@@ -90,30 +90,28 @@ export function getDisplayValue(val: unknown): string {
   return String(val)
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function getDocLabel(doc: any, index: number): string {
+export function getDocLabel(doc: unknown, index: number): string {
   if (typeof doc !== 'object' || doc === null) {
     return `(${index + 1})`
   }
-  const id = doc._id
+  const record = doc as Record<string, unknown>
+  const id = record._id
   if (id !== undefined) {
     const idStr = typeof id === 'object' && id !== null && '$oid' in id
-      ? id.$oid
+      ? (id as Record<string, unknown>).$oid
       : String(id)
     return `(${index + 1}) {_id: ${idStr}}`
   }
   return `(${index + 1})`
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function buildRowMap(obj: any, prefix: string, depth: number, target: Map<string, FlatRow>) {
+export function buildRowMap(obj: unknown, prefix: string, depth: number, target: Map<string, FlatRow>) {
   if (typeof obj !== 'object' || obj === null) {
     return
   }
 
   const entries = Array.isArray(obj)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ? obj.map((v, i) => [String(i), v] as [string, any])
+    ? obj.map((v, i) => [String(i), v] as [string, unknown])
     : Object.entries(obj)
 
   for (const [key, val] of entries) {

@@ -104,6 +104,12 @@ export default {
     type: 'Type',
     tableView: 'Table View',
     jsonView: 'JSON View',
+    arrayElements: '[ {count} elements ]',
+    objectFields: "{'{'} {count} fields {'}'}",
+    binaryValue: 'Binary ({subType})',
+    timestampValue: 'Timestamp({t}, {i})',
+    noDatabaseSelected: 'No database selected',
+    queryCancelled: 'Query cancelled',
     types: {
       null: 'Null',
       array: 'Array',

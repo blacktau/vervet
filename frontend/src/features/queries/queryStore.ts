@@ -2,11 +2,11 @@ import { defineStore } from 'pinia'
 import * as connectionsProxy from 'wailsjs/go/api/ConnectionsProxy'
 import { useTabStore } from '@/features/tabs/tabs'
 import { useNotifier } from '@/utils/dialog'
+import { i18nGlobal } from '@/i18n'
 
 interface QueryState {
   loading: boolean
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  documents: any[]
+  documents: unknown[]
   rawJson: string
   rawOutput: string
   error: string
@@ -79,12 +79,12 @@ export const useQueryStore = defineStore('query', {
       const state = this.getQueryState(queryId)
 
       if (!state.selectedDatabase) {
-        state.error = 'No database selected'
+        state.error = i18nGlobal.t('query.noDatabaseSelected')
         return
       }
 
       if (this.mongoshAvailable === false) {
-        state.error = 'mongosh is not installed or not in PATH'
+        state.error = i18nGlobal.t('query.mongoshNotFound')
         return
       }
 
@@ -138,7 +138,7 @@ export const useQueryStore = defineStore('query', {
       await connectionsProxy.CancelQuery(serverId)
       const state = this.getQueryState(queryId)
       state.loading = false
-      state.error = 'Query cancelled'
+      state.error = i18nGlobal.t('query.queryCancelled')
     },
   },
 })

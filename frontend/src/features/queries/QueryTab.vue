@@ -1,15 +1,14 @@
 <script lang="ts" setup>
-import { useSettingsStore } from '@/features/settings/settingsStore'
 import { useQueryStore } from '@/features/queries/queryStore'
 import { useTabStore } from '@/features/tabs/tabs'
+import { useMonacoEditor } from './useMonacoEditor'
 import VerticalResizeableWrapper from '@/features/common/VerticalResizeableWrapper.vue'
 import DocumentTreeTable from '@/features/queries/DocumentTreeTable.vue'
 import JsonResultView from '@/features/queries/JsonResultView.vue'
 import { NButton, NIcon, NSpace, NSpin } from 'naive-ui'
 import { PlayIcon, StopIcon } from '@heroicons/vue/24/solid'
 import { TableCellsIcon, CodeBracketIcon } from '@heroicons/vue/24/outline'
-import { ref, onMounted, onBeforeUnmount, watch, shallowRef, computed } from 'vue'
-import * as monaco from 'monaco-editor'
+import { ref, onMounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 const props = defineProps<{
@@ -17,13 +16,10 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
-const settingsStore = useSettingsStore()
 const queryStore = useQueryStore()
 const tabStore = useTabStore()
 
-const editorContainer = ref<HTMLElement | null>(null)
 const queryContentRef = ref<HTMLElement | null>(null)
-const editor = shallowRef<monaco.editor.IStandaloneCodeEditor | null>(null)
 const editorHeight = ref(300)
 
 const defaultQuery = `// MongoDB Query
@@ -47,29 +43,11 @@ const resizeOffset = computed(() => {
 const hasDocuments = computed(() => queryState.value.documents.length > 0)
 const hasRawOutput = computed(() => queryState.value.rawOutput !== '')
 
-const initMonaco = () => {
-  if (!editorContainer.value) {
-    return
-  }
-
-  const isDark = settingsStore.isDark
-
-  const initialText = queryTabItem.value?.initialText
-  const editorValue = initialText != null ? initialText : defaultQuery
-
-  editor.value = monaco.editor.create(editorContainer.value, {
-    value: editorValue,
-    language: 'javascript',
-    theme: isDark ? 'vervet-dark' : 'vervet-light',
-    automaticLayout: true,
-    minimap: { enabled: false },
-    fontSize: 14,
-    lineNumbers: 'on',
-    scrollBeyondLastLine: false,
-    wordWrap: 'on',
-    padding: { top: 8 },
-  })
-}
+const initialText = queryTabItem.value?.initialText
+const { container: editorContainer, editor } = useMonacoEditor({
+  language: 'javascript',
+  value: initialText != null ? initialText : defaultQuery,
+})
 
 const runQuery = async () => {
   if (!editor.value) {
@@ -87,35 +65,14 @@ function setResultView(view: 'table' | 'json') {
   queryState.value.resultView = view
 }
 
-watch(
-  () => settingsStore.isDark,
-  (newVal) => {
-    if (editor.value) {
-      monaco.editor.setTheme(newVal ? 'vervet-dark' : 'vervet-light')
-    }
-  },
-)
-
 onMounted(async () => {
   const item = queryTabItem.value
   if (item) {
     queryStore.initQueryState(props.queryId, item.database)
-  }
-
-  initMonaco()
-
-  // Clear initialText after use
-  if (item) {
     item.initialText = undefined
   }
 
   await queryStore.checkMongosh()
-})
-
-onBeforeUnmount(() => {
-  if (editor.value) {
-    editor.value.dispose()
-  }
 })
 </script>
 
