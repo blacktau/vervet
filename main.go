@@ -38,11 +38,13 @@ func main() {
 
 	log.Info(fmt.Sprintf("--debug-ui: %v", *debugUI))
 
+	windowWidth, windowHeight := application.GetInitialWindowSize()
+
 	// Create application with options
 	err := wails.Run(&options.App{
 		Title:             "Vervet",
-		Width:             1024,
-		Height:            768,
+		Width:             windowWidth,
+		Height:            windowHeight,
 		MinWidth:          1024,
 		MinHeight:         768,
 		MaxWidth:          8192,

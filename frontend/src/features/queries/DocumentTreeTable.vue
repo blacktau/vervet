@@ -1,9 +1,12 @@
 <script lang="ts" setup>
-import { computed, h, ref } from 'vue'
+import { computed, h, ref, reactive } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { DataTableColumns, DataTableRowKey } from 'naive-ui'
 import { buildTreeData } from './documentTreeUtils'
 import type { DocumentRow } from './types'
+
+const PAGINATION_THRESHOLD = 25
+const PAGE_SIZES = [25, 50, 100, 200, 500]
 
 const props = defineProps<{
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -20,6 +23,28 @@ const treeData = computed(() => buildTreeData(props.documents))
 
 const expandedKeys = ref<DataTableRowKey[]>([])
 const checkedKeys = ref<DataTableRowKey[]>([])
+
+const paginationConfig = reactive({
+  page: 1,
+  pageSize: 25,
+  pageSizes: PAGE_SIZES,
+  showSizePicker: true,
+  size: 'small' as const,
+  'on-update:page': (page: number) => {
+    paginationConfig.page = page
+  },
+  'on-update:page-size': (pageSize: number) => {
+    paginationConfig.pageSize = pageSize
+    paginationConfig.page = 1
+  },
+})
+
+const pagination = computed(() => {
+  if (props.documents.length <= PAGINATION_THRESHOLD) {
+    return false as const
+  }
+  return paginationConfig
+})
 
 const typeColorMap: Record<string, string> = {
   string: '#ce9178',
@@ -117,6 +142,7 @@ function rowClassName(row: DocumentRow): string {
   <n-data-table
     :columns="columns"
     :data="treeData"
+    :pagination="pagination"
     :row-key="(row: DocumentRow) => row.key"
     :expanded-row-keys="expandedKeys"
     :checked-row-keys="checkedKeys"
