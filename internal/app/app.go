@@ -8,9 +8,12 @@ import (
 	"vervet/internal/api"
 	"vervet/internal/connectionStrings"
 	"vervet/internal/connections"
+	"vervet/internal/models"
 	"vervet/internal/servers"
 	"vervet/internal/settings"
 	"vervet/internal/system"
+
+	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // App struct
@@ -87,14 +90,39 @@ func (a *App) Startup(ctx context.Context) {
 
 // DomReady is called after front-end resources have been loaded
 func (a *App) DomReady(ctx context.Context) {
-	// Add your action here
 }
 
 // BeforeClose is called when the application is about to quit,
 // either by clicking the window close button or calling runtime.Quit.
 // Returning true will cause the application to continue, false will continue shutdown as normal.
 func (a *App) BeforeClose(ctx context.Context) (prevent bool) {
+	a.saveWindowState()
 	return false
+}
+
+// GetInitialWindowSize returns the saved window size for use in Wails options before the window is created.
+// This reads settings directly rather than using GetWindowState, which requires a Wails context.
+func (a *App) GetInitialWindowSize() (width, height int) {
+	cfg, err := a.settingsManager.GetSettings()
+	if err != nil {
+		return settings.DefaultWindowWidth, settings.DefaultWindowHeight
+	}
+	return cfg.Window.Width, cfg.Window.Height
+}
+
+func (a *App) saveWindowState() {
+	width, height := wailsRuntime.WindowGetSize(a.ctx)
+	x, y := wailsRuntime.WindowGetPosition(a.ctx)
+
+	err := a.settingsManager.SaveWindowState(models.WindowState{
+		X:      x,
+		Y:      y,
+		Width:  width,
+		Height: height,
+	})
+	if err != nil {
+		a.log.Error("Failed to save window state", slog.Any("error", err))
+	}
 }
 
 // Shutdown is called at application termination

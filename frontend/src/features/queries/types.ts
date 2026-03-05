@@ -1,11 +1,9 @@
-export interface FlatRow {
+export interface DocumentRow {
   key: string
   field: string
   value: string
   type: string
-  depth: number
-  hasChildren: boolean
-  expanded: boolean
-  childKeys: string[]
+  typeLabel: string
   isDocRoot: boolean
+  children?: DocumentRow[]
 }

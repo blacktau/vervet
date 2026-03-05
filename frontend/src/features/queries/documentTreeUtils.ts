@@ -1,4 +1,4 @@
-import type { FlatRow } from './types'
+import type { DocumentRow } from './types'
 import { i18nGlobal } from '@/i18n'
 
 const bsonKeyLookup: Record<string, string> = {
@@ -105,62 +105,62 @@ export function getDocLabel(doc: unknown, index: number): string {
   return `(${index + 1})`
 }
 
-export function buildRowMap(obj: unknown, prefix: string, depth: number, target: Map<string, FlatRow>) {
+export function buildTreeData(documents: unknown[]): DocumentRow[] {
+  if (!documents || documents.length === 0) {
+    return []
+  }
+
+  return documents.map((doc, i) => {
+    const fieldCount =
+      typeof doc === 'object' && doc !== null ? Object.keys(doc).length : 0
+
+    const children: DocumentRow[] =
+      typeof doc === 'object' && doc !== null
+        ? buildChildRows(doc, `__doc_${i}`)
+        : []
+
+    return {
+      key: `__doc_${i}`,
+      field: getDocLabel(doc, i),
+      value: i18nGlobal.t('query.objectFields', { count: fieldCount }),
+      type: 'document',
+      typeLabel: getTypeName('document'),
+      isDocRoot: true,
+      children: children.length > 0 ? children : undefined,
+    }
+  })
+}
+
+function buildChildRows(
+  obj: unknown,
+  prefix: string,
+): DocumentRow[] {
   if (typeof obj !== 'object' || obj === null) {
-    return
+    return []
   }
 
   const entries = Array.isArray(obj)
     ? obj.map((v, i) => [String(i), v] as [string, unknown])
     : Object.entries(obj)
 
-  for (const [key, val] of entries) {
+  return entries.map(([key, val]) => {
     const nodeKey = prefix ? `${prefix}.${key}` : key
     const typeKey = getTypeKey(val)
     const hasChildren = typeKey === 'document' || typeKey === 'array'
 
-    const childKeys: string[] = []
-    if (hasChildren && typeof val === 'object' && val !== null) {
-      const childEntries = Array.isArray(val)
-        ? val.map((_v, i) => String(i))
-        : Object.keys(val)
-      for (const ck of childEntries) {
-        childKeys.push(`${nodeKey}.${ck}`)
-      }
-    }
+    const children =
+      hasChildren && typeof val === 'object' && val !== null
+        ? buildChildRows(val, nodeKey)
+        : undefined
 
-    target.set(nodeKey, {
+    return {
       key: nodeKey,
       field: key,
       value: getDisplayValue(val),
       type: typeKey,
-      depth,
-      hasChildren,
-      expanded: false,
-      childKeys,
+      typeLabel: getTypeName(typeKey),
       isDocRoot: false,
-    })
-
-    if (hasChildren) {
-      buildRowMap(val, nodeKey, depth + 1, target)
+      children: children && children.length > 0 ? children : undefined,
     }
-  }
-}
-
-const typeClassLookup: Record<string, string> = {
-  string: 'type-string',
-  int32: 'type-number',
-  double: 'type-number',
-  long: 'type-number',
-  decimal128: 'type-number',
-  boolean: 'type-boolean',
-  null: 'type-null',
-  objectId: 'type-objectid',
-  date: 'type-date',
-  document: 'type-composite',
-  array: 'type-composite',
-}
-
-export function getTypeClass(typeKey: string): string {
-  return typeClassLookup[typeKey] ?? ''
+  })
 }
