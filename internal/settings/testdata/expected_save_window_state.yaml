@@ -17,6 +17,7 @@ editor:
   showFolding: false
   dropText: false
   links: false
+  queryEngine: builtin
 terminal:
   font:
     size: 14
