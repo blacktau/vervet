@@ -75,6 +75,10 @@ func (m *MockConnectionsProvider) GetViews(serverID string, dbName string) ([]st
 	return m.views, nil
 }
 
+func (m *MockConnectionsProvider) GetCollectionSchema(serverID string, dbName string, collectionName string) (models.CollectionSchema, error) {
+	return models.CollectionSchema{}, nil
+}
+
 func TestConnectionsProxy_Connect(t *testing.T) {
 	t.Run("successful connect", func(t *testing.T) {
 		provider := &MockConnectionsProvider{

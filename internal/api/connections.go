@@ -22,6 +22,7 @@ type ConnectionsProvider interface {
 	GetDatabases(serverID string) ([]string, error)
 	GetCollections(serverID string, dbName string) ([]string, error)
 	GetViews(serverID string, dbName string) ([]string, error)
+	GetCollectionSchema(serverID string, dbName string, collectionName string) (models.CollectionSchema, error)
 }
 
 type ShellProvider interface {
@@ -141,6 +142,21 @@ func (cp *ConnectionsProxy) CheckMongosh() Result[bool] {
 	return Result[bool]{
 		IsSuccess: true,
 		Data:      cp.shellMgr.CheckMongosh(),
+	}
+}
+
+func (cp *ConnectionsProxy) GetCollectionSchema(serverID string, dbName string, collectionName string) Result[models.CollectionSchema] {
+	result, err := cp.provider.GetCollectionSchema(serverID, dbName, collectionName)
+	if err != nil {
+		return Result[models.CollectionSchema]{
+			IsSuccess: false,
+			Error:     err.Error(),
+		}
+	}
+
+	return Result[models.CollectionSchema]{
+		IsSuccess: true,
+		Data:      result,
 	}
 }
 
