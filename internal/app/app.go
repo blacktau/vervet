@@ -37,8 +37,8 @@ func NewApp(log *slog.Logger) *App {
 	serverManager := servers.NewManager(log)
 	connectionStringsStore := connectionStrings.NewStore(log)
 	connectionManager := connections.NewManager(log, connectionStringsStore, serverManager)
-	shellManager := connections.NewShellManager(log, connectionManager)
 	settingsManager := settings.NewManager(log)
+	shellManager := connections.NewShellManager(log, connectionManager, settingsManager)
 	systemService := system.NewSystemService(log)
 	fontService := system.NewFontService(log)
 
