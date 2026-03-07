@@ -27,12 +27,16 @@ export function analyzeContext(textBeforeCursor: string): CompletionContext {
     }
   }
 
-  // db.collection.aggregate([ | ]) → AGG_STAGE
-  const aggMatch = trimmed.match(
-    /db\.(\w+)\.aggregate\(\s*\[\s*(?:\{[^}]*\}\s*,\s*)*$/,
-  )
-  if (aggMatch) {
-    return { type: 'AGG_STAGE', collection: aggMatch[1], prefix: '' }
+  // db.collection.aggregate([ | ]) → AGG_STAGE (empty pipeline)
+  const aggEmptyMatch = trimmed.match(/db\.(\w+)\.aggregate\(\s*\[\s*$/)
+  if (aggEmptyMatch) {
+    return { type: 'AGG_STAGE', collection: aggEmptyMatch[1], prefix: '' }
+  }
+
+  // db.collection.aggregate([{...}, | ]) → AGG_STAGE (after existing stages)
+  const aggAfterStageMatch = trimmed.match(/db\.(\w+)\.aggregate\([\s\S]*,\s*$/)
+  if (aggAfterStageMatch) {
+    return { type: 'AGG_STAGE', collection: aggAfterStageMatch[1], prefix: '' }
   }
 
   // db.collection.find({ | }) or db.collection.find({}, { | }) → FIELD_NAME
