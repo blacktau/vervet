@@ -14,6 +14,8 @@ export function DisconnectAll():Promise<api.EmptyResult>;
 
 export function ExecuteQuery(arg1:string,arg2:string,arg3:string):Promise<api.Result_vervet_internal_models_QueryResult_>;
 
+export function GetCollectionSchema(arg1:string,arg2:string,arg3:string):Promise<api.Result_vervet_internal_models_CollectionSchema_>;
+
 export function GetCollections(arg1:string,arg2:string):Promise<api.Result___string_>;
 
 export function GetConnections():Promise<api.Result___vervet_internal_models_Connection_>;

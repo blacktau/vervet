@@ -17,6 +17,15 @@ func setupRuntime(t *testing.T) *goja.Runtime {
 	return rt
 }
 
+// extractOp extracts a *CapturedOp from a goja value, handling both
+// direct *CapturedOp and wrapped objects with __capturedOp.
+func extractOp(t *testing.T, rt *goja.Runtime, val goja.Value) *CapturedOp {
+	t.Helper()
+	op := extractCapturedOp(rt, val)
+	require.NotNil(t, op, "expected CapturedOp, got %T", val.Export())
+	return op
+}
+
 func TestDatabaseProxy_CollectionAccess_ReturnsNonNil(t *testing.T) {
 	rt := setupRuntime(t)
 
@@ -33,15 +42,24 @@ func TestDatabaseProxy_GetName_ReturnsDatabaseName(t *testing.T) {
 	assert.Equal(t, "testdb", val.Export())
 }
 
+func TestDatabaseProxy_GetCollection_ReturnsCollectionProxy(t *testing.T) {
+	rt := setupRuntime(t)
+
+	val, err := rt.RunString(`db.getCollection('movies').find({})`)
+	require.NoError(t, err)
+
+	op := extractOp(t, rt, val)
+	assert.Equal(t, "movies", op.Collection)
+	assert.Equal(t, "find", op.Method)
+}
+
 func TestCollectionProxy_Find_CapturesOp(t *testing.T) {
 	rt := setupRuntime(t)
 
 	val, err := rt.RunString(`db.users.find({ name: "alice" })`)
 	require.NoError(t, err)
 
-	exported := val.Export()
-	op, ok := exported.(*CapturedOp)
-	require.True(t, ok, "expected *CapturedOp, got %T", exported)
+	op := extractOp(t, rt, val)
 	assert.Equal(t, "users", op.Collection)
 	assert.Equal(t, "find", op.Method)
 	assert.Len(t, op.Args, 1)
@@ -57,9 +75,7 @@ func TestCollectionProxy_Find_WithProjection_CapturesTwoArgs(t *testing.T) {
 	val, err := rt.RunString(`db.users.find({ age: { $gt: 21 } }, { name: 1, email: 1 })`)
 	require.NoError(t, err)
 
-	exported := val.Export()
-	op, ok := exported.(*CapturedOp)
-	require.True(t, ok, "expected *CapturedOp, got %T", exported)
+	op := extractOp(t, rt, val)
 	assert.Equal(t, "users", op.Collection)
 	assert.Equal(t, "find", op.Method)
 	assert.Len(t, op.Args, 2)
@@ -76,15 +92,42 @@ func TestCollectionProxy_Find_WithProjection_CapturesTwoArgs(t *testing.T) {
 	assert.Equal(t, int64(1), projection["email"])
 }
 
+func TestCollectionProxy_Find_WithLimit_CapturesModifier(t *testing.T) {
+	rt := setupRuntime(t)
+
+	val, err := rt.RunString(`db.users.find({}).limit(10)`)
+	require.NoError(t, err)
+
+	op := extractOp(t, rt, val)
+	assert.Equal(t, "users", op.Collection)
+	assert.Equal(t, "find", op.Method)
+	assert.Equal(t, int64(10), op.Limit)
+}
+
+func TestCollectionProxy_Find_WithChainedModifiers(t *testing.T) {
+	rt := setupRuntime(t)
+
+	val, err := rt.RunString(`db.users.find({}).sort({ name: 1 }).skip(5).limit(10)`)
+	require.NoError(t, err)
+
+	op := extractOp(t, rt, val)
+	assert.Equal(t, "users", op.Collection)
+	assert.Equal(t, "find", op.Method)
+	assert.Equal(t, int64(10), op.Limit)
+	assert.Equal(t, int64(5), op.Skip)
+
+	sort, ok := op.Sort.(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, int64(1), sort["name"])
+}
+
 func TestCollectionProxy_FindOne_CapturesOp(t *testing.T) {
 	rt := setupRuntime(t)
 
 	val, err := rt.RunString(`db.users.findOne({ _id: "abc123" })`)
 	require.NoError(t, err)
 
-	exported := val.Export()
-	op, ok := exported.(*CapturedOp)
-	require.True(t, ok, "expected *CapturedOp, got %T", exported)
+	op := extractOp(t, rt, val)
 	assert.Equal(t, "users", op.Collection)
 	assert.Equal(t, "findOne", op.Method)
 }
@@ -95,9 +138,7 @@ func TestCollectionProxy_InsertOne_CapturesOp(t *testing.T) {
 	val, err := rt.RunString(`db.users.insertOne({ name: "bob", age: 30 })`)
 	require.NoError(t, err)
 
-	exported := val.Export()
-	op, ok := exported.(*CapturedOp)
-	require.True(t, ok, "expected *CapturedOp, got %T", exported)
+	op := extractOp(t, rt, val)
 	assert.Equal(t, "users", op.Collection)
 	assert.Equal(t, "insertOne", op.Method)
 	assert.Len(t, op.Args, 1)
@@ -114,9 +155,7 @@ func TestCollectionProxy_Aggregate_CapturesOp(t *testing.T) {
 	val, err := rt.RunString(`db.orders.aggregate([{ $match: { status: "A" } }])`)
 	require.NoError(t, err)
 
-	exported := val.Export()
-	op, ok := exported.(*CapturedOp)
-	require.True(t, ok, "expected *CapturedOp, got %T", exported)
+	op := extractOp(t, rt, val)
 	assert.Equal(t, "orders", op.Collection)
 	assert.Equal(t, "aggregate", op.Method)
 	assert.Len(t, op.Args, 1)
@@ -132,9 +171,7 @@ func TestCollectionProxy_DeleteOne_CapturesOp(t *testing.T) {
 	val, err := rt.RunString(`db.users.deleteOne({ name: "alice" })`)
 	require.NoError(t, err)
 
-	exported := val.Export()
-	op, ok := exported.(*CapturedOp)
-	require.True(t, ok, "expected *CapturedOp, got %T", exported)
+	op := extractOp(t, rt, val)
 	assert.Equal(t, "users", op.Collection)
 	assert.Equal(t, "deleteOne", op.Method)
 }
@@ -145,9 +182,7 @@ func TestCollectionProxy_UpdateOne_CapturesOp(t *testing.T) {
 	val, err := rt.RunString(`db.users.updateOne({ name: "alice" }, { $set: { age: 31 } })`)
 	require.NoError(t, err)
 
-	exported := val.Export()
-	op, ok := exported.(*CapturedOp)
-	require.True(t, ok, "expected *CapturedOp, got %T", exported)
+	op := extractOp(t, rt, val)
 	assert.Equal(t, "users", op.Collection)
 	assert.Equal(t, "updateOne", op.Method)
 	assert.Len(t, op.Args, 2)
@@ -159,9 +194,7 @@ func TestCollectionProxy_CountDocuments_CapturesOp(t *testing.T) {
 	val, err := rt.RunString(`db.users.countDocuments({ active: true })`)
 	require.NoError(t, err)
 
-	exported := val.Export()
-	op, ok := exported.(*CapturedOp)
-	require.True(t, ok, "expected *CapturedOp, got %T", exported)
+	op := extractOp(t, rt, val)
 	assert.Equal(t, "users", op.Collection)
 	assert.Equal(t, "countDocuments", op.Method)
 }
@@ -172,9 +205,7 @@ func TestMultiStatement_VariableThenQuery_CapturesOp(t *testing.T) {
 	val, err := rt.RunString(`const filter = { status: "active" }; db.users.find(filter)`)
 	require.NoError(t, err)
 
-	exported := val.Export()
-	op, ok := exported.(*CapturedOp)
-	require.True(t, ok, "expected *CapturedOp, got %T", exported)
+	op := extractOp(t, rt, val)
 	assert.Equal(t, "users", op.Collection)
 	assert.Equal(t, "find", op.Method)
 	assert.Len(t, op.Args, 1)
@@ -190,10 +221,9 @@ func TestPlainExpression_ReturnsValue_NotCapturedOp(t *testing.T) {
 	val, err := rt.RunString(`const x = 42; x`)
 	require.NoError(t, err)
 
-	exported := val.Export()
-	_, ok := exported.(*CapturedOp)
-	assert.False(t, ok, "plain expression should not be a CapturedOp")
-	assert.Equal(t, int64(42), exported)
+	op := extractCapturedOp(rt, val)
+	assert.Nil(t, op, "plain expression should not be a CapturedOp")
+	assert.Equal(t, int64(42), val.Export())
 }
 
 func TestPrint_CapturesOutput(t *testing.T) {
@@ -224,15 +254,13 @@ func TestDifferentCollections_CaptureCorrectName(t *testing.T) {
 	val, err := rt.RunString(`db.products.find({})`)
 	require.NoError(t, err)
 
-	op, ok := val.Export().(*CapturedOp)
-	require.True(t, ok)
+	op := extractOp(t, rt, val)
 	assert.Equal(t, "products", op.Collection)
 
 	val, err = rt.RunString(`db.orders.findOne({ orderId: 123 })`)
 	require.NoError(t, err)
 
-	op, ok = val.Export().(*CapturedOp)
-	require.True(t, ok)
+	op = extractOp(t, rt, val)
 	assert.Equal(t, "orders", op.Collection)
 }
 
@@ -242,9 +270,7 @@ func TestCollectionProxy_InsertMany_CapturesOp(t *testing.T) {
 	val, err := rt.RunString(`db.users.insertMany([{ name: "a" }, { name: "b" }])`)
 	require.NoError(t, err)
 
-	exported := val.Export()
-	op, ok := exported.(*CapturedOp)
-	require.True(t, ok, "expected *CapturedOp, got %T", exported)
+	op := extractOp(t, rt, val)
 	assert.Equal(t, "users", op.Collection)
 	assert.Equal(t, "insertMany", op.Method)
 	assert.Len(t, op.Args, 1)
@@ -260,9 +286,7 @@ func TestCollectionProxy_ReplaceOne_CapturesOp(t *testing.T) {
 	val, err := rt.RunString(`db.users.replaceOne({ name: "alice" }, { name: "alice", age: 32 })`)
 	require.NoError(t, err)
 
-	exported := val.Export()
-	op, ok := exported.(*CapturedOp)
-	require.True(t, ok, "expected *CapturedOp, got %T", exported)
+	op := extractOp(t, rt, val)
 	assert.Equal(t, "users", op.Collection)
 	assert.Equal(t, "replaceOne", op.Method)
 	assert.Len(t, op.Args, 2)

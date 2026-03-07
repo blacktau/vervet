@@ -44,8 +44,8 @@ func (e *GojaEngine) ExecuteQuery(ctx context.Context, uri, dbName, query string
 		return models.QueryResult{}, fmt.Errorf("script error: %w", err)
 	}
 
-	exported := val.Export()
-	if op, ok := exported.(*CapturedOp); ok {
+	op := extractCapturedOp(rt, val)
+	if op != nil {
 		if e.client == nil {
 			return models.QueryResult{}, fmt.Errorf("no MongoDB client available")
 		}
@@ -56,9 +56,34 @@ func (e *GojaEngine) ExecuteQuery(ctx context.Context, uri, dbName, query string
 		return models.QueryResult{RawOutput: strings.Join(printed, "\n")}, nil
 	}
 
-	if exported != nil {
-		return models.QueryResult{RawOutput: fmt.Sprintf("%v", exported)}, nil
+	raw := val.Export()
+	if raw != nil {
+		return models.QueryResult{RawOutput: fmt.Sprintf("%v", raw)}, nil
 	}
 
 	return models.QueryResult{}, nil
+}
+
+// extractCapturedOp attempts to retrieve a *CapturedOp from a goja value.
+// It checks both direct *CapturedOp values and wrapped objects with __capturedOp.
+func extractCapturedOp(rt *goja.Runtime, val goja.Value) *CapturedOp {
+	if val == nil || goja.IsUndefined(val) || goja.IsNull(val) {
+		return nil
+	}
+
+	exported := val.Export()
+	if op, ok := exported.(*CapturedOp); ok {
+		return op
+	}
+
+	if obj, ok := val.(*goja.Object); ok {
+		inner := obj.Get("__capturedOp")
+		if inner != nil && !goja.IsUndefined(inner) {
+			if op, ok := inner.Export().(*CapturedOp); ok {
+				return op
+			}
+		}
+	}
+
+	return nil
 }

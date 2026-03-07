@@ -23,6 +23,20 @@ export function useMonacoEditor(options: MonacoEditorOptions) {
       return
     }
 
+    const queryEditorOptions: monaco.editor.IStandaloneEditorConstructionOptions =
+      options.queryId
+        ? {
+            wordBasedSuggestions: 'off',
+            quickSuggestions: {
+              other: true,
+              comments: false,
+              strings: true,
+            },
+            suggestOnTriggerCharacters: true,
+            snippetSuggestions: 'none',
+          }
+        : {}
+
     editor.value = monaco.editor.create(container.value, {
       value: options.value ?? '',
       language: options.language,
@@ -35,6 +49,7 @@ export function useMonacoEditor(options: MonacoEditorOptions) {
       wordWrap: 'on',
       padding: { top: 8 },
       readOnly: options.readOnly ?? false,
+      ...queryEditorOptions,
       ...options.extraOptions,
     })
 

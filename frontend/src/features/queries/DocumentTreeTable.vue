@@ -1,9 +1,10 @@
 <script lang="ts" setup>
-import { computed, h, ref, reactive } from 'vue'
+import { computed, h, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { DataTableColumns, DataTableRowKey } from 'naive-ui'
 import { buildTreeData } from './documentTreeUtils'
 import type { DocumentRow } from './types'
+import { typeColorMap } from '@/features/queries/typeColorMap.ts'
 
 const PAGINATION_THRESHOLD = 25
 const PAGE_SIZES = [25, 50, 100, 200, 500]
@@ -24,44 +25,38 @@ const treeData = computed(() => buildTreeData(props.documents))
 const expandedKeys = ref<DataTableRowKey[]>([])
 const checkedKeys = ref<DataTableRowKey[]>([])
 
-const paginationConfig = reactive({
+// const paginationConfig = reactive({
+//   page: 1,
+//   pageSize: 25,
+//   pageSizes: PAGE_SIZES,
+//   showSizePicker: true,
+//   size: 'small' as const,
+//   'on-update:page': (page: number) => {
+//     console.log('on-update:page', page)
+//     paginationConfig.page = page
+//   },
+//   'on-update:page-size': (pageSize: number) => {
+//     console.log('on-update:page-size', pageSize)
+//     paginationConfig.pageSize = pageSize
+//     paginationConfig.page = 1
+//   },
+// })
+
+const pagination = reactive({
   page: 1,
   pageSize: 25,
   pageSizes: PAGE_SIZES,
   showSizePicker: true,
   size: 'small' as const,
-  'on-update:page': (page: number) => {
-    paginationConfig.page = page
+  onChange: (page: number) => {
+    pagination.page = page
   },
-  'on-update:page-size': (pageSize: number) => {
-    paginationConfig.pageSize = pageSize
-    paginationConfig.page = 1
+  onUpdatePageSize: (pageSize: number) => {
+    pagination.pageSize = pageSize
   },
 })
-
-const pagination = computed(() => {
-  if (props.documents.length <= PAGINATION_THRESHOLD) {
-    return false as const
-  }
-  return paginationConfig
-})
-
-const typeColorMap: Record<string, string> = {
-  string: '#ce9178',
-  int32: '#b5cea8',
-  double: '#b5cea8',
-  long: '#b5cea8',
-  decimal128: '#b5cea8',
-  boolean: '#569cd6',
-  null: '#808080',
-  objectId: '#dcdcaa',
-  date: '#c586c0',
-  document: 'var(--n-td-text-color)',
-  array: 'var(--n-td-text-color)',
-}
 
 const columns = computed<DataTableColumns<DocumentRow>>(() => [
-  { type: 'selection', width: 40 },
   {
     title: t('query.key'),
     key: 'field',
@@ -124,6 +119,24 @@ const columns = computed<DataTableColumns<DocumentRow>>(() => [
   },
 ])
 
+function rowProps(row: DocumentRow) {
+  return {
+    'on:click.ctrl': () => {
+      console.log('ctrl', row)
+    },
+    onClick: (evt: PointerEvent) => {
+      if (evt.ctrlKey) {
+        if (checkedKeys.value.includes(row.key)) {
+          checkedKeys.value = checkedKeys.value.filter((key) => key !== row.key)
+        } else {
+          checkedKeys.value = [...checkedKeys.value, row.key]
+        }
+        console.log(checkedKeys.value, row.key, checkedKeys.value.includes(row.key))
+      }
+    },
+  }
+}
+
 function handleExpandedKeysUpdate(keys: DataTableRowKey[]) {
   expandedKeys.value = keys
 }
@@ -134,7 +147,14 @@ function handleCheckedKeysUpdate(keys: DataTableRowKey[]) {
 }
 
 function rowClassName(row: DocumentRow): string {
-  return row.isDocRoot ? 'doc-root-row' : ''
+  if (row.isDocRoot) {
+    return 'doc-root-row'
+  }
+  if (checkedKeys.value.includes(row.key)) {
+    return 'selected-row'
+  }
+
+  return ''
 }
 </script>
 
@@ -147,8 +167,10 @@ function rowClassName(row: DocumentRow): string {
     :expanded-row-keys="expandedKeys"
     :checked-row-keys="checkedKeys"
     :row-class-name="rowClassName"
+    :row-props="rowProps"
     :style="{ height: '100%' }"
     children-key="children"
+    striped
     virtual-scroll
     flex-height
     size="small"
@@ -159,6 +181,9 @@ function rowClassName(row: DocumentRow): string {
 <style lang="scss" scoped>
 :deep(.doc-root-row td) {
   background-color: var(--n-td-color-hover) !important;
+}
+:deep(.selected-row td) {
+  background-color: greenyellow !important;
 }
 
 :deep(.n-data-table) {

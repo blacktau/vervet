@@ -112,6 +112,7 @@ export const useQueryStore = defineStore('query', {
           } else if (data.rawOutput) {
             state.rawOutput = data.rawOutput
           }
+          state.activeResultTab = 'results'
         } else {
           const timestamp = new Date().toLocaleTimeString()
           state.error = result.error

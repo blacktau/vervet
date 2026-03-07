@@ -49,6 +49,11 @@ export namespace api {
 	    data: OperatingSystem;
 	    error: string;
 	}
+	export interface Result_vervet_internal_models_CollectionSchema_ {
+	    isSuccess: boolean;
+	    data: models.CollectionSchema;
+	    error: string;
+	}
 	export interface Result_vervet_internal_models_Connection_ {
 	    isSuccess: boolean;
 	    data: models.Connection;
@@ -79,6 +84,14 @@ export namespace api {
 
 export namespace models {
 	
+	export interface FieldInfo {
+	    path: string;
+	    types: string[];
+	    children: FieldInfo[];
+	}
+	export interface CollectionSchema {
+	    fields: FieldInfo[];
+	}
 	export interface Connection {
 	    serverID?: string;
 	    name?: string;
@@ -94,7 +107,9 @@ export namespace models {
 	    showFolding: boolean;
 	    dropText: boolean;
 	    links: boolean;
+	    queryEngine: string;
 	}
+	
 	export interface Font {
 	    family?: string;
 	    isFixedWidth?: boolean;

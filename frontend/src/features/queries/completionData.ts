@@ -1,15 +1,15 @@
 export const mongoMethods = [
-  { label: 'find', detail: '(filter?, projection?) - Query documents' },
-  { label: 'findOne', detail: '(filter?) - Find a single document' },
-  { label: 'insertOne', detail: '(document) - Insert a document' },
-  { label: 'insertMany', detail: '(documents) - Insert multiple documents' },
-  { label: 'updateOne', detail: '(filter, update) - Update a document' },
-  { label: 'updateMany', detail: '(filter, update) - Update multiple documents' },
-  { label: 'deleteOne', detail: '(filter) - Delete a document' },
-  { label: 'deleteMany', detail: '(filter) - Delete multiple documents' },
-  { label: 'replaceOne', detail: '(filter, replacement) - Replace a document' },
-  { label: 'countDocuments', detail: '(filter?) - Count matching documents' },
-  { label: 'aggregate', detail: '(pipeline) - Run aggregation pipeline' },
+  { label: 'find', detail: '(filter?, projection?) - Query documents', snippet: 'find({$1})$0' },
+  { label: 'findOne', detail: '(filter?) - Find a single document', snippet: 'findOne({$1})$0' },
+  { label: 'insertOne', detail: '(document) - Insert a document', snippet: 'insertOne({$1})$0' },
+  { label: 'insertMany', detail: '(documents) - Insert multiple documents', snippet: 'insertMany([$1])$0' },
+  { label: 'updateOne', detail: '(filter, update) - Update a document', snippet: 'updateOne({$1}, {$2})$0' },
+  { label: 'updateMany', detail: '(filter, update) - Update multiple documents', snippet: 'updateMany({$1}, {$2})$0' },
+  { label: 'deleteOne', detail: '(filter) - Delete a document', snippet: 'deleteOne({$1})$0' },
+  { label: 'deleteMany', detail: '(filter) - Delete multiple documents', snippet: 'deleteMany({$1})$0' },
+  { label: 'replaceOne', detail: '(filter, replacement) - Replace a document', snippet: 'replaceOne({$1}, {$2})$0' },
+  { label: 'countDocuments', detail: '(filter?) - Count matching documents', snippet: 'countDocuments({$1})$0' },
+  { label: 'aggregate', detail: '(pipeline) - Run aggregation pipeline', snippet: 'aggregate([$1])$0' },
 ]
 
 export const queryOperators = [
@@ -31,6 +31,12 @@ export const queryOperators = [
   { label: '$elemMatch', detail: 'Matches array elements' },
   { label: '$size', detail: 'Matches arrays by size' },
   { label: '$all', detail: 'Matches arrays containing all elements' },
+]
+
+export const cursorMethods = [
+  { label: 'limit', detail: '(n) - Limit number of results' },
+  { label: 'skip', detail: '(n) - Skip first n results' },
+  { label: 'sort', detail: '(sortSpec) - Sort results, e.g. { field: 1 }' },
 ]
 
 export const aggStages = [

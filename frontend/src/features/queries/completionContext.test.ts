@@ -117,4 +117,134 @@ describe('analyzeContext', () => {
     const ctx = analyzeContext('db.orders.aggregate([{ $match: { status: "A" } }, ')
     expect(ctx.type).toBe('AGG_STAGE')
   })
+
+  // getCollection string completions
+  it('returns COLLECTION_NAME_STRING inside getCollection single quotes', () => {
+    const ctx = analyzeContext("db.getCollection('")
+    expect(ctx.type).toBe('COLLECTION_NAME_STRING')
+    expect(ctx.insideQuotes).toBe(true)
+    expect(ctx.prefix).toBe('')
+  })
+
+  it('returns COLLECTION_NAME_STRING inside getCollection double quotes', () => {
+    const ctx = analyzeContext('db.getCollection("')
+    expect(ctx.type).toBe('COLLECTION_NAME_STRING')
+    expect(ctx.insideQuotes).toBe(true)
+  })
+
+  it('returns COLLECTION_NAME_STRING with prefix', () => {
+    const ctx = analyzeContext("db.getCollection('lis")
+    expect(ctx.type).toBe('COLLECTION_NAME_STRING')
+    expect(ctx.prefix).toBe('lis')
+    expect(ctx.insideQuotes).toBe(true)
+  })
+
+  // Quoted field names
+  it('returns FIELD_NAME inside quoted key position', () => {
+    const ctx = analyzeContext('db.users.find({ "')
+    expect(ctx.type).toBe('FIELD_NAME')
+    expect(ctx.collection).toBe('users')
+    expect(ctx.insideQuotes).toBe(true)
+    expect(ctx.prefix).toBe('')
+  })
+
+  it('returns FIELD_NAME with prefix inside quoted key', () => {
+    const ctx = analyzeContext('db.users.find({ "addr')
+    expect(ctx.type).toBe('FIELD_NAME')
+    expect(ctx.collection).toBe('users')
+    expect(ctx.prefix).toBe('addr')
+    expect(ctx.insideQuotes).toBe(true)
+  })
+
+  it('returns QUERY_OPERATOR after quoted field key with colon', () => {
+    const ctx = analyzeContext('db.users.find({ "address.country": ')
+    expect(ctx.type).toBe('QUERY_OPERATOR')
+  })
+
+  it('returns FIELD_NAME not insideQuotes for unquoted field', () => {
+    const ctx = analyzeContext('db.users.find({ na')
+    expect(ctx.type).toBe('FIELD_NAME')
+    expect(ctx.insideQuotes).toBe(false)
+    expect(ctx.prefix).toBe('na')
+  })
+
+  // Quoted field after comma
+  it('returns FIELD_NAME inside quoted key after comma', () => {
+    const ctx = analyzeContext('db.users.find({ "name": "x", "')
+    expect(ctx.type).toBe('FIELD_NAME')
+    expect(ctx.collection).toBe('users')
+    expect(ctx.insideQuotes).toBe(true)
+  })
+
+  // Dotted field paths inside quotes
+  it('returns FIELD_NAME with dotted prefix inside quoted key', () => {
+    const ctx = analyzeContext('db.users.find({ "address.')
+    expect(ctx.type).toBe('FIELD_NAME')
+    expect(ctx.collection).toBe('users')
+    expect(ctx.prefix).toBe('address.')
+    expect(ctx.insideQuotes).toBe(true)
+  })
+
+  it('returns FIELD_NAME with dotted prefix and partial child', () => {
+    const ctx = analyzeContext('db.users.find({ "address.cou')
+    expect(ctx.type).toBe('FIELD_NAME')
+    expect(ctx.collection).toBe('users')
+    expect(ctx.prefix).toBe('address.cou')
+    expect(ctx.insideQuotes).toBe(true)
+  })
+
+  it('returns QUERY_OPERATOR after dotted quoted field with colon', () => {
+    const ctx = analyzeContext('db.users.find({ "address.country": ')
+    expect(ctx.type).toBe('QUERY_OPERATOR')
+  })
+
+  // Nested operator objects
+  it('returns QUERY_OPERATOR inside nested operator object after {', () => {
+    const ctx = analyzeContext('db.users.find({ "age": { ')
+    expect(ctx.type).toBe('QUERY_OPERATOR')
+    expect(ctx.prefix).toBe('')
+  })
+
+  it('returns QUERY_OPERATOR with $ prefix inside nested operator object', () => {
+    const ctx = analyzeContext('db.users.find({ "age": { $')
+    expect(ctx.type).toBe('QUERY_OPERATOR')
+    expect(ctx.prefix).toBe('$')
+  })
+
+  it('returns QUERY_OPERATOR with partial operator inside nested object', () => {
+    const ctx = analyzeContext('db.users.find({ "age": { $gt')
+    expect(ctx.type).toBe('QUERY_OPERATOR')
+    expect(ctx.prefix).toBe('$gt')
+  })
+
+  it('returns QUERY_OPERATOR inside nested object with unquoted field', () => {
+    const ctx = analyzeContext('db.users.find({ age: { $n')
+    expect(ctx.type).toBe('QUERY_OPERATOR')
+    expect(ctx.prefix).toBe('$n')
+  })
+
+  // Cursor method chaining
+  it('returns CURSOR_METHOD after find().', () => {
+    const ctx = analyzeContext('db.users.find({}).')
+    expect(ctx.type).toBe('CURSOR_METHOD')
+    expect(ctx.prefix).toBe('')
+  })
+
+  it('returns CURSOR_METHOD with partial prefix after find().li', () => {
+    const ctx = analyzeContext('db.users.find({}).li')
+    expect(ctx.type).toBe('CURSOR_METHOD')
+    expect(ctx.prefix).toBe('li')
+  })
+
+  it('returns CURSOR_METHOD after chained limit().', () => {
+    const ctx = analyzeContext('db.users.find({}).limit(10).')
+    expect(ctx.type).toBe('CURSOR_METHOD')
+    expect(ctx.prefix).toBe('')
+  })
+
+  it('returns CURSOR_METHOD after chained sort().', () => {
+    const ctx = analyzeContext('db.users.find({}).sort({ name: 1 }).')
+    expect(ctx.type).toBe('CURSOR_METHOD')
+    expect(ctx.prefix).toBe('')
+  })
 })

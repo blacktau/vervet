@@ -7,4 +7,7 @@ type CapturedOp struct {
 	Collection string
 	Method     string
 	Args       []any
+	Limit      int64
+	Skip       int64
+	Sort       any
 }

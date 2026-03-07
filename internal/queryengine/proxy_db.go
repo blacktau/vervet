@@ -18,6 +18,11 @@ func newDatabaseProxy(rt *goja.Runtime, dbName string) goja.Value {
 			if property == "getName" {
 				return rt.ToValue(func() string { return dp.dbName })
 			}
+			if property == "getCollection" {
+				return rt.ToValue(func(name string) goja.Value {
+					return newCollectionProxy(rt, name)
+				})
+			}
 			return newCollectionProxy(rt, property)
 		},
 	})

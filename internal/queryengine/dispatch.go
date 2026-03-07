@@ -55,6 +55,15 @@ func dispatchFind(ctx context.Context, coll *mongo.Collection, op CapturedOp) (m
 			opts.SetProjection(toBsonDoc(projMap))
 		}
 	}
+	if op.Limit > 0 {
+		opts.SetLimit(op.Limit)
+	}
+	if op.Skip > 0 {
+		opts.SetSkip(op.Skip)
+	}
+	if op.Sort != nil {
+		opts.SetSort(toBsonDoc(op.Sort))
+	}
 
 	cursor, err := coll.Find(ctx, filter, opts)
 	if err != nil {

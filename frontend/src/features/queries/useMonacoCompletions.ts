@@ -1,10 +1,16 @@
 import * as monaco from 'monaco-editor'
 import { analyzeContext } from './completionContext'
-import { mongoMethods, queryOperators, aggStages } from './completionData'
+import { mongoMethods, cursorMethods, queryOperators, aggStages } from './completionData'
 import { getCollectionSchema, getCollectionNames } from './useSchemaCache'
 import { useTabStore } from '@/features/tabs/tabs'
 import { useQueryStore } from './queryStore'
 import type { CompletionContext } from './completionContext'
+
+interface FieldInfo {
+  path: string
+  types: string[]
+  children?: FieldInfo[]
+}
 
 function toCompletionItems(
   items: { label: string; detail: string }[],
@@ -20,22 +26,50 @@ function toCompletionItems(
   }))
 }
 
-function fieldInfoToCompletions(
-  fields: { path: string; types: string[]; children?: unknown[] }[],
+/**
+ * Flattens a schema field tree into dotted-path entries.
+ * e.g. { path: "address", children: [{ path: "street" }, { path: "country" }] }
+ * becomes: ["address", "address.street", "address.country"]
+ */
+function flattenFields(
+  fields: FieldInfo[],
+  parentPath: string = '',
+): { path: string; types: string[]; hasChildren: boolean }[] {
+  const result: { path: string; types: string[]; hasChildren: boolean }[] = []
+  for (const field of fields) {
+    const fullPath = parentPath ? `${parentPath}.${field.path}` : field.path
+    const hasChildren = (field.children?.length ?? 0) > 0
+    result.push({ path: fullPath, types: field.types, hasChildren })
+    if (field.children) {
+      result.push(...flattenFields(field.children, fullPath))
+    }
+  }
+  return result
+}
+
+function fieldCompletions(
+  fields: FieldInfo[],
+  prefix: string,
   range: monaco.IRange,
+  insideQuotes: boolean,
 ): monaco.languages.CompletionItem[] {
-  return fields.map((field) => ({
+  const flat = flattenFields(fields)
+  const matching = flat.filter((f) => f.path.startsWith(prefix))
+
+  return matching.map((field) => ({
     label: field.path,
-    kind: monaco.languages.CompletionItemKind.Field,
+    kind: field.hasChildren
+      ? monaco.languages.CompletionItemKind.Struct
+      : monaco.languages.CompletionItemKind.Field,
     detail: field.types.join(' | '),
-    insertText: field.path,
+    insertText: insideQuotes ? field.path : `"${field.path}": `,
     range,
   }))
 }
 
 export function registerMongoCompletions(queryId: string): monaco.IDisposable {
   return monaco.languages.registerCompletionItemProvider('javascript', {
-    triggerCharacters: ['.', '{', '[', ' ', ','],
+    triggerCharacters: ['.', '{', '[', ' ', ',', '"', "'", '$'],
 
     async provideCompletionItems(
       model: monaco.editor.ITextModel,
@@ -51,11 +85,28 @@ export function registerMongoCompletions(queryId: string): monaco.IDisposable {
       const ctx = analyzeContext(textBeforeCursor)
 
       const word = model.getWordUntilPosition(position)
-      const range: monaco.IRange = {
+      let range: monaco.IRange = {
         startLineNumber: position.lineNumber,
         endLineNumber: position.lineNumber,
         startColumn: word.startColumn,
         endColumn: word.endColumn,
+      }
+
+      // For field names inside quotes, extend the range to cover the full dotted prefix
+      // so the entire typed path gets replaced by the completion
+      if (ctx.type === 'FIELD_NAME' && ctx.insideQuotes && ctx.prefix.includes('.')) {
+        const lineText = model.getLineContent(position.lineNumber)
+        // Find the opening quote before the cursor
+        const textBeforeOnLine = lineText.substring(0, position.column - 1)
+        const lastQuote = Math.max(textBeforeOnLine.lastIndexOf('"'), textBeforeOnLine.lastIndexOf("'"))
+        if (lastQuote >= 0) {
+          range = {
+            startLineNumber: position.lineNumber,
+            endLineNumber: position.lineNumber,
+            startColumn: lastQuote + 2, // after the quote character (1-indexed)
+            endColumn: position.column,
+          }
+        }
       }
 
       const suggestions = await getSuggestions(ctx, range, queryId)
@@ -91,9 +142,37 @@ async function getSuggestions(
         }))
     }
 
+    case 'COLLECTION_NAME_STRING': {
+      if (!serverId || !dbName) {
+        return []
+      }
+      const names = await getCollectionNames(serverId, dbName)
+      return names
+        .filter((n) => n.startsWith(ctx.prefix))
+        .map((name) => ({
+          label: name,
+          kind: monaco.languages.CompletionItemKind.Module,
+          detail: 'Collection',
+          insertText: name,
+          range,
+        }))
+    }
+
     case 'METHOD_NAME':
+      return mongoMethods
+        .filter((m) => m.label.startsWith(ctx.prefix))
+        .map((m) => ({
+          label: m.label,
+          kind: monaco.languages.CompletionItemKind.Method,
+          detail: m.detail,
+          insertText: m.snippet,
+          insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+          range,
+        }))
+
+    case 'CURSOR_METHOD':
       return toCompletionItems(
-        mongoMethods.filter((m) => m.label.startsWith(ctx.prefix)),
+        cursorMethods.filter((m) => m.label.startsWith(ctx.prefix)),
         range,
         monaco.languages.CompletionItemKind.Method,
       )
@@ -106,10 +185,7 @@ async function getSuggestions(
       if (!schema) {
         return []
       }
-      return fieldInfoToCompletions(
-        schema.fields.filter((f) => f.path.startsWith(ctx.prefix)),
-        range,
-      )
+      return fieldCompletions(schema.fields, ctx.prefix, range, ctx.insideQuotes ?? false)
     }
 
     case 'QUERY_OPERATOR':
