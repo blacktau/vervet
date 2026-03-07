@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import * as connectionsProxy from 'wailsjs/go/api/ConnectionsProxy'
 import { useTabStore } from '@/features/tabs/tabs'
 import { useNotifier } from '@/utils/dialog'
+import { useSettingsStore } from '@/features/settings/settingsStore'
 import { i18nGlobal } from '@/i18n'
 
 interface QueryState {
@@ -83,7 +84,8 @@ export const useQueryStore = defineStore('query', {
         return
       }
 
-      if (this.mongoshAvailable === false) {
+      const settingsStore = useSettingsStore()
+      if (settingsStore.editor.queryEngine === 'mongosh' && this.mongoshAvailable === false) {
         state.error = i18nGlobal.t('query.mongoshNotFound')
         return
       }
