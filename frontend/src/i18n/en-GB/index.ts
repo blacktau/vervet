@@ -60,6 +60,11 @@ export default {
       showFolding: 'Enable Code Folding',
       dropText: 'Allow Dragging & Dropping of Text',
       links: 'Support Links',
+      queryEngine: 'Query Engine',
+      queryEngineBuiltin: 'Built-in (recommended)',
+      queryEngineMongosh: 'mongosh',
+      queryEngineHelp:
+        'Built-in engine requires no external dependencies. mongosh requires mongosh to be installed separately.',
     },
     terminal: {
       name: 'Terminal',

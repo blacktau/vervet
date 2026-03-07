@@ -38,6 +38,27 @@ const settingsStore = useSettingsStore()
       <n-form-item-gi :label="$t('settings.common.fontSize')" :span="24">
         <n-input-number v-model:value="settingsStore.editor.font.size" :max="65535" :min="1" />
       </n-form-item-gi>
+      <n-form-item-gi :span="24">
+        <template #label>
+          {{ $t('settings.editor.queryEngine') }}
+          <n-tooltip trigger="hover">
+            <template #trigger>
+              <n-icon :component="QuestionMarkCircleIcon" />
+            </template>
+            <div class="text-block">
+              {{ $t('settings.editor.queryEngineHelp') }}
+            </div>
+          </n-tooltip>
+        </template>
+        <n-radio-group v-model:value="settingsStore.editor.queryEngine" name="queryEngine" size="medium">
+          <n-radio-button value="builtin">
+            {{ $t('settings.editor.queryEngineBuiltin') }}
+          </n-radio-button>
+          <n-radio-button value="mongosh">
+            {{ $t('settings.editor.queryEngineMongosh') }}
+          </n-radio-button>
+        </n-radio-group>
+      </n-form-item-gi>
       <n-form-item-gi :show-feedback="false" :show-label="false" :span="24">
         <n-checkbox v-model:checked="settingsStore.editor.lineNumbers">
           {{ $t('settings.editor.showLineNumbers') }}
