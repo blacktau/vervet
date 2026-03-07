@@ -47,6 +47,7 @@ const initialText = queryTabItem.value?.initialText
 const { container: editorContainer, editor } = useMonacoEditor({
   language: 'javascript',
   value: initialText != null ? initialText : defaultQuery,
+  queryId: props.queryId,
 })
 
 const runQuery = async () => {

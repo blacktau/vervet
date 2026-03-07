@@ -1,6 +1,7 @@
 import { ref, onMounted, onBeforeUnmount, watch, shallowRef } from 'vue'
 import { useSettingsStore } from '@/features/settings/settingsStore'
 import * as monaco from 'monaco-editor'
+import { registerMongoCompletions } from './useMonacoCompletions'
 
 interface MonacoEditorOptions {
   language: string
@@ -8,12 +9,14 @@ interface MonacoEditorOptions {
   readOnly?: boolean
   fontSize?: number
   extraOptions?: monaco.editor.IStandaloneEditorConstructionOptions
+  queryId?: string
 }
 
 export function useMonacoEditor(options: MonacoEditorOptions) {
   const settingsStore = useSettingsStore()
   const container = ref<HTMLElement | null>(null)
   const editor = shallowRef<monaco.editor.IStandaloneCodeEditor | null>(null)
+  let completionDisposable: monaco.IDisposable | null = null
 
   function init() {
     if (!container.value) {
@@ -34,6 +37,10 @@ export function useMonacoEditor(options: MonacoEditorOptions) {
       readOnly: options.readOnly ?? false,
       ...options.extraOptions,
     })
+
+    if (options.queryId && options.language === 'javascript') {
+      completionDisposable = registerMongoCompletions(options.queryId)
+    }
   }
 
   watch(
@@ -50,6 +57,10 @@ export function useMonacoEditor(options: MonacoEditorOptions) {
   })
 
   onBeforeUnmount(() => {
+    if (completionDisposable) {
+      completionDisposable.dispose()
+      completionDisposable = null
+    }
     if (editor.value) {
       editor.value.dispose()
       editor.value = null
