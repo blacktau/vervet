@@ -1,7 +1,7 @@
 import { ref, onMounted, onBeforeUnmount, watch, shallowRef } from 'vue'
 import { useSettingsStore } from '@/features/settings/settingsStore'
 import * as monaco from 'monaco-editor'
-import { registerMongoCompletions } from './useMonacoCompletions'
+import { registerMongoCompletions } from '@/features/completion/useMonacoCompletions'
 
 interface MonacoEditorOptions {
   language: string
