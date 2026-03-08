@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { computed, h, reactive, ref } from 'vue'
+import { computed, h, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { DataTableColumns, DataTableRowKey } from 'naive-ui'
 import { buildTreeData } from './documentTreeUtils'
@@ -24,6 +24,12 @@ const treeData = computed(() => buildTreeData(props.documents))
 
 const expandedKeys = ref<DataTableRowKey[]>([])
 const checkedKeys = ref<DataTableRowKey[]>([])
+
+watch(treeData, (data) => {
+  if (data.length > 0) {
+    expandedKeys.value = [data[0].key]
+  }
+})
 
 // const paginationConfig = reactive({
 //   page: 1,

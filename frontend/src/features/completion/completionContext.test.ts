@@ -247,4 +247,73 @@ describe('analyzeContext', () => {
     expect(ctx.type).toBe('CURSOR_METHOD')
     expect(ctx.prefix).toBe('')
   })
+
+  it('returns UPDATE_OPERATOR for updateOne update doc with prefix start', () => {
+    const ctx = analyzeContext('db.users.updateOne({ "name": "joe" }, { $')
+    expect(ctx.type).toBe('UPDATE_OPERATOR')
+    expect(ctx.collection).toBe('users')
+    expect(ctx.prefix).toBe('$')
+  })
+
+  it('returns UPDATE_OPERATOR for updateOne in clean update doc', () => {
+    const ctx = analyzeContext('db.users.updateOne({ "name": "joe" }, {')
+    expect(ctx.type).toBe('UPDATE_OPERATOR')
+    expect(ctx.collection).toBe('users')
+    expect(ctx.prefix).toBe('')
+  })
+
+  it('returns UPDATE_OPERATOR for updateOne with partial prefix', () => {
+    const ctx = analyzeContext('db.users.updateOne({ "name": "joe" }, { $s')
+    expect(ctx.type).toBe('UPDATE_OPERATOR')
+    expect(ctx.collection).toBe('users')
+    expect(ctx.prefix).toBe('$s')
+  })
+
+  it('returns UPDATE_OPERATOR for updateMany update doc with prefix start', () => {
+    const ctx = analyzeContext(
+      'db.employees.updateMany({ "salary": { $lt: 100000 }, raiseApplied: { $ne: true } }, { $',
+    )
+    expect(ctx.type).toBe('UPDATE_OPERATOR')
+    expect(ctx.collection).toBe('employees')
+    expect(ctx.prefix).toBe('$')
+  })
+
+  it('returns UPDATE_OPERATOR for updateMany in clean update doc', () => {
+    const ctx = analyzeContext(
+      'db.employees.updateMany({ "salary": { $lt: 100000 }, raiseApplied: { $ne: true } }, {',
+    )
+    expect(ctx.type).toBe('UPDATE_OPERATOR')
+    expect(ctx.collection).toBe('employees')
+    expect(ctx.prefix).toBe('')
+  })
+
+  it('returns UPDATE_OPERATOR for updateMany with partial prefix', () => {
+    const ctx = analyzeContext('db.users.findOneAndUpdate({ "name": "joe" }, { $s')
+    expect(ctx.type).toBe('UPDATE_OPERATOR')
+    expect(ctx.collection).toBe('users')
+    expect(ctx.prefix).toBe('$s')
+  })
+
+  it('returns UPDATE_OPERATOR for findOneAndUpdate update doc with prefix start', () => {
+    const ctx = analyzeContext('db.users.findOneAndUpdate({ "name": "joe" }, { $')
+    expect(ctx.type).toBe('UPDATE_OPERATOR')
+    expect(ctx.collection).toBe('users')
+    expect(ctx.prefix).toBe('$')
+  })
+
+  it('returns UPDATE_OPERATOR for updateMany in clean update doc', () => {
+    const ctx = analyzeContext('db.users.findOneAndUpdate({ "name": "joe" }, {')
+    expect(ctx.type).toBe('UPDATE_OPERATOR')
+    expect(ctx.collection).toBe('users')
+    expect(ctx.prefix).toBe('')
+  })
+
+  it('returns UPDATE_OPERATOR for updateMany with partial prefix', () => {
+    const ctx = analyzeContext(
+      'db.employees.updateMany({ "salary": { $lt: 100000 }, raiseApplied: { $ne: true } }, { $i',
+    )
+    expect(ctx.type).toBe('UPDATE_OPERATOR')
+    expect(ctx.collection).toBe('employees')
+    expect(ctx.prefix).toBe('$i')
+  })
 })

@@ -116,7 +116,7 @@ export const useQueryStore = defineStore('query', {
         } else {
           const timestamp = new Date().toLocaleTimeString()
           state.error = result.error
-          state.messages += `--- ${timestamp} [ERROR] ---\n${result.error}\n\n`
+          state.messages += `${timestamp} [ERROR] ${result.error}\n`
           state.activeResultTab = 'messages'
         }
       } catch (e) {
@@ -124,7 +124,7 @@ export const useQueryStore = defineStore('query', {
         notifier.error(`Query execution failed: ${e}`)
         state.error = String(e)
         const timestamp = new Date().toLocaleTimeString()
-        state.messages += `--- ${timestamp} [ERROR] ---\n${String(e)}\n\n`
+        state.messages += `${timestamp} [ERROR] ${String(e)}\n`
         state.activeResultTab = 'messages'
       } finally {
         state.loading = false

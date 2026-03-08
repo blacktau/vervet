@@ -7,6 +7,7 @@ export type CompletionContextType =
   | 'QUERY_OPERATOR'
   | 'AGG_STAGE'
   | 'KEYWORD'
+  | 'UPDATE_OPERATOR'
 
 export interface CompletionContext {
   type: CompletionContextType
@@ -29,10 +30,20 @@ export function analyzeContext(textBeforeCursor: string): CompletionContext {
     }
   }
 
-  // db.collection.method({ field: { $op| }) → QUERY_OPERATOR (inside nested operator object)
-  const nestedOpMatch = trimmed.match(
-    /db\.(\w+)\.\w+\([^)]*(?:\b\w+|"[^"]*")\s*:\s*\{\s*(\$\w*)?$/,
+  // db.collection.updateOne/Many/findOneAndUpdate({  }, {  })
+  const updateMatch = trimmed.match(
+    /db\.(\w+)\.(?:updateOne|updateMany|findOneAndUpdate)\([\s\S]*,\s*\{\s*(\$\w*)?$/,
   )
+  if (updateMatch) {
+    return {
+      type: 'UPDATE_OPERATOR',
+      collection: updateMatch[1],
+      prefix: updateMatch[2] || '',
+    }
+  }
+
+  // db.collection.method({ field: { $op| }) → QUERY_OPERATOR (inside nested operator object)
+  const nestedOpMatch = trimmed.match(/db\.(\w+)\.\w+\([^)]*(?:\b\w+|"[^"]*")\s*:\s*\{\s*(\$\w*)?$/)
   if (nestedOpMatch) {
     return {
       type: 'QUERY_OPERATOR',
@@ -43,9 +54,7 @@ export function analyzeContext(textBeforeCursor: string): CompletionContext {
 
   // db.collection.method({ field: | }) → QUERY_OPERATOR
   // Also matches quoted field keys: { "field.name": | }
-  const fieldValueMatch = trimmed.match(
-    /db\.(\w+)\.\w+\(\s*\{[^}]*(?:\b\w+|"[^"]*")\s*:\s*$/,
-  )
+  const fieldValueMatch = trimmed.match(/db\.(\w+)\.\w+\(\s*\{[^}]*(?:\b\w+|"[^"]*")\s*:\s*$/)
   if (fieldValueMatch) {
     return {
       type: 'QUERY_OPERATOR',
@@ -80,9 +89,7 @@ export function analyzeContext(textBeforeCursor: string): CompletionContext {
     }
   }
 
-  const insideBracesMatch = trimmed.match(
-    /db\.(\w+)\.\w+\([^)]*\{\s*(?:[\w."':$\s,]*,\s*)?(\w*)$/,
-  )
+  const insideBracesMatch = trimmed.match(/db\.(\w+)\.\w+\([^)]*\{\s*(?:[\w."':$\s,]*,\s*)?(\w*)$/)
   if (insideBracesMatch) {
     return {
       type: 'FIELD_NAME',

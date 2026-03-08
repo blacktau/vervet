@@ -27,12 +27,6 @@ hljs.registerLanguage('vervet-log', () => ({
       begin: /^.*\[WARNING\].*$/,
       relevance: 10,
     },
-    {
-      className: 'comment',
-      begin: /^---\s/,
-      end: /---$/,
-      relevance: 5,
-    },
   ],
 }))
 

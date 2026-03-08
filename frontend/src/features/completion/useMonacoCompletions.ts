@@ -1,9 +1,15 @@
 import * as monaco from 'monaco-editor'
 import { analyzeContext } from './completionContext'
-import { mongoMethods, cursorMethods, queryOperators, aggStages } from './completionData'
+import {
+  mongoMethods,
+  cursorMethods,
+  queryOperators,
+  aggStages,
+  updateOperators,
+} from './completionData'
 import { getCollectionSchema, getCollectionNames } from './useSchemaCache'
 import { useTabStore } from '@/features/tabs/tabs'
-import { useQueryStore } from './queryStore'
+import { useQueryStore } from '@/features/queries/queryStore'
 import type { CompletionContext } from './completionContext'
 
 interface FieldInfo {
@@ -98,7 +104,10 @@ export function registerMongoCompletions(queryId: string): monaco.IDisposable {
         const lineText = model.getLineContent(position.lineNumber)
         // Find the opening quote before the cursor
         const textBeforeOnLine = lineText.substring(0, position.column - 1)
-        const lastQuote = Math.max(textBeforeOnLine.lastIndexOf('"'), textBeforeOnLine.lastIndexOf("'"))
+        const lastQuote = Math.max(
+          textBeforeOnLine.lastIndexOf('"'),
+          textBeforeOnLine.lastIndexOf("'"),
+        )
         if (lastQuote >= 0) {
           range = {
             startLineNumber: position.lineNumber,
@@ -204,6 +213,9 @@ async function getSuggestions(
           range,
         },
       ]
+
+    case 'UPDATE_OPERATOR':
+      return toCompletionItems(updateOperators, range, monaco.languages.CompletionItemKind.Operator)
 
     default:
       return []

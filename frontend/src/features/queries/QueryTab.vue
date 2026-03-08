@@ -275,6 +275,9 @@ onMounted(async () => {
   :deep(.messages-log) {
     height: 0 !important;
     flex: 1;
+    -webkit-user-select: text;
+    user-select: text;
+    cursor: text;
   }
 }
 

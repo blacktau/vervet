@@ -44,6 +44,10 @@ func wrapCapturedOp(rt *goja.Runtime, op *CapturedOp) goja.Value {
 		}
 		return obj
 	})
+	_ = obj.Set("count", func() goja.Value {
+		op.Method = "countDocuments"
+		return obj
+	})
 
 	return obj
 }

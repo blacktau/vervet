@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { watch } from 'vue'
-import { useMonacoEditor } from './useMonacoEditor'
+import { useMonacoEditor } from '@/features/queries/useMonacoEditor'
 
 const props = defineProps<{
   content: string
