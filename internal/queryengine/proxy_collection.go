@@ -3,17 +3,27 @@ package queryengine
 import "github.com/dop251/goja"
 
 var supportedMethods = map[string]bool{
-	"find":           true,
-	"findOne":        true,
-	"insertOne":      true,
-	"insertMany":     true,
-	"updateOne":      true,
-	"updateMany":     true,
-	"deleteOne":      true,
-	"deleteMany":     true,
-	"replaceOne":     true,
-	"countDocuments": true,
-	"aggregate":      true,
+	"find":                   true,
+	"findOne":                true,
+	"insertOne":              true,
+	"insertMany":             true,
+	"updateOne":              true,
+	"updateMany":             true,
+	"deleteOne":              true,
+	"deleteMany":             true,
+	"replaceOne":             true,
+	"countDocuments":         true,
+	"aggregate":              true,
+	"distinct":               true,
+	"findOneAndDelete":       true,
+	"findOneAndReplace":      true,
+	"findOneAndUpdate":       true,
+	"estimatedDocumentCount": true,
+	"bulkWrite":              true,
+	"drop":                   true,
+	"createIndex":            true,
+	"dropIndex":              true,
+	"listIndexes":            true,
 }
 
 // cursorMethods are chainable methods that modify the CapturedOp (limit, skip, sort).

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+
 	"vervet/internal/models"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -38,6 +39,8 @@ func dispatch(ctx context.Context, client *mongo.Client, dbName string, op Captu
 		return dispatchCountDocuments(ctx, coll, op)
 	case "aggregate":
 		return dispatchAggregate(ctx, coll, op)
+	case "distinct":
+		return dispatchDistinct(ctx, coll, op)
 	default:
 		return models.QueryResult{}, fmt.Errorf("unsupported operation '%s'. Switch to mongosh engine in settings for full shell compatibility", op.Method)
 	}
@@ -257,6 +260,31 @@ func dispatchAggregate(ctx context.Context, coll *mongo.Collection, op CapturedO
 	}
 
 	return docsToResult(results), nil
+}
+
+func dispatchDistinct(ctx context.Context, coll *mongo.Collection, op CapturedOp) (models.QueryResult, error) {
+	if len(op.Args) < 1 {
+		return models.QueryResult{}, fmt.Errorf("distinct requires a field argument")
+	}
+
+	field, ok := op.Args[0].(string)
+	if !ok {
+		return models.QueryResult{}, fmt.Errorf("distinct field must be a string")
+	}
+
+	filter := bson.D{}
+	if len(op.Args) > 1 && op.Args[1] != nil {
+		filter = toBsonDoc(op.Args[1])
+	}
+
+	results, err := coll.Distinct(ctx, field, filter)
+	if err != nil {
+		return models.QueryResult{}, fmt.Errorf("distinct failed: %w", err)
+	}
+
+	return singleToResult(map[string]any{
+		"values": results,
+	}), nil
 }
 
 // toBsonDoc converts a map[string]any (from goja) to a bson.D, preserving key order.
