@@ -120,10 +120,19 @@ export const cursorMethods = [
   { label: 'limit', detail: '(n) - Limit number of results' },
   { label: 'skip', detail: '(n) - Skip first n results' },
   { label: 'sort', detail: '(sortSpec) - Sort results, e.g. { field: 1 }' },
-  { label: 'toArray', detail: '() - convert to array' },
-  { label: 'count', detail: '() - count the results' },
-  { label: 'forEach', detail: '(fn) - iterate with a callback' },
-  { label: 'pretty', detail: '() - pretty print the output' },
+  { label: 'toArray', detail: '() - Convert cursor to array' },
+  { label: 'count', detail: '() - Count the results' },
+  { label: 'forEach', detail: '(fn) - Iterate with a callback' },
+  { label: 'pretty', detail: '() - Pretty print the output' },
+  { label: 'explain', detail: '(verbosity?) - Show query execution plan' },
+  { label: 'hint', detail: '(index) - Force a specific index' },
+  { label: 'batchSize', detail: '(n) - Set cursor batch size' },
+  { label: 'maxTimeMS', detail: '(ms) - Set max execution time' },
+  { label: 'collation', detail: '(spec) - Set collation rules' },
+  { label: 'comment', detail: '(str) - Add a comment to the query' },
+  { label: 'map', detail: '(fn) - Transform each document' },
+  { label: 'hasNext', detail: '() - Check if cursor has more documents' },
+  { label: 'next', detail: '() - Get next document from cursor' },
 ]
 
 export const aggStages = [

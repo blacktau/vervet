@@ -1,6 +1,7 @@
 package queryengine
 
 import (
+	"context"
 	"testing"
 
 	"github.com/dop251/goja"
@@ -8,286 +9,148 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupRuntime(t *testing.T) *goja.Runtime {
+// setupRuntime creates a Goja runtime with a database proxy.
+// Uses nil client — only suitable for tests that don't execute queries.
+func setupRuntime(t *testing.T) (*goja.Runtime, *execContext) {
 	t.Helper()
 	rt := goja.New()
-	db := newDatabaseProxy(rt, "testdb")
+	ec := &execContext{ctx: context.Background(), client: nil, dbName: "testdb", rt: rt}
+	db := newDatabaseProxy(ec)
 	err := rt.Set("db", db)
 	require.NoError(t, err)
-	return rt
-}
-
-// extractOp extracts a *CapturedOp from a goja value, handling both
-// direct *CapturedOp and wrapped objects with __capturedOp.
-func extractOp(t *testing.T, rt *goja.Runtime, val goja.Value) *CapturedOp {
-	t.Helper()
-	op := extractCapturedOp(rt, val)
-	require.NotNil(t, op, "expected CapturedOp, got %T", val.Export())
-	return op
+	return rt, ec
 }
 
 func TestDatabaseProxy_CollectionAccess_ReturnsNonNil(t *testing.T) {
-	rt := setupRuntime(t)
-
+	rt, _ := setupRuntime(t)
 	val, err := rt.RunString(`db.users`)
 	require.NoError(t, err)
-	assert.NotNil(t, val.Export(), "db.users should return a non-nil value")
+	assert.NotNil(t, val.Export())
 }
 
 func TestDatabaseProxy_GetName_ReturnsDatabaseName(t *testing.T) {
-	rt := setupRuntime(t)
-
+	rt, _ := setupRuntime(t)
 	val, err := rt.RunString(`db.getName()`)
 	require.NoError(t, err)
 	assert.Equal(t, "testdb", val.Export())
 }
 
-func TestDatabaseProxy_GetCollection_ReturnsCollectionProxy(t *testing.T) {
-	rt := setupRuntime(t)
-
-	val, err := rt.RunString(`db.getCollection('movies').find({})`)
+func TestDatabaseProxy_GetCollection_ReturnsProxy(t *testing.T) {
+	rt, _ := setupRuntime(t)
+	val, err := rt.RunString(`typeof db.getCollection('movies').find`)
 	require.NoError(t, err)
-
-	op := extractOp(t, rt, val)
-	assert.Equal(t, "movies", op.Collection)
-	assert.Equal(t, "find", op.Method)
+	assert.Equal(t, "function", val.Export())
 }
 
-func TestCollectionProxy_Find_CapturesOp(t *testing.T) {
-	rt := setupRuntime(t)
-
-	val, err := rt.RunString(`db.users.find({ name: "alice" })`)
+func TestCollectionProxy_Find_ReturnsCursor(t *testing.T) {
+	rt, _ := setupRuntime(t)
+	val, err := rt.RunString(`
+		const cursor = db.users.find({ name: "alice" });
+		typeof cursor.limit === 'function' &&
+		typeof cursor.skip === 'function' &&
+		typeof cursor.sort === 'function' &&
+		typeof cursor.toArray === 'function' &&
+		typeof cursor.forEach === 'function' &&
+		typeof cursor.count === 'function'
+	`)
 	require.NoError(t, err)
-
-	op := extractOp(t, rt, val)
-	assert.Equal(t, "users", op.Collection)
-	assert.Equal(t, "find", op.Method)
-	assert.Len(t, op.Args, 1)
-
-	filter, ok := op.Args[0].(map[string]any)
-	require.True(t, ok, "expected map[string]any, got %T", op.Args[0])
-	assert.Equal(t, "alice", filter["name"])
+	assert.Equal(t, true, val.Export())
 }
 
-func TestCollectionProxy_Find_WithProjection_CapturesTwoArgs(t *testing.T) {
-	rt := setupRuntime(t)
-
-	val, err := rt.RunString(`db.users.find({ age: { $gt: 21 } }, { name: 1, email: 1 })`)
+func TestCollectionProxy_Find_CursorChaining(t *testing.T) {
+	rt, _ := setupRuntime(t)
+	val, err := rt.RunString(`
+		const cursor = db.users.find({}).limit(10).skip(5).sort({ name: 1 });
+		typeof cursor.toArray === 'function'
+	`)
 	require.NoError(t, err)
-
-	op := extractOp(t, rt, val)
-	assert.Equal(t, "users", op.Collection)
-	assert.Equal(t, "find", op.Method)
-	assert.Len(t, op.Args, 2)
-
-	filter, ok := op.Args[0].(map[string]any)
-	require.True(t, ok)
-	ageFilter, ok := filter["age"].(map[string]any)
-	require.True(t, ok, "filter.age should be a map")
-	assert.Equal(t, int64(21), ageFilter["$gt"])
-
-	projection, ok := op.Args[1].(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, int64(1), projection["name"])
-	assert.Equal(t, int64(1), projection["email"])
+	assert.Equal(t, true, val.Export())
 }
 
-func TestCollectionProxy_Find_WithLimit_CapturesModifier(t *testing.T) {
-	rt := setupRuntime(t)
-
-	val, err := rt.RunString(`db.users.find({}).limit(10)`)
+func TestCollectionProxy_Find_CursorHasLazyCursor(t *testing.T) {
+	rt, _ := setupRuntime(t)
+	val, err := rt.RunString(`db.users.find({})`)
 	require.NoError(t, err)
-
-	op := extractOp(t, rt, val)
-	assert.Equal(t, "users", op.Collection)
-	assert.Equal(t, "find", op.Method)
-	assert.Equal(t, int64(10), op.Limit)
+	cursor := extractLazyCursor(val)
+	require.NotNil(t, cursor)
+	assert.False(t, cursor.resolved)
+	assert.Equal(t, "users", cursor.collection)
 }
 
-func TestCollectionProxy_Find_WithChainedModifiers(t *testing.T) {
-	rt := setupRuntime(t)
-
-	val, err := rt.RunString(`db.users.find({}).sort({ name: 1 }).skip(5).limit(10)`)
+func TestCollectionProxy_Find_CursorChainingUpdatesState(t *testing.T) {
+	rt, _ := setupRuntime(t)
+	val, err := rt.RunString(`db.users.find({ age: 25 }).limit(10).skip(5)`)
 	require.NoError(t, err)
-
-	op := extractOp(t, rt, val)
-	assert.Equal(t, "users", op.Collection)
-	assert.Equal(t, "find", op.Method)
-	assert.Equal(t, int64(10), op.Limit)
-	assert.Equal(t, int64(5), op.Skip)
-
-	sort, ok := op.Sort.(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, int64(1), sort["name"])
+	cursor := extractLazyCursor(val)
+	require.NotNil(t, cursor)
+	assert.Equal(t, int64(10), cursor.limit)
+	assert.Equal(t, int64(5), cursor.skip)
 }
 
-func TestCollectionProxy_FindOne_CapturesOp(t *testing.T) {
-	rt := setupRuntime(t)
-
-	val, err := rt.RunString(`db.users.findOne({ _id: "abc123" })`)
+func TestCollectionProxy_FindOne_ReturnsCursorWithFindOneFlag(t *testing.T) {
+	rt, _ := setupRuntime(t)
+	val, err := rt.RunString(`db.users.findOne({ name: "alice" })`)
 	require.NoError(t, err)
-
-	op := extractOp(t, rt, val)
-	assert.Equal(t, "users", op.Collection)
-	assert.Equal(t, "findOne", op.Method)
+	cursor := extractLazyCursor(val)
+	require.NotNil(t, cursor)
+	assert.True(t, cursor.isFindOne)
 }
 
-func TestCollectionProxy_InsertOne_CapturesOp(t *testing.T) {
-	rt := setupRuntime(t)
-
-	val, err := rt.RunString(`db.users.insertOne({ name: "bob", age: 30 })`)
-	require.NoError(t, err)
-
-	op := extractOp(t, rt, val)
-	assert.Equal(t, "users", op.Collection)
-	assert.Equal(t, "insertOne", op.Method)
-	assert.Len(t, op.Args, 1)
-
-	doc, ok := op.Args[0].(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, "bob", doc["name"])
-	assert.Equal(t, int64(30), doc["age"])
+func TestCollectionProxy_EagerMethods_Exist(t *testing.T) {
+	rt, _ := setupRuntime(t)
+	methods := []string{
+		"insertOne", "insertMany", "updateOne", "updateMany",
+		"deleteOne", "deleteMany", "replaceOne", "countDocuments",
+		"aggregate", "distinct", "drop", "createIndex", "listIndexes",
+	}
+	for _, m := range methods {
+		val, err := rt.RunString(`typeof db.users.` + m)
+		require.NoError(t, err, "method %s", m)
+		assert.Equal(t, "function", val.Export(), "method %s should be a function", m)
+	}
 }
 
-func TestCollectionProxy_Aggregate_CapturesOp(t *testing.T) {
-	rt := setupRuntime(t)
-
-	val, err := rt.RunString(`db.orders.aggregate([{ $match: { status: "A" } }])`)
-	require.NoError(t, err)
-
-	op := extractOp(t, rt, val)
-	assert.Equal(t, "orders", op.Collection)
-	assert.Equal(t, "aggregate", op.Method)
-	assert.Len(t, op.Args, 1)
-
-	pipeline, ok := op.Args[0].([]any)
-	require.True(t, ok, "expected []any for pipeline, got %T", op.Args[0])
-	assert.Len(t, pipeline, 1)
+func TestCollectionProxy_EagerMethod_PanicsWithoutClient(t *testing.T) {
+	rt, _ := setupRuntime(t)
+	// With nil client, eager methods should panic (caught by Goja as exception)
+	_, err := rt.RunString(`db.users.insertOne({ name: "bob" })`)
+	assert.Error(t, err, "insertOne with nil client should error")
 }
 
-func TestCollectionProxy_DeleteOne_CapturesOp(t *testing.T) {
-	rt := setupRuntime(t)
-
-	val, err := rt.RunString(`db.users.deleteOne({ name: "alice" })`)
-	require.NoError(t, err)
-
-	op := extractOp(t, rt, val)
-	assert.Equal(t, "users", op.Collection)
-	assert.Equal(t, "deleteOne", op.Method)
-}
-
-func TestCollectionProxy_UpdateOne_CapturesOp(t *testing.T) {
-	rt := setupRuntime(t)
-
-	val, err := rt.RunString(`db.users.updateOne({ name: "alice" }, { $set: { age: 31 } })`)
-	require.NoError(t, err)
-
-	op := extractOp(t, rt, val)
-	assert.Equal(t, "users", op.Collection)
-	assert.Equal(t, "updateOne", op.Method)
-	assert.Len(t, op.Args, 2)
-}
-
-func TestCollectionProxy_CountDocuments_CapturesOp(t *testing.T) {
-	rt := setupRuntime(t)
-
-	val, err := rt.RunString(`db.users.countDocuments({ active: true })`)
-	require.NoError(t, err)
-
-	op := extractOp(t, rt, val)
-	assert.Equal(t, "users", op.Collection)
-	assert.Equal(t, "countDocuments", op.Method)
-}
-
-func TestMultiStatement_VariableThenQuery_CapturesOp(t *testing.T) {
-	rt := setupRuntime(t)
-
-	val, err := rt.RunString(`const filter = { status: "active" }; db.users.find(filter)`)
-	require.NoError(t, err)
-
-	op := extractOp(t, rt, val)
-	assert.Equal(t, "users", op.Collection)
-	assert.Equal(t, "find", op.Method)
-	assert.Len(t, op.Args, 1)
-
-	filter, ok := op.Args[0].(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, "active", filter["status"])
-}
-
-func TestPlainExpression_ReturnsValue_NotCapturedOp(t *testing.T) {
-	rt := setupRuntime(t)
-
+func TestPlainExpression_ReturnsValue(t *testing.T) {
+	rt, _ := setupRuntime(t)
 	val, err := rt.RunString(`const x = 42; x`)
 	require.NoError(t, err)
-
-	op := extractCapturedOp(rt, val)
-	assert.Nil(t, op, "plain expression should not be a CapturedOp")
+	cursor := extractLazyCursor(val)
+	assert.Nil(t, cursor, "plain expression should not be a cursor")
 	assert.Equal(t, int64(42), val.Export())
 }
 
 func TestPrint_CapturesOutput(t *testing.T) {
 	rt := goja.New()
-	db := newDatabaseProxy(rt, "testdb")
-	err := rt.Set("db", db)
-	require.NoError(t, err)
+	ec := &execContext{ctx: context.Background(), client: nil, dbName: "testdb", rt: rt}
+	db := newDatabaseProxy(ec)
+	_ = rt.Set("db", db)
 
 	var printed []string
-	err = rt.Set("print", func(call goja.FunctionCall) goja.Value {
+	_ = rt.Set("print", func(call goja.FunctionCall) goja.Value {
 		for _, arg := range call.Arguments {
 			printed = append(printed, arg.String())
 		}
 		return goja.Undefined()
 	})
-	require.NoError(t, err)
 
-	_, err = rt.RunString(`print("hello")`)
+	_, err := rt.RunString(`print("hello")`)
 	require.NoError(t, err)
-
 	require.Len(t, printed, 1)
 	assert.Equal(t, "hello", printed[0])
 }
 
-func TestDifferentCollections_CaptureCorrectName(t *testing.T) {
-	rt := setupRuntime(t)
-
-	val, err := rt.RunString(`db.products.find({})`)
+func TestMultiStatement_VariableThenCursor(t *testing.T) {
+	rt, _ := setupRuntime(t)
+	val, err := rt.RunString(`const filter = { status: "active" }; db.users.find(filter)`)
 	require.NoError(t, err)
-
-	op := extractOp(t, rt, val)
-	assert.Equal(t, "products", op.Collection)
-
-	val, err = rt.RunString(`db.orders.findOne({ orderId: 123 })`)
-	require.NoError(t, err)
-
-	op = extractOp(t, rt, val)
-	assert.Equal(t, "orders", op.Collection)
-}
-
-func TestCollectionProxy_InsertMany_CapturesOp(t *testing.T) {
-	rt := setupRuntime(t)
-
-	val, err := rt.RunString(`db.users.insertMany([{ name: "a" }, { name: "b" }])`)
-	require.NoError(t, err)
-
-	op := extractOp(t, rt, val)
-	assert.Equal(t, "users", op.Collection)
-	assert.Equal(t, "insertMany", op.Method)
-	assert.Len(t, op.Args, 1)
-
-	docs, ok := op.Args[0].([]any)
-	require.True(t, ok)
-	assert.Len(t, docs, 2)
-}
-
-func TestCollectionProxy_ReplaceOne_CapturesOp(t *testing.T) {
-	rt := setupRuntime(t)
-
-	val, err := rt.RunString(`db.users.replaceOne({ name: "alice" }, { name: "alice", age: 32 })`)
-	require.NoError(t, err)
-
-	op := extractOp(t, rt, val)
-	assert.Equal(t, "users", op.Collection)
-	assert.Equal(t, "replaceOne", op.Method)
-	assert.Len(t, op.Args, 2)
+	cursor := extractLazyCursor(val)
+	require.NotNil(t, cursor)
+	assert.Equal(t, "users", cursor.collection)
 }

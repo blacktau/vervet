@@ -11,8 +11,8 @@ import (
 )
 
 // GojaEngine implements QueryEngine using the goja JavaScript runtime.
-// It creates proxy objects for db/collection access that capture operations
-// as CapturedOp values, then dispatches them to the real MongoDB driver.
+// Write methods execute eagerly during script execution. find/findOne return
+// lazy cursors that execute on terminal method calls or implicit resolve.
 type GojaEngine struct {
 	client *mongo.Client
 }
@@ -23,8 +23,9 @@ func NewGojaEngine(client *mongo.Client) *GojaEngine {
 
 func (e *GojaEngine) ExecuteQuery(ctx context.Context, uri, dbName, query string) (models.QueryResult, error) {
 	rt := goja.New()
+	ec := &execContext{ctx: ctx, client: e.client, dbName: dbName, rt: rt}
 
-	db := newDatabaseProxy(rt, dbName)
+	db := newDatabaseProxy(ec)
 	if err := rt.Set("db", db); err != nil {
 		return models.QueryResult{}, fmt.Errorf("failed to set db global: %w", err)
 	}
@@ -39,51 +40,40 @@ func (e *GojaEngine) ExecuteQuery(ctx context.Context, uri, dbName, query string
 		return models.QueryResult{}, fmt.Errorf("failed to set print function: %w", err)
 	}
 
-	val, err := rt.RunString(query)
-	if err != nil {
-		return models.QueryResult{}, fmt.Errorf("script error: %w", err)
-	}
-
-	op := extractCapturedOp(rt, val)
-	if op != nil {
-		if e.client == nil {
-			return models.QueryResult{}, fmt.Errorf("no MongoDB client available")
-		}
-		return dispatch(ctx, e.client, dbName, *op)
-	}
-
-	if len(printed) > 0 {
-		return models.QueryResult{RawOutput: strings.Join(printed, "\n")}, nil
-	}
-
-	raw := val.Export()
-	if raw != nil {
-		return models.QueryResult{RawOutput: fmt.Sprintf("%v", raw)}, nil
-	}
-
-	return models.QueryResult{}, nil
-}
-
-// extractCapturedOp attempts to retrieve a *CapturedOp from a goja value.
-// It checks both direct *CapturedOp values and wrapped objects with __capturedOp.
-func extractCapturedOp(rt *goja.Runtime, val goja.Value) *CapturedOp {
-	if val == nil || goja.IsUndefined(val) || goja.IsNull(val) {
-		return nil
-	}
-
-	exported := val.Export()
-	if op, ok := exported.(*CapturedOp); ok {
-		return op
-	}
-
-	if obj, ok := val.(*goja.Object); ok {
-		inner := obj.Get("__capturedOp")
-		if inner != nil && !goja.IsUndefined(inner) {
-			if op, ok := inner.Export().(*CapturedOp); ok {
-				return op
+	var result models.QueryResult
+	err := func() (retErr error) {
+		defer func() {
+			if r := recover(); r != nil {
+				if gojaErr, ok := r.(*goja.Exception); ok {
+					retErr = fmt.Errorf("script error: %s", gojaErr.Value().String())
+				} else {
+					panic(r)
+				}
 			}
-		}
-	}
+		}()
 
-	return nil
+		val, err := rt.RunString(query)
+		if err != nil {
+			return fmt.Errorf("script error: %w", err)
+		}
+
+		// Check if return value is an unresolved lazy cursor
+		if cursor := extractLazyCursor(val); cursor != nil && !cursor.resolved {
+			result, retErr = cursor.execute()
+			return
+		}
+
+		if len(printed) > 0 {
+			result = models.QueryResult{RawOutput: strings.Join(printed, "\n")}
+			return
+		}
+
+		raw := val.Export()
+		if raw != nil {
+			result = models.QueryResult{RawOutput: fmt.Sprintf("%v", raw)}
+		}
+		return
+	}()
+
+	return result, err
 }

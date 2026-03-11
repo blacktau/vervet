@@ -1,86 +1,77 @@
 package queryengine
 
-import "github.com/dop251/goja"
+import (
+	"fmt"
 
-var supportedMethods = map[string]bool{
-	"find":                   true,
-	"findOne":                true,
-	"insertOne":              true,
-	"insertMany":             true,
-	"updateOne":              true,
-	"updateMany":             true,
-	"deleteOne":              true,
-	"deleteMany":             true,
-	"replaceOne":             true,
-	"countDocuments":         true,
-	"aggregate":              true,
-	"distinct":               true,
-	"findOneAndDelete":       true,
-	"findOneAndReplace":      true,
-	"findOneAndUpdate":       true,
-	"estimatedDocumentCount": true,
-	"bulkWrite":              true,
-	"drop":                   true,
-	"createIndex":            true,
-	"dropIndex":              true,
-	"listIndexes":            true,
+	"github.com/dop251/goja"
+)
+
+// eagerMethods are methods that execute immediately and return real results.
+var eagerMethods = []string{
+	"insertOne", "insertMany",
+	"updateOne", "updateMany",
+	"deleteOne", "deleteMany",
+	"replaceOne",
+	"countDocuments", "aggregate", "distinct",
+	"findOneAndDelete", "findOneAndReplace", "findOneAndUpdate",
+	"estimatedDocumentCount", "bulkWrite", "drop",
+	"createIndex", "createIndexes", "dropIndex", "dropIndexes", "listIndexes",
 }
 
-// cursorMethods are chainable methods that modify the CapturedOp (limit, skip, sort).
-var cursorMethods = map[string]bool{
-	"limit": true,
-	"skip":  true,
-	"sort":  true,
-}
+// newCollectionProxy creates a Goja object with methods for each supported
+// MongoDB operation. Write methods execute eagerly via dispatch(). find/findOne
+// return a lazyCursor for deferred execution.
+func newCollectionProxy(ec *execContext, collName string) goja.Value {
+	obj := ec.rt.NewObject()
 
-// wrapCapturedOp wraps a CapturedOp in a goja object that supports cursor
-// modifier chaining (limit, skip, sort). The underlying CapturedOp is stored
-// in a hidden __capturedOp property for retrieval during dispatch.
-func wrapCapturedOp(rt *goja.Runtime, op *CapturedOp) goja.Value {
-	obj := rt.NewObject()
-	_ = obj.Set("__capturedOp", op)
-
-	_ = obj.Set("limit", func(n int64) goja.Value {
-		op.Limit = n
-		return obj
-	})
-	_ = obj.Set("skip", func(n int64) goja.Value {
-		op.Skip = n
-		return obj
-	})
-	_ = obj.Set("sort", func(call goja.FunctionCall) goja.Value {
-		if len(call.Arguments) > 0 {
-			op.Sort = call.Arguments[0].Export()
+	// find — returns lazyCursor
+	_ = obj.Set("find", func(call goja.FunctionCall) goja.Value {
+		args := exportArgs(call)
+		cursor := &lazyCursor{
+			ec:         ec,
+			collection: collName,
 		}
-		return obj
+		if len(args) > 0 {
+			cursor.filter = args[0]
+		}
+		if len(args) > 1 {
+			cursor.projection = args[1]
+		}
+		return cursor.toGojaObject()
 	})
-	_ = obj.Set("count", func() goja.Value {
-		op.Method = "countDocuments"
-		return obj
+
+	// findOne — returns lazyCursor with isFindOne flag
+	_ = obj.Set("findOne", func(call goja.FunctionCall) goja.Value {
+		args := exportArgs(call)
+		cursor := &lazyCursor{
+			ec:         ec,
+			collection: collName,
+			isFindOne:  true,
+		}
+		if len(args) > 0 {
+			cursor.filter = args[0]
+		}
+		return cursor.toGojaObject()
 	})
 
-	return obj
-}
-
-// newCollectionProxy creates a goja object with methods for each supported
-// MongoDB operation. Each method captures its arguments into a CapturedOp
-// rather than executing immediately.
-func newCollectionProxy(rt *goja.Runtime, collName string) goja.Value {
-	obj := rt.NewObject()
-
-	for method := range supportedMethods {
+	// Eager methods — execute immediately, return real results
+	for _, method := range eagerMethods {
 		m := method
 		_ = obj.Set(m, func(call goja.FunctionCall) goja.Value {
-			args := make([]any, len(call.Arguments))
-			for i, arg := range call.Arguments {
-				args[i] = arg.Export()
+			if ec.client == nil {
+				panic(ec.rt.NewGoError(fmt.Errorf("no MongoDB client available")))
 			}
-			op := &CapturedOp{
+			args := exportArgs(call)
+			op := CapturedOp{
 				Collection: collName,
 				Method:     m,
 				Args:       args,
 			}
-			return wrapCapturedOp(rt, op)
+			result, err := dispatch(ec.ctx, ec.client, ec.dbName, op)
+			if err != nil {
+				panic(ec.rt.NewGoError(err))
+			}
+			return toGojaValue(ec.rt, result)
 		})
 	}
 
