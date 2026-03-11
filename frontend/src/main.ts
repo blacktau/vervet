@@ -16,6 +16,25 @@ import '@/utils/logging'
 dayjs.extend(duration)
 dayjs.extend(relativeTime)
 
+// Workaround for WebKit2GTK on Linux: Ctrl+V is intercepted by GTK
+// before reaching the webview. We read from the clipboard API and
+// use execCommand to insert the text, which correctly replaces any selection.
+function initClipboardWorkaround() {
+  document.addEventListener('keydown', async (e) => {
+    if (e.key === 'v' && (e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) {
+      try {
+        const text = await navigator.clipboard.readText()
+        if (text) {
+          document.execCommand('insertText', false, text)
+          e.preventDefault()
+        }
+      } catch {
+        // Clipboard API not available or denied
+      }
+    }
+  })
+}
+
 async function initApp() {
   const app = createApp(App)
   app.use(i18n)
@@ -24,6 +43,7 @@ async function initApp() {
   await loadEnvironment()
   initMonaco()
   initCharts()
+  initClipboardWorkaround()
 
   await initDiscreteApi()
   app.config.errorHandler = (err) => {

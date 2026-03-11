@@ -34,6 +34,7 @@ export const useSettingsStore = defineStore('settings', {
           size: 14,
         },
         showLineNumbers: true,
+        queryEngine: 'builtin',
       },
       terminal: {
         font: {

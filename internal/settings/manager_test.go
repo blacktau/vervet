@@ -117,6 +117,19 @@ func Test_SettingsManager_SetSettings(t *testing.T) {
 	})
 }
 
+func Test_SettingsManager_DefaultQueryEngine(t *testing.T) {
+	t.Run("default query engine is builtin", func(t *testing.T) {
+		m := newTestManager(nil, nil)
+		c, err := m.GetSettings()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if c.Editor.QueryEngine != "builtin" {
+			t.Errorf("expected default query engine 'builtin', got '%s'", c.Editor.QueryEngine)
+		}
+	})
+}
+
 func Test_SettingsManager_RestoreSettings(t *testing.T) {
 	t.Run("restores default configuration", func(t *testing.T) {
 		store := &storeStub{
@@ -183,7 +196,8 @@ func expectedSettings() models.Settings {
 			Font: models.FontSettings{
 				Size: settings.DefaultFontSize,
 			},
-			LineNumbers: true,
+			LineNumbers:  true,
+			QueryEngine: "builtin",
 		},
 		Terminal: models.TerminalSettings{
 			Font: models.FontSettings{

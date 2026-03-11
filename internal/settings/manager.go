@@ -286,7 +286,8 @@ func defaultSettings() models.Settings {
 			Font: models.FontSettings{
 				Size: DefaultFontSize,
 			},
-			LineNumbers: true,
+			LineNumbers:  true,
+			QueryEngine: "builtin",
 		},
 		Terminal: models.TerminalSettings{
 			Font: models.FontSettings{

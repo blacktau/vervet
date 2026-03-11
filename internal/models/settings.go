@@ -40,6 +40,7 @@ type EditorSettings struct {
 	ShowFolding bool         `json:"showFolding" yaml:"showFolding"`
 	DropText    bool         `json:"dropText" yaml:"dropText"`
 	Links       bool         `json:"links" yaml:"links"`
+	QueryEngine string       `json:"queryEngine" yaml:"queryEngine"`
 }
 
 type TerminalSettings struct {

@@ -26,6 +26,10 @@ export function ExecuteQuery(arg1, arg2, arg3) {
   return window['go']['api']['ConnectionsProxy']['ExecuteQuery'](arg1, arg2, arg3);
 }
 
+export function GetCollectionSchema(arg1, arg2, arg3) {
+  return window['go']['api']['ConnectionsProxy']['GetCollectionSchema'](arg1, arg2, arg3);
+}
+
 export function GetCollections(arg1, arg2) {
   return window['go']['api']['ConnectionsProxy']['GetCollections'](arg1, arg2);
 }

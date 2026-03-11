@@ -2,12 +2,20 @@ import { defineStore } from 'pinia'
 import * as connectionsProxy from 'wailsjs/go/api/ConnectionsProxy'
 import { useTabStore } from '@/features/tabs/tabs'
 import { useNotifier } from '@/utils/dialog'
+import { useSettingsStore } from '@/features/settings/settingsStore'
+import { i18nGlobal } from '@/i18n'
 
 interface QueryState {
   loading: boolean
-  result: string
+  documents: unknown[]
+  rawJson: string
+  rawOutput: string
   error: string
   selectedDatabase: string
+  messages: string
+  activeResultTab: string
+  resultView: 'table' | 'json'
+  selectedDocIndex: number
 }
 
 interface QueryStoreState {
@@ -18,9 +26,15 @@ interface QueryStoreState {
 function createQueryState(database: string): QueryState {
   return {
     loading: false,
-    result: '',
+    documents: [],
+    rawJson: '',
+    rawOutput: '',
     error: '',
     selectedDatabase: database,
+    messages: '',
+    activeResultTab: 'results',
+    resultView: 'table',
+    selectedDocIndex: 0,
   }
 }
 
@@ -66,18 +80,22 @@ export const useQueryStore = defineStore('query', {
       const state = this.getQueryState(queryId)
 
       if (!state.selectedDatabase) {
-        state.error = 'No database selected'
+        state.error = i18nGlobal.t('query.noDatabaseSelected')
         return
       }
 
-      if (this.mongoshAvailable === false) {
-        state.error = 'mongosh is not installed or not in PATH'
+      const settingsStore = useSettingsStore()
+      if (settingsStore.editor.queryEngine === 'mongosh' && this.mongoshAvailable === false) {
+        state.error = i18nGlobal.t('query.mongoshNotFound')
         return
       }
 
       state.loading = true
-      state.result = ''
+      state.documents = []
+      state.rawJson = ''
+      state.rawOutput = ''
       state.error = ''
+      state.selectedDocIndex = 0
 
       try {
         const result = await connectionsProxy.ExecuteQuery(
@@ -87,14 +105,27 @@ export const useQueryStore = defineStore('query', {
         )
 
         if (result.isSuccess) {
-          state.result = result.data
+          const data = result.data
+          if (data.documents && data.documents.length > 0) {
+            state.documents = data.documents
+            state.rawJson = JSON.stringify(data.documents, null, 2)
+          } else if (data.rawOutput) {
+            state.rawOutput = data.rawOutput
+          }
+          state.activeResultTab = 'results'
         } else {
+          const timestamp = new Date().toLocaleTimeString()
           state.error = result.error
+          state.messages += `${timestamp} [ERROR] ${result.error}\n`
+          state.activeResultTab = 'messages'
         }
       } catch (e) {
         const notifier = useNotifier()
         notifier.error(`Query execution failed: ${e}`)
         state.error = String(e)
+        const timestamp = new Date().toLocaleTimeString()
+        state.messages += `${timestamp} [ERROR] ${String(e)}\n`
+        state.activeResultTab = 'messages'
       } finally {
         state.loading = false
       }
@@ -110,7 +141,7 @@ export const useQueryStore = defineStore('query', {
       await connectionsProxy.CancelQuery(serverId)
       const state = this.getQueryState(queryId)
       state.loading = false
-      state.error = 'Query cancelled'
+      state.error = i18nGlobal.t('query.queryCancelled')
     },
   },
 })
