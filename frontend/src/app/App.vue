@@ -13,6 +13,22 @@ import ServerDialog from '@/features/server-pane/ServerDialog.vue'
 import SettingsDialog from '@/features/settings/SettingsDialog.vue'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 import { DialogType, useDialogStore } from '@/stores/dialog.ts'
+import hljs from 'highlight.js/lib/core'
+
+hljs.registerLanguage('vervet-log', () => ({
+  contains: [
+    {
+      className: 'deletion',
+      begin: /^.*\[ERROR\].*$/,
+      relevance: 10,
+    },
+    {
+      className: 'emphasis',
+      begin: /^.*\[WARNING\].*$/,
+      relevance: 10,
+    },
+  ],
+}))
 
 const settingsStore = useSettingsStore()
 const serverStore = useServerStore()
@@ -68,6 +84,7 @@ watch(
   <n-config-provider
     :inline-theme-disabled="true"
     :locale="locale"
+    :hljs="hljs"
     :theme="settingsStore.isDark ? darkTheme : undefined"
     :theme-overrides="settingsStore.isDark ? darkThemeOverrides : themeOverrides"
     class="fill-height">
@@ -81,4 +98,17 @@ watch(
   </n-config-provider>
 </template>
 
-<style lang="scss"></style>
+<style lang="scss">
+.hljs-deletion {
+  color: #e06c75;
+}
+
+.hljs-emphasis {
+  color: #e5c07b;
+  font-style: normal;
+}
+
+.hljs-comment {
+  color: #7f848e;
+}
+</style>

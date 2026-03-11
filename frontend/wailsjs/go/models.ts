@@ -49,9 +49,19 @@ export namespace api {
 	    data: OperatingSystem;
 	    error: string;
 	}
+	export interface Result_vervet_internal_models_CollectionSchema_ {
+	    isSuccess: boolean;
+	    data: models.CollectionSchema;
+	    error: string;
+	}
 	export interface Result_vervet_internal_models_Connection_ {
 	    isSuccess: boolean;
 	    data: models.Connection;
+	    error: string;
+	}
+	export interface Result_vervet_internal_models_QueryResult_ {
+	    isSuccess: boolean;
+	    data: models.QueryResult;
 	    error: string;
 	}
 	export interface Result_vervet_internal_models_RegisteredServer_ {
@@ -74,6 +84,14 @@ export namespace api {
 
 export namespace models {
 	
+	export interface FieldInfo {
+	    path: string;
+	    types: string[];
+	    children: FieldInfo[];
+	}
+	export interface CollectionSchema {
+	    fields: FieldInfo[];
+	}
 	export interface Connection {
 	    serverID?: string;
 	    name?: string;
@@ -89,7 +107,9 @@ export namespace models {
 	    showFolding: boolean;
 	    dropText: boolean;
 	    links: boolean;
+	    queryEngine: string;
 	}
+	
 	export interface Font {
 	    family?: string;
 	    isFixedWidth?: boolean;
@@ -99,6 +119,10 @@ export namespace models {
 	    theme: string;
 	    language: string;
 	    font: FontSettings;
+	}
+	export interface QueryResult {
+	    documents: any[];
+	    rawOutput: string;
 	}
 	export interface RegisteredServer {
 	    id: string;

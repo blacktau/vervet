@@ -12,6 +12,7 @@ import (
 	"vervet/internal/connectionStrings"
 	"vervet/internal/logging"
 	"vervet/internal/models"
+	"vervet/internal/queryengine"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"go.mongodb.org/mongo-driver/event"
@@ -292,6 +293,14 @@ func (cm *ConnectionManager) GetViews(serverID string, dbName string) ([]string,
 	}
 	slices.Sort(names)
 	return names, nil
+}
+
+func (cm *ConnectionManager) GetCollectionSchema(serverID, dbName, collName string) (models.CollectionSchema, error) {
+	connection, err := cm.getClient(serverID)
+	if err != nil {
+		return models.CollectionSchema{}, err
+	}
+	return queryengine.SampleSchema(cm.ctx, connection.client, dbName, collName)
 }
 
 func cleanConnectionString(uri string) string {

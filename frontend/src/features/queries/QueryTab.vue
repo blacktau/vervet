@@ -1,12 +1,14 @@
 <script lang="ts" setup>
-import { useSettingsStore } from '@/features/settings/settingsStore'
 import { useQueryStore } from '@/features/queries/queryStore'
 import { useTabStore } from '@/features/tabs/tabs'
+import { useMonacoEditor } from './useMonacoEditor'
 import VerticalResizeableWrapper from '@/features/common/VerticalResizeableWrapper.vue'
+import DocumentTreeTable from '@/features/results-document-tree/DocumentTreeTable.vue'
+import JsonResultView from '@/features/results-json-view/JsonResultView.vue'
 import { NButton, NIcon, NSpace, NSpin } from 'naive-ui'
 import { PlayIcon, StopIcon } from '@heroicons/vue/24/solid'
-import { ref, onMounted, onBeforeUnmount, watch, shallowRef, computed } from 'vue'
-import * as monaco from 'monaco-editor'
+import { TableCellsIcon, CodeBracketIcon } from '@heroicons/vue/24/outline'
+import { ref, onMounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 const props = defineProps<{
@@ -14,13 +16,10 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
-const settingsStore = useSettingsStore()
 const queryStore = useQueryStore()
 const tabStore = useTabStore()
 
-const editorContainer = ref<HTMLElement | null>(null)
 const queryContentRef = ref<HTMLElement | null>(null)
-const editor = shallowRef<monaco.editor.IStandaloneCodeEditor | null>(null)
 const editorHeight = ref(300)
 
 const defaultQuery = `// MongoDB Query
@@ -41,29 +40,15 @@ const resizeOffset = computed(() => {
   return queryContentRef.value?.getBoundingClientRect().top ?? 0
 })
 
-const initMonaco = () => {
-  if (!editorContainer.value) {
-    return
-  }
+const hasDocuments = computed(() => queryState.value.documents.length > 0)
+const hasRawOutput = computed(() => queryState.value.rawOutput !== '')
 
-  const isDark = settingsStore.isDark
-
-  const initialText = queryTabItem.value?.initialText
-  const editorValue = initialText != null ? initialText : defaultQuery
-
-  editor.value = monaco.editor.create(editorContainer.value, {
-    value: editorValue,
-    language: 'javascript',
-    theme: isDark ? 'vervet-dark' : 'vervet-light',
-    automaticLayout: true,
-    minimap: { enabled: false },
-    fontSize: 14,
-    lineNumbers: 'on',
-    scrollBeyondLastLine: false,
-    wordWrap: 'on',
-    padding: { top: 8 },
-  })
-}
+const initialText = queryTabItem.value?.initialText
+const { container: editorContainer, editor } = useMonacoEditor({
+  language: 'javascript',
+  value: initialText != null ? initialText : defaultQuery,
+  queryId: props.queryId,
+})
 
 const runQuery = async () => {
   if (!editor.value) {
@@ -77,35 +62,18 @@ const cancelQuery = () => {
   queryStore.cancelQuery(props.queryId)
 }
 
-watch(
-  () => settingsStore.isDark,
-  (newVal) => {
-    if (editor.value) {
-      monaco.editor.setTheme(newVal ? 'vervet-dark' : 'vervet-light')
-    }
-  },
-)
+function setResultView(view: 'table' | 'json') {
+  queryState.value.resultView = view
+}
 
 onMounted(async () => {
   const item = queryTabItem.value
   if (item) {
     queryStore.initQueryState(props.queryId, item.database)
-  }
-
-  initMonaco()
-
-  // Clear initialText after use
-  if (item) {
     item.initialText = undefined
   }
 
   await queryStore.checkMongosh()
-})
-
-onBeforeUnmount(() => {
-  if (editor.value) {
-    editor.value.dispose()
-  }
 })
 </script>
 
@@ -150,14 +118,64 @@ onBeforeUnmount(() => {
         </div>
       </vertical-resizeable-wrapper>
       <div class="results-pane">
-        <div class="results-header">
-          {{ t('query.results') }}
-          <n-spin v-if="queryState.loading" :size="12" style="margin-left: 8px" />
-        </div>
-        <pre v-if="queryState.error" class="results-content results-error">{{
-          queryState.error
-        }}</pre>
-        <pre v-else class="results-content">{{ queryState.result }}</pre>
+        <n-tabs
+          v-model:value="queryState.activeResultTab"
+          type="line"
+          size="small"
+          :animated="false"
+          pane-style="display: flex; flex-direction: column; flex: 1; min-height: 0;"
+        >
+          <template #suffix>
+            <n-space v-if="hasDocuments" :size="2" style="margin-right: 8px">
+              <n-button
+                size="tiny"
+                :type="queryState.resultView === 'table' ? 'primary' : 'default'"
+                quaternary
+                :title="t('query.tableView')"
+                @click="setResultView('table')"
+              >
+                <template #icon>
+                  <n-icon :component="TableCellsIcon" />
+                </template>
+              </n-button>
+              <n-button
+                size="tiny"
+                :type="queryState.resultView === 'json' ? 'primary' : 'default'"
+                quaternary
+                :title="t('query.jsonView')"
+                @click="setResultView('json')"
+              >
+                <template #icon>
+                  <n-icon :component="CodeBracketIcon" />
+                </template>
+              </n-button>
+            </n-space>
+          </template>
+          <n-tab-pane name="results" :tab="t('query.results')">
+            <n-spin v-if="queryState.loading" :size="12" style="margin: 8px" />
+            <pre v-else-if="queryState.error" class="results-content results-error">{{
+              queryState.error
+            }}</pre>
+            <template v-else-if="hasDocuments">
+              <div v-if="queryState.resultView === 'table'" class="structured-results">
+                <document-tree-table :documents="queryState.documents" />
+              </div>
+              <div v-else class="json-results">
+                <json-result-view :content="queryState.rawJson" />
+              </div>
+            </template>
+            <pre v-else-if="hasRawOutput" class="results-content">{{ queryState.rawOutput }}</pre>
+          </n-tab-pane>
+          <n-tab-pane name="messages" :tab="t('query.messages')">
+            <n-log
+              class="messages-log"
+              :log="queryState.messages"
+              :font-size="13"
+              language="vervet-log"
+              trim
+            />
+          </n-tab-pane>
+        </n-tabs>
       </div>
     </div>
   </div>
@@ -167,7 +185,8 @@ onBeforeUnmount(() => {
 .query-tab {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
   padding: 8px;
   gap: 8px;
 }
@@ -207,20 +226,32 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   flex: 1;
-  min-height: 100px;
-  background-color: var(--n-color);
-  border: 1px solid var(--n-border-color);
-  border-radius: 4px;
+  min-height: 0;
+  overflow: hidden;
 
-  .results-header {
+  :deep(.n-tabs) {
+    flex: 1;
+    min-height: 0;
     display: flex;
-    align-items: center;
-    padding: 4px 8px;
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--n-text-color-3);
-    border-bottom: 1px solid var(--n-border-color);
+    flex-direction: column;
+  }
+
+  :deep(.n-tabs .n-tabs-nav) {
     flex-shrink: 0;
+  }
+
+  :deep(.n-tabs .n-tab-pane) {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  :deep(.n-tabs .n-tabs-pane-wrapper) {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
   }
 
   .results-content {
@@ -240,5 +271,27 @@ onBeforeUnmount(() => {
   .results-error {
     color: var(--n-error-color);
   }
+
+  :deep(.messages-log) {
+    height: 0 !important;
+    flex: 1;
+    -webkit-user-select: text;
+    user-select: text;
+    cursor: text;
+  }
+}
+
+.structured-results {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.json-results {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 </style>

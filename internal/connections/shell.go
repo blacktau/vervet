@@ -8,25 +8,34 @@ import (
 	"sync"
 	"time"
 	"vervet/internal/logging"
+	"vervet/internal/models"
+	"vervet/internal/queryengine"
 	"vervet/internal/shell"
 )
+
+// SettingsProvider allows ShellManager to read app settings without depending on the full settings package.
+type SettingsProvider interface {
+	GetSettings() (models.Settings, error)
+}
 
 // ShellManager executes mongosh queries against connected servers.
 // Each query spawns a one-shot mongosh process (no persistent subprocess).
 type ShellManager struct {
-	mu      sync.Mutex
-	ctx     context.Context
-	log     *slog.Logger
-	cm      *ConnectionManager
-	cancels map[string]context.CancelFunc // serverID -> cancel for in-flight query
-	cfg     shell.Config
+	mu       sync.Mutex
+	ctx      context.Context
+	log      *slog.Logger
+	cm       *ConnectionManager
+	cancels  map[string]context.CancelFunc // serverID -> cancel for in-flight query
+	cfg      shell.Config
+	settings SettingsProvider
 }
 
-func NewShellManager(log *slog.Logger, cm *ConnectionManager) *ShellManager {
+func NewShellManager(log *slog.Logger, cm *ConnectionManager, settings SettingsProvider) *ShellManager {
 	return &ShellManager{
-		log:     log.With(slog.String(logging.SourceKey, "ShellManager")),
-		cm:      cm,
-		cancels: make(map[string]context.CancelFunc),
+		log:      log.With(slog.String(logging.SourceKey, "ShellManager")),
+		cm:       cm,
+		cancels:  make(map[string]context.CancelFunc),
+		settings: settings,
 		cfg: shell.Config{
 			Timeout: 30 * time.Second,
 		},
@@ -38,16 +47,11 @@ func (sm *ShellManager) Init(ctx context.Context) {
 	sm.ctx = ctx
 }
 
-// ExecuteQuery runs a mongosh query against the given server and database.
+// ExecuteQuery runs a query against the given server and database.
 // Only one query per server runs at a time; a new call cancels any in-flight query.
-func (sm *ShellManager) ExecuteQuery(serverID, dbName, query string) (string, error) {
+// The engine (built-in goja or mongosh) is selected based on the user's settings.
+func (sm *ShellManager) ExecuteQuery(serverID, dbName, query string) (models.QueryResult, error) {
 	sm.log.Debug("Executing query", slog.String("serverID", serverID), slog.String("dbName", dbName))
-
-	uri, err := sm.getURI(serverID, dbName)
-	if err != nil {
-		sm.log.Error("Failed to get URI for query", slog.String("serverID", serverID), slog.Any("error", err))
-		return "", err
-	}
 
 	// Cancel any in-flight query for this server
 	sm.mu.Lock()
@@ -66,13 +70,44 @@ func (sm *ShellManager) ExecuteQuery(serverID, dbName, query string) (string, er
 		sm.mu.Unlock()
 	}()
 
-	result, err := shell.Execute(queryCtx, uri, query, sm.cfg)
+	cfg, _ := sm.settings.GetSettings()
+	if cfg.Editor.QueryEngine == "builtin" {
+		return sm.executeWithGoja(queryCtx, serverID, dbName, query)
+	}
+	return sm.executeWithMongosh(queryCtx, serverID, dbName, query)
+}
+
+func (sm *ShellManager) executeWithGoja(ctx context.Context, serverID, dbName, query string) (models.QueryResult, error) {
+	ac, err := sm.cm.getClient(serverID)
 	if err != nil {
-		sm.log.Error("Query execution failed", slog.String("serverID", serverID), slog.String("dbName", dbName), slog.Any("error", err))
-		return "", err
+		return models.QueryResult{}, fmt.Errorf("no active connection: %w", err)
 	}
 
-	sm.log.Debug("Query executed successfully", slog.String("serverID", serverID), slog.String("dbName", dbName))
+	engine := queryengine.NewGojaEngine(ac.client)
+	result, err := engine.ExecuteQuery(ctx, "", dbName, query)
+	if err != nil {
+		sm.log.Error("Goja query failed", slog.String("serverID", serverID), slog.Any("error", err))
+		return models.QueryResult{}, err
+	}
+
+	sm.log.Debug("Query executed successfully (builtin)", slog.String("serverID", serverID))
+	return result, nil
+}
+
+func (sm *ShellManager) executeWithMongosh(ctx context.Context, serverID, dbName, query string) (models.QueryResult, error) {
+	uri, err := sm.getURI(serverID, dbName)
+	if err != nil {
+		sm.log.Error("Failed to get URI for query", slog.String("serverID", serverID), slog.Any("error", err))
+		return models.QueryResult{}, err
+	}
+
+	result, err := shell.Execute(ctx, uri, query, sm.cfg)
+	if err != nil {
+		sm.log.Error("Query execution failed", slog.String("serverID", serverID), slog.Any("error", err))
+		return models.QueryResult{}, err
+	}
+
+	sm.log.Debug("Query executed successfully (mongosh)", slog.String("serverID", serverID))
 	return result, nil
 }
 

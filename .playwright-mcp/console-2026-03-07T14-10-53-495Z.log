@@ -1,0 +1,1 @@
+[       6ms] [WARNING] WebSocket connection to 'ws://localhost:34115/wails/ipc' failed: WebSocket is closed before the connection is established. @ http://localhost:34115/wails/ipc.js:6

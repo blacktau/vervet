@@ -93,6 +93,7 @@ const handleMouseOver = () => {
     position: absolute;
     left: 0;
     right: 0;
+    background-color: v-bind('themeVars.dividerColor');
     transition: background-color 0.3s ease-in;
     z-index: 1;
   }

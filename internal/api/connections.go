@@ -22,10 +22,11 @@ type ConnectionsProvider interface {
 	GetDatabases(serverID string) ([]string, error)
 	GetCollections(serverID string, dbName string) ([]string, error)
 	GetViews(serverID string, dbName string) ([]string, error)
+	GetCollectionSchema(serverID string, dbName string, collectionName string) (models.CollectionSchema, error)
 }
 
 type ShellProvider interface {
-	ExecuteQuery(serverID, dbName, query string) (string, error)
+	ExecuteQuery(serverID, dbName, query string) (models.QueryResult, error)
 	CancelQuery(serverID string)
 	CheckMongosh() bool
 	CloseAll()
@@ -117,16 +118,16 @@ func (cp *ConnectionsProxy) GetCollections(serverID string, dbName string) Resul
 	}
 }
 
-func (cp *ConnectionsProxy) ExecuteQuery(serverID string, dbName string, query string) Result[string] {
+func (cp *ConnectionsProxy) ExecuteQuery(serverID string, dbName string, query string) Result[models.QueryResult] {
 	result, err := cp.shellMgr.ExecuteQuery(serverID, dbName, query)
 	if err != nil {
-		return Result[string]{
+		return Result[models.QueryResult]{
 			IsSuccess: false,
 			Error:     fmt.Sprintf("Query execution failed: %v", err),
 		}
 	}
 
-	return Result[string]{
+	return Result[models.QueryResult]{
 		IsSuccess: true,
 		Data:      result,
 	}
@@ -141,6 +142,21 @@ func (cp *ConnectionsProxy) CheckMongosh() Result[bool] {
 	return Result[bool]{
 		IsSuccess: true,
 		Data:      cp.shellMgr.CheckMongosh(),
+	}
+}
+
+func (cp *ConnectionsProxy) GetCollectionSchema(serverID string, dbName string, collectionName string) Result[models.CollectionSchema] {
+	result, err := cp.provider.GetCollectionSchema(serverID, dbName, collectionName)
+	if err != nil {
+		return Result[models.CollectionSchema]{
+			IsSuccess: false,
+			Error:     err.Error(),
+		}
+	}
+
+	return Result[models.CollectionSchema]{
+		IsSuccess: true,
+		Data:      result,
 	}
 }
 
