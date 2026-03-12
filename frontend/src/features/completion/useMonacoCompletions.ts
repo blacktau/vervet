@@ -6,6 +6,7 @@ import {
   queryOperators,
   aggStages,
   updateOperators,
+  aggExpressions,
 } from './completionData'
 import { getCollectionSchema, getCollectionNames } from './useSchemaCache'
 import { useTabStore } from '@/features/tabs/tabs'
@@ -180,11 +181,16 @@ async function getSuggestions(
         }))
 
     case 'CURSOR_METHOD':
-      return toCompletionItems(
-        cursorMethods.filter((m) => m.label.startsWith(ctx.prefix)),
-        range,
-        monaco.languages.CompletionItemKind.Method,
-      )
+      return cursorMethods
+        .filter((m) => m.label.startsWith(ctx.prefix))
+        .map((m) => ({
+          label: m.label,
+          kind: monaco.languages.CompletionItemKind.Method,
+          detail: m.detail,
+          insertText: m.snippet,
+          insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+          range,
+        }))
 
     case 'FIELD_NAME': {
       if (!serverId || !dbName || !ctx.collection) {
@@ -202,6 +208,9 @@ async function getSuggestions(
 
     case 'AGG_STAGE':
       return toCompletionItems(aggStages, range, monaco.languages.CompletionItemKind.Keyword)
+
+    case 'AGG_EXPRESSION':
+      return toCompletionItems(aggExpressions, range, monaco.languages.CompletionItemKind.Function)
 
     case 'KEYWORD':
       return [

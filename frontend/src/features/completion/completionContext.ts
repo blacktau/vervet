@@ -8,6 +8,7 @@ export type CompletionContextType =
   | 'AGG_STAGE'
   | 'KEYWORD'
   | 'UPDATE_OPERATOR'
+  | 'AGG_EXPRESSION'
 
 export interface CompletionContext {
   type: CompletionContextType
@@ -39,6 +40,21 @@ export function analyzeContext(textBeforeCursor: string): CompletionContext {
       type: 'UPDATE_OPERATOR',
       collection: updateMatch[1],
       prefix: updateMatch[2] || '',
+    }
+  }
+
+  // Inside an aggregate stage's value object: { $group: { total: { $sum| or { $project: { x: { $
+  // Must be checked before QUERY_OPERATOR since those regexes would also match inside aggregate.
+  // The key insight: we need at least two nested { after .aggregate( — one for the stage, one for the field value.
+  // We match the last { that isn't closed, and check for a $ prefix there.
+  const aggExpressionMatch = trimmed.match(
+    /db\.(\w+)\.aggregate\([\s\S]*\$\w+\s*:\s*\{[^}]*\{\s*(\$\w*)?$/,
+  )
+  if (aggExpressionMatch) {
+    return {
+      type: 'AGG_EXPRESSION',
+      collection: aggExpressionMatch[1],
+      prefix: aggExpressionMatch[2] || '',
     }
   }
 

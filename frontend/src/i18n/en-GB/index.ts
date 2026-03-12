@@ -130,6 +130,8 @@ export default {
       document: 'Document',
       string: 'String',
       boolean: 'Boolean',
+      minKey: 'MinKey',
+      maxKey: 'MaxKey',
     },
   },
   serverPane: {
