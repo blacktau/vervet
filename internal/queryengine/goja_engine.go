@@ -25,6 +25,10 @@ func (e *GojaEngine) ExecuteQuery(ctx context.Context, uri, dbName, query string
 	rt := goja.New()
 	ec := &execContext{ctx: ctx, client: e.client, dbName: dbName, rt: rt}
 
+	if err := registerBSONTypes(rt); err != nil {
+		return models.QueryResult{}, err
+	}
+
 	db := newDatabaseProxy(ec)
 	if err := rt.Set("db", db); err != nil {
 		return models.QueryResult{}, fmt.Errorf("failed to set db global: %w", err)

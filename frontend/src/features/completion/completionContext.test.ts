@@ -316,4 +316,63 @@ describe('analyzeContext', () => {
     expect(ctx.collection).toBe('employees')
     expect(ctx.prefix).toBe('$i')
   })
+
+  // Aggregation expression tests
+  it('returns AGG_EXPRESSION inside $group value with $ prefix', () => {
+    const ctx = analyzeContext('db.orders.aggregate([{ $group: { total: { $')
+    expect(ctx.type).toBe('AGG_EXPRESSION')
+    expect(ctx.collection).toBe('orders')
+    expect(ctx.prefix).toBe('$')
+  })
+
+  it('returns AGG_EXPRESSION inside $group value with partial prefix', () => {
+    const ctx = analyzeContext('db.orders.aggregate([{ $group: { total: { $su')
+    expect(ctx.type).toBe('AGG_EXPRESSION')
+    expect(ctx.collection).toBe('orders')
+    expect(ctx.prefix).toBe('$su')
+  })
+
+  it('returns AGG_EXPRESSION inside $project value', () => {
+    const ctx = analyzeContext('db.users.aggregate([{ $project: { fullName: { $')
+    expect(ctx.type).toBe('AGG_EXPRESSION')
+    expect(ctx.collection).toBe('users')
+    expect(ctx.prefix).toBe('$')
+  })
+
+  it('returns AGG_EXPRESSION inside $addFields value', () => {
+    const ctx = analyzeContext('db.users.aggregate([{ $addFields: { age: { $')
+    expect(ctx.type).toBe('AGG_EXPRESSION')
+    expect(ctx.collection).toBe('users')
+    expect(ctx.prefix).toBe('$')
+  })
+
+  it('returns AGG_EXPRESSION with empty prefix after opening brace', () => {
+    const ctx = analyzeContext('db.orders.aggregate([{ $group: { total: { ')
+    expect(ctx.type).toBe('AGG_EXPRESSION')
+    expect(ctx.collection).toBe('orders')
+    expect(ctx.prefix).toBe('')
+  })
+
+  it('returns AGG_EXPRESSION in multi-line aggregate', () => {
+    const ctx = analyzeContext(
+      'db.orders.aggregate([\n  { $group: {\n    _id: "$status",\n    total: { $',
+    )
+    expect(ctx.type).toBe('AGG_EXPRESSION')
+    expect(ctx.collection).toBe('orders')
+    expect(ctx.prefix).toBe('$')
+  })
+
+  it('returns AGG_STAGE not AGG_EXPRESSION at pipeline level', () => {
+    const ctx = analyzeContext('db.orders.aggregate([ ')
+    expect(ctx.type).toBe('AGG_STAGE')
+  })
+
+  it('returns AGG_EXPRESSION after previous stage in pipeline', () => {
+    const ctx = analyzeContext(
+      'db.orders.aggregate([{ $match: { status: "A" } }, { $group: { count: { $',
+    )
+    expect(ctx.type).toBe('AGG_EXPRESSION')
+    expect(ctx.collection).toBe('orders')
+    expect(ctx.prefix).toBe('$')
+  })
 })

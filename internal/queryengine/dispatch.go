@@ -631,10 +631,18 @@ func toBsonDoc(v any) bson.D {
 }
 
 // convertToBson recursively converts Go values from goja into BSON-compatible types.
-// Maps become bson.D and slices become bson.A.
+// Maps become bson.D and slices become bson.A. Maps with a __bsonValue key are
+// unwrapped to their original BSON primitive (ObjectID, DateTime, etc.).
 func convertToBson(v any) any {
 	switch val := v.(type) {
 	case map[string]any:
+		// Check for wrapped BSON values (from registerBSONTypes)
+		if bsonVal, ok := val["__bsonValue"]; ok {
+			if w, ok := bsonVal.(*bsonWrapper); ok {
+				return w.Value
+			}
+			return bsonVal
+		}
 		doc := make(bson.D, 0, len(val))
 		for k, item := range val {
 			doc = append(doc, bson.E{Key: k, Value: convertToBson(item)})
@@ -652,7 +660,8 @@ func convertToBson(v any) any {
 }
 
 // docsToResult converts bson.M documents into a clean QueryResult by round-tripping
-// through JSON to eliminate BSON-specific types (e.g. primitive.ObjectID).
+// through relaxed Extended JSON. This preserves BSON type information (e.g. $oid,
+// $date, $numberLong) so the frontend can display types correctly.
 func docsToResult(docs []bson.M) models.QueryResult {
 	if len(docs) == 0 {
 		return models.QueryResult{Documents: []any{}}
@@ -660,7 +669,7 @@ func docsToResult(docs []bson.M) models.QueryResult {
 
 	cleaned := make([]any, 0, len(docs))
 	for _, doc := range docs {
-		b, err := json.Marshal(doc)
+		b, err := bson.MarshalExtJSON(doc, false, false)
 		if err != nil {
 			cleaned = append(cleaned, doc)
 			continue
@@ -677,10 +686,15 @@ func docsToResult(docs []bson.M) models.QueryResult {
 }
 
 // singleToResult wraps a single value as the sole document in a QueryResult.
+// Uses relaxed Extended JSON to preserve BSON type info (e.g. insertedId as $oid).
 func singleToResult(v any) models.QueryResult {
-	b, err := json.Marshal(v)
+	b, err := bson.MarshalExtJSON(v, false, false)
 	if err != nil {
-		return models.QueryResult{Documents: []any{v}}
+		// Fall back to regular JSON for non-BSON types (e.g. plain maps)
+		b, err = json.Marshal(v)
+		if err != nil {
+			return models.QueryResult{Documents: []any{v}}
+		}
 	}
 	var m any
 	if err := json.Unmarshal(b, &m); err != nil {

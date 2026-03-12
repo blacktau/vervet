@@ -8,6 +8,11 @@ export const typeColorMap: Record<string, string> = {
   null: '#808080',
   objectId: '#dcdcaa',
   date: '#c586c0',
+  binary: '#808080',
+  regex: '#ce9178',
+  timestamp: '#b5cea8',
+  minKey: '#808080',
+  maxKey: '#808080',
   document: 'var(--n-td-text-color)',
   array: 'var(--n-td-text-color)',
 }

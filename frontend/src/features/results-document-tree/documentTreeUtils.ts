@@ -11,6 +11,8 @@ const bsonKeyLookup: Record<string, string> = {
   $binary: 'binary',
   $regex: 'regex',
   $timestamp: 'timestamp',
+  $minKey: 'minKey',
+  $maxKey: 'maxKey',
 }
 
 const primitiveTypeLookup: Record<string, string> = {
@@ -80,6 +82,12 @@ export function getDisplayValue(val: unknown): string {
     if ('$timestamp' in obj) {
       const ts = obj.$timestamp as Record<string, unknown>
       return i18nGlobal.t('query.timestampValue', { t: ts.t, i: ts.i })
+    }
+    if ('$minKey' in obj) {
+      return 'MinKey'
+    }
+    if ('$maxKey' in obj) {
+      return 'MaxKey'
     }
     const keys = Object.keys(obj)
     return i18nGlobal.t('query.objectFields', { count: keys.length })
