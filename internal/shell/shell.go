@@ -51,10 +51,15 @@ func wrapQuery(query string) string {
 const __result = (() => { %s })();
 const __val = (typeof __result?.toArray === 'function') ? __result.toArray() : __result;
 try {
-  const __json = JSON.stringify(__val);
+  const __json = EJSON.stringify(__val, {relaxed: false});
   print(__json);
 } catch(_e) {
-  print(String(__val));
+  try {
+    const __json2 = JSON.stringify(__val);
+    print(__json2);
+  } catch(_e2) {
+    print(String(__val));
+  }
 }
 `, body)
 }

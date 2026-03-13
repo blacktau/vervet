@@ -10,9 +10,27 @@ const bsonKeyLookup: Record<string, string> = {
   $numberDouble: 'double',
   $binary: 'binary',
   $regex: 'regex',
+  $regularExpression: 'regex',
   $timestamp: 'timestamp',
   $minKey: 'minKey',
   $maxKey: 'maxKey',
+}
+
+const BINARY_SUBTYPE_UUID_LEGACY = '03'
+const BINARY_SUBTYPE_UUID = '04'
+const BINARY_SUBTYPE_MD5 = '05'
+
+function base64ToHex(b64: string): string {
+  const raw = atob(b64)
+  return Array.from(raw, (ch) => ch.charCodeAt(0).toString(16).padStart(2, '0')).join('')
+}
+
+function hexToUUID(hex: string): string {
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`
+}
+
+function base64ToUUID(b64: string): string {
+  return hexToUUID(base64ToHex(b64))
 }
 
 const primitiveTypeLookup: Record<string, string> = {
@@ -30,10 +48,19 @@ export function getTypeKey(val: unknown): string {
   if (typeof val === 'object') {
     for (const bsonKey in bsonKeyLookup) {
       if (bsonKey in val) {
+        if (bsonKey === '$binary') {
+          const binary = (val as Record<string, unknown>).$binary as Record<string, unknown>
+          if (binary?.subType === BINARY_SUBTYPE_UUID || binary?.subType === BINARY_SUBTYPE_UUID_LEGACY) {
+            return binary.subType === BINARY_SUBTYPE_UUID ? 'uuid' : 'uuidLegacy'
+          }
+          if (binary?.subType === BINARY_SUBTYPE_MD5) {
+            return 'md5'
+          }
+        }
         return bsonKeyLookup[bsonKey]
       }
     }
-    return 'document'
+    return 'object'
   }
   if (typeof val === 'number') {
     return Number.isInteger(val) ? 'int32' : 'double'
@@ -58,7 +85,12 @@ export function getDisplayValue(val: unknown): string {
       return String(obj.$oid)
     }
     if ('$date' in obj) {
-      return String(obj.$date)
+      const dateVal = obj.$date
+      if (typeof dateVal === 'object' && dateVal !== null && '$numberLong' in dateVal) {
+        const ms = Number((dateVal as Record<string, unknown>).$numberLong)
+        return new Date(ms).toISOString()
+      }
+      return String(dateVal)
     }
     if ('$numberDecimal' in obj) {
       return String(obj.$numberDecimal)
@@ -74,7 +106,19 @@ export function getDisplayValue(val: unknown): string {
     }
     if ('$binary' in obj) {
       const binary = obj.$binary as Record<string, unknown>
+      if (typeof binary?.base64 === 'string') {
+        if (binary.subType === BINARY_SUBTYPE_UUID || binary.subType === BINARY_SUBTYPE_UUID_LEGACY) {
+          return base64ToUUID(binary.base64)
+        }
+        if (binary.subType === BINARY_SUBTYPE_MD5) {
+          return base64ToHex(binary.base64)
+        }
+      }
       return i18nGlobal.t('query.binaryValue', { subType: binary.subType })
+    }
+    if ('$regularExpression' in obj) {
+      const re = obj.$regularExpression as Record<string, unknown>
+      return `/${re.pattern}/${re.options || ''}`
     }
     if ('$regex' in obj) {
       return `/${obj.$regex}/${obj.$options || ''}`
@@ -107,7 +151,7 @@ export function getDocLabel(doc: unknown, index: number): string {
   if (id !== undefined) {
     const idStr = typeof id === 'object' && id !== null && '$oid' in id
       ? (id as Record<string, unknown>).$oid
-      : String(id)
+      : getDisplayValue(id)
     return `(${index + 1}) {_id: ${idStr}}`
   }
   return `(${index + 1})`
@@ -154,7 +198,7 @@ function buildChildRows(
   return entries.map(([key, val]) => {
     const nodeKey = prefix ? `${prefix}.${key}` : key
     const typeKey = getTypeKey(val)
-    const hasChildren = typeKey === 'document' || typeKey === 'array'
+    const hasChildren = typeKey === 'document' || typeKey === 'object' || typeKey === 'array'
 
     const children =
       hasChildren && typeof val === 'object' && val !== null

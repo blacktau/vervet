@@ -660,8 +660,9 @@ func convertToBson(v any) any {
 }
 
 // docsToResult converts bson.M documents into a clean QueryResult by round-tripping
-// through relaxed Extended JSON. This preserves BSON type information (e.g. $oid,
-// $date, $numberLong) so the frontend can display types correctly.
+// through canonical Extended JSON. Canonical mode preserves all BSON type information
+// (e.g. $numberInt, $numberLong, $numberDouble, $date, $regularExpression) so the
+// frontend can display types correctly.
 func docsToResult(docs []bson.M) models.QueryResult {
 	if len(docs) == 0 {
 		return models.QueryResult{Documents: []any{}}
@@ -669,7 +670,7 @@ func docsToResult(docs []bson.M) models.QueryResult {
 
 	cleaned := make([]any, 0, len(docs))
 	for _, doc := range docs {
-		b, err := bson.MarshalExtJSON(doc, false, false)
+		b, err := bson.MarshalExtJSON(doc, true, false)
 		if err != nil {
 			cleaned = append(cleaned, doc)
 			continue
@@ -686,9 +687,9 @@ func docsToResult(docs []bson.M) models.QueryResult {
 }
 
 // singleToResult wraps a single value as the sole document in a QueryResult.
-// Uses relaxed Extended JSON to preserve BSON type info (e.g. insertedId as $oid).
+// Uses canonical Extended JSON to preserve BSON type info (e.g. insertedId as $oid).
 func singleToResult(v any) models.QueryResult {
-	b, err := bson.MarshalExtJSON(v, false, false)
+	b, err := bson.MarshalExtJSON(v, true, false)
 	if err != nil {
 		// Fall back to regular JSON for non-BSON types (e.g. plain maps)
 		b, err = json.Marshal(v)
