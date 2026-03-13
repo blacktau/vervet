@@ -31,3 +31,6 @@ build/bin
 /settings.db
 
 *.md
+.memelord
+config
+test-results
