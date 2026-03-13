@@ -47,6 +47,16 @@ function handleContextMenuSelect(key: string) {
     dialogStore.openAddDatabaseDialog(serverId)
   }
 
+  if (key === 'addCollection' && node.type === DataNodeType.Folder) {
+    const nodeKey = node.key as string
+    const parts = nodeKey.split(':')
+    const serverId = parts[0]
+    const dbName = parts[1]
+    if (serverId && dbName && parts[2] === 'Collections') {
+      dialogStore.openAddCollectionDialog(serverId, dbName)
+    }
+  }
+
   if (key === 'openQuery') {
     const nodeKey = node.key as string
     const parts = nodeKey.split(':')

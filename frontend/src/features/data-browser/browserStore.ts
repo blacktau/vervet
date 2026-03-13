@@ -410,6 +410,24 @@ export const useDataBrowserStore = defineStore('browser', {
       }
       return undefined
     },
+    async refreshDatabaseCollections(serverId: string, dbName: string) {
+      const state = this.serverTreeStates[serverId]
+      if (!state) {
+        return
+      }
+
+      const dbKey = `${serverId}:${dbName}`
+      // Remove the database key from loadedKeys so expandDatabase re-fetches
+      state.loadedKeys = state.loadedKeys.filter((k) => k !== dbKey)
+
+      // Find the database node and re-expand it
+      const dbNode = this.findNode(state.treeData, dbKey)
+      if (dbNode) {
+        await this.expandDatabase(serverId, dbNode)
+        // Trigger reactivity
+        state.treeData = [...state.treeData]
+      }
+    },
     async refreshServerDatabases(serverId: string) {
       const state = this.serverTreeStates[serverId]
       if (!state) {
