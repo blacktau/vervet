@@ -15,6 +15,23 @@ const bsonKeyLookup: Record<string, string> = {
   $maxKey: 'maxKey',
 }
 
+const BINARY_SUBTYPE_UUID_LEGACY = '03'
+const BINARY_SUBTYPE_UUID = '04'
+const BINARY_SUBTYPE_MD5 = '05'
+
+function base64ToHex(b64: string): string {
+  const raw = atob(b64)
+  return Array.from(raw, (ch) => ch.charCodeAt(0).toString(16).padStart(2, '0')).join('')
+}
+
+function hexToUUID(hex: string): string {
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`
+}
+
+function base64ToUUID(b64: string): string {
+  return hexToUUID(base64ToHex(b64))
+}
+
 const primitiveTypeLookup: Record<string, string> = {
   string: 'string',
   boolean: 'boolean',
@@ -30,6 +47,15 @@ export function getTypeKey(val: unknown): string {
   if (typeof val === 'object') {
     for (const bsonKey in bsonKeyLookup) {
       if (bsonKey in val) {
+        if (bsonKey === '$binary') {
+          const binary = (val as Record<string, unknown>).$binary as Record<string, unknown>
+          if (binary?.subType === BINARY_SUBTYPE_UUID || binary?.subType === BINARY_SUBTYPE_UUID_LEGACY) {
+            return binary.subType === BINARY_SUBTYPE_UUID ? 'uuid' : 'uuidLegacy'
+          }
+          if (binary?.subType === BINARY_SUBTYPE_MD5) {
+            return 'md5'
+          }
+        }
         return bsonKeyLookup[bsonKey]
       }
     }
@@ -74,6 +100,14 @@ export function getDisplayValue(val: unknown): string {
     }
     if ('$binary' in obj) {
       const binary = obj.$binary as Record<string, unknown>
+      if (typeof binary?.base64 === 'string') {
+        if (binary.subType === BINARY_SUBTYPE_UUID || binary.subType === BINARY_SUBTYPE_UUID_LEGACY) {
+          return base64ToUUID(binary.base64)
+        }
+        if (binary.subType === BINARY_SUBTYPE_MD5) {
+          return base64ToHex(binary.base64)
+        }
+      }
       return i18nGlobal.t('query.binaryValue', { subType: binary.subType })
     }
     if ('$regex' in obj) {
