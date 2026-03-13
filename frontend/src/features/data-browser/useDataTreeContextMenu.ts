@@ -58,12 +58,20 @@ export function useDataTreeContextMenu() {
     },
   ])
 
-  const folderMenuOptions = computed<ContextMenuOption[]>(() => [
+  const collectionsFolderMenuOptions = computed<ContextMenuOption[]>(() => [
     {
-      label: 'Add Collection',
+      label: 'Add Collection...',
       key: 'addCollection',
       disabled: false,
     },
+    {
+      label: 'Refresh',
+      key: 'refresh',
+      disabled: false,
+    },
+  ])
+
+  const viewsFolderMenuOptions = computed<ContextMenuOption[]>(() => [
     {
       label: 'Refresh',
       key: 'refresh',
@@ -112,8 +120,13 @@ export function useDataTreeContextMenu() {
         return serverMenuOptions.value
       case DataNodeType.Database:
         return databaseMenuOptions.value
-      case DataNodeType.Folder:
-        return folderMenuOptions.value
+      case DataNodeType.Folder: {
+        const folderKey = String(selectedNode.value.key)
+        const isCollectionsFolder = folderKey.endsWith(':Collections')
+        return isCollectionsFolder
+          ? collectionsFolderMenuOptions.value
+          : viewsFolderMenuOptions.value
+      }
       case DataNodeType.Collection:
       case DataNodeType.View:
         return collectionMenuOptions.value
