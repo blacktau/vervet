@@ -79,6 +79,10 @@ func (m *MockConnectionsProvider) GetCollectionSchema(serverID string, dbName st
 	return models.CollectionSchema{}, nil
 }
 
+func (m *MockConnectionsProvider) CreateCollection(serverID string, dbName string, collectionName string) error {
+	return nil
+}
+
 func TestConnectionsProxy_Connect(t *testing.T) {
 	t.Run("successful connect", func(t *testing.T) {
 		provider := &MockConnectionsProvider{

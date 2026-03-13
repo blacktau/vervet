@@ -8,6 +8,8 @@ export function CheckMongosh():Promise<api.Result_bool_>;
 
 export function Connect(arg1:string):Promise<api.Result_vervet_internal_models_Connection_>;
 
+export function CreateCollection(arg1:string,arg2:string,arg3:string):Promise<api.EmptyResult>;
+
 export function Disconnect(arg1:string):Promise<api.EmptyResult>;
 
 export function DisconnectAll():Promise<api.EmptyResult>;

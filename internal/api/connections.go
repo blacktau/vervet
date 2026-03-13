@@ -23,6 +23,7 @@ type ConnectionsProvider interface {
 	GetCollections(serverID string, dbName string) ([]string, error)
 	GetViews(serverID string, dbName string) ([]string, error)
 	GetCollectionSchema(serverID string, dbName string, collectionName string) (models.CollectionSchema, error)
+	CreateCollection(serverID string, dbName string, collectionName string) error
 }
 
 type ShellProvider interface {
@@ -173,4 +174,13 @@ func (cp *ConnectionsProxy) GetViews(serverID string, dbName string) Result[[]st
 		IsSuccess: true,
 		Data:      result,
 	}
+}
+
+func (cp *ConnectionsProxy) CreateCollection(serverID string, dbName string, collectionName string) EmptyResult {
+	err := cp.provider.CreateCollection(serverID, dbName, collectionName)
+	if err != nil {
+		return Error(fmt.Sprintf("Error creating collection: %v", err))
+	}
+
+	return Success()
 }

@@ -92,6 +92,19 @@ export default {
     subTab: {
       query: 'Query',
     },
+    dialogs: {
+      addDatabase: {
+        title: 'Add Database',
+        databaseName: 'Database Name',
+        databaseNamePlaceholder: 'Enter database name',
+        collectionName: 'Collection Name',
+        collectionNamePlaceholder: 'Enter collection name',
+        invalidDbChars: 'Cannot contain /\\. "$*<>:|?',
+        maxDbLength: 'Must be 64 characters or fewer',
+        systemPrefix: 'Cannot start with "system."',
+        dollarSign: 'Cannot contain "$"',
+      },
+    },
   },
   query: {
     run: 'Run',

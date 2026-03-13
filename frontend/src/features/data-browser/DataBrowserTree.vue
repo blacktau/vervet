@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { h, watch } from 'vue'
-import { NIcon } from 'naive-ui'
+import { NEllipsis, NIcon } from 'naive-ui'
 import CollectionIcon from '@/features/icon/CollectionIcon.vue'
 import { CircleStackIcon, EyeIcon, FolderIcon, FolderOpenIcon } from '@heroicons/vue/24/outline'
 import { DataNodeType, type DataTreeNode } from '@/features/data-browser/types.ts'
@@ -8,10 +8,12 @@ import { useDataTreeContextMenu } from '@/features/data-browser/useDataTreeConte
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 import { useTabStore } from '@/features/tabs/tabs.ts'
 import DataTreeContextMenu from '@/features/data-browser/DataTreeContextMenu.vue'
+import { useDialogStore } from '@/stores/dialog.ts'
 
 const tabStore = useTabStore()
 const browserStore = useDataBrowserStore()
 const contextMenu = useDataTreeContextMenu()
+const dialogStore = useDialogStore()
 
 const renderPrefix = ({ option }: { option: DataTreeNode }) => {
   if (option.type === DataNodeType.Database) {
@@ -40,6 +42,11 @@ function handleContextMenuSelect(key: string) {
     browserStore.disconnect(serverId)
   }
 
+  if (key === 'addDatabase' && node.type === DataNodeType.Server) {
+    const serverId = node.key as string
+    dialogStore.openAddDatabaseDialog(serverId)
+  }
+
   if (key === 'openQuery') {
     const nodeKey = node.key as string
     const parts = nodeKey.split(':')
@@ -62,6 +69,10 @@ function handleContextMenuSelect(key: string) {
       }
     }
   }
+}
+
+const renderLabel = ({ option }: { option: DataTreeNode }) => {
+  return h(NEllipsis, { tooltip: { placement: 'right' } }, () => option.label)
 }
 
 const nodeProps = ({ option }: { option: DataTreeNode }) => {
@@ -90,6 +101,7 @@ watch(
       :data="browserStore.currentTreeData"
       :expanded-keys="browserStore.currentExpandedKeys"
       :node-props="nodeProps"
+      :render-label="renderLabel"
       :render-prefix="renderPrefix"
       block-line
       block-node
