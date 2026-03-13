@@ -10,6 +10,7 @@ const bsonKeyLookup: Record<string, string> = {
   $numberDouble: 'double',
   $binary: 'binary',
   $regex: 'regex',
+  $regularExpression: 'regex',
   $timestamp: 'timestamp',
   $minKey: 'minKey',
   $maxKey: 'maxKey',
@@ -84,7 +85,12 @@ export function getDisplayValue(val: unknown): string {
       return String(obj.$oid)
     }
     if ('$date' in obj) {
-      return String(obj.$date)
+      const dateVal = obj.$date
+      if (typeof dateVal === 'object' && dateVal !== null && '$numberLong' in dateVal) {
+        const ms = Number((dateVal as Record<string, unknown>).$numberLong)
+        return new Date(ms).toISOString()
+      }
+      return String(dateVal)
     }
     if ('$numberDecimal' in obj) {
       return String(obj.$numberDecimal)
@@ -109,6 +115,10 @@ export function getDisplayValue(val: unknown): string {
         }
       }
       return i18nGlobal.t('query.binaryValue', { subType: binary.subType })
+    }
+    if ('$regularExpression' in obj) {
+      const re = obj.$regularExpression as Record<string, unknown>
+      return `/${re.pattern}/${re.options || ''}`
     }
     if ('$regex' in obj) {
       return `/${obj.$regex}/${obj.$options || ''}`
