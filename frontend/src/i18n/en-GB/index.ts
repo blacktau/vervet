@@ -131,6 +131,7 @@ export default {
       regex: 'Regex',
       timestamp: 'Timestamp',
       document: 'Document',
+      object: 'Object',
       string: 'String',
       boolean: 'Boolean',
       minKey: 'MinKey',

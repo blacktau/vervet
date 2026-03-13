@@ -60,7 +60,7 @@ export function getTypeKey(val: unknown): string {
         return bsonKeyLookup[bsonKey]
       }
     }
-    return 'document'
+    return 'object'
   }
   if (typeof val === 'number') {
     return Number.isInteger(val) ? 'int32' : 'double'
@@ -151,7 +151,7 @@ export function getDocLabel(doc: unknown, index: number): string {
   if (id !== undefined) {
     const idStr = typeof id === 'object' && id !== null && '$oid' in id
       ? (id as Record<string, unknown>).$oid
-      : String(id)
+      : getDisplayValue(id)
     return `(${index + 1}) {_id: ${idStr}}`
   }
   return `(${index + 1})`
@@ -198,7 +198,7 @@ function buildChildRows(
   return entries.map(([key, val]) => {
     const nodeKey = prefix ? `${prefix}.${key}` : key
     const typeKey = getTypeKey(val)
-    const hasChildren = typeKey === 'document' || typeKey === 'array'
+    const hasChildren = typeKey === 'document' || typeKey === 'object' || typeKey === 'array'
 
     const children =
       hasChildren && typeof val === 'object' && val !== null

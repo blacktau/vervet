@@ -17,5 +17,6 @@ export const typeColorMap: Record<string, string> = {
   minKey: '#808080',
   maxKey: '#808080',
   document: 'var(--n-td-text-color)',
+  object: 'var(--n-td-text-color)',
   array: 'var(--n-td-text-color)',
 }
