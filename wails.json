@@ -10,6 +10,13 @@
     "name": "Sean Garrett",
     "email": "sean@blacktau.com"
   },
+  "info": {
+    "productVersion": "0.0.0",
+    "productName": "Vervet",
+    "companyName": "Blacktau",
+    "copyright": "Copyright 2025 Sean Garrett",
+    "comments": "A desktop MongoDB explorer"
+  },
   "bindings": {
     "ts_generation": {
       "outputType": "interfaces"
