@@ -14,6 +14,10 @@ export function Connect(arg1) {
   return window['go']['api']['ConnectionsProxy']['Connect'](arg1);
 }
 
+export function CreateCollection(arg1, arg2, arg3) {
+  return window['go']['api']['ConnectionsProxy']['CreateCollection'](arg1, arg2, arg3);
+}
+
 export function Disconnect(arg1) {
   return window['go']['api']['ConnectionsProxy']['Disconnect'](arg1);
 }

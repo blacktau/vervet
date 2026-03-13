@@ -11,6 +11,7 @@ import AboutDialog from '@/features/about/AboutDialog.vue'
 import GroupDialog from '@/features/server-pane/GroupDialog.vue'
 import ServerDialog from '@/features/server-pane/ServerDialog.vue'
 import SettingsDialog from '@/features/settings/SettingsDialog.vue'
+import AddDatabaseDialog from '@/features/data-browser/AddDatabaseDialog.vue'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 import { DialogType, useDialogStore } from '@/stores/dialog.ts'
 import hljs from 'highlight.js/lib/core'
@@ -94,6 +95,7 @@ watch(
       <group-dialog v-if="dialogStore.isVisible(DialogType.Group)" />
       <settings-dialog v-if="dialogStore.isVisible(DialogType.Settings)" />
       <about-dialog v-if="dialogStore.isVisible(DialogType.About)" />
+      <add-database-dialog v-if="dialogStore.isVisible(DialogType.AddDatabase)" />
     </n-dialog-provider>
   </n-config-provider>
 </template>

@@ -6,7 +6,6 @@ import { buildTreeData } from './documentTreeUtils'
 import type { DocumentRow } from './types'
 import { typeColorMap } from '@/features/queries/typeColorMap.ts'
 
-const PAGINATION_THRESHOLD = 25
 const PAGE_SIZES = [25, 50, 100, 200, 500]
 
 const props = defineProps<{

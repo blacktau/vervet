@@ -18,6 +18,7 @@ export const enum DialogType {
   Group = 'group',
   Settings = 'settings',
   About = 'about',
+  AddDatabase = 'addDatabase',
 }
 
 export type ServerDialogData = {
@@ -43,6 +44,10 @@ export const useDialogStore = defineStore('dialog', {
       [DialogType.About]: {
         visible: false,
       },
+      [DialogType.AddDatabase]: {
+        visible: false,
+        type: DialogMode.New,
+      } as DialogState,
     } as Record<DialogType, DialogState>,
   }),
   actions: {
@@ -123,6 +128,12 @@ export const useDialogStore = defineStore('dialog', {
     },
     closeRenameGroupDialog() {
       this.hide(DialogType.Group)
+    },
+    openAddDatabaseDialog(serverID: string) {
+      this.showNewDialog(DialogType.AddDatabase, serverID)
+    },
+    closeAddDatabaseDialog() {
+      this.hide(DialogType.AddDatabase)
     },
   },
   getters: {
