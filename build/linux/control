@@ -1,0 +1,8 @@
+Package: vervet
+Version: VERSION_PLACEHOLDER
+Section: base
+Priority: optional
+Architecture: amd64
+Depends: libwebkit2gtk-4.0-37, libgtk-3-0
+Maintainer: Sean Garrett <sean@blacktau.com>
+Description: A desktop MongoDB explorer
