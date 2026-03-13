@@ -104,6 +104,11 @@ export default {
         systemPrefix: 'Cannot start with "system."',
         dollarSign: 'Cannot contain "$"',
       },
+      addCollection: {
+        title: 'Add Collection',
+        collectionName: 'Collection Name',
+        collectionNamePlaceholder: 'Enter collection name',
+      },
     },
   },
   query: {
