@@ -303,6 +303,35 @@ func (cm *ConnectionManager) GetCollectionSchema(serverID, dbName, collName stri
 	return queryengine.SampleSchema(cm.ctx, connection.client, dbName, collName)
 }
 
+func (cm *ConnectionManager) CreateCollection(serverID string, dbName string, collectionName string) error {
+	cm.log.Debug("Creating collection",
+		slog.String("serverID", serverID),
+		slog.String("dbName", dbName),
+		slog.String("collectionName", collectionName))
+
+	connection, err := cm.getClient(serverID)
+	if err != nil {
+		return err
+	}
+
+	db := connection.client.Database(dbName)
+	err = db.CreateCollection(cm.ctx, collectionName)
+	if err != nil {
+		cm.log.Error("Failed to create collection",
+			slog.String("serverID", serverID),
+			slog.String("dbName", dbName),
+			slog.String("collectionName", collectionName),
+			slog.Any("error", err))
+		return fmt.Errorf("failed to create collection: %w", err)
+	}
+
+	cm.log.Info("Created collection",
+		slog.String("serverID", serverID),
+		slog.String("dbName", dbName),
+		slog.String("collectionName", collectionName))
+	return nil
+}
+
 func cleanConnectionString(uri string) string {
 	idx := strings.Index(uri, "@")
 	if idx == -1 {

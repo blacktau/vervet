@@ -8,10 +8,12 @@ import { useDataTreeContextMenu } from '@/features/data-browser/useDataTreeConte
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 import { useTabStore } from '@/features/tabs/tabs.ts'
 import DataTreeContextMenu from '@/features/data-browser/DataTreeContextMenu.vue'
+import { useDialogStore } from '@/stores/dialog.ts'
 
 const tabStore = useTabStore()
 const browserStore = useDataBrowserStore()
 const contextMenu = useDataTreeContextMenu()
+const dialogStore = useDialogStore()
 
 const renderPrefix = ({ option }: { option: DataTreeNode }) => {
   if (option.type === DataNodeType.Database) {
@@ -38,6 +40,11 @@ function handleContextMenuSelect(key: string) {
   if (key === 'disconnect' && node.type === DataNodeType.Server) {
     const serverId = node.key as string
     browserStore.disconnect(serverId)
+  }
+
+  if (key === 'addDatabase' && node.type === DataNodeType.Server) {
+    const serverId = node.key as string
+    dialogStore.openAddDatabaseDialog(serverId)
   }
 
   if (key === 'openQuery') {
