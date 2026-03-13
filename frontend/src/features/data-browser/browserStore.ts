@@ -171,8 +171,10 @@ export const useDataBrowserStore = defineStore('browser', {
       const [sid, dbName] = dbKey.split(':')
       if (!sid || !dbName) return
 
-      await this.getCollectionList(sid, dbName, true)
-      await this.getViewList(sid, dbName, true)
+      await Promise.all([
+        this.getCollectionList(sid, dbName, true),
+        this.getViewList(sid, dbName, true),
+      ])
 
       node.children = [
         {
@@ -191,8 +193,25 @@ export const useDataBrowserStore = defineStore('browser', {
         },
       ]
 
-      state.loadedKeys = [...state.loadedKeys, dbKey]
-      state.expandedKeys = [...state.expandedKeys, dbKey]
+      const collectionsFolder = node.children.find((c) => c.label === FOLDER_COLLECTIONS)
+      if (collectionsFolder) {
+        const folderKey = collectionsFolder.key as string
+        const database = this.findDatabase(sid, dbName)
+        if (database?.collections) {
+          collectionsFolder.children = database.collections.map((col) => ({
+            label: col.name,
+            key: `${folderKey}:${col.name}`,
+            isLeaf: true,
+            type: DataNodeType.Collection,
+            children: [],
+          }))
+        }
+        state.loadedKeys = [...state.loadedKeys, dbKey, folderKey]
+        state.expandedKeys = [...state.expandedKeys, dbKey, folderKey]
+      } else {
+        state.loadedKeys = [...state.loadedKeys, dbKey]
+        state.expandedKeys = [...state.expandedKeys, dbKey]
+      }
       state.treeData = [...state.treeData]
     },
 
@@ -275,7 +294,6 @@ export const useDataBrowserStore = defineStore('browser', {
 
         const firstKey = state.treeData[0]?.key as string
         if (firstKey) {
-          state.expandedKeys = [firstKey]
           this.expandNode(serverId, firstKey)
         }
       }

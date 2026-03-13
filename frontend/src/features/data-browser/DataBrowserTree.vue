@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { h, watch } from 'vue'
-import { NIcon } from 'naive-ui'
+import { NEllipsis, NIcon } from 'naive-ui'
 import CollectionIcon from '@/features/icon/CollectionIcon.vue'
 import { CircleStackIcon, EyeIcon, FolderIcon, FolderOpenIcon } from '@heroicons/vue/24/outline'
 import { DataNodeType, type DataTreeNode } from '@/features/data-browser/types.ts'
@@ -64,6 +64,10 @@ function handleContextMenuSelect(key: string) {
   }
 }
 
+const renderLabel = ({ option }: { option: DataTreeNode }) => {
+  return h(NEllipsis, { tooltip: { placement: 'right' } }, () => option.label)
+}
+
 const nodeProps = ({ option }: { option: DataTreeNode }) => {
   return {
     onContextmenu(e: MouseEvent) {
@@ -90,6 +94,7 @@ watch(
       :data="browserStore.currentTreeData"
       :expanded-keys="browserStore.currentExpandedKeys"
       :node-props="nodeProps"
+      :render-label="renderLabel"
       :render-prefix="renderPrefix"
       block-line
       block-node
