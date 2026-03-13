@@ -25,6 +25,8 @@ var assets embed.FS
 //go:embed build/appicon.png
 var icon []byte
 
+var version string
+
 func main() {
 	debugUI := flag.Bool("debug-ui", false, "enable ui inspector")
 	logLevel := &slog.LevelVar{}
