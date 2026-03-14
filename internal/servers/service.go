@@ -15,7 +15,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/x/mongo/driver/connstring"
 )
 
-type ServerManager struct {
+type ServerService struct {
 	ctx               context.Context
 	log               *slog.Logger
 	store             ServerStore
@@ -23,17 +23,17 @@ type ServerManager struct {
 	mu                sync.RWMutex
 }
 
-func NewManager(log *slog.Logger) *ServerManager {
-	logger := log.With(slog.String(logging.SourceKey, "ServerManager"))
-	return &ServerManager{
+func NewService(log *slog.Logger) *ServerService {
+	logger := log.With(slog.String(logging.SourceKey, "ServerService"))
+	return &ServerService{
 		log:               logger,
 		mu:                sync.RWMutex{},
 		connectionStrings: connectionStrings.NewStore(logger),
 	}
 }
 
-func (sm *ServerManager) Init(ctx context.Context) error {
-	sm.log.Debug("Initializing Server Manager")
+func (sm *ServerService) Init(ctx context.Context) error {
+	sm.log.Debug("Initializing Server Service")
 	sm.ctx = ctx
 
 	store, err := NewServerStore(sm.log)
@@ -52,7 +52,7 @@ func (sm *ServerManager) Init(ctx context.Context) error {
 	return nil
 }
 
-func (sm *ServerManager) GetServers() ([]models.RegisteredServer, error) {
+func (sm *ServerService) GetServers() ([]models.RegisteredServer, error) {
 	sm.log.Debug("Getting All models.RegisteredServers")
 	registeredServers, err := sm.store.LoadServers()
 	if err != nil {
@@ -62,7 +62,7 @@ func (sm *ServerManager) GetServers() ([]models.RegisteredServer, error) {
 	return registeredServers, nil
 }
 
-func (sm *ServerManager) GetServerConfiguration(id string) (*models.RegisteredServerConnection, error) {
+func (sm *ServerService) GetServerConfiguration(id string) (*models.RegisteredServerConnection, error) {
 	log := sm.log.With(slog.String("serverID", id))
 	log.Debug("Getting Server Configuration for Server")
 	registeredServers, err := sm.store.LoadServers()
@@ -90,7 +90,7 @@ func (sm *ServerManager) GetServerConfiguration(id string) (*models.RegisteredSe
 	}, nil
 }
 
-func (sm *ServerManager) GetServer(id string) (*models.RegisteredServer, error) {
+func (sm *ServerService) GetServer(id string) (*models.RegisteredServer, error) {
 	log := sm.log.With(slog.String("serverID", id))
 	log.Debug("Getting Server Configuration for Server")
 	registeredServers, err := sm.store.LoadServers()
@@ -111,7 +111,7 @@ func (sm *ServerManager) GetServer(id string) (*models.RegisteredServer, error) 
 }
 
 // AddServer saves the metadata and the URI securely.
-func (sm *ServerManager) AddServer(parentID, name, uri, colour string) error {
+func (sm *ServerService) AddServer(parentID, name, uri, colour string) error {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
@@ -165,7 +165,7 @@ func (sm *ServerManager) AddServer(parentID, name, uri, colour string) error {
 	return nil
 }
 
-func (sm *ServerManager) UpdateServer(serverID, name, uri, parentID, colour string) error {
+func (sm *ServerService) UpdateServer(serverID, name, uri, parentID, colour string) error {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 	log := sm.log.With(
@@ -208,7 +208,7 @@ func (sm *ServerManager) UpdateServer(serverID, name, uri, parentID, colour stri
 }
 
 // RemoveNode removes a group or registeredServer and its uri
-func (sm *ServerManager) RemoveNode(id string) error {
+func (sm *ServerService) RemoveNode(id string) error {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
@@ -249,7 +249,7 @@ func (sm *ServerManager) RemoveNode(id string) error {
 	return nil
 }
 
-func (sm *ServerManager) GetURI(id string) (string, error) {
+func (sm *ServerService) GetURI(id string) (string, error) {
 	log := sm.log.With(slog.String("serverID", id))
 
 	uri, err := sm.connectionStrings.GetRegisteredServerURI(id)

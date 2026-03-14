@@ -66,9 +66,9 @@ func (m *MockConnectionStringsStore) DeleteRegisteredServerURI(id string) error 
 	return nil
 }
 
-func newTestServerManager(serverStore ServerStore, connectionStringsStore connectionStrings.Store) *ServerManager {
+func newTestServerService(serverStore ServerStore, connectionStringsStore connectionStrings.Store) *ServerService {
 	log := slog.Default()
-	return &ServerManager{
+	return &ServerService{
 		log:               log,
 		mu:                sync.RWMutex{},
 		connectionStrings: connectionStringsStore,
@@ -86,7 +86,7 @@ func TestGetServers(t *testing.T) {
 				{ID: "2", Name: "Server 2"},
 			},
 		}
-		sm := newTestServerManager(mockStore, &MockConnectionStringsStore{})
+		sm := newTestServerService(mockStore, &MockConnectionStringsStore{})
 
 		servers, err := sm.GetServers()
 
@@ -99,7 +99,7 @@ func TestGetServers(t *testing.T) {
 		mockStore := &MockServerStore{
 			err: errors.New("store error"),
 		}
-		sm := newTestServerManager(mockStore, &MockConnectionStringsStore{})
+		sm := newTestServerService(mockStore, &MockConnectionStringsStore{})
 
 		servers, err := sm.GetServers()
 
@@ -118,7 +118,7 @@ func TestAddServer(t *testing.T) {
 		mockCSStore := &MockConnectionStringsStore{
 			uris: make(map[string]string),
 		}
-		sm := newTestServerManager(mockStore, mockCSStore)
+		sm := newTestServerService(mockStore, mockCSStore)
 
 		err := sm.AddServer("parent", "New Server", "mongodb://localhost", "")
 
@@ -138,7 +138,7 @@ func TestUpdateServer(t *testing.T) {
 		mockCSStore := &MockConnectionStringsStore{
 			uris: map[string]string{"1": "mongodb://localhost"},
 		}
-		sm := newTestServerManager(mockStore, mockCSStore)
+		sm := newTestServerService(mockStore, mockCSStore)
 
 		err := sm.UpdateServer("1", "Updated Server", "mongodb://newhost", "a", "")
 
@@ -151,7 +151,7 @@ func TestUpdateServer(t *testing.T) {
 		mockStore := &MockServerStore{
 			servers: []models.RegisteredServer{},
 		}
-		sm := newTestServerManager(mockStore, &MockConnectionStringsStore{})
+		sm := newTestServerService(mockStore, &MockConnectionStringsStore{})
 
 		err := sm.UpdateServer("1", "Updated Server", "mongodb://newhost", "", "")
 
@@ -169,7 +169,7 @@ func TestRemoveNode(t *testing.T) {
 		mockCSStore := &MockConnectionStringsStore{
 			uris: map[string]string{"1": "mongodb://localhost"},
 		}
-		sm := newTestServerManager(mockStore, mockCSStore)
+		sm := newTestServerService(mockStore, mockCSStore)
 
 		err := sm.RemoveNode("1")
 
@@ -184,7 +184,7 @@ func TestRemoveNode(t *testing.T) {
 				{ID: "1", Name: "Group 1", IsGroup: true},
 			},
 		}
-		sm := newTestServerManager(mockStore, &MockConnectionStringsStore{})
+		sm := newTestServerService(mockStore, &MockConnectionStringsStore{})
 
 		err := sm.RemoveNode("1")
 
@@ -196,7 +196,7 @@ func TestRemoveNode(t *testing.T) {
 		mockStore := &MockServerStore{
 			servers: []models.RegisteredServer{},
 		}
-		sm := newTestServerManager(mockStore, &MockConnectionStringsStore{})
+		sm := newTestServerService(mockStore, &MockConnectionStringsStore{})
 
 		err := sm.RemoveNode("1")
 
@@ -210,7 +210,7 @@ func TestRemoveNode(t *testing.T) {
 				{ID: "2", Name: "Server 2", ParentID: "1"},
 			},
 		}
-		sm := newTestServerManager(mockStore, &MockConnectionStringsStore{})
+		sm := newTestServerService(mockStore, &MockConnectionStringsStore{})
 
 		err := sm.RemoveNode("1")
 
@@ -223,7 +223,7 @@ func TestGetURI(t *testing.T) {
 		mockCSStore := &MockConnectionStringsStore{
 			uris: map[string]string{"1": "mongodb://localhost"},
 		}
-		sm := newTestServerManager(&MockServerStore{}, mockCSStore)
+		sm := newTestServerService(&MockServerStore{}, mockCSStore)
 
 		uri, err := sm.GetURI("1")
 
@@ -235,7 +235,7 @@ func TestGetURI(t *testing.T) {
 		mockCSStore := &MockConnectionStringsStore{
 			uris: make(map[string]string),
 		}
-		sm := newTestServerManager(&MockServerStore{}, mockCSStore)
+		sm := newTestServerService(&MockServerStore{}, mockCSStore)
 
 		uri, err := sm.GetURI("1")
 

@@ -9,7 +9,7 @@ import (
 )
 
 // CreateGroup creates a new group node.
-func (sm *ServerManager) CreateGroup(parentID, name string) error {
+func (sm *ServerService) CreateGroup(parentID, name string) error {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 	log := sm.log.With(slog.String("parentID", parentID), slog.String("name", name))
@@ -51,7 +51,7 @@ func (sm *ServerManager) CreateGroup(parentID, name string) error {
 	return nil
 }
 
-func (sm *ServerManager) UpdateGroup(groupID, name, parentID string) error {
+func (sm *ServerService) UpdateGroup(groupID, name, parentID string) error {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 

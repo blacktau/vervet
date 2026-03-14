@@ -14,7 +14,7 @@ func TestCreateGroup(t *testing.T) {
 				{ID: "parent", Name: "Parent Group", IsGroup: true},
 			},
 		}
-		sm := newTestServerManager(mockStore, &MockConnectionStringsStore{})
+		sm := newTestServerService(mockStore, &MockConnectionStringsStore{})
 
 		err := sm.CreateGroup("parent", "New Group")
 
@@ -33,7 +33,7 @@ func TestUpdateGroup(t *testing.T) {
 				{ID: "1", Name: "Group 1", IsGroup: true},
 			},
 		}
-		sm := newTestServerManager(mockStore, &MockConnectionStringsStore{})
+		sm := newTestServerService(mockStore, &MockConnectionStringsStore{})
 
 		err := sm.UpdateGroup("1", "Updated Group", "")
 
@@ -45,7 +45,7 @@ func TestUpdateGroup(t *testing.T) {
 		mockStore := &MockServerStore{
 			servers: []models.RegisteredServer{},
 		}
-		sm := newTestServerManager(mockStore, &MockConnectionStringsStore{})
+		sm := newTestServerService(mockStore, &MockConnectionStringsStore{})
 
 		err := sm.UpdateGroup("1", "Updated Group", "")
 
@@ -58,7 +58,7 @@ func TestUpdateGroup(t *testing.T) {
 				{ID: "1", Name: "Server 1", IsGroup: false},
 			},
 		}
-		sm := newTestServerManager(mockStore, &MockConnectionStringsStore{})
+		sm := newTestServerService(mockStore, &MockConnectionStringsStore{})
 
 		err := sm.UpdateGroup("1", "Updated Group", "")
 

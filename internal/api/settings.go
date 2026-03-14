@@ -18,11 +18,11 @@ type SettingsProvider interface {
 }
 
 type SettingsProxy struct {
-	cm settings.Manager
+	cm settings.Service
 	fp FontProvider
 }
 
-func NewSettingsProxy(cm settings.Manager, fp FontProvider) *SettingsProxy {
+func NewSettingsProxy(cm settings.Service, fp FontProvider) *SettingsProxy {
 	return &SettingsProxy{
 		cm: cm,
 		fp: fp,
