@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { type QueryTabItem, type ServerTabItem } from '@/types/ServerTabItem.ts'
+import { type IndexTabItem, type QueryTabItem, type ServerTabItem } from '@/types/ServerTabItem.ts'
 import { useDialoger } from '@/utils/dialog.ts'
 import { i18nGlobal } from '@/i18n'
 import { findIndex } from 'lodash'
@@ -19,6 +19,7 @@ type TabStoreGetters = {
   currentTabId: () => string
   currentSubTab: () => BrowserSubTabType | undefined
   currentQueries: () => QueryTabItem[]
+  currentIndexTabs: () => IndexTabItem[]
 }
 
 type TabUpsertOptions = ServerTabItem & {
@@ -34,6 +35,7 @@ export const enum NavType {
 }
 
 let queryIdCounter = 0
+let indexTabIdCounter = 0
 
 export const useTabStore = defineStore('tabs', {
   state: (): TabStoreState => ({
@@ -57,6 +59,9 @@ export const useTabStore = defineStore('tabs', {
     },
     currentQueries(state: TabStoreState) {
       return state.tabItems[state.activeTabIndex]?.queries ?? []
+    },
+    currentIndexTabs(state: TabStoreState) {
+      return state.tabItems[state.activeTabIndex]?.indexTabs ?? ([] as IndexTabItem[])
     },
   } as TabStoreGetters,
   actions: {
@@ -91,6 +96,7 @@ export const useTabStore = defineStore('tabs', {
           subTab: BrowserSubTabType.Query,
           queryOpen: false,
           queries: [],
+          indexTabs: [],
         }
         this.tabItems.push(tabItem)
         tabIndex = this.tabItems.length - 1
@@ -221,6 +227,83 @@ export const useTabStore = defineStore('tabs', {
       }
       const index = sameDbQueries.indexOf(query)
       return index === 0 ? query.database : `${query.database} ${index + 1}`
+    },
+
+    openIndexTab(serverId: string, dbName: string, collectionName: string) {
+      const tabIndex = findIndex(this.tabItems, { serverId })
+      if (tabIndex === -1) {
+        return
+      }
+
+      const tab = this.tabItems[tabIndex]
+      if (!tab) {
+        return
+      }
+
+      if (!tab.indexTabs) {
+        tab.indexTabs = []
+      }
+
+      const existing = tab.indexTabs.find(
+        (t) => t.dbName === dbName && t.collectionName === collectionName,
+      )
+      if (existing) {
+        tab.activeIndexTabId = existing.id
+        tab.subTab = BrowserSubTabType.Indexes
+        this._setActivatedIndex(tabIndex, true)
+        return
+      }
+
+      const indexTab: IndexTabItem = {
+        id: `index-${++indexTabIdCounter}`,
+        serverId,
+        dbName,
+        collectionName,
+      }
+
+      tab.indexTabs.push(indexTab)
+      tab.activeIndexTabId = indexTab.id
+      tab.subTab = BrowserSubTabType.Indexes
+      this._setActivatedIndex(tabIndex, true)
+    },
+
+    closeIndexTab(serverId: string, indexTabId: string) {
+      const tabIndex = findIndex(this.tabItems, { serverId })
+      if (tabIndex === -1) {
+        return
+      }
+
+      const tab = this.tabItems[tabIndex]
+      if (!tab || !tab.indexTabs) {
+        return
+      }
+
+      const idx = tab.indexTabs.findIndex((t) => t.id === indexTabId)
+      if (idx === -1) {
+        return
+      }
+
+      tab.indexTabs.splice(idx, 1)
+
+      if (tab.indexTabs.length === 0) {
+        tab.activeIndexTabId = undefined
+        tab.subTab = BrowserSubTabType.Query
+      } else if (tab.activeIndexTabId === indexTabId) {
+        const newIdx = Math.min(idx, tab.indexTabs.length - 1)
+        tab.activeIndexTabId = tab.indexTabs[newIdx]?.id
+      }
+    },
+
+    setActiveIndexTab(indexTabId: string) {
+      const tab = this.tabItems[this.activeTabIndex]
+      if (!tab) {
+        return
+      }
+      tab.activeIndexTabId = indexTabId
+    },
+
+    indexTabLabel(tab: ServerTabItem, indexTab: IndexTabItem): string {
+      return `${indexTab.collectionName} indexes`
     },
   },
 })

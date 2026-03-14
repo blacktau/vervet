@@ -79,6 +79,19 @@ function handleContextMenuSelect(key: string) {
       }
     }
   }
+
+  if (key === 'viewIndexes') {
+    const nodeKey = node.key as string
+    const parts = nodeKey.split(':')
+    if (node.type === DataNodeType.Collection) {
+      const serverId = parts[0]
+      const dbName = parts[1]
+      const collectionName = parts[3]
+      if (serverId && dbName && collectionName) {
+        tabStore.openIndexTab(serverId, dbName, collectionName)
+      }
+    }
+  }
 }
 
 const renderLabel = ({ option }: { option: DataTreeNode }) => {

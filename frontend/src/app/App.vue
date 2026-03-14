@@ -13,6 +13,7 @@ import ServerDialog from '@/features/server-pane/ServerDialog.vue'
 import SettingsDialog from '@/features/settings/SettingsDialog.vue'
 import AddDatabaseDialog from '@/features/data-browser/AddDatabaseDialog.vue'
 import AddCollectionDialog from '@/features/data-browser/AddCollectionDialog.vue'
+import CreateIndexDialog from '@/features/indexes/CreateIndexDialog.vue'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 import { DialogType, useDialogStore } from '@/stores/dialog.ts'
 import hljs from 'highlight.js/lib/core'
@@ -98,6 +99,7 @@ watch(
       <about-dialog v-if="dialogStore.isVisible(DialogType.About)" />
       <add-database-dialog v-if="dialogStore.isVisible(DialogType.AddDatabase)" />
       <add-collection-dialog v-if="dialogStore.isVisible(DialogType.AddCollection)" />
+      <create-index-dialog v-if="dialogStore.isVisible(DialogType.CreateIndex)" />
     </n-dialog-provider>
   </n-config-provider>
 </template>

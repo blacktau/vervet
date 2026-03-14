@@ -29,6 +29,11 @@ export namespace api {
 	    data: models.Font[];
 	    error: string;
 	}
+	export interface Result___vervet_internal_models_Index_ {
+	    isSuccess: boolean;
+	    data: models.Index[];
+	    error: string;
+	}
 	export interface Result___vervet_internal_models_RegisteredServer_ {
 	    isSuccess: boolean;
 	    data: models.RegisteredServer[];
@@ -96,6 +101,25 @@ export namespace models {
 	    serverID?: string;
 	    name?: string;
 	}
+	export interface IndexKeyField {
+	    field: string;
+	    direction: any;
+	}
+	export interface CreateIndexRequest {
+	    keys: IndexKeyField[];
+	    name?: string;
+	    unique: boolean;
+	    sparse: boolean;
+	    ttl?: number;
+	}
+	export interface EditIndexRequest {
+	    oldName: string;
+	    keys: IndexKeyField[];
+	    name?: string;
+	    unique: boolean;
+	    sparse: boolean;
+	    ttl?: number;
+	}
 	export interface FontSettings {
 	    family: string;
 	    size: number;
@@ -120,6 +144,16 @@ export namespace models {
 	    language: string;
 	    font: FontSettings;
 	}
+	export interface Index {
+	    name: string;
+	    keys: IndexKeyField[];
+	    unique: boolean;
+	    sparse: boolean;
+	    ttl?: number;
+	    size: number;
+	    usage: number;
+	}
+	
 	export interface QueryResult {
 	    documents: any[];
 	    rawOutput: string;

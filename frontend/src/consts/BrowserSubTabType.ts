@@ -1,3 +1,4 @@
-export const enum BrowserSubTabType {
+export enum BrowserSubTabType {
   Query = 'query',
+  Indexes = 'indexes',
 }
