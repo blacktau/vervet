@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { useNotifier } from '@/utils/dialog.ts'
-import * as connectionsProxy from 'wailsjs/go/api/ConnectionsProxy'
+import * as indexesProxy from 'wailsjs/go/api/IndexesProxy'
 
 type IndexKeyField = {
   field: string
@@ -13,6 +13,8 @@ export type IndexInfo = {
   unique: boolean
   sparse: boolean
   ttl?: number
+  size: number
+  usage: number
 }
 
 interface IndexStoreState {
@@ -35,7 +37,7 @@ export const useIndexStore = defineStore('indexes', {
       this.loading[key] = true
 
       try {
-        const result = await connectionsProxy.GetIndexes(serverId, dbName, collectionName)
+        const result = await indexesProxy.GetIndexes(serverId, dbName, collectionName)
         if (!result.isSuccess) {
           useNotifier().error(result.error)
           return
@@ -62,7 +64,40 @@ export const useIndexStore = defineStore('indexes', {
       },
     ): Promise<boolean> {
       try {
-        const result = await connectionsProxy.CreateIndex(
+        const result = await indexesProxy.CreateIndex(
+          serverId,
+          dbName,
+          collectionName,
+          request,
+        )
+        if (!result.isSuccess) {
+          useNotifier().error(result.error)
+          return false
+        }
+        await this.getIndexes(serverId, dbName, collectionName)
+        return true
+      } catch (e) {
+        const err = e as Error
+        useNotifier().error(err.message)
+        return false
+      }
+    },
+
+    async editIndex(
+      serverId: string,
+      dbName: string,
+      collectionName: string,
+      request: {
+        oldName: string
+        keys: IndexKeyField[]
+        name?: string
+        unique: boolean
+        sparse: boolean
+        ttl?: number
+      },
+    ): Promise<boolean> {
+      try {
+        const result = await indexesProxy.EditIndex(
           serverId,
           dbName,
           collectionName,
@@ -88,7 +123,7 @@ export const useIndexStore = defineStore('indexes', {
       indexName: string,
     ): Promise<boolean> {
       try {
-        const result = await connectionsProxy.DropIndex(
+        const result = await indexesProxy.DropIndex(
           serverId,
           dbName,
           collectionName,

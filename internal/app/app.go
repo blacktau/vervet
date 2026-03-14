@@ -8,6 +8,7 @@ import (
 	"vervet/internal/api"
 	"vervet/internal/connectionStrings"
 	"vervet/internal/connections"
+	"vervet/internal/indexes"
 	"vervet/internal/models"
 	"vervet/internal/servers"
 	"vervet/internal/settings"
@@ -22,11 +23,13 @@ type App struct {
 	ctx              context.Context
 	ServersProxy     *api.ServersProxy
 	ConnectionsProxy *api.ConnectionsProxy
+	IndexesProxy     *api.IndexesProxy
 	SystemProxy      *api.SystemProxy
 	SettingsProxy    *api.SettingsProxy
 
 	serverManager     *servers.ServerManager
 	connectionManager *connections.ConnectionManager
+	indexManager      *indexes.IndexManager
 	shellManager      *connections.ShellManager
 	settingsManager   settings.Manager
 	systemService     *system.Service
@@ -37,6 +40,7 @@ func NewApp(log *slog.Logger) *App {
 	serverManager := servers.NewManager(log)
 	connectionStringsStore := connectionStrings.NewStore(log)
 	connectionManager := connections.NewManager(log, connectionStringsStore, serverManager)
+	indexManager := indexes.NewIndexManager(log, connectionManager)
 	settingsManager := settings.NewManager(log)
 	shellManager := connections.NewShellManager(log, connectionManager, settingsManager)
 	systemService := system.NewSystemService(log)
@@ -46,11 +50,13 @@ func NewApp(log *slog.Logger) *App {
 		log:               log,
 		serverManager:     serverManager,
 		connectionManager: connectionManager,
+		indexManager:      indexManager,
 		shellManager:      shellManager,
 		settingsManager:   settingsManager,
 		systemService:     systemService,
 		ServersProxy:      api.NewServersProxy(serverManager),
 		ConnectionsProxy:  api.NewConnectionsProxy(connectionManager, shellManager),
+		IndexesProxy:      api.NewIndexesProxy(indexManager),
 		SystemProxy:       api.NewSystemProxy(systemService),
 		SettingsProxy:     api.NewSettingsProxy(settingsManager, fontService),
 	}
@@ -74,6 +80,8 @@ func (a *App) Startup(ctx context.Context) {
 		a.log.Error("Failed to initialize connection manager", slog.Any("error", err))
 		panic(fmt.Errorf("failed to initialize connection manager: %w", err))
 	}
+
+	a.indexManager.Init(ctx)
 
 	err = a.settingsManager.Init(ctx)
 	if err != nil {

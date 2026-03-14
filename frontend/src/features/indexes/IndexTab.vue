@@ -4,9 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { type IndexInfo, useIndexStore } from '@/features/indexes/indexStore.ts'
 import { useDialogStore } from '@/stores/dialog.ts'
 import { useDialoger } from '@/utils/dialog.ts'
-import IconPlus from '~icons/tabler/plus'
-import IconEdit from '~icons/tabler/edit'
-import IconTrash from '~icons/tabler/trash'
+import { PlusIcon, PencilIcon, TrashIcon } from '@heroicons/vue/24/outline'
 
 const props = defineProps<{
   serverId: string
@@ -28,6 +26,16 @@ const selectedIndex = computed(() => indexes.value.find((i) => i.name === select
 const isIdIndex = computed(() => selectedIndexName.value === '_id_')
 const canEditOrDrop = computed(() => selectedIndexName.value != null && !isIdIndex.value)
 
+function formatBytes(bytes: number): string {
+  if (bytes === 0) {
+    return '0 B'
+  }
+  const units = ['B', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(1024))
+  const value = bytes / Math.pow(1024, i)
+  return `${value.toFixed(i === 0 ? 0 : 1)} ${units[i]}`
+}
+
 const columns = computed(() => [
   { title: t('indexes.columns.name'), key: 'name' },
   {
@@ -35,6 +43,18 @@ const columns = computed(() => [
     key: 'keys',
     render: (row: IndexInfo) =>
       row.keys.map((k) => `${k.field}: ${k.direction}`).join(', '),
+  },
+  {
+    title: t('indexes.columns.size'),
+    key: 'size',
+    render: (row: IndexInfo) => formatBytes(row.size),
+    width: 100,
+  },
+  {
+    title: t('indexes.columns.usage'),
+    key: 'usage',
+    render: (row: IndexInfo) => row.usage.toLocaleString(),
+    width: 100,
   },
   {
     title: t('indexes.columns.unique'),
@@ -110,35 +130,33 @@ onMounted(() => {
       <n-button-group size="small">
         <n-button @click="handleAdd">
           <template #icon>
-            <n-icon :component="IconPlus" />
+            <n-icon :component="PlusIcon" />
           </template>
           {{ t('indexes.toolbar.addIndex') }}
         </n-button>
         <n-button :disabled="!canEditOrDrop" @click="handleEdit">
           <template #icon>
-            <n-icon :component="IconEdit" />
+            <n-icon :component="PencilIcon" />
           </template>
           {{ t('indexes.toolbar.editIndex') }}
         </n-button>
         <n-button :disabled="!canEditOrDrop" @click="handleDrop">
           <template #icon>
-            <n-icon :component="IconTrash" />
+            <n-icon :component="TrashIcon" />
           </template>
           {{ t('indexes.toolbar.dropIndex') }}
         </n-button>
       </n-button-group>
     </div>
-    <div class="index-table-wrapper">
-      <n-data-table
-        :columns="columns"
-        :data="indexes"
-        :loading="loading"
-        :row-class-name="rowClassName"
-        :row-props="rowProps"
-        :bordered="false"
-        flex-height
-        size="small" />
-    </div>
+    <n-data-table
+      :columns="columns"
+      :data="indexes"
+      :loading="loading"
+      :row-class-name="rowClassName"
+      :row-props="rowProps"
+      :bordered="false"
+      class="flex-item-expand"
+      size="small" />
   </div>
 </template>
 
@@ -155,12 +173,8 @@ onMounted(() => {
   flex-shrink: 0;
 }
 
-.index-table-wrapper {
-  flex: 1;
-  min-height: 0;
-}
-
 :deep(.selected-row td) {
-  background-color: var(--n-td-color-hover) !important;
+  background-color: rgba(56, 176, 0, 0.12) !important;
+  border-bottom: 1px solid rgba(56, 176, 0, 0.3) !important;
 }
 </style>

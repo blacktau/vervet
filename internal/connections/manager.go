@@ -244,6 +244,16 @@ func (cm *ConnectionManager) getClient(serverID string) (*activeConnection, erro
 	return &connection, nil
 }
 
+// GetMongoClient returns the mongo.Client for an active connection.
+// Used by other managers that need database access.
+func (cm *ConnectionManager) GetMongoClient(serverID string) (*mongo.Client, error) {
+	conn, err := cm.getClient(serverID)
+	if err != nil {
+		return nil, err
+	}
+	return conn.client, nil
+}
+
 func (cm *ConnectionManager) GetDatabases(serverID string) ([]string, error) {
 	cm.log.Debug("Getting databases for mongo instance", slog.String("serverID", serverID))
 	connection, err := cm.getClient(serverID)
@@ -329,141 +339,6 @@ func (cm *ConnectionManager) CreateCollection(serverID string, dbName string, co
 		slog.String("serverID", serverID),
 		slog.String("dbName", dbName),
 		slog.String("collectionName", collectionName))
-	return nil
-}
-
-func (cm *ConnectionManager) GetIndexes(serverID string, dbName string, collectionName string) ([]models.Index, error) {
-	cm.log.Debug("Getting indexes",
-		slog.String("serverID", serverID),
-		slog.String("dbName", dbName),
-		slog.String("collectionName", collectionName))
-
-	connection, err := cm.getClient(serverID)
-	if err != nil {
-		return nil, err
-	}
-
-	collection := connection.client.Database(dbName).Collection(collectionName)
-	cursor, err := collection.Indexes().List(cm.ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list indexes: %w", err)
-	}
-	defer cursor.Close(cm.ctx)
-
-	type rawIndex struct {
-		Name               string `bson:"name"`
-		Key                bson.D `bson:"key"`
-		Unique             bool   `bson:"unique,omitempty"`
-		Sparse             bool   `bson:"sparse,omitempty"`
-		ExpireAfterSeconds *int32 `bson:"expireAfterSeconds,omitempty"`
-	}
-
-	var results []rawIndex
-	if err := cursor.All(cm.ctx, &results); err != nil {
-		return nil, fmt.Errorf("failed to decode indexes: %w", err)
-	}
-
-	var indexes []models.Index
-	for _, raw := range results {
-		idx := models.Index{
-			Name:   raw.Name,
-			Unique: raw.Unique,
-			Sparse: raw.Sparse,
-			TTL:    raw.ExpireAfterSeconds,
-		}
-
-		for _, elem := range raw.Key {
-			idx.Keys = append(idx.Keys, models.IndexKeyField{
-				Field:     elem.Key,
-				Direction: elem.Value,
-			})
-		}
-
-		indexes = append(indexes, idx)
-	}
-
-	return indexes, nil
-}
-
-func (cm *ConnectionManager) CreateIndex(serverID string, dbName string, collectionName string, request models.CreateIndexRequest) error {
-	cm.log.Debug("Creating index",
-		slog.String("serverID", serverID),
-		slog.String("dbName", dbName),
-		slog.String("collectionName", collectionName))
-
-	connection, err := cm.getClient(serverID)
-	if err != nil {
-		return err
-	}
-
-	keys := bson.D{}
-	for _, k := range request.Keys {
-		keys = append(keys, bson.E{Key: k.Field, Value: k.Direction})
-	}
-
-	indexOpts := options.Index()
-	if request.Name != "" {
-		indexOpts.SetName(request.Name)
-	}
-	if request.Unique {
-		indexOpts.SetUnique(true)
-	}
-	if request.Sparse {
-		indexOpts.SetSparse(true)
-	}
-	if request.TTL != nil {
-		indexOpts.SetExpireAfterSeconds(*request.TTL)
-	}
-
-	model := mongo.IndexModel{
-		Keys:    keys,
-		Options: indexOpts,
-	}
-
-	collection := connection.client.Database(dbName).Collection(collectionName)
-	name, err := collection.Indexes().CreateOne(cm.ctx, model)
-	if err != nil {
-		cm.log.Error("Failed to create index",
-			slog.String("serverID", serverID),
-			slog.String("collectionName", collectionName),
-			slog.Any("error", err))
-		return fmt.Errorf("failed to create index: %w", err)
-	}
-
-	cm.log.Info("Created index",
-		slog.String("serverID", serverID),
-		slog.String("collectionName", collectionName),
-		slog.String("indexName", name))
-	return nil
-}
-
-func (cm *ConnectionManager) DropIndex(serverID string, dbName string, collectionName string, indexName string) error {
-	cm.log.Debug("Dropping index",
-		slog.String("serverID", serverID),
-		slog.String("dbName", dbName),
-		slog.String("collectionName", collectionName),
-		slog.String("indexName", indexName))
-
-	connection, err := cm.getClient(serverID)
-	if err != nil {
-		return err
-	}
-
-	collection := connection.client.Database(dbName).Collection(collectionName)
-	_, err = collection.Indexes().DropOne(cm.ctx, indexName)
-	if err != nil {
-		cm.log.Error("Failed to drop index",
-			slog.String("serverID", serverID),
-			slog.String("collectionName", collectionName),
-			slog.String("indexName", indexName),
-			slog.Any("error", err))
-		return fmt.Errorf("failed to drop index: %w", err)
-	}
-
-	cm.log.Info("Dropped index",
-		slog.String("serverID", serverID),
-		slog.String("collectionName", collectionName),
-		slog.String("indexName", indexName))
 	return nil
 }
 

@@ -122,6 +122,8 @@ export default {
     columns: {
       name: 'Name',
       keys: 'Keys',
+      size: 'Size',
+      usage: 'Usage',
       unique: 'Unique',
       sparse: 'Sparse',
       ttl: 'TTL (seconds)',

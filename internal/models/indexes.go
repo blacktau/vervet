@@ -11,6 +11,8 @@ type Index struct {
 	Unique bool            `json:"unique"`
 	Sparse bool            `json:"sparse"`
 	TTL    *int32          `json:"ttl,omitempty"`
+	Size   int64           `json:"size"`
+	Usage  int64           `json:"usage"`
 }
 
 type CreateIndexRequest struct {
@@ -19,4 +21,13 @@ type CreateIndexRequest struct {
 	Unique bool            `json:"unique"`
 	Sparse bool            `json:"sparse"`
 	TTL    *int32          `json:"ttl,omitempty"`
+}
+
+type EditIndexRequest struct {
+	OldName string          `json:"oldName"`
+	Keys    []IndexKeyField `json:"keys"`
+	Name    string          `json:"name,omitempty"`
+	Unique  bool            `json:"unique"`
+	Sparse  bool            `json:"sparse"`
+	TTL     *int32          `json:"ttl,omitempty"`
 }

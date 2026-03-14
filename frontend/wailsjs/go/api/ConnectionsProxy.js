@@ -18,20 +18,12 @@ export function CreateCollection(arg1, arg2, arg3) {
   return window['go']['api']['ConnectionsProxy']['CreateCollection'](arg1, arg2, arg3);
 }
 
-export function CreateIndex(arg1, arg2, arg3, arg4) {
-  return window['go']['api']['ConnectionsProxy']['CreateIndex'](arg1, arg2, arg3, arg4);
-}
-
 export function Disconnect(arg1) {
   return window['go']['api']['ConnectionsProxy']['Disconnect'](arg1);
 }
 
 export function DisconnectAll() {
   return window['go']['api']['ConnectionsProxy']['DisconnectAll']();
-}
-
-export function DropIndex(arg1, arg2, arg3, arg4) {
-  return window['go']['api']['ConnectionsProxy']['DropIndex'](arg1, arg2, arg3, arg4);
 }
 
 export function ExecuteQuery(arg1, arg2, arg3) {
@@ -52,10 +44,6 @@ export function GetConnections() {
 
 export function GetDatabases(arg1) {
   return window['go']['api']['ConnectionsProxy']['GetDatabases'](arg1);
-}
-
-export function GetIndexes(arg1, arg2, arg3) {
-  return window['go']['api']['ConnectionsProxy']['GetIndexes'](arg1, arg2, arg3);
 }
 
 export function GetViews(arg1, arg2) {

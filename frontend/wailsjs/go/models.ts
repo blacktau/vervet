@@ -112,6 +112,14 @@ export namespace models {
 	    sparse: boolean;
 	    ttl?: number;
 	}
+	export interface EditIndexRequest {
+	    oldName: string;
+	    keys: IndexKeyField[];
+	    name?: string;
+	    unique: boolean;
+	    sparse: boolean;
+	    ttl?: number;
+	}
 	export interface FontSettings {
 	    family: string;
 	    size: number;
@@ -142,6 +150,8 @@ export namespace models {
 	    unique: boolean;
 	    sparse: boolean;
 	    ttl?: number;
+	    size: number;
+	    usage: number;
 	}
 	
 	export interface QueryResult {

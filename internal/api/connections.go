@@ -24,9 +24,6 @@ type ConnectionsProvider interface {
 	GetViews(serverID string, dbName string) ([]string, error)
 	GetCollectionSchema(serverID string, dbName string, collectionName string) (models.CollectionSchema, error)
 	CreateCollection(serverID string, dbName string, collectionName string) error
-	GetIndexes(serverID string, dbName string, collectionName string) ([]models.Index, error)
-	CreateIndex(serverID string, dbName string, collectionName string, request models.CreateIndexRequest) error
-	DropIndex(serverID string, dbName string, collectionName string, indexName string) error
 }
 
 type ShellProvider interface {
@@ -185,35 +182,5 @@ func (cp *ConnectionsProxy) CreateCollection(serverID string, dbName string, col
 		return Error(fmt.Sprintf("Error creating collection: %v", err))
 	}
 
-	return Success()
-}
-
-func (cp *ConnectionsProxy) GetIndexes(serverID string, dbName string, collectionName string) Result[[]models.Index] {
-	result, err := cp.provider.GetIndexes(serverID, dbName, collectionName)
-	if err != nil {
-		return Result[[]models.Index]{
-			IsSuccess: false,
-			Error:     err.Error(),
-		}
-	}
-	return Result[[]models.Index]{
-		IsSuccess: true,
-		Data:      result,
-	}
-}
-
-func (cp *ConnectionsProxy) CreateIndex(serverID string, dbName string, collectionName string, request models.CreateIndexRequest) EmptyResult {
-	err := cp.provider.CreateIndex(serverID, dbName, collectionName, request)
-	if err != nil {
-		return Error(fmt.Sprintf("Error creating index: %v", err))
-	}
-	return Success()
-}
-
-func (cp *ConnectionsProxy) DropIndex(serverID string, dbName string, collectionName string, indexName string) EmptyResult {
-	err := cp.provider.DropIndex(serverID, dbName, collectionName, indexName)
-	if err != nil {
-		return Error(fmt.Sprintf("Error dropping index: %v", err))
-	}
 	return Success()
 }

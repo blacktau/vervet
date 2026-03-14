@@ -71,6 +71,7 @@ func main() {
 		Bind: []any{
 			application.ServersProxy,
 			application.ConnectionsProxy,
+			application.IndexesProxy,
 			application.SystemProxy,
 			application.SettingsProxy,
 		},

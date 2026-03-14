@@ -5,6 +5,8 @@ import { type FormInst } from 'naive-ui'
 import { DialogMode, DialogType, useDialogStore } from '@/stores/dialog.ts'
 import { type IndexInfo, useIndexStore } from '@/features/indexes/indexStore.ts'
 import { useNotifier } from '@/utils/dialog.ts'
+import { GetCollectionSchema } from 'wailsjs/go/api/ConnectionsProxy'
+import type { models } from 'wailsjs/go/models'
 
 type DialogData = {
   serverID: string
@@ -24,6 +26,43 @@ const serverID = ref('')
 const dbName = ref('')
 const collectionName = ref('')
 const editingIndexName = ref<string | undefined>(undefined)
+const fieldSuggestions = ref<string[]>([])
+
+function flattenFields(fields: models.FieldInfo[], prefix = ''): string[] {
+  const paths: string[] = []
+  for (const f of fields) {
+    const path = prefix ? `${prefix}.${f.path}` : f.path
+    paths.push(path)
+    if (f.children?.length) {
+      paths.push(...flattenFields(f.children, path))
+    }
+  }
+  return paths
+}
+
+async function fetchFieldSuggestions() {
+  if (!serverID.value || !dbName.value || !collectionName.value) {
+    return
+  }
+  try {
+    const result = await GetCollectionSchema(serverID.value, dbName.value, collectionName.value)
+    if (result.isSuccess && result.data?.fields) {
+      fieldSuggestions.value = flattenFields(result.data.fields)
+    }
+  } catch {
+    // Silently fail — suggestions are best-effort
+  }
+}
+
+function getFieldOptions(currentValue: string) {
+  if (!currentValue) {
+    return fieldSuggestions.value.map((f) => ({ label: f, value: f }))
+  }
+  const lower = currentValue.toLowerCase()
+  return fieldSuggestions.value
+    .filter((f) => f.toLowerCase().includes(lower))
+    .map((f) => ({ label: f, value: f }))
+}
 
 const form = reactive({
   keys: [{ field: '', direction: 1 as number }],
@@ -49,6 +88,8 @@ watchEffect(() => {
     serverID.value = data?.serverID ?? ''
     dbName.value = data?.dbName ?? ''
     collectionName.value = data?.collectionName ?? ''
+
+    fetchFieldSuggestions()
 
     if (data?.index) {
       editingIndexName.value = data.index.name
@@ -99,22 +140,15 @@ async function onConfirm() {
     }
 
     if (isEditMode.value && editingIndexName.value) {
-      const createSuccess = await indexStore.createIndex(
+      const success = await indexStore.editIndex(
         serverID.value,
         dbName.value,
         collectionName.value,
-        request,
+        { ...request, oldName: editingIndexName.value },
       )
-      if (!createSuccess) {
+      if (!success) {
         return false
       }
-
-      await indexStore.dropIndex(
-        serverID.value,
-        dbName.value,
-        collectionName.value,
-        editingIndexName.value,
-      )
     } else {
       const success = await indexStore.createIndex(
         serverID.value,
@@ -175,9 +209,11 @@ const directionOptions = computed(() => [
             v-for="(key, index) in form.keys"
             :key="index"
             style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center">
-            <n-input
+            <n-auto-complete
               v-model:value="key.field"
+              :options="getFieldOptions(key.field)"
               :placeholder="$t('indexes.dialogs.create.field')"
+              clearable
               style="flex: 1" />
             <n-select
               v-model:value="key.direction"
