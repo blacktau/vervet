@@ -15,6 +15,8 @@ import DataBrowserPane from '@/features/data-browser/DataBrowserPane.vue'
 import UnconnectedContent from '@/features/unconnected-content/UnconnectedContent.vue'
 import TitleBar from '@/app/TitleBar.vue'
 import QueryContentPane from '@/features/queries/QueryContentPane.vue'
+import IndexContentPane from '@/features/indexes/IndexContentPane.vue'
+import { BrowserSubTabType } from '@/consts/BrowserSubTabType.ts'
 
 const themeVars = useThemeVars()
 const props = defineProps<{
@@ -123,7 +125,12 @@ onMounted(async () => {
               v-show="dataBrowserStore.hasOpenConnections"
               class="app-side flex-item-expand" />
           </resizeable-wrapper>
-          <query-content-pane class="flex-item-expand" />
+          <query-content-pane
+            v-show="!tabStore.currentSubTab || tabStore.currentSubTab === BrowserSubTabType.Query"
+            class="flex-item-expand" />
+          <index-content-pane
+            v-show="tabStore.currentSubTab === BrowserSubTabType.Indexes"
+            class="flex-item-expand" />
         </div>
         <div
           v-show="tabStore.nav === NavType.Servers"
