@@ -91,6 +91,7 @@ export const useTabStore = defineStore('tabs', {
           subTab: BrowserSubTabType.Query,
           queryOpen: false,
           queries: [],
+          indexTabs: [],
         }
         this.tabItems.push(tabItem)
         tabIndex = this.tabItems.length - 1

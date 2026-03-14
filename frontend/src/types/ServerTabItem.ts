@@ -6,6 +6,13 @@ export type QueryTabItem = {
   initialText?: string
 }
 
+export type IndexTabItem = {
+  id: string
+  serverId: string
+  dbName: string
+  collectionName: string
+}
+
 export type ServerTabItem = {
   title: string
   blank: boolean
@@ -15,4 +22,6 @@ export type ServerTabItem = {
   queryOpen?: boolean
   queries: QueryTabItem[]
   activeQueryId?: string
+  indexTabs?: IndexTabItem[]
+  activeIndexTabId?: string
 }
