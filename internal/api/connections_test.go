@@ -270,3 +270,74 @@ func TestConnectionsProxy_GetCollections(t *testing.T) {
 		assert.Contains(t, result.Error, "failed to get collections")
 	})
 }
+
+func TestConnectionsProxy_GetIndexes(t *testing.T) {
+	t.Run("successful get indexes", func(t *testing.T) {
+		provider := &MockConnectionsProvider{
+			indexes: []models.Index{
+				{Name: "_id_", Keys: []models.IndexKeyField{{Field: "_id", Direction: 1}}, Unique: true},
+				{Name: "name_1", Keys: []models.IndexKeyField{{Field: "name", Direction: 1}}},
+			},
+		}
+		proxy := NewConnectionsProxy(provider, nil)
+		result := proxy.GetIndexes("1", "db1", "coll1")
+		assert.True(t, result.IsSuccess)
+		assert.Len(t, result.Data, 2)
+		assert.Equal(t, "_id_", result.Data[0].Name)
+	})
+
+	t.Run("get indexes error", func(t *testing.T) {
+		provider := &MockConnectionsProvider{
+			getIndexesErr: errors.New("failed to get indexes"),
+		}
+		proxy := NewConnectionsProxy(provider, nil)
+		result := proxy.GetIndexes("1", "db1", "coll1")
+		assert.False(t, result.IsSuccess)
+		assert.Contains(t, result.Error, "failed to get indexes")
+	})
+}
+
+func TestConnectionsProxy_CreateIndex(t *testing.T) {
+	t.Run("successful create index", func(t *testing.T) {
+		provider := &MockConnectionsProvider{}
+		proxy := NewConnectionsProxy(provider, nil)
+		result := proxy.CreateIndex("1", "db1", "coll1", models.CreateIndexRequest{
+			Keys:   []models.IndexKeyField{{Field: "email", Direction: 1}},
+			Unique: true,
+		})
+		assert.True(t, result.IsSuccess)
+		assert.Empty(t, result.Error)
+	})
+
+	t.Run("create index error", func(t *testing.T) {
+		provider := &MockConnectionsProvider{
+			createIndexErr: errors.New("duplicate key"),
+		}
+		proxy := NewConnectionsProxy(provider, nil)
+		result := proxy.CreateIndex("1", "db1", "coll1", models.CreateIndexRequest{
+			Keys: []models.IndexKeyField{{Field: "email", Direction: 1}},
+		})
+		assert.False(t, result.IsSuccess)
+		assert.Contains(t, result.Error, "duplicate key")
+	})
+}
+
+func TestConnectionsProxy_DropIndex(t *testing.T) {
+	t.Run("successful drop index", func(t *testing.T) {
+		provider := &MockConnectionsProvider{}
+		proxy := NewConnectionsProxy(provider, nil)
+		result := proxy.DropIndex("1", "db1", "coll1", "name_1")
+		assert.True(t, result.IsSuccess)
+		assert.Empty(t, result.Error)
+	})
+
+	t.Run("drop index error", func(t *testing.T) {
+		provider := &MockConnectionsProvider{
+			dropIndexErr: errors.New("index not found"),
+		}
+		proxy := NewConnectionsProxy(provider, nil)
+		result := proxy.DropIndex("1", "db1", "coll1", "name_1")
+		assert.False(t, result.IsSuccess)
+		assert.Contains(t, result.Error, "index not found")
+	})
+}

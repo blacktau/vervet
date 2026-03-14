@@ -187,3 +187,33 @@ func (cp *ConnectionsProxy) CreateCollection(serverID string, dbName string, col
 
 	return Success()
 }
+
+func (cp *ConnectionsProxy) GetIndexes(serverID string, dbName string, collectionName string) Result[[]models.Index] {
+	result, err := cp.provider.GetIndexes(serverID, dbName, collectionName)
+	if err != nil {
+		return Result[[]models.Index]{
+			IsSuccess: false,
+			Error:     err.Error(),
+		}
+	}
+	return Result[[]models.Index]{
+		IsSuccess: true,
+		Data:      result,
+	}
+}
+
+func (cp *ConnectionsProxy) CreateIndex(serverID string, dbName string, collectionName string, request models.CreateIndexRequest) EmptyResult {
+	err := cp.provider.CreateIndex(serverID, dbName, collectionName, request)
+	if err != nil {
+		return Error(fmt.Sprintf("Error creating index: %v", err))
+	}
+	return Success()
+}
+
+func (cp *ConnectionsProxy) DropIndex(serverID string, dbName string, collectionName string, indexName string) EmptyResult {
+	err := cp.provider.DropIndex(serverID, dbName, collectionName, indexName)
+	if err != nil {
+		return Error(fmt.Sprintf("Error dropping index: %v", err))
+	}
+	return Success()
+}
