@@ -22,6 +22,10 @@ type MockConnectionsProvider struct {
 	databases         []string
 	collections       []string
 	views             []string
+	getIndexesErr     error
+	indexes           []models.Index
+	createIndexErr    error
+	dropIndexErr      error
 }
 
 func (m *MockConnectionsProvider) Init(ctx context.Context) error {
@@ -81,6 +85,21 @@ func (m *MockConnectionsProvider) GetCollectionSchema(serverID string, dbName st
 
 func (m *MockConnectionsProvider) CreateCollection(serverID string, dbName string, collectionName string) error {
 	return nil
+}
+
+func (m *MockConnectionsProvider) GetIndexes(serverID string, dbName string, collectionName string) ([]models.Index, error) {
+	if m.getIndexesErr != nil {
+		return nil, m.getIndexesErr
+	}
+	return m.indexes, nil
+}
+
+func (m *MockConnectionsProvider) CreateIndex(serverID string, dbName string, collectionName string, request models.CreateIndexRequest) error {
+	return m.createIndexErr
+}
+
+func (m *MockConnectionsProvider) DropIndex(serverID string, dbName string, collectionName string, indexName string) error {
+	return m.dropIndexErr
 }
 
 func TestConnectionsProxy_Connect(t *testing.T) {

@@ -24,6 +24,9 @@ type ConnectionsProvider interface {
 	GetViews(serverID string, dbName string) ([]string, error)
 	GetCollectionSchema(serverID string, dbName string, collectionName string) (models.CollectionSchema, error)
 	CreateCollection(serverID string, dbName string, collectionName string) error
+	GetIndexes(serverID string, dbName string, collectionName string) ([]models.Index, error)
+	CreateIndex(serverID string, dbName string, collectionName string, request models.CreateIndexRequest) error
+	DropIndex(serverID string, dbName string, collectionName string, indexName string) error
 }
 
 type ShellProvider interface {
