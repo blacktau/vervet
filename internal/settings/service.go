@@ -16,7 +16,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-type Manager interface {
+type Service interface {
 	Init(ctx context.Context) error
 	GetSettings() (models.Settings, error)
 	SetSettings(settings *models.Settings) error
@@ -30,34 +30,34 @@ const DefaultWindowWidth = 1024
 const DefaultWindowHeight = 768
 const DefaultAsideWidth = 300
 
-type settingsManager struct {
+type settingsService struct {
 	store infrastructure.Store
 	log   *slog.Logger
 	ctx   context.Context
 	mutex sync.Mutex
 }
 
-func NewManager(log *slog.Logger) Manager {
-	log = log.With(slog.String(logging.SourceKey, "SettingsManager"))
+func NewService(log *slog.Logger) Service {
+	log = log.With(slog.String(logging.SourceKey, "SettingsService"))
 	store, err := infrastructure.NewStore("configuration.yaml", log)
 	if err != nil {
 		log.Error("error accessing configuration", slog.Any("error", err))
 		panic(fmt.Errorf("error accessing configuration: %v", err))
 	}
 
-	return &settingsManager{
+	return &settingsService{
 		store: store,
 		log:   log,
 	}
 }
 
-func (cm *settingsManager) Init(ctx context.Context) error {
-	cm.log.Debug("Initializing Settings Manager")
+func (cm *settingsService) Init(ctx context.Context) error {
+	cm.log.Debug("Initializing Settings Service")
 	cm.ctx = ctx
 	return nil
 }
 
-func (cm *settingsManager) GetSettings() (models.Settings, error) {
+func (cm *settingsService) GetSettings() (models.Settings, error) {
 	cm.mutex.Lock()
 	defer cm.mutex.Unlock()
 
@@ -78,7 +78,7 @@ func (cm *settingsManager) GetSettings() (models.Settings, error) {
 	return settings, nil
 }
 
-func (cm *settingsManager) SetSettings(settings *models.Settings) error {
+func (cm *settingsService) SetSettings(settings *models.Settings) error {
 	cm.mutex.Lock()
 	defer cm.mutex.Unlock()
 
@@ -87,7 +87,7 @@ func (cm *settingsManager) SetSettings(settings *models.Settings) error {
 	return cm.saveSettings(settings)
 }
 
-func (cm *settingsManager) RestoreSettings() (*models.Settings, error) {
+func (cm *settingsService) RestoreSettings() (*models.Settings, error) {
 	cm.mutex.Lock()
 	defer cm.mutex.Unlock()
 
@@ -103,7 +103,7 @@ func (cm *settingsManager) RestoreSettings() (*models.Settings, error) {
 	return &settings, nil
 }
 
-func (cm *settingsManager) GetWindowState() (models.WindowState, error) {
+func (cm *settingsService) GetWindowState() (models.WindowState, error) {
 	cm.log.Debug("Getting window state")
 	settings, err := cm.GetSettings()
 	if err != nil {
@@ -121,7 +121,7 @@ func (cm *settingsManager) GetWindowState() (models.WindowState, error) {
 	return models.WindowState{x, y, width, height}, nil
 }
 
-func (cm *settingsManager) SaveWindowState(state models.WindowState) error {
+func (cm *settingsService) SaveWindowState(state models.WindowState) error {
 	log := cm.log.With(slog.Any("windowState", state))
 	log.Info("Saving window state")
 
@@ -145,7 +145,7 @@ func (cm *settingsManager) SaveWindowState(state models.WindowState) error {
 	return nil
 }
 
-func (cm *settingsManager) update(values map[string]any) error {
+func (cm *settingsService) update(values map[string]any) error {
 	cm.mutex.Lock()
 	defer cm.mutex.Unlock()
 
@@ -167,7 +167,7 @@ func (cm *settingsManager) update(values map[string]any) error {
 	return cm.saveSettings(&settings)
 }
 
-func (cm *settingsManager) getScreenSize() (width, height int) {
+func (cm *settingsService) getScreenSize() (width, height int) {
 	if screens, err := runtime.ScreenGetAll(cm.ctx); err == nil {
 		for _, screen := range screens {
 			if screen.IsCurrent {
@@ -179,7 +179,7 @@ func (cm *settingsManager) getScreenSize() (width, height int) {
 	return DefaultWindowWidth, DefaultWindowHeight
 }
 
-func (cm *settingsManager) getSettings() (models.Settings, error) {
+func (cm *settingsService) getSettings() (models.Settings, error) {
 	settings := defaultSettings()
 	b, err := cm.store.Read()
 	if err != nil && !os.IsNotExist(err) {
@@ -200,7 +200,7 @@ func (cm *settingsManager) getSettings() (models.Settings, error) {
 	return settings, nil
 }
 
-func (cm *settingsManager) setSettings(settings *models.Settings, key string, value any) error {
+func (cm *settingsService) setSettings(settings *models.Settings, key string, value any) error {
 	parts := strings.Split(key, ".")
 
 	log := cm.log.With(slog.String("key", key), slog.Any("value", value))
@@ -253,7 +253,7 @@ func (cm *settingsManager) setSettings(settings *models.Settings, key string, va
 	return fmt.Errorf("invalid configuration key: %s", key)
 }
 
-func (cm *settingsManager) saveSettings(settings *models.Settings) error {
+func (cm *settingsService) saveSettings(settings *models.Settings) error {
 	b, err := yaml.Marshal(settings)
 	if err != nil {
 		cm.log.Error("error marshalling configuration", slog.Any("error", err))

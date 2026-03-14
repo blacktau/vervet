@@ -17,25 +17,25 @@ type ClientProvider interface {
 	GetClient(serverID string) (*mongo.Client, error)
 }
 
-// IndexManager handles CRUD operations for MongoDB collection indexes
-type IndexManager struct {
+// IndexService handles CRUD operations for MongoDB collection indexes
+type IndexService struct {
 	ctx      context.Context
 	log      *slog.Logger
 	clients  ClientProvider
 }
 
-func NewIndexManager(log *slog.Logger, clients ClientProvider) *IndexManager {
-	return &IndexManager{
-		log:     log.With(slog.String("source", "IndexManager")),
+func NewIndexService(log *slog.Logger, clients ClientProvider) *IndexService {
+	return &IndexService{
+		log:     log.With(slog.String("source", "IndexService")),
 		clients: clients,
 	}
 }
 
-func (im *IndexManager) Init(ctx context.Context) {
+func (im *IndexService) Init(ctx context.Context) {
 	im.ctx = ctx
 }
 
-func (im *IndexManager) GetIndexes(serverID, dbName, collectionName string) ([]models.Index, error) {
+func (im *IndexService) GetIndexes(serverID, dbName, collectionName string) ([]models.Index, error) {
 	im.log.Debug("Getting indexes",
 		slog.String("serverID", serverID),
 		slog.String("dbName", dbName),
@@ -132,7 +132,7 @@ func (im *IndexManager) GetIndexes(serverID, dbName, collectionName string) ([]m
 	return indexes, nil
 }
 
-func (im *IndexManager) CreateIndex(serverID, dbName, collectionName string, request models.CreateIndexRequest) error {
+func (im *IndexService) CreateIndex(serverID, dbName, collectionName string, request models.CreateIndexRequest) error {
 	im.log.Debug("Creating index",
 		slog.String("serverID", serverID),
 		slog.String("dbName", dbName),
@@ -162,7 +162,7 @@ func (im *IndexManager) CreateIndex(serverID, dbName, collectionName string, req
 	return nil
 }
 
-func (im *IndexManager) EditIndex(serverID, dbName, collectionName string, request models.EditIndexRequest) error {
+func (im *IndexService) EditIndex(serverID, dbName, collectionName string, request models.EditIndexRequest) error {
 	im.log.Debug("Editing index",
 		slog.String("serverID", serverID),
 		slog.String("dbName", dbName),
@@ -224,7 +224,7 @@ func (im *IndexManager) EditIndex(serverID, dbName, collectionName string, reque
 	return nil
 }
 
-func (im *IndexManager) DropIndex(serverID, dbName, collectionName, indexName string) error {
+func (im *IndexService) DropIndex(serverID, dbName, collectionName, indexName string) error {
 	im.log.Debug("Dropping index",
 		slog.String("serverID", serverID),
 		slog.String("dbName", dbName),
@@ -254,7 +254,7 @@ func (im *IndexManager) DropIndex(serverID, dbName, collectionName, indexName st
 	return nil
 }
 
-func (im *IndexManager) buildIndexModel(keys []models.IndexKeyField, name string, unique, sparse bool, ttl *int32) mongo.IndexModel {
+func (im *IndexService) buildIndexModel(keys []models.IndexKeyField, name string, unique, sparse bool, ttl *int32) mongo.IndexModel {
 	bsonKeys := bson.D{}
 	for _, k := range keys {
 		dir := k.Direction
@@ -285,7 +285,7 @@ func (im *IndexManager) buildIndexModel(keys []models.IndexKeyField, name string
 	}
 }
 
-func (im *IndexManager) captureIndex(collection *mongo.Collection, indexName string) (*mongo.IndexModel, error) {
+func (im *IndexService) captureIndex(collection *mongo.Collection, indexName string) (*mongo.IndexModel, error) {
 	cursor, err := collection.Indexes().List(im.ctx)
 	if err != nil {
 		return nil, err

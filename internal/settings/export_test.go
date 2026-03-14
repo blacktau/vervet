@@ -6,8 +6,8 @@ import (
 	"vervet/internal/infrastructure"
 )
 
-func NewTestManager(store infrastructure.Store, log *slog.Logger, ctx context.Context) Manager {
-	return &settingsManager{
+func NewTestService(store infrastructure.Store, log *slog.Logger, ctx context.Context) Service {
+	return &settingsService{
 		store: store,
 		log:   log,
 		ctx:   ctx,

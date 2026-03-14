@@ -41,7 +41,7 @@ func (s *storeStub) Save(date []byte) error {
 	return s.err
 }
 
-func newTestManager(store infrastructure.Store, log *slog.Logger) settings.Manager {
+func newTestService(store infrastructure.Store, log *slog.Logger) settings.Service {
 	if store == nil {
 		store = &storeStub{}
 	}
@@ -49,13 +49,13 @@ func newTestManager(store infrastructure.Store, log *slog.Logger) settings.Manag
 		log = slog.Default()
 	}
 	ctx := context.Background()
-	cm := settings.NewTestManager(store, log, ctx)
+	cm := settings.NewTestService(store, log, ctx)
 	return cm
 }
 
-func Test_SettingsManager_GetSettings(t *testing.T) {
+func Test_SettingsService_GetSettings(t *testing.T) {
 	t.Run("returns default config if store is empty", func(t *testing.T) {
-		m := newTestManager(nil, nil)
+		m := newTestService(nil, nil)
 		c, err := m.GetSettings()
 		if err != nil {
 			t.Fatal(err)
@@ -66,7 +66,7 @@ func Test_SettingsManager_GetSettings(t *testing.T) {
 	})
 
 	t.Run("returns error if store has read error", func(t *testing.T) {
-		m := newTestManager(&storeStub{
+		m := newTestService(&storeStub{
 			err: errors.New("read error"),
 		}, nil)
 		_, err := m.GetSettings()
@@ -76,7 +76,7 @@ func Test_SettingsManager_GetSettings(t *testing.T) {
 	})
 
 	t.Run("returns config from store", func(t *testing.T) {
-		m := newTestManager(&storeStub{
+		m := newTestService(&storeStub{
 			content: []byte("window:\n  width: 1024\n  height: 768\n  asideWidth: 200"),
 		}, nil)
 		c, err := m.GetSettings()
@@ -89,10 +89,10 @@ func Test_SettingsManager_GetSettings(t *testing.T) {
 	})
 }
 
-func Test_SettingsManager_SetSettings(t *testing.T) {
+func Test_SettingsService_SetSettings(t *testing.T) {
 	t.Run("saves configuration to store", func(t *testing.T) {
 		store := &storeStub{}
-		m := newTestManager(store, nil)
+		m := newTestService(store, nil)
 		cfg := expectedSettings()
 		cfg.Window.Width = 1280
 		err := m.SetSettings(&cfg)
@@ -107,7 +107,7 @@ func Test_SettingsManager_SetSettings(t *testing.T) {
 	})
 
 	t.Run("returns error on store write failure", func(t *testing.T) {
-		m := newTestManager(&storeStub{
+		m := newTestService(&storeStub{
 			err: errors.New("write error"),
 		}, nil)
 		err := m.SetSettings(&models.Settings{})
@@ -117,9 +117,9 @@ func Test_SettingsManager_SetSettings(t *testing.T) {
 	})
 }
 
-func Test_SettingsManager_DefaultQueryEngine(t *testing.T) {
+func Test_SettingsService_DefaultQueryEngine(t *testing.T) {
 	t.Run("default query engine is builtin", func(t *testing.T) {
-		m := newTestManager(nil, nil)
+		m := newTestService(nil, nil)
 		c, err := m.GetSettings()
 		if err != nil {
 			t.Fatal(err)
@@ -130,12 +130,12 @@ func Test_SettingsManager_DefaultQueryEngine(t *testing.T) {
 	})
 }
 
-func Test_SettingsManager_RestoreSettings(t *testing.T) {
+func Test_SettingsService_RestoreSettings(t *testing.T) {
 	t.Run("restores default configuration", func(t *testing.T) {
 		store := &storeStub{
 			content: []byte("window:\n  width: 1024"),
 		}
-		m := newTestManager(store, nil)
+		m := newTestService(store, nil)
 		_, err := m.RestoreSettings()
 		if err != nil {
 			t.Fatal(err)
@@ -150,10 +150,10 @@ func Test_SettingsManager_RestoreSettings(t *testing.T) {
 	})
 }
 
-func Test_SettingsManager_SaveWindowState(t *testing.T) {
+func Test_SettingsService_SaveWindowState(t *testing.T) {
 	t.Run("saves window state", func(t *testing.T) {
 		store := &storeStub{}
-		m := newTestManager(store, nil)
+		m := newTestService(store, nil)
 		err := m.SaveWindowState(models.WindowState{
 			X: 10, Y: 20, Width: 1280, Height: 960,
 		})
@@ -168,7 +168,7 @@ func Test_SettingsManager_SaveWindowState(t *testing.T) {
 	})
 
 	t.Run("returns error for invalid window state", func(t *testing.T) {
-		m := newTestManager(nil, nil)
+		m := newTestService(nil, nil)
 		err := m.SaveWindowState(models.WindowState{
 			Width: -1,
 		})

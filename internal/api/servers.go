@@ -18,7 +18,7 @@ type ServersProvider interface {
 	GetServer(id string) (*models.RegisteredServer, error)
 }
 
-// ServersProxy exposes the ServerManager to the UI
+// ServersProxy exposes the ServerService to the UI
 // the proxies serve as a place to handle the idiosyncrasies of the marshaling/unmarshalling to the UI
 type ServersProxy struct {
 	sm ServersProvider

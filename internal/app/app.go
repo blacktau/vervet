@@ -11,9 +11,9 @@ import (
 	"vervet/internal/connections"
 	"vervet/internal/indexes"
 	"vervet/internal/models"
+	"vervet/internal/queryexecutor"
 	"vervet/internal/servers"
 	"vervet/internal/settings"
-	"vervet/internal/shellmanager"
 	"vervet/internal/system"
 
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
@@ -30,42 +30,42 @@ type App struct {
 	SystemProxy      *api.SystemProxy
 	SettingsProxy    *api.SettingsProxy
 
-	serverManager     *servers.ServerManager
+	serverService     *servers.ServerService
 	registry          *clientregistry.ClientRegistry
 	connectionManager *connections.ConnectionManager
-	indexManager      *indexes.IndexManager
-	shellManager      *shellmanager.ShellManager
-	settingsManager   settings.Manager
+	indexService      *indexes.IndexService
+	queryExecutor     *queryexecutor.QueryExecutor
+	settingsService   settings.Service
 	systemService     *system.Service
 }
 
 // NewApp creates a new App application struct
 func NewApp(log *slog.Logger) *App {
-	serverManager := servers.NewManager(log)
+	serverService := servers.NewService(log)
 	connectionStringsStore := connectionStrings.NewStore(log)
 	registry := clientregistry.NewClientRegistry(log)
-	connectionManager := connections.NewManager(log, registry, connectionStringsStore, serverManager)
-	indexManager := indexes.NewIndexManager(log, registry)
-	settingsManager := settings.NewManager(log)
-	shellManager := shellmanager.NewShellManager(log, registry, connectionStringsStore, settingsManager)
+	connectionManager := connections.NewManager(log, registry, connectionStringsStore, serverService)
+	indexService := indexes.NewIndexService(log, registry)
+	settingsService := settings.NewService(log)
+	queryExecutor := queryexecutor.NewQueryExecutor(log, registry, connectionStringsStore, settingsService)
 	systemService := system.NewSystemService(log)
 	fontService := system.NewFontService(log)
 
 	return &App{
 		log:               log,
-		serverManager:     serverManager,
+		serverService:     serverService,
 		registry:          registry,
 		connectionManager: connectionManager,
-		indexManager:      indexManager,
-		shellManager:      shellManager,
-		settingsManager:   settingsManager,
+		indexService:      indexService,
+		queryExecutor:     queryExecutor,
+		settingsService:   settingsService,
 		systemService:     systemService,
-		ServersProxy:      api.NewServersProxy(serverManager),
+		ServersProxy:      api.NewServersProxy(serverService),
 		ConnectionsProxy:  api.NewConnectionsProxy(connectionManager),
-		IndexesProxy:      api.NewIndexesProxy(indexManager),
-		ShellProxy:        api.NewShellProxy(shellManager),
+		IndexesProxy:      api.NewIndexesProxy(indexService),
+		ShellProxy:        api.NewShellProxy(queryExecutor),
 		SystemProxy:       api.NewSystemProxy(systemService),
-		SettingsProxy:     api.NewSettingsProxy(settingsManager, fontService),
+		SettingsProxy:     api.NewSettingsProxy(settingsService, fontService),
 	}
 }
 
@@ -73,10 +73,10 @@ func NewApp(log *slog.Logger) *App {
 func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
 
-	err := a.serverManager.Init(ctx)
+	err := a.serverService.Init(ctx)
 	if err != nil {
-		a.log.Error("Failed to initialize registered server manager", slog.Any("error", err))
-		panic(fmt.Errorf("failed to initialize registered server manager: %w", err))
+		a.log.Error("Failed to initialize server service", slog.Any("error", err))
+		panic(fmt.Errorf("failed to initialize server service: %w", err))
 	}
 
 	a.registry.Init(ctx)
@@ -87,13 +87,13 @@ func (a *App) Startup(ctx context.Context) {
 		panic(fmt.Errorf("failed to initialize connection manager: %w", err))
 	}
 
-	a.indexManager.Init(ctx)
-	a.shellManager.Init(ctx)
+	a.indexService.Init(ctx)
+	a.queryExecutor.Init(ctx)
 
-	err = a.settingsManager.Init(ctx)
+	err = a.settingsService.Init(ctx)
 	if err != nil {
-		a.log.Error("Failed to initialize settings manager", slog.Any("error", err))
-		panic(fmt.Errorf("failed to initialize settings manager: %w", err))
+		a.log.Error("Failed to initialize settings service", slog.Any("error", err))
+		panic(fmt.Errorf("failed to initialize settings service: %w", err))
 	}
 
 	err = a.systemService.Init(ctx)
@@ -118,7 +118,7 @@ func (a *App) BeforeClose(ctx context.Context) (prevent bool) {
 // GetInitialWindowSize returns the saved window size for use in Wails options before the window is created.
 // This reads settings directly rather than using GetWindowState, which requires a Wails context.
 func (a *App) GetInitialWindowSize() (width, height int) {
-	cfg, err := a.settingsManager.GetSettings()
+	cfg, err := a.settingsService.GetSettings()
 	if err != nil {
 		return settings.DefaultWindowWidth, settings.DefaultWindowHeight
 	}
@@ -129,7 +129,7 @@ func (a *App) saveWindowState() {
 	width, height := wailsRuntime.WindowGetSize(a.ctx)
 	x, y := wailsRuntime.WindowGetPosition(a.ctx)
 
-	err := a.settingsManager.SaveWindowState(models.WindowState{
+	err := a.settingsService.SaveWindowState(models.WindowState{
 		X:      x,
 		Y:      y,
 		Width:  width,
@@ -142,8 +142,8 @@ func (a *App) saveWindowState() {
 
 // Shutdown is called at application termination
 func (a *App) Shutdown(ctx context.Context) {
-	// Cancel any in-flight mongosh queries
-	a.shellManager.CloseAll()
+	// Cancel any in-flight queries
+	a.queryExecutor.CloseAll()
 
 	// Disconnect all MongoDB connections
 	err := a.connectionManager.DisconnectAll()
