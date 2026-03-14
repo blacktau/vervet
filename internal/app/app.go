@@ -26,6 +26,7 @@ type App struct {
 	ServersProxy     *api.ServersProxy
 	ConnectionsProxy *api.ConnectionsProxy
 	IndexesProxy     *api.IndexesProxy
+	ShellProxy       *api.ShellProxy
 	SystemProxy      *api.SystemProxy
 	SettingsProxy    *api.SettingsProxy
 
@@ -60,8 +61,9 @@ func NewApp(log *slog.Logger) *App {
 		settingsManager:   settingsManager,
 		systemService:     systemService,
 		ServersProxy:      api.NewServersProxy(serverManager),
-		ConnectionsProxy:  api.NewConnectionsProxy(connectionManager, shellManager),
+		ConnectionsProxy:  api.NewConnectionsProxy(connectionManager),
 		IndexesProxy:      api.NewIndexesProxy(indexManager),
+		ShellProxy:        api.NewShellProxy(shellManager),
 		SystemProxy:       api.NewSystemProxy(systemService),
 		SettingsProxy:     api.NewSettingsProxy(settingsManager, fontService),
 	}

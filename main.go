@@ -72,6 +72,7 @@ func main() {
 			application.ServersProxy,
 			application.ConnectionsProxy,
 			application.IndexesProxy,
+			application.ShellProxy,
 			application.SystemProxy,
 			application.SettingsProxy,
 		},

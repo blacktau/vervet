@@ -8,7 +8,6 @@ import (
 
 type ConnectionsProxy struct {
 	provider ConnectionsProvider
-	shellMgr ShellProvider
 }
 
 type ConnectionsProvider interface {
@@ -32,10 +31,9 @@ type ShellProvider interface {
 	CloseAll()
 }
 
-func NewConnectionsProxy(provider ConnectionsProvider, shellMgr ShellProvider) *ConnectionsProxy {
+func NewConnectionsProxy(provider ConnectionsProvider) *ConnectionsProxy {
 	return &ConnectionsProxy{
 		provider: provider,
-		shellMgr: shellMgr,
 	}
 }
 
@@ -115,33 +113,6 @@ func (cp *ConnectionsProxy) GetCollections(serverID string, dbName string) Resul
 	return Result[[]string]{
 		IsSuccess: true,
 		Data:      result,
-	}
-}
-
-func (cp *ConnectionsProxy) ExecuteQuery(serverID string, dbName string, query string) Result[models.QueryResult] {
-	result, err := cp.shellMgr.ExecuteQuery(serverID, dbName, query)
-	if err != nil {
-		return Result[models.QueryResult]{
-			IsSuccess: false,
-			Error:     fmt.Sprintf("Query execution failed: %v", err),
-		}
-	}
-
-	return Result[models.QueryResult]{
-		IsSuccess: true,
-		Data:      result,
-	}
-}
-
-func (cp *ConnectionsProxy) CancelQuery(serverID string) EmptyResult {
-	cp.shellMgr.CancelQuery(serverID)
-	return Success()
-}
-
-func (cp *ConnectionsProxy) CheckMongosh() Result[bool] {
-	return Result[bool]{
-		IsSuccess: true,
-		Data:      cp.shellMgr.CheckMongosh(),
 	}
 }
 

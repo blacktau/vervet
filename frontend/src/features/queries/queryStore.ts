@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import * as connectionsProxy from 'wailsjs/go/api/ConnectionsProxy'
+import * as shellProxy from 'wailsjs/go/api/ShellProxy'
 import { useTabStore } from '@/features/tabs/tabs'
 import { useNotifier } from '@/utils/dialog'
 import { useSettingsStore } from '@/features/settings/settingsStore'
@@ -64,7 +64,7 @@ export const useQueryStore = defineStore('query', {
     },
 
     async checkMongosh() {
-      const result = await connectionsProxy.CheckMongosh()
+      const result = await shellProxy.CheckMongosh()
       if (result.isSuccess) {
         this.mongoshAvailable = result.data
       }
@@ -98,7 +98,7 @@ export const useQueryStore = defineStore('query', {
       state.selectedDocIndex = 0
 
       try {
-        const result = await connectionsProxy.ExecuteQuery(
+        const result = await shellProxy.ExecuteQuery(
           serverId,
           state.selectedDatabase,
           query,
@@ -138,7 +138,7 @@ export const useQueryStore = defineStore('query', {
         return
       }
 
-      await connectionsProxy.CancelQuery(serverId)
+      await shellProxy.CancelQuery(serverId)
       const state = this.getQueryState(queryId)
       state.loading = false
       state.error = i18nGlobal.t('query.queryCancelled')
