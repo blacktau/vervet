@@ -1,4 +1,4 @@
-package connections
+package shellmanager
 
 import (
 	"context"
@@ -7,6 +7,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"vervet/internal/clientregistry"
+	"vervet/internal/connectionStrings"
 	"vervet/internal/logging"
 	"vervet/internal/models"
 	"vervet/internal/queryengine"
@@ -24,16 +26,18 @@ type ShellManager struct {
 	mu       sync.Mutex
 	ctx      context.Context
 	log      *slog.Logger
-	cm       *ConnectionManager
+	registry *clientregistry.ClientRegistry
+	store    connectionStrings.Store
 	cancels  map[string]context.CancelFunc // serverID -> cancel for in-flight query
 	cfg      shell.Config
 	settings SettingsProvider
 }
 
-func NewShellManager(log *slog.Logger, cm *ConnectionManager, settings SettingsProvider) *ShellManager {
+func NewShellManager(log *slog.Logger, registry *clientregistry.ClientRegistry, store connectionStrings.Store, settings SettingsProvider) *ShellManager {
 	return &ShellManager{
 		log:      log.With(slog.String(logging.SourceKey, "ShellManager")),
-		cm:       cm,
+		registry: registry,
+		store:    store,
 		cancels:  make(map[string]context.CancelFunc),
 		settings: settings,
 		cfg: shell.Config{
@@ -78,12 +82,12 @@ func (sm *ShellManager) ExecuteQuery(serverID, dbName, query string) (models.Que
 }
 
 func (sm *ShellManager) executeWithGoja(ctx context.Context, serverID, dbName, query string) (models.QueryResult, error) {
-	ac, err := sm.cm.getClient(serverID)
+	client, err := sm.registry.GetClient(serverID)
 	if err != nil {
 		return models.QueryResult{}, fmt.Errorf("no active connection: %w", err)
 	}
 
-	engine := queryengine.NewGojaEngine(ac.client)
+	engine := queryengine.NewGojaEngine(client)
 	result, err := engine.ExecuteQuery(ctx, "", dbName, query)
 	if err != nil {
 		sm.log.Error("Goja query failed", slog.String("serverID", serverID), slog.Any("error", err))
@@ -140,7 +144,7 @@ func (sm *ShellManager) CheckMongosh() bool {
 }
 
 func (sm *ShellManager) getURI(serverID, dbName string) (string, error) {
-	uri, err := sm.cm.store.GetRegisteredServerURI(serverID)
+	uri, err := sm.store.GetRegisteredServerURI(serverID)
 	if err != nil {
 		return "", fmt.Errorf("failed to get URI: %w", err)
 	}

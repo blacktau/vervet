@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"log/slog"
 	"vervet/internal/api"
+	"vervet/internal/clientregistry"
 	"vervet/internal/connectionStrings"
 	"vervet/internal/connections"
 	"vervet/internal/indexes"
 	"vervet/internal/models"
 	"vervet/internal/servers"
 	"vervet/internal/settings"
+	"vervet/internal/shellmanager"
 	"vervet/internal/system"
 
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
@@ -28,9 +30,10 @@ type App struct {
 	SettingsProxy    *api.SettingsProxy
 
 	serverManager     *servers.ServerManager
+	registry          *clientregistry.ClientRegistry
 	connectionManager *connections.ConnectionManager
 	indexManager      *indexes.IndexManager
-	shellManager      *connections.ShellManager
+	shellManager      *shellmanager.ShellManager
 	settingsManager   settings.Manager
 	systemService     *system.Service
 }
@@ -39,16 +42,18 @@ type App struct {
 func NewApp(log *slog.Logger) *App {
 	serverManager := servers.NewManager(log)
 	connectionStringsStore := connectionStrings.NewStore(log)
-	connectionManager := connections.NewManager(log, connectionStringsStore, serverManager)
-	indexManager := indexes.NewIndexManager(log, connectionManager)
+	registry := clientregistry.NewClientRegistry(log)
+	connectionManager := connections.NewManager(log, registry, connectionStringsStore, serverManager)
+	indexManager := indexes.NewIndexManager(log, registry)
 	settingsManager := settings.NewManager(log)
-	shellManager := connections.NewShellManager(log, connectionManager, settingsManager)
+	shellManager := shellmanager.NewShellManager(log, registry, connectionStringsStore, settingsManager)
 	systemService := system.NewSystemService(log)
 	fontService := system.NewFontService(log)
 
 	return &App{
 		log:               log,
 		serverManager:     serverManager,
+		registry:          registry,
 		connectionManager: connectionManager,
 		indexManager:      indexManager,
 		shellManager:      shellManager,
@@ -64,16 +69,15 @@ func NewApp(log *slog.Logger) *App {
 
 // Startup is called at application startup
 func (a *App) Startup(ctx context.Context) {
-	// Perform your setup here
 	a.ctx = ctx
-
-	a.shellManager.Init(ctx)
 
 	err := a.serverManager.Init(ctx)
 	if err != nil {
-		a.log.Error("Failed to initialize registered server manager / settings database", slog.Any("error", err))
-		panic(fmt.Errorf("failed to initialize registered server manager / settings database: %w", err))
+		a.log.Error("Failed to initialize registered server manager", slog.Any("error", err))
+		panic(fmt.Errorf("failed to initialize registered server manager: %w", err))
 	}
+
+	a.registry.Init(ctx)
 
 	err = a.connectionManager.Init(ctx)
 	if err != nil {
@@ -82,6 +86,7 @@ func (a *App) Startup(ctx context.Context) {
 	}
 
 	a.indexManager.Init(ctx)
+	a.shellManager.Init(ctx)
 
 	err = a.settingsManager.Init(ctx)
 	if err != nil {

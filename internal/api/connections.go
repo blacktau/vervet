@@ -3,13 +3,12 @@ package api
 import (
 	"context"
 	"fmt"
-	"vervet/internal/connections"
 	"vervet/internal/models"
 )
 
 type ConnectionsProxy struct {
 	provider ConnectionsProvider
-	shellMgr *connections.ShellManager
+	shellMgr ShellProvider
 }
 
 type ConnectionsProvider interface {
@@ -33,7 +32,7 @@ type ShellProvider interface {
 	CloseAll()
 }
 
-func NewConnectionsProxy(provider ConnectionsProvider, shellMgr *connections.ShellManager) *ConnectionsProxy {
+func NewConnectionsProxy(provider ConnectionsProvider, shellMgr ShellProvider) *ConnectionsProxy {
 	return &ConnectionsProxy{
 		provider: provider,
 		shellMgr: shellMgr,

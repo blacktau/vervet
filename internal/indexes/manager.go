@@ -14,7 +14,7 @@ import (
 
 // ClientProvider provides access to active MongoDB connections
 type ClientProvider interface {
-	GetMongoClient(serverID string) (*mongo.Client, error)
+	GetClient(serverID string) (*mongo.Client, error)
 }
 
 // IndexManager handles CRUD operations for MongoDB collection indexes
@@ -41,7 +41,7 @@ func (im *IndexManager) GetIndexes(serverID, dbName, collectionName string) ([]m
 		slog.String("dbName", dbName),
 		slog.String("collectionName", collectionName))
 
-	client, err := im.clients.GetMongoClient(serverID)
+	client, err := im.clients.GetClient(serverID)
 	if err != nil {
 		return nil, err
 	}
@@ -138,7 +138,7 @@ func (im *IndexManager) CreateIndex(serverID, dbName, collectionName string, req
 		slog.String("dbName", dbName),
 		slog.String("collectionName", collectionName))
 
-	client, err := im.clients.GetMongoClient(serverID)
+	client, err := im.clients.GetClient(serverID)
 	if err != nil {
 		return err
 	}
@@ -169,7 +169,7 @@ func (im *IndexManager) EditIndex(serverID, dbName, collectionName string, reque
 		slog.String("collectionName", collectionName),
 		slog.String("oldName", request.OldName))
 
-	client, err := im.clients.GetMongoClient(serverID)
+	client, err := im.clients.GetClient(serverID)
 	if err != nil {
 		return err
 	}
@@ -231,7 +231,7 @@ func (im *IndexManager) DropIndex(serverID, dbName, collectionName, indexName st
 		slog.String("collectionName", collectionName),
 		slog.String("indexName", indexName))
 
-	client, err := im.clients.GetMongoClient(serverID)
+	client, err := im.clients.GetClient(serverID)
 	if err != nil {
 		return err
 	}
