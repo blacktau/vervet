@@ -182,7 +182,7 @@ export default {
   statistics: {
     tabLabel: '{collection} statistics',
     databaseTabLabel: '{database} statistics',
-    serverTabLabel: '{server} statistics',
+    serverTabLabel: '{server} status',
     emptyState: 'Right-click a server, database, or collection to view its statistics',
     toolbar: {
       refresh: 'Refresh',
