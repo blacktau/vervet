@@ -12,7 +12,6 @@ import (
 	"vervet/internal/connectionStrings"
 	"vervet/internal/logging"
 	"vervet/internal/models"
-	"vervet/internal/queryengine"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
@@ -191,76 +190,6 @@ func (cm *ConnectionManager) GetDatabases(serverID string) ([]string, error) {
 	slices.Sort(names)
 	cm.log.Debug("Got databases", slog.String("serverID", serverID), slog.Any("databases", names))
 	return names, nil
-}
-
-func (cm *ConnectionManager) GetCollections(serverID string, dbName string) ([]string, error) {
-	cm.log.Debug("Getting collections for mongo instance", slog.String("serverID", serverID), slog.String("dbName", dbName))
-	client, err := cm.registry.GetClient(serverID)
-	if err != nil {
-		return nil, err
-	}
-
-	db := client.Database(dbName)
-	names, err := db.ListCollectionNames(cm.ctx, bson.D{})
-	if err != nil {
-		return nil, err
-	}
-	slices.Sort(names)
-	return names, nil
-}
-
-func (cm *ConnectionManager) GetViews(serverID string, dbName string) ([]string, error) {
-	cm.log.Debug("Getting views for mongo instance", slog.String("serverID", serverID), slog.String("dbName", dbName))
-	client, err := cm.registry.GetClient(serverID)
-	if err != nil {
-		return nil, err
-	}
-
-	db := client.Database(dbName)
-	filter := bson.D{{Key: "type", Value: "view"}}
-	names, err := db.ListCollectionNames(cm.ctx, filter)
-	if err != nil {
-		return nil, err
-	}
-	slices.Sort(names)
-	return names, nil
-}
-
-func (cm *ConnectionManager) GetCollectionSchema(serverID, dbName, collName string) (models.CollectionSchema, error) {
-	client, err := cm.registry.GetClient(serverID)
-	if err != nil {
-		return models.CollectionSchema{}, err
-	}
-	return queryengine.SampleSchema(cm.ctx, client, dbName, collName)
-}
-
-func (cm *ConnectionManager) CreateCollection(serverID string, dbName string, collectionName string) error {
-	cm.log.Debug("Creating collection",
-		slog.String("serverID", serverID),
-		slog.String("dbName", dbName),
-		slog.String("collectionName", collectionName))
-
-	client, err := cm.registry.GetClient(serverID)
-	if err != nil {
-		return err
-	}
-
-	db := client.Database(dbName)
-	err = db.CreateCollection(cm.ctx, collectionName)
-	if err != nil {
-		cm.log.Error("Failed to create collection",
-			slog.String("serverID", serverID),
-			slog.String("dbName", dbName),
-			slog.String("collectionName", collectionName),
-			slog.Any("error", err))
-		return fmt.Errorf("failed to create collection: %w", err)
-	}
-
-	cm.log.Info("Created collection",
-		slog.String("serverID", serverID),
-		slog.String("dbName", dbName),
-		slog.String("collectionName", collectionName))
-	return nil
 }
 
 func cleanConnectionString(uri string) string {

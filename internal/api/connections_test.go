@@ -11,17 +11,13 @@ import (
 )
 
 type MockConnectionsProvider struct {
-	connection        models.Connection
-	connectErr        error
-	disconnectErr     error
-	testConnErr       error
-	getDatabasesErr   error
-	getCollectionsErr error
-	getViewsErr       error
-	connections       []models.Connection
-	databases         []string
-	collections       []string
-	views             []string
+	connection      models.Connection
+	connectErr      error
+	disconnectErr   error
+	testConnErr     error
+	getDatabasesErr error
+	connections     []models.Connection
+	databases       []string
 }
 
 func (m *MockConnectionsProvider) Init(ctx context.Context) error {
@@ -59,28 +55,6 @@ func (m *MockConnectionsProvider) GetDatabases(serverID string) ([]string, error
 		return nil, m.getDatabasesErr
 	}
 	return m.databases, nil
-}
-
-func (m *MockConnectionsProvider) GetCollections(serverID string, dbName string) ([]string, error) {
-	if m.getCollectionsErr != nil {
-		return nil, m.getCollectionsErr
-	}
-	return m.collections, nil
-}
-
-func (m *MockConnectionsProvider) GetViews(serverID string, dbName string) ([]string, error) {
-	if m.getViewsErr != nil {
-		return nil, m.getViewsErr
-	}
-	return m.views, nil
-}
-
-func (m *MockConnectionsProvider) GetCollectionSchema(serverID string, dbName string, collectionName string) (models.CollectionSchema, error) {
-	return models.CollectionSchema{}, nil
-}
-
-func (m *MockConnectionsProvider) CreateCollection(serverID string, dbName string, collectionName string) error {
-	return nil
 }
 
 func TestConnectionsProxy_Connect(t *testing.T) {
@@ -226,29 +200,4 @@ func TestConnectionsProxy_GetDatabases(t *testing.T) {
 	})
 }
 
-func TestConnectionsProxy_GetCollections(t *testing.T) {
-	t.Run("successful get collections", func(t *testing.T) {
-		provider := &MockConnectionsProvider{
-			collections: []string{"coll1", "coll2"},
-		}
-		proxy := NewConnectionsProxy(provider)
-
-		result := proxy.GetCollections("1", "db1")
-
-		assert.True(t, result.IsSuccess)
-		assert.Len(t, result.Data, 2)
-	})
-
-	t.Run("get collections error", func(t *testing.T) {
-		provider := &MockConnectionsProvider{
-			getCollectionsErr: errors.New("failed to get collections"),
-		}
-		proxy := NewConnectionsProxy(provider)
-
-		result := proxy.GetCollections("1", "db1")
-
-		assert.False(t, result.IsSuccess)
-		assert.Contains(t, result.Error, "failed to get collections")
-	})
-}
 
