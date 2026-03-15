@@ -6,10 +6,6 @@ export function Connect(arg1) {
   return window['go']['api']['ConnectionsProxy']['Connect'](arg1);
 }
 
-export function CreateCollection(arg1, arg2, arg3) {
-  return window['go']['api']['ConnectionsProxy']['CreateCollection'](arg1, arg2, arg3);
-}
-
 export function Disconnect(arg1) {
   return window['go']['api']['ConnectionsProxy']['Disconnect'](arg1);
 }
@@ -18,24 +14,12 @@ export function DisconnectAll() {
   return window['go']['api']['ConnectionsProxy']['DisconnectAll']();
 }
 
-export function GetCollectionSchema(arg1, arg2, arg3) {
-  return window['go']['api']['ConnectionsProxy']['GetCollectionSchema'](arg1, arg2, arg3);
-}
-
-export function GetCollections(arg1, arg2) {
-  return window['go']['api']['ConnectionsProxy']['GetCollections'](arg1, arg2);
-}
-
 export function GetConnections() {
   return window['go']['api']['ConnectionsProxy']['GetConnections']();
 }
 
 export function GetDatabases(arg1) {
   return window['go']['api']['ConnectionsProxy']['GetDatabases'](arg1);
-}
-
-export function GetViews(arg1, arg2) {
-  return window['go']['api']['ConnectionsProxy']['GetViews'](arg1, arg2);
 }
 
 export function TestConnection(arg1) {
