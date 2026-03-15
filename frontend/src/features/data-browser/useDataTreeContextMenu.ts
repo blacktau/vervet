@@ -1,7 +1,9 @@
 import { computed, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { DataNodeType, type ContextMenuOption, type DataTreeNode } from '@/features/data-browser/types.ts'
 
 export function useDataTreeContextMenu() {
+  const { t } = useI18n()
   const selectedNode = ref<DataTreeNode | null>(null)
   const showMenu = ref(false)
   const position = ref({ x: 0, y: 0 })
@@ -19,22 +21,17 @@ export function useDataTreeContextMenu() {
 
   const serverMenuOptions = computed<ContextMenuOption[]>(() => [
     {
-      label: 'Server Info',
-      key: 'serverInfo',
-      disabled: false,
-    },
-    {
-      label: 'Add Database...',
+      label: t('dataBrowser.contextMenu.addDatabase'),
       key: 'addDatabase',
       disabled: false,
     },
     {
-      label: 'Statistics',
-      key: 'statistics',
+      label: t('dataBrowser.contextMenu.serverStatus'),
+      key: 'serverStatus',
       disabled: false,
     },
     {
-      label: 'Disconnect',
+      label: t('dataBrowser.contextMenu.disconnect'),
       key: 'disconnect',
       disabled: false,
     },
@@ -42,22 +39,22 @@ export function useDataTreeContextMenu() {
 
   const databaseMenuOptions = computed<ContextMenuOption[]>(() => [
     {
-      label: 'Open Query',
+      label: t('dataBrowser.contextMenu.openQuery'),
       key: 'openQuery',
       disabled: false,
     },
     {
-      label: 'Drop Database',
+      label: t('dataBrowser.contextMenu.dropDatabase'),
       key: 'dropDatabase',
       disabled: false,
     },
     {
-      label: 'Statistics',
+      label: t('dataBrowser.contextMenu.statistics'),
       key: 'statistics',
       disabled: false,
     },
     {
-      label: 'Refresh',
+      label: t('dataBrowser.contextMenu.refresh'),
       key: 'refresh',
       disabled: false,
     },
@@ -65,12 +62,12 @@ export function useDataTreeContextMenu() {
 
   const collectionsFolderMenuOptions = computed<ContextMenuOption[]>(() => [
     {
-      label: 'Add Collection...',
+      label: t('dataBrowser.contextMenu.addCollection'),
       key: 'addCollection',
       disabled: false,
     },
     {
-      label: 'Refresh',
+      label: t('dataBrowser.contextMenu.refresh'),
       key: 'refresh',
       disabled: false,
     },
@@ -78,7 +75,7 @@ export function useDataTreeContextMenu() {
 
   const viewsFolderMenuOptions = computed<ContextMenuOption[]>(() => [
     {
-      label: 'Refresh',
+      label: t('dataBrowser.contextMenu.refresh'),
       key: 'refresh',
       disabled: false,
     },
@@ -86,32 +83,32 @@ export function useDataTreeContextMenu() {
 
   const collectionMenuOptions = computed<ContextMenuOption[]>(() => [
     {
-      label: 'Open Query',
+      label: t('dataBrowser.contextMenu.openQuery'),
       key: 'openQuery',
       disabled: false,
     },
     {
-      label: 'Rename...',
+      label: t('dataBrowser.contextMenu.rename'),
       key: 'rename',
       disabled: false,
     },
     {
-      label: 'Drop Collection',
+      label: t('dataBrowser.contextMenu.dropCollection'),
       key: 'dropCollection',
       disabled: false,
     },
     {
-      label: 'View Indexes',
+      label: t('dataBrowser.contextMenu.viewIndexes'),
       key: 'viewIndexes',
       disabled: false,
     },
     {
-      label: 'Statistics',
+      label: t('dataBrowser.contextMenu.statistics'),
       key: 'statistics',
       disabled: false,
     },
     {
-      label: 'Refresh',
+      label: t('dataBrowser.contextMenu.refresh'),
       key: 'refresh',
       disabled: false,
     },

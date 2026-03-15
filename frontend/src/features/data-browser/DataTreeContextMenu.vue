@@ -4,6 +4,7 @@ import { type DropdownOption, NDropdown, NIcon } from 'naive-ui'
 import {
   ArrowPathIcon,
   ArrowRightStartOnRectangleIcon,
+  ChartBarIcon,
   EyeIcon,
   InformationCircleIcon,
   PencilSquareIcon,
@@ -28,8 +29,8 @@ const emit = defineEmits<{
 }>()
 
 const iconMap: Record<string, typeof InformationCircleIcon> = {
-  serverInfo: InformationCircleIcon,
   addDatabase: PlusCircleIcon,
+  serverStatus: ChartBarIcon,
   disconnect: ArrowRightStartOnRectangleIcon,
   openQuery: PlayIcon,
   dropDatabase: TrashIcon,

@@ -100,6 +100,15 @@ function handleContextMenuSelect(key: string) {
     }
   }
 
+  if (key === 'serverStatus') {
+    if (node.type === DataNodeType.Server) {
+      const serverId = node.key as string
+      if (serverId) {
+        tabStore.openStatisticsTab(serverId, '', '', 'server')
+      }
+    }
+  }
+
   if (key === 'statistics') {
     if (node.type === DataNodeType.Collection || node.type === DataNodeType.View) {
       const nodeKey = node.key as string
@@ -118,12 +127,6 @@ function handleContextMenuSelect(key: string) {
       const dbName = parts[1]
       if (serverId && dbName) {
         tabStore.openStatisticsTab(serverId, dbName, '', 'database')
-      }
-    }
-    if (node.type === DataNodeType.Server) {
-      const serverId = node.key as string
-      if (serverId) {
-        tabStore.openStatisticsTab(serverId, '', '', 'server')
       }
     }
   }

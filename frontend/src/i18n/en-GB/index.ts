@@ -89,6 +89,19 @@ export default {
     tree: {
       empty: 'Connect to a server to view its contents',
     },
+    contextMenu: {
+      addDatabase: 'Add Database...',
+      serverStatus: 'Server Status',
+      disconnect: 'Disconnect',
+      openQuery: 'Open Query',
+      dropDatabase: 'Drop Database',
+      statistics: 'Statistics',
+      refresh: 'Refresh',
+      addCollection: 'Add Collection...',
+      rename: 'Rename...',
+      dropCollection: 'Drop Collection',
+      viewIndexes: 'View Indexes',
+    },
     subTab: {
       query: 'Query',
     },
@@ -285,6 +298,7 @@ export default {
         new: 'New Group',
         name: 'Name',
         namePlaceholder: 'Group Name',
+        parent: 'Parent',
         delete: 'Delete Group',
         deleteConfirmation: 'Group "{name}" and all its Servers will be deleted',
       },
