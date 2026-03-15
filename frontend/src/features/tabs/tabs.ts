@@ -395,6 +395,9 @@ export const useTabStore = defineStore('tabs', {
     },
 
     statisticsTabLabel(_tab: ServerTabItem, statsTab: StatisticsTabItem): string {
+      if (statsTab.level === 'database') {
+        return i18nGlobal.t('statistics.databaseTabLabel', { database: statsTab.dbName })
+      }
       return i18nGlobal.t('statistics.tabLabel', { collection: statsTab.collectionName })
     },
   },
