@@ -394,7 +394,10 @@ export const useTabStore = defineStore('tabs', {
       tab.activeStatisticsTabId = statisticsTabId
     },
 
-    statisticsTabLabel(_tab: ServerTabItem, statsTab: StatisticsTabItem): string {
+    statisticsTabLabel(tab: ServerTabItem, statsTab: StatisticsTabItem): string {
+      if (statsTab.level === 'server') {
+        return i18nGlobal.t('statistics.serverTabLabel', { server: tab.title })
+      }
       if (statsTab.level === 'database') {
         return i18nGlobal.t('statistics.databaseTabLabel', { database: statsTab.dbName })
       }

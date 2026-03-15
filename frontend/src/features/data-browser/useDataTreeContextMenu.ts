@@ -29,6 +29,11 @@ export function useDataTreeContextMenu() {
       disabled: false,
     },
     {
+      label: 'Statistics',
+      key: 'statistics',
+      disabled: false,
+    },
+    {
       label: 'Disconnect',
       key: 'disconnect',
       disabled: false,

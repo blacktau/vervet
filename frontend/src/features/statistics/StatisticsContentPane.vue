@@ -3,6 +3,7 @@ import { useTabStore } from '@/features/tabs/tabs'
 import { useI18n } from 'vue-i18n'
 import CollectionStatisticsTab from './CollectionStatisticsTab.vue'
 import DatabaseStatisticsTab from './DatabaseStatisticsTab.vue'
+import ServerStatisticsTab from './ServerStatisticsTab.vue'
 import { computed } from 'vue'
 
 const tabStore = useTabStore()
@@ -45,6 +46,9 @@ function handleClose(statisticsTabId: string) {
           v-else-if="statsTab.level === 'database'"
           :server-id="statsTab.serverId"
           :db-name="statsTab.dbName" />
+        <ServerStatisticsTab
+          v-else-if="statsTab.level === 'server'"
+          :server-id="statsTab.serverId" />
       </n-tab-pane>
     </n-tabs>
     <div v-else class="empty-state">
