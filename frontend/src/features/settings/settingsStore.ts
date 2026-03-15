@@ -70,6 +70,7 @@ export const useSettingsStore = defineStore('settings', {
         value: 'auto',
         label: i18nGlobal.t('settings.general.systemLanguage'),
       })
+      return options
     },
     currentLanguage() {
       let language: string = this.general.language || 'auto'

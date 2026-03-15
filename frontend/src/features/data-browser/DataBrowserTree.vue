@@ -144,7 +144,7 @@ watch(
       virtual-scroll
       @update:expanded-keys="browserStore.handleExpand">
       <template #empty>
-        <n-empty :description="$t('dataBrowser.tree.temp')" />
+        <n-empty :description="$t('dataBrowser.tree.empty')" />
       </template>
     </n-tree>
     <DataTreeContextMenu

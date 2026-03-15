@@ -184,12 +184,12 @@ const getServerMenu = (connected: boolean) => {
 const getGroupMenu = () => {
   return [
     h(IconButton, {
-      tTooltip: 'serverPane.serverTree.groupRename',
+      tTooltip: 'serverPane.serverTree.renameGroup',
       icon: Cog8ToothIcon,
       onClick: () => handleSelectContextMenu(MenuKeys.GroupRename),
     }),
     h(IconButton, {
-      tTooltip: 'serverPane.serverTree.groupDelete',
+      tTooltip: 'serverPane.serverTree.deleteGroup',
       icon: TrashIcon,
       onClick: () => handleSelectContextMenu(MenuKeys.GroupDelete),
     }),
