@@ -152,6 +152,22 @@ export default {
       },
     },
   },
+  statistics: {
+    emptyState: 'Right-click a collection to view its statistics',
+    toolbar: {
+      refresh: 'Refresh',
+    },
+    cards: {
+      documents: 'Documents',
+      avgDocSize: 'Avg Doc Size',
+      dataSize: 'Data Size',
+      storageSize: 'Storage Size',
+      totalSize: 'Total Size',
+      totalIndexSize: 'Total Index Size',
+    },
+    bytes: '{value} bytes',
+    error: 'Failed to load statistics',
+  },
   query: {
     run: 'Run',
     cancel: 'Cancel',
