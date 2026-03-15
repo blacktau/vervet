@@ -44,7 +44,7 @@ watch(treeData, (data) => {
     const depth = props.defaultExpandDepth ?? 1
     expandedKeys.value = collectKeysToDepth(data, depth)
   }
-})
+}, { immediate: true })
 
 // const paginationConfig = reactive({
 //   page: 1,
