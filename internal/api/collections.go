@@ -1,11 +1,20 @@
 package api
 
-import "fmt"
+import (
+	"fmt"
+	"vervet/internal/models"
+)
 
 type CollectionsProvider interface {
 	GetStatistics(serverID string, dbName string, collectionName string) (map[string]any, error)
 	GetDatabaseStatistics(serverID string, dbName string) (map[string]any, error)
 	GetServerStatistics(serverID string) (map[string]any, error)
+	GetCollections(serverID string, dbName string) ([]string, error)
+	GetViews(serverID string, dbName string) ([]string, error)
+	GetCollectionSchema(serverID string, dbName string, collectionName string) (models.CollectionSchema, error)
+	CreateCollection(serverID string, dbName string, collectionName string) error
+	RenameCollection(serverID string, dbName string, oldName string, newName string) error
+	DropCollection(serverID string, dbName string, collectionName string) error
 }
 
 type CollectionsProxy struct {
@@ -56,4 +65,70 @@ func (cp *CollectionsProxy) GetStatistics(serverID string, dbName string, collec
 		IsSuccess: true,
 		Data:      result,
 	}
+}
+
+func (cp *CollectionsProxy) GetCollections(serverID string, dbName string) Result[[]string] {
+	result, err := cp.provider.GetCollections(serverID, dbName)
+	if err != nil {
+		return Result[[]string]{
+			IsSuccess: false,
+			Error:     err.Error(),
+		}
+	}
+	return Result[[]string]{
+		IsSuccess: true,
+		Data:      result,
+	}
+}
+
+func (cp *CollectionsProxy) GetViews(serverID string, dbName string) Result[[]string] {
+	result, err := cp.provider.GetViews(serverID, dbName)
+	if err != nil {
+		return Result[[]string]{
+			IsSuccess: false,
+			Error:     err.Error(),
+		}
+	}
+	return Result[[]string]{
+		IsSuccess: true,
+		Data:      result,
+	}
+}
+
+func (cp *CollectionsProxy) GetCollectionSchema(serverID string, dbName string, collectionName string) Result[models.CollectionSchema] {
+	result, err := cp.provider.GetCollectionSchema(serverID, dbName, collectionName)
+	if err != nil {
+		return Result[models.CollectionSchema]{
+			IsSuccess: false,
+			Error:     err.Error(),
+		}
+	}
+	return Result[models.CollectionSchema]{
+		IsSuccess: true,
+		Data:      result,
+	}
+}
+
+func (cp *CollectionsProxy) CreateCollection(serverID string, dbName string, collectionName string) EmptyResult {
+	err := cp.provider.CreateCollection(serverID, dbName, collectionName)
+	if err != nil {
+		return Error(fmt.Sprintf("Error creating collection: %v", err))
+	}
+	return Success()
+}
+
+func (cp *CollectionsProxy) RenameCollection(serverID string, dbName string, oldName string, newName string) EmptyResult {
+	err := cp.provider.RenameCollection(serverID, dbName, oldName, newName)
+	if err != nil {
+		return Error(fmt.Sprintf("Error renaming collection: %v", err))
+	}
+	return Success()
+}
+
+func (cp *CollectionsProxy) DropCollection(serverID string, dbName string, collectionName string) EmptyResult {
+	err := cp.provider.DropCollection(serverID, dbName, collectionName)
+	if err != nil {
+		return Error(fmt.Sprintf("Error dropping collection: %v", err))
+	}
+	return Success()
 }

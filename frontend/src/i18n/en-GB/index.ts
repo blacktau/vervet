@@ -109,6 +109,16 @@ export default {
         collectionName: 'Collection Name',
         collectionNamePlaceholder: 'Enter collection name',
       },
+      renameCollection: {
+        title: 'Rename Collection',
+        newName: 'New Name',
+        newNamePlaceholder: 'Enter new collection name',
+        sameName: 'New name must be different from current name',
+      },
+      dropCollection: {
+        message:
+          'Are you sure you want to drop collection "{name}"? This action cannot be undone.',
+      },
     },
   },
   indexes: {

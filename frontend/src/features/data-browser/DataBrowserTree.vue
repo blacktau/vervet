@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import { h, watch } from 'vue'
 import { NEllipsis, NIcon } from 'naive-ui'
+import { useI18n } from 'vue-i18n'
 import CollectionIcon from '@/features/icon/CollectionIcon.vue'
 import { CircleStackIcon, EyeIcon, FolderIcon, FolderOpenIcon } from '@heroicons/vue/24/outline'
 import { DataNodeType, type DataTreeNode } from '@/features/data-browser/types.ts'
@@ -9,11 +10,16 @@ import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 import { useTabStore } from '@/features/tabs/tabs.ts'
 import DataTreeContextMenu from '@/features/data-browser/DataTreeContextMenu.vue'
 import { useDialogStore } from '@/stores/dialog.ts'
+import { useNotifier } from '@/utils/dialog.ts'
+import * as collectionsProxy from 'wailsjs/go/api/CollectionsProxy'
 
 const tabStore = useTabStore()
 const browserStore = useDataBrowserStore()
 const contextMenu = useDataTreeContextMenu()
 const dialogStore = useDialogStore()
+const dialog = useDialog()
+const notifier = useNotifier()
+const { t } = useI18n()
 
 const renderPrefix = ({ option }: { option: DataTreeNode }) => {
   if (option.type === DataNodeType.Database) {
@@ -117,6 +123,45 @@ function handleContextMenuSelect(key: string) {
       const serverId = node.key as string
       if (serverId) {
         tabStore.openStatisticsTab(serverId, '', '', 'server')
+      }
+    }
+  }
+
+  if (key === 'rename') {
+    if (node.type === DataNodeType.Collection || node.type === DataNodeType.View) {
+      const nodeKey = node.key as string
+      const parts = nodeKey.split(':')
+      const serverId = parts[0]
+      const dbName = parts[1]
+      const collectionName = parts[3]
+      if (serverId && dbName && collectionName) {
+        dialogStore.openRenameCollectionDialog(serverId, dbName, collectionName)
+      }
+    }
+  }
+
+  if (key === 'dropCollection') {
+    if (node.type === DataNodeType.Collection || node.type === DataNodeType.View) {
+      const nodeKey = node.key as string
+      const parts = nodeKey.split(':')
+      const serverId = parts[0]
+      const dbName = parts[1]
+      const collectionName = parts[3]
+      if (serverId && dbName && collectionName) {
+        dialog.warning({
+          title: t('common.warning'),
+          content: t('dataBrowser.dialogs.dropCollection.message', { name: collectionName }),
+          positiveText: t('common.confirm'),
+          negativeText: t('common.cancel'),
+          onPositiveClick: async () => {
+            const result = await collectionsProxy.DropCollection(serverId, dbName, collectionName)
+            if (!result.isSuccess) {
+              notifier.error(result.error)
+              return
+            }
+            await browserStore.refreshDatabaseCollections(serverId, dbName)
+          },
+        })
       }
     }
   }

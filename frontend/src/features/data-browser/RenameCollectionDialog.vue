@@ -16,15 +16,16 @@ const loading = ref(false)
 const formRef = ref<FormInst | null>(null)
 const serverID = ref('')
 const dbName = ref('')
+const oldName = ref('')
 
 const form = reactive({
-  collectionName: '',
+  newName: '',
 })
 
 const collectionDollar = /\$/
 
 const formRules = computed(() => ({
-  collectionName: [
+  newName: [
     {
       required: true,
       message: i18n.t('common.dialog.fieldRequired'),
@@ -40,17 +41,25 @@ const formRules = computed(() => ({
       message: i18n.t('dataBrowser.dialogs.addDatabase.dollarSign'),
       trigger: 'input',
     },
+    {
+      validator: (_rule: FormItemRule, value: string) => value !== oldName.value,
+      message: i18n.t('dataBrowser.dialogs.renameCollection.sameName'),
+      trigger: 'input',
+    },
   ],
 }))
 
 watchEffect(() => {
-  if (dialogStore.dialogs[DialogType.AddCollection].visible) {
-    const data = dialogStore.getDialogData<{ serverID: string; dbName: string }>(
-      DialogType.AddCollection,
-    )
+  if (dialogStore.dialogs[DialogType.RenameCollection].visible) {
+    const data = dialogStore.getDialogData<{
+      serverID: string
+      dbName: string
+      collectionName: string
+    }>(DialogType.RenameCollection)
     serverID.value = data?.serverID ?? ''
     dbName.value = data?.dbName ?? ''
-    form.collectionName = ''
+    oldName.value = data?.collectionName ?? ''
+    form.newName = ''
   }
 })
 
@@ -63,10 +72,11 @@ async function onConfirm() {
 
   loading.value = true
   try {
-    const result = await collectionsProxy.CreateCollection(
+    const result = await collectionsProxy.RenameCollection(
       serverID.value,
       dbName.value,
-      form.collectionName,
+      oldName.value,
+      form.newName,
     )
     if (!result.isSuccess) {
       notifier.error(result.error)
@@ -74,7 +84,7 @@ async function onConfirm() {
     }
 
     await browserStore.refreshDatabaseCollections(serverID.value, dbName.value)
-    dialogStore.closeAddCollectionDialog()
+    dialogStore.closeRenameCollectionDialog()
   } catch (e) {
     const err = e as Error
     notifier.error(err.message)
@@ -85,13 +95,13 @@ async function onConfirm() {
 }
 
 function onClose() {
-  dialogStore.closeAddCollectionDialog()
+  dialogStore.closeRenameCollectionDialog()
 }
 </script>
 
 <template>
   <n-modal
-    v-model:show="dialogStore.dialogs[DialogType.AddCollection].visible"
+    v-model:show="dialogStore.dialogs[DialogType.RenameCollection].visible"
     :closable="false"
     :mask-closable="false"
     :negative-button-props="{ size: 'medium' }"
@@ -99,7 +109,7 @@ function onClose() {
     :positive-button-props="{ size: 'medium', loading: loading }"
     :positive-text="$t('common.confirm')"
     :show-icon="false"
-    :title="$t('dataBrowser.dialogs.addCollection.title')"
+    :title="$t('dataBrowser.dialogs.renameCollection.title')"
     close-on-esc
     preset="dialog"
     transform-origin="center"
@@ -114,12 +124,12 @@ function onClose() {
       :show-require-mark="false"
       label-placement="top">
       <n-form-item
-        :label="$t('dataBrowser.dialogs.addCollection.collectionName')"
-        path="collectionName"
+        :label="$t('dataBrowser.dialogs.renameCollection.newName')"
+        path="newName"
         required>
         <n-input
-          v-model:value="form.collectionName"
-          :placeholder="$t('dataBrowser.dialogs.addCollection.collectionNamePlaceholder')" />
+          v-model:value="form.newName"
+          :placeholder="$t('dataBrowser.dialogs.renameCollection.newNamePlaceholder')" />
       </n-form-item>
     </n-form>
   </n-modal>
