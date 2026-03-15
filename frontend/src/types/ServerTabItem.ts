@@ -13,6 +13,14 @@ export type IndexTabItem = {
   collectionName: string
 }
 
+export type StatisticsTabItem = {
+  id: string
+  serverId: string
+  dbName: string
+  collectionName: string
+  level: 'collection' | 'database' | 'server'
+}
+
 export type ServerTabItem = {
   title: string
   blank: boolean
@@ -24,4 +32,6 @@ export type ServerTabItem = {
   activeQueryId?: string
   indexTabs?: IndexTabItem[]
   activeIndexTabId?: string
+  statisticsTabs?: StatisticsTabItem[]
+  activeStatisticsTabId?: string
 }
