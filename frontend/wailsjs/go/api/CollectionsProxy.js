@@ -18,10 +18,6 @@ export function GetCollections(arg1, arg2) {
   return window['go']['api']['CollectionsProxy']['GetCollections'](arg1, arg2);
 }
 
-export function GetDatabaseStatistics(arg1, arg2) {
-  return window['go']['api']['CollectionsProxy']['GetDatabaseStatistics'](arg1, arg2);
-}
-
 export function GetServerStatistics(arg1) {
   return window['go']['api']['CollectionsProxy']['GetServerStatistics'](arg1);
 }

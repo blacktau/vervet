@@ -5,7 +5,7 @@ import { formatBytes } from '@/utils/formatBytes.ts'
 import { ArrowPathIcon } from '@heroicons/vue/24/outline'
 import StatisticsTab from './StatisticsTab.vue'
 import type { StatCard } from './StatisticsSummaryCards.vue'
-import * as collectionsProxy from 'wailsjs/go/api/CollectionsProxy'
+import * as databasesProxy from 'wailsjs/go/api/DatabasesProxy'
 
 const props = defineProps<{
   serverId: string
@@ -103,7 +103,7 @@ async function fetchStatistics() {
   loading.value = true
   error.value = null
   try {
-    const result = await collectionsProxy.GetDatabaseStatistics(props.serverId, props.dbName)
+    const result = await databasesProxy.GetDatabaseStatistics(props.serverId, props.dbName)
     if (result.isSuccess) {
       stats.value = result.data
     } else {

@@ -10,8 +10,6 @@ export function GetCollectionSchema(arg1:string,arg2:string,arg3:string):Promise
 
 export function GetCollections(arg1:string,arg2:string):Promise<api.Result___string_>;
 
-export function GetDatabaseStatistics(arg1:string,arg2:string):Promise<api.Result_map_string_interface____>;
-
 export function GetServerStatistics(arg1:string):Promise<api.Result_map_string_interface____>;
 
 export function GetStatistics(arg1:string,arg2:string,arg3:string):Promise<api.Result_map_string_interface____>;

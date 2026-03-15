@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
-import * as connectionsProxy from 'wailsjs/go/api/ConnectionsProxy'
+import * as databasesProxy from 'wailsjs/go/api/DatabasesProxy'
 import * as collectionsProxy from 'wailsjs/go/api/CollectionsProxy'
 import { api } from 'wailsjs/go/models.ts'
 
-vi.mock('wailsjs/go/api/ConnectionsProxy', () => ({
+vi.mock('wailsjs/go/api/ConnectionsProxy', () => ({}))
+
+vi.mock('wailsjs/go/api/DatabasesProxy', () => ({
   GetDatabases: vi.fn(),
 }))
 
@@ -37,14 +39,14 @@ describe('browserStore', () => {
       const store = useDataBrowserStore()
       store.connections = [{ serverID: 'server1', name: 'Test Server' }] as never
 
-      vi.mocked(connectionsProxy.GetDatabases).mockResolvedValue({
+      vi.mocked(databasesProxy.GetDatabases).mockResolvedValue({
         isSuccess: true,
         data: ['db1', 'db2'],
       } as api.Result___string_)
 
       const result = await store.getDatabaseList('server1', true)
 
-      expect(connectionsProxy.GetDatabases).toHaveBeenCalledWith('server1')
+      expect(databasesProxy.GetDatabases).toHaveBeenCalledWith('server1')
       expect(result).toEqual([
         { name: 'db1', collections: [], views: [] },
         { name: 'db2', collections: [], views: [] },
@@ -67,7 +69,7 @@ describe('browserStore', () => {
 
       const result = await store.getDatabaseList('server1', false)
 
-      expect(connectionsProxy.GetDatabases).not.toHaveBeenCalled()
+      expect(databasesProxy.GetDatabases).not.toHaveBeenCalled()
       expect(result).toEqual([{ name: 'cachedDb', collections: [] }])
     })
 
@@ -84,7 +86,7 @@ describe('browserStore', () => {
       const store = useDataBrowserStore()
       store.connections = [{ serverID: 'server1', name: 'Test Server' }] as never
 
-      vi.mocked(connectionsProxy.GetDatabases).mockResolvedValue({
+      vi.mocked(databasesProxy.GetDatabases).mockResolvedValue({
         isSuccess: false,
         error: 'Connection failed',
       } as api.Result___string_)

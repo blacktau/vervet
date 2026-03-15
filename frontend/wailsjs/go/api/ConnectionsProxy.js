@@ -18,10 +18,6 @@ export function GetConnections() {
   return window['go']['api']['ConnectionsProxy']['GetConnections']();
 }
 
-export function GetDatabases(arg1) {
-  return window['go']['api']['ConnectionsProxy']['GetDatabases'](arg1);
-}
-
 export function TestConnection(arg1) {
   return window['go']['api']['ConnectionsProxy']['TestConnection'](arg1);
 }

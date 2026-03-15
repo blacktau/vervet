@@ -119,6 +119,10 @@ export default {
         message:
           'Are you sure you want to drop collection "{name}"? This action cannot be undone.',
       },
+      dropDatabase: {
+        message:
+          'Are you sure you want to drop database "{name}"? This will delete all collections and data within it. This action cannot be undone.',
+      },
     },
   },
   indexes: {

@@ -12,6 +12,7 @@ import DataTreeContextMenu from '@/features/data-browser/DataTreeContextMenu.vue
 import { useDialogStore } from '@/stores/dialog.ts'
 import { useNotifier } from '@/utils/dialog.ts'
 import * as collectionsProxy from 'wailsjs/go/api/CollectionsProxy'
+import * as databasesProxy from 'wailsjs/go/api/DatabasesProxy'
 
 const tabStore = useTabStore()
 const browserStore = useDataBrowserStore()
@@ -136,6 +137,31 @@ function handleContextMenuSelect(key: string) {
       const collectionName = parts[3]
       if (serverId && dbName && collectionName) {
         dialogStore.openRenameCollectionDialog(serverId, dbName, collectionName)
+      }
+    }
+  }
+
+  if (key === 'dropDatabase') {
+    if (node.type === DataNodeType.Database) {
+      const nodeKey = node.key as string
+      const parts = nodeKey.split(':')
+      const serverId = parts[0]
+      const dbName = parts[1]
+      if (serverId && dbName) {
+        dialog.warning({
+          title: t('common.warning'),
+          content: t('dataBrowser.dialogs.dropDatabase.message', { name: dbName }),
+          positiveText: t('common.confirm'),
+          negativeText: t('common.cancel'),
+          onPositiveClick: async () => {
+            const result = await databasesProxy.DropDatabase(serverId, dbName)
+            if (!result.isSuccess) {
+              notifier.error(result.error)
+              return
+            }
+            await browserStore.refreshServerDatabases(serverId)
+          },
+        })
       }
     }
   }
