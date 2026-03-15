@@ -154,7 +154,8 @@ export default {
   },
   statistics: {
     tabLabel: '{collection} statistics',
-    emptyState: 'Right-click a collection to view its statistics',
+    databaseTabLabel: '{database} statistics',
+    emptyState: 'Right-click a collection or database to view its statistics',
     toolbar: {
       refresh: 'Refresh',
     },
@@ -165,6 +166,14 @@ export default {
       storageSize: 'Storage Size',
       totalSize: 'Total Size',
       totalIndexSize: 'Total Index Size',
+    },
+    databaseCards: {
+      collections: 'Collections',
+      objects: 'Objects',
+      avgObjSize: 'Avg Object Size',
+      dataSize: 'Data Size',
+      storageSize: 'Storage Size',
+      indexSize: 'Index Size',
     },
     bytes: '{value} bytes',
     error: 'Failed to load statistics',

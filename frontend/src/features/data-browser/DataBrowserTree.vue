@@ -104,6 +104,15 @@ function handleContextMenuSelect(key: string) {
         tabStore.openStatisticsTab(serverId, dbName, collectionName, 'collection')
       }
     }
+    if (node.type === DataNodeType.Database) {
+      const nodeKey = node.key as string
+      const parts = nodeKey.split(':')
+      const serverId = parts[0]
+      const dbName = parts[1]
+      if (serverId && dbName) {
+        tabStore.openStatisticsTab(serverId, dbName, '', 'database')
+      }
+    }
   }
 }
 

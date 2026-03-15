@@ -33,6 +33,28 @@ func (s *CollectionsService) Init(ctx context.Context) {
 	s.ctx = ctx
 }
 
+func (s *CollectionsService) GetDatabaseStatistics(serverID, dbName string) (map[string]any, error) {
+	s.log.Debug("Getting database statistics",
+		slog.String("serverID", serverID),
+		slog.String("dbName", dbName),
+	)
+
+	client, err := s.clients.GetClient(serverID)
+	if err != nil {
+		return nil, err
+	}
+
+	var result bson.M
+	err = client.Database(dbName).RunCommand(s.ctx, bson.D{
+		{Key: "dbStats", Value: 1},
+	}).Decode(&result)
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
 func (s *CollectionsService) GetStatistics(serverID, dbName, collectionName string) (map[string]any, error) {
 	s.log.Debug("Getting collection statistics",
 		slog.String("serverID", serverID),
