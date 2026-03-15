@@ -89,6 +89,16 @@ const documents = computed(() => {
       doc[key] = formatSizeValue(doc[key])
     }
   }
+  // Format indexSizes values (e.g. { "_id_": 184320 } → { "_id_": "180.0 KiB (184,320)" })
+  if (doc.indexSizes && typeof doc.indexSizes === 'object') {
+    const formatted: Record<string, string> = {}
+    for (const [name, size] of Object.entries(doc.indexSizes)) {
+      if (typeof size === 'number') {
+        formatted[name] = formatSizeValue(size)
+      }
+    }
+    doc.indexSizes = formatted
+  }
   return [doc]
 })
 
