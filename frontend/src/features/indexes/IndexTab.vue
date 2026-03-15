@@ -5,6 +5,7 @@ import { type IndexInfo, useIndexStore } from '@/features/indexes/indexStore.ts'
 import { useDialogStore } from '@/stores/dialog.ts'
 import { useDialoger } from '@/utils/dialog.ts'
 import { PlusIcon, PencilIcon, TrashIcon } from '@heroicons/vue/24/outline'
+import { formatBytes } from '@/utils/formatBytes.ts'
 
 const props = defineProps<{
   serverId: string
@@ -25,16 +26,6 @@ const selectedIndex = computed(() => indexes.value.find((i) => i.name === select
 
 const isIdIndex = computed(() => selectedIndexName.value === '_id_')
 const canEditOrDrop = computed(() => selectedIndexName.value != null && !isIdIndex.value)
-
-function formatBytes(bytes: number): string {
-  if (bytes === 0) {
-    return '0 B'
-  }
-  const units = ['B', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(1024))
-  const value = bytes / Math.pow(1024, i)
-  return `${value.toFixed(i === 0 ? 0 : 1)} ${units[i]}`
-}
 
 const columns = computed(() => [
   { title: t('indexes.columns.name'), key: 'name' },
