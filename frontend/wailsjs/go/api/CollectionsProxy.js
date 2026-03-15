@@ -6,6 +6,10 @@ export function GetDatabaseStatistics(arg1, arg2) {
   return window['go']['api']['CollectionsProxy']['GetDatabaseStatistics'](arg1, arg2);
 }
 
+export function GetServerStatistics(arg1) {
+  return window['go']['api']['CollectionsProxy']['GetServerStatistics'](arg1);
+}
+
 export function GetStatistics(arg1, arg2, arg3) {
   return window['go']['api']['CollectionsProxy']['GetStatistics'](arg1, arg2, arg3);
 }
