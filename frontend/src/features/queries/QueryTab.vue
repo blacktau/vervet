@@ -7,7 +7,8 @@ import DocumentTreeTable from '@/features/results-document-tree/DocumentTreeTabl
 import JsonResultView from '@/features/results-json-view/JsonResultView.vue'
 import { NButton, NIcon, NSpace, NSpin } from 'naive-ui'
 import { PlayIcon, StopIcon } from '@heroicons/vue/24/solid'
-import { TableCellsIcon, CodeBracketIcon } from '@heroicons/vue/24/outline'
+import { CodeBracketIcon } from '@heroicons/vue/24/outline'
+import ListTreeIcon from '@/features/icon/ListTreeIcon.vue'
 import { ref, onMounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -135,7 +136,7 @@ onMounted(async () => {
                 @click="setResultView('table')"
               >
                 <template #icon>
-                  <n-icon :component="TableCellsIcon" />
+                  <n-icon :component="ListTreeIcon" />
                 </template>
               </n-button>
               <n-button
