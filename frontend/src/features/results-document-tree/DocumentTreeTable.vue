@@ -11,6 +11,7 @@ const PAGE_SIZES = [25, 50, 100, 200, 500]
 const props = defineProps<{
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   documents: any[]
+  defaultExpandDepth?: number
 }>()
 
 const emit = defineEmits<{
@@ -24,9 +25,24 @@ const treeData = computed(() => buildTreeData(props.documents))
 const expandedKeys = ref<DataTableRowKey[]>([])
 const checkedKeys = ref<DataTableRowKey[]>([])
 
+function collectKeysToDepth(rows: DocumentRow[], depth: number, currentDepth: number = 0): string[] {
+  if (currentDepth >= depth) {
+    return []
+  }
+  const keys: string[] = []
+  for (const row of rows) {
+    if (row.children && row.children.length > 0) {
+      keys.push(row.key)
+      keys.push(...collectKeysToDepth(row.children, depth, currentDepth + 1))
+    }
+  }
+  return keys
+}
+
 watch(treeData, (data) => {
   if (data.length > 0) {
-    expandedKeys.value = [data[0].key]
+    const depth = props.defaultExpandDepth ?? 1
+    expandedKeys.value = collectKeysToDepth(data, depth)
   }
 })
 

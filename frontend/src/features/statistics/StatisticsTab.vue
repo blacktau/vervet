@@ -32,6 +32,7 @@ const { t } = useI18n()
     <document-tree-table
       v-if="!loading && documents.length > 0"
       :documents="documents"
+      :default-expand-depth="2"
       class="flex-item-expand" />
     <div v-else-if="loading" class="loading-state">
       <n-spin />
