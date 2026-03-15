@@ -7,7 +7,6 @@ import (
 
 type CollectionsProvider interface {
 	GetStatistics(serverID string, dbName string, collectionName string) (map[string]any, error)
-	GetDatabaseStatistics(serverID string, dbName string) (map[string]any, error)
 	GetServerStatistics(serverID string) (map[string]any, error)
 	GetCollections(serverID string, dbName string) ([]string, error)
 	GetViews(serverID string, dbName string) ([]string, error)
@@ -31,20 +30,6 @@ func (cp *CollectionsProxy) GetServerStatistics(serverID string) Result[map[stri
 		return Result[map[string]any]{
 			IsSuccess: false,
 			Error:     fmt.Sprintf("Error getting server statistics: %v", err),
-		}
-	}
-	return Result[map[string]any]{
-		IsSuccess: true,
-		Data:      result,
-	}
-}
-
-func (cp *CollectionsProxy) GetDatabaseStatistics(serverID string, dbName string) Result[map[string]any] {
-	result, err := cp.provider.GetDatabaseStatistics(serverID, dbName)
-	if err != nil {
-		return Result[map[string]any]{
-			IsSuccess: false,
-			Error:     fmt.Sprintf("Error getting database statistics: %v", err),
 		}
 	}
 	return Result[map[string]any]{

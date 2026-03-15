@@ -17,7 +17,6 @@ type ConnectionsProvider interface {
 	Disconnect(serverID string) error
 	DisconnectAll() error
 	GetConnections() []models.Connection
-	GetDatabases(serverID string) ([]string, error)
 }
 
 type ShellProvider interface {
@@ -82,18 +81,4 @@ func (cp *ConnectionsProxy) TestConnection(uri string) EmptyResult {
 	return Success()
 }
 
-func (cp *ConnectionsProxy) GetDatabases(serverID string) Result[[]string] {
-	result, err := cp.provider.GetDatabases(serverID)
-	if err != nil {
-		return Result[[]string]{
-			IsSuccess: false,
-			Error:     err.Error(),
-		}
-	}
-
-	return Result[[]string]{
-		IsSuccess: true,
-		Data:      result,
-	}
-}
 

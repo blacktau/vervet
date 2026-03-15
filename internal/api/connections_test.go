@@ -11,13 +11,11 @@ import (
 )
 
 type MockConnectionsProvider struct {
-	connection      models.Connection
-	connectErr      error
-	disconnectErr   error
-	testConnErr     error
-	getDatabasesErr error
-	connections     []models.Connection
-	databases       []string
+	connection    models.Connection
+	connectErr    error
+	disconnectErr error
+	testConnErr   error
+	connections   []models.Connection
 }
 
 func (m *MockConnectionsProvider) Init(ctx context.Context) error {
@@ -48,13 +46,6 @@ func (m *MockConnectionsProvider) DisconnectAll() error {
 
 func (m *MockConnectionsProvider) GetConnections() []models.Connection {
 	return m.connections
-}
-
-func (m *MockConnectionsProvider) GetDatabases(serverID string) ([]string, error) {
-	if m.getDatabasesErr != nil {
-		return nil, m.getDatabasesErr
-	}
-	return m.databases, nil
 }
 
 func TestConnectionsProxy_Connect(t *testing.T) {
@@ -171,32 +162,6 @@ func TestConnectionsProxy_TestConnection(t *testing.T) {
 
 		assert.False(t, result.IsSuccess)
 		assert.Contains(t, result.Error, "connection failed")
-	})
-}
-
-func TestConnectionsProxy_GetDatabases(t *testing.T) {
-	t.Run("successful get databases", func(t *testing.T) {
-		provider := &MockConnectionsProvider{
-			databases: []string{"db1", "db2"},
-		}
-		proxy := NewConnectionsProxy(provider)
-
-		result := proxy.GetDatabases("1")
-
-		assert.True(t, result.IsSuccess)
-		assert.Len(t, result.Data, 2)
-	})
-
-	t.Run("get databases error", func(t *testing.T) {
-		provider := &MockConnectionsProvider{
-			getDatabasesErr: errors.New("failed to get databases"),
-		}
-		proxy := NewConnectionsProxy(provider)
-
-		result := proxy.GetDatabases("1")
-
-		assert.False(t, result.IsSuccess)
-		assert.Contains(t, result.Error, "failed to get databases")
 	})
 }
 

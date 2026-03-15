@@ -10,6 +10,7 @@ import (
 	"vervet/internal/collections"
 	"vervet/internal/connectionStrings"
 	"vervet/internal/connections"
+	"vervet/internal/databases"
 	"vervet/internal/indexes"
 	"vervet/internal/models"
 	"vervet/internal/queryexecutor"
@@ -26,6 +27,7 @@ type App struct {
 	ctx              context.Context
 	ServersProxy      *api.ServersProxy
 	ConnectionsProxy  *api.ConnectionsProxy
+	DatabasesProxy    *api.DatabasesProxy
 	IndexesProxy      *api.IndexesProxy
 	CollectionsProxy  *api.CollectionsProxy
 	ShellProxy        *api.ShellProxy
@@ -35,6 +37,7 @@ type App struct {
 	serverService      *servers.ServerService
 	registry           *clientregistry.ClientRegistry
 	connectionManager  *connections.ConnectionManager
+	databasesService   *databases.DatabasesService
 	indexService       *indexes.IndexService
 	collectionsService *collections.CollectionsService
 	queryExecutor      *queryexecutor.QueryExecutor
@@ -53,6 +56,7 @@ func NewApp(log *slog.Logger) *App {
 	serverService := servers.NewService(log, serverStore, connectionStringsStore)
 	registry := clientregistry.NewClientRegistry(log)
 	connectionManager := connections.NewManager(log, registry, connectionStringsStore, serverService)
+	databasesService := databases.NewDatabasesService(log, registry)
 	indexService := indexes.NewIndexService(log, registry)
 	collectionsService := collections.NewCollectionsService(log, registry)
 	settingsService := settings.NewService(log)
@@ -65,6 +69,7 @@ func NewApp(log *slog.Logger) *App {
 		serverService:      serverService,
 		registry:           registry,
 		connectionManager:  connectionManager,
+		databasesService:   databasesService,
 		indexService:       indexService,
 		collectionsService: collectionsService,
 		queryExecutor:      queryExecutor,
@@ -72,6 +77,7 @@ func NewApp(log *slog.Logger) *App {
 		systemService:      systemService,
 		ServersProxy:       api.NewServersProxy(serverService),
 		ConnectionsProxy:   api.NewConnectionsProxy(connectionManager),
+		DatabasesProxy:     api.NewDatabasesProxy(databasesService),
 		IndexesProxy:       api.NewIndexesProxy(indexService),
 		CollectionsProxy:   api.NewCollectionsProxy(collectionsService),
 		ShellProxy:         api.NewShellProxy(queryExecutor),
@@ -94,6 +100,7 @@ func (a *App) Startup(ctx context.Context) {
 		panic(fmt.Errorf("failed to initialize connection manager: %w", err))
 	}
 
+	a.databasesService.Init(ctx)
 	a.indexService.Init(ctx)
 	a.collectionsService.Init(ctx)
 	a.queryExecutor.Init(ctx)

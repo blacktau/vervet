@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"slices"
 	"strings"
 	"time"
 	"vervet/internal/clientregistry"
@@ -172,24 +171,6 @@ func (cm *ConnectionManager) GetConnections() []models.Connection {
 		}
 	}
 	return connections
-}
-
-func (cm *ConnectionManager) GetDatabases(serverID string) ([]string, error) {
-	cm.log.Debug("Getting databases for mongo instance", slog.String("serverID", serverID))
-	client, err := cm.registry.GetClient(serverID)
-	if err != nil {
-		cm.log.Error("Failed to get client", slog.String("serverID", serverID), slog.Any("error", err))
-		return nil, err
-	}
-
-	names, err := client.ListDatabaseNames(cm.ctx, bson.D{})
-	if err != nil {
-		cm.log.Error("Failed to list databases", slog.String("serverID", serverID), slog.Any("error", err))
-		return nil, err
-	}
-	slices.Sort(names)
-	cm.log.Debug("Got databases", slog.String("serverID", serverID), slog.Any("databases", names))
-	return names, nil
 }
 
 func cleanConnectionString(uri string) string {
