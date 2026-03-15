@@ -14,6 +14,7 @@ import SettingsDialog from '@/features/settings/SettingsDialog.vue'
 import AddDatabaseDialog from '@/features/data-browser/AddDatabaseDialog.vue'
 import AddCollectionDialog from '@/features/data-browser/AddCollectionDialog.vue'
 import CreateIndexDialog from '@/features/indexes/CreateIndexDialog.vue'
+import RenameCollectionDialog from '@/features/data-browser/RenameCollectionDialog.vue'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 import { DialogType, useDialogStore } from '@/stores/dialog.ts'
 import hljs from 'highlight.js/lib/core'
@@ -100,6 +101,7 @@ watch(
       <add-database-dialog v-if="dialogStore.isVisible(DialogType.AddDatabase)" />
       <add-collection-dialog v-if="dialogStore.isVisible(DialogType.AddCollection)" />
       <create-index-dialog v-if="dialogStore.isVisible(DialogType.CreateIndex)" />
+      <rename-collection-dialog v-if="dialogStore.isVisible(DialogType.RenameCollection)" />
     </n-dialog-provider>
   </n-config-provider>
 </template>
