@@ -1,4 +1,4 @@
-import * as connectionsProxy from 'wailsjs/go/api/ConnectionsProxy'
+import * as collectionsProxy from 'wailsjs/go/api/CollectionsProxy'
 import { EventsOn } from 'wailsjs/runtime/runtime'
 
 interface FieldInfo {
@@ -54,7 +54,7 @@ export async function getCollectionSchema(
 
   const request = (async () => {
     try {
-      const result = await connectionsProxy.GetCollectionSchema(serverId, dbName, collectionName)
+      const result = await collectionsProxy.GetCollectionSchema(serverId, dbName, collectionName)
       if (result.isSuccess && result.data) {
         schemaCache.set(key, result.data)
         return result.data
@@ -73,7 +73,7 @@ export async function getCollectionNames(
   serverId: string,
   dbName: string,
 ): Promise<string[]> {
-  const result = await connectionsProxy.GetCollections(serverId, dbName)
+  const result = await collectionsProxy.GetCollections(serverId, dbName)
   if (result.isSuccess && result.data) {
     return result.data
   }

@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { isEmpty } from 'lodash'
 import * as connectionsProxy from 'wailsjs/go/api/ConnectionsProxy'
+import * as collectionsProxy from 'wailsjs/go/api/CollectionsProxy'
 import { useTabStore } from '@/features/tabs/tabs.ts'
 import { useNotifier } from '@/utils/dialog.ts'
 import { type models } from 'wailsjs/go/models.ts'
@@ -368,7 +369,7 @@ export const useDataBrowserStore = defineStore('browser', {
         return database.collections
       }
 
-      const collections = await connectionsProxy.GetCollections(serverId, dbName)
+      const collections = await collectionsProxy.GetCollections(serverId, dbName)
       if (collections.isSuccess) {
         database.collections = collections.data.map((col) => ({ name: col, indexes: [] }))
         return database.collections
@@ -393,7 +394,7 @@ export const useDataBrowserStore = defineStore('browser', {
         return database.views
       }
 
-      const views = await connectionsProxy.GetViews(serverId, dbName)
+      const views = await collectionsProxy.GetViews(serverId, dbName)
       if (views.isSuccess) {
         database.views = views.data
         return database.views

@@ -5,7 +5,7 @@ import { type FormInst } from 'naive-ui'
 import { DialogMode, DialogType, useDialogStore } from '@/stores/dialog.ts'
 import { type IndexInfo, useIndexStore } from '@/features/indexes/indexStore.ts'
 import { useNotifier } from '@/utils/dialog.ts'
-import { GetCollectionSchema } from 'wailsjs/go/api/ConnectionsProxy'
+import { GetCollectionSchema } from 'wailsjs/go/api/CollectionsProxy'
 import type { models } from 'wailsjs/go/models'
 
 type DialogData = {

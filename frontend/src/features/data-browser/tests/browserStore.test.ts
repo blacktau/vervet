@@ -2,10 +2,14 @@ import { beforeEach, describe, expect, test, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 import * as connectionsProxy from 'wailsjs/go/api/ConnectionsProxy'
+import * as collectionsProxy from 'wailsjs/go/api/CollectionsProxy'
 import { api } from 'wailsjs/go/models.ts'
 
 vi.mock('wailsjs/go/api/ConnectionsProxy', () => ({
   GetDatabases: vi.fn(),
+}))
+
+vi.mock('wailsjs/go/api/CollectionsProxy', () => ({
   GetCollections: vi.fn(),
 }))
 
@@ -102,14 +106,14 @@ describe('browserStore', () => {
         },
       ] as never
 
-      vi.mocked(connectionsProxy.GetCollections).mockResolvedValue({
+      vi.mocked(collectionsProxy.GetCollections).mockResolvedValue({
         isSuccess: true,
         data: ['collection1', 'collection2'],
       } as api.Result___string_)
 
       const result = await store.getCollectionList('server1', 'db1', true)
 
-      expect(connectionsProxy.GetCollections).toHaveBeenCalledWith('server1', 'db1')
+      expect(collectionsProxy.GetCollections).toHaveBeenCalledWith('server1', 'db1')
       expect(result).toEqual([
         { name: 'collection1', indexes: [] },
         { name: 'collection2', indexes: [] },
@@ -133,7 +137,7 @@ describe('browserStore', () => {
 
       const result = await store.getCollectionList('server1', 'db1', false)
 
-      expect(connectionsProxy.GetCollections).not.toHaveBeenCalled()
+      expect(collectionsProxy.GetCollections).not.toHaveBeenCalled()
       expect(result).toEqual([{ name: 'cachedCol', indexes: [] }])
     })
   })

@@ -5,7 +5,7 @@ import { type FormInst, type FormItemRule } from 'naive-ui'
 import { DialogType, useDialogStore } from '@/stores/dialog.ts'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 import { useNotifier } from '@/utils/dialog.ts'
-import * as connectionsProxy from 'wailsjs/go/api/ConnectionsProxy'
+import * as collectionsProxy from 'wailsjs/go/api/CollectionsProxy'
 
 const dialogStore = useDialogStore()
 const browserStore = useDataBrowserStore()
@@ -63,7 +63,7 @@ async function onConfirm() {
 
   loading.value = true
   try {
-    const result = await connectionsProxy.CreateCollection(
+    const result = await collectionsProxy.CreateCollection(
       serverID.value,
       dbName.value,
       form.collectionName,
