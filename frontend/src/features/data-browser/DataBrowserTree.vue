@@ -113,6 +113,12 @@ function handleContextMenuSelect(key: string) {
         tabStore.openStatisticsTab(serverId, dbName, '', 'database')
       }
     }
+    if (node.type === DataNodeType.Server) {
+      const serverId = node.key as string
+      if (serverId) {
+        tabStore.openStatisticsTab(serverId, '', '', 'server')
+      }
+    }
   }
 }
 

@@ -155,7 +155,8 @@ export default {
   statistics: {
     tabLabel: '{collection} statistics',
     databaseTabLabel: '{database} statistics',
-    emptyState: 'Right-click a collection or database to view its statistics',
+    serverTabLabel: '{server} statistics',
+    emptyState: 'Right-click a server, database, or collection to view its statistics',
     toolbar: {
       refresh: 'Refresh',
     },
@@ -174,6 +175,15 @@ export default {
       dataSize: 'Data Size',
       storageSize: 'Storage Size',
       indexSize: 'Index Size',
+    },
+    serverCards: {
+      version: 'Version',
+      uptime: 'Uptime',
+      connections: 'Connections',
+      available: 'available',
+      memResident: 'Resident Memory',
+      memVirtual: 'Virtual Memory',
+      totalOperations: 'Total Operations',
     },
     bytes: '{value} bytes',
     error: 'Failed to load statistics',
