@@ -4,6 +4,7 @@ export type QueryTabItem = {
   id: string
   database: string
   initialText?: string
+  collectionName?: string
 }
 
 export type IndexTabItem = {

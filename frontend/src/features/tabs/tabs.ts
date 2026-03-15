@@ -176,7 +176,7 @@ export const useTabStore = defineStore('tabs', {
       this.activeTabIndex = index
     },
 
-    openQuery(serverId: string, database: string, initialText?: string) {
+    openQuery(serverId: string, database: string, initialText?: string, collectionName?: string) {
       const tabIndex = findIndex(this.tabItems, { serverId })
       if (tabIndex === -1) {
         return
@@ -191,6 +191,7 @@ export const useTabStore = defineStore('tabs', {
         id: `query-${++queryIdCounter}`,
         database,
         initialText,
+        collectionName,
       }
 
       tab.queries.push(queryItem)
