@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { type IndexTabItem, type QueryTabItem, type ServerTabItem } from '@/types/ServerTabItem.ts'
+import { type IndexTabItem, type QueryTabItem, type ServerTabItem, type StatisticsTabItem } from '@/types/ServerTabItem.ts'
 import { useDialoger } from '@/utils/dialog.ts'
 import { i18nGlobal } from '@/i18n'
 import { findIndex } from 'lodash'
@@ -20,6 +20,8 @@ type TabStoreGetters = {
   currentSubTab: () => BrowserSubTabType | undefined
   currentQueries: () => QueryTabItem[]
   currentIndexTabs: () => IndexTabItem[]
+  currentStatisticsTabs: () => StatisticsTabItem[]
+  currentStatisticsTab: () => StatisticsTabItem | undefined
 }
 
 type TabUpsertOptions = ServerTabItem & {
@@ -36,6 +38,7 @@ export const enum NavType {
 
 let queryIdCounter = 0
 let indexTabIdCounter = 0
+let statisticsTabIdCounter = 0
 
 export const useTabStore = defineStore('tabs', {
   state: (): TabStoreState => ({
@@ -62,6 +65,16 @@ export const useTabStore = defineStore('tabs', {
     },
     currentIndexTabs(state: TabStoreState) {
       return state.tabItems[state.activeTabIndex]?.indexTabs ?? ([] as IndexTabItem[])
+    },
+    currentStatisticsTabs(state: TabStoreState) {
+      return state.tabItems[state.activeTabIndex]?.statisticsTabs ?? ([] as StatisticsTabItem[])
+    },
+    currentStatisticsTab(state: TabStoreState) {
+      const tab = state.tabItems[state.activeTabIndex]
+      if (!tab?.statisticsTabs || !tab.activeStatisticsTabId) {
+        return undefined
+      }
+      return tab.statisticsTabs.find((t) => t.id === tab.activeStatisticsTabId)
     },
   } as TabStoreGetters,
   actions: {
@@ -97,6 +110,7 @@ export const useTabStore = defineStore('tabs', {
           queryOpen: false,
           queries: [],
           indexTabs: [],
+          statisticsTabs: [],
         }
         this.tabItems.push(tabItem)
         tabIndex = this.tabItems.length - 1
@@ -304,6 +318,84 @@ export const useTabStore = defineStore('tabs', {
 
     indexTabLabel(tab: ServerTabItem, indexTab: IndexTabItem): string {
       return `${indexTab.collectionName} indexes`
+    },
+
+    openStatisticsTab(serverId: string, dbName: string, collectionName: string, level: 'collection' | 'database' | 'server') {
+      const tabIndex = findIndex(this.tabItems, { serverId })
+      if (tabIndex === -1) {
+        return
+      }
+
+      const tab = this.tabItems[tabIndex]
+      if (!tab) {
+        return
+      }
+
+      if (!tab.statisticsTabs) {
+        tab.statisticsTabs = []
+      }
+
+      const existing = tab.statisticsTabs.find(
+        (t) => t.dbName === dbName && t.collectionName === collectionName && t.level === level,
+      )
+      if (existing) {
+        tab.activeStatisticsTabId = existing.id
+        tab.subTab = BrowserSubTabType.Statistics
+        this._setActivatedIndex(tabIndex, true)
+        return
+      }
+
+      const statsTab: StatisticsTabItem = {
+        id: `stats-${++statisticsTabIdCounter}`,
+        serverId,
+        dbName,
+        collectionName,
+        level,
+      }
+
+      tab.statisticsTabs.push(statsTab)
+      tab.activeStatisticsTabId = statsTab.id
+      tab.subTab = BrowserSubTabType.Statistics
+      this._setActivatedIndex(tabIndex, true)
+    },
+
+    closeStatisticsTab(serverId: string, statisticsTabId: string) {
+      const tabIndex = findIndex(this.tabItems, { serverId })
+      if (tabIndex === -1) {
+        return
+      }
+
+      const tab = this.tabItems[tabIndex]
+      if (!tab || !tab.statisticsTabs) {
+        return
+      }
+
+      const idx = tab.statisticsTabs.findIndex((t) => t.id === statisticsTabId)
+      if (idx === -1) {
+        return
+      }
+
+      tab.statisticsTabs.splice(idx, 1)
+
+      if (tab.statisticsTabs.length === 0) {
+        tab.activeStatisticsTabId = undefined
+        tab.subTab = BrowserSubTabType.Query
+      } else if (tab.activeStatisticsTabId === statisticsTabId) {
+        const newIdx = Math.min(idx, tab.statisticsTabs.length - 1)
+        tab.activeStatisticsTabId = tab.statisticsTabs[newIdx]?.id
+      }
+    },
+
+    setActiveStatisticsTab(statisticsTabId: string) {
+      const tab = this.tabItems[this.activeTabIndex]
+      if (!tab) {
+        return
+      }
+      tab.activeStatisticsTabId = statisticsTabId
+    },
+
+    statisticsTabLabel(_tab: ServerTabItem, statsTab: StatisticsTabItem): string {
+      return `${statsTab.collectionName} statistics`
     },
   },
 })
