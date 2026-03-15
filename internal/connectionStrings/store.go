@@ -22,8 +22,7 @@ type store struct {
 	log *slog.Logger
 }
 
-func NewStore(log *slog.Logger) Store {
-
+func NewStore(log *slog.Logger) *store {
 	return &store{
 		log: log.With(slog.String(logging.SourceKey, "ConnectionStringStore")),
 	}

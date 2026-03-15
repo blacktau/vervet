@@ -12,20 +12,20 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// MockServerStore is a mock implementation of ServerStore for testing.
-type MockServerStore struct {
+// mockServerStore is a mock implementation of serverStore for testing.
+type mockServerStore struct {
 	servers []models.RegisteredServer
 	err     error
 }
 
-func (m *MockServerStore) LoadServers() ([]models.RegisteredServer, error) {
+func (m *mockServerStore) LoadServers() ([]models.RegisteredServer, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
 	return m.servers, nil
 }
 
-func (m *MockServerStore) SaveServers(servers []models.RegisteredServer) error {
+func (m *mockServerStore) SaveServers(servers []models.RegisteredServer) error {
 	if m.err != nil {
 		return m.err
 	}
@@ -66,21 +66,21 @@ func (m *MockConnectionStringsStore) DeleteRegisteredServerURI(id string) error 
 	return nil
 }
 
-func newTestServerService(serverStore ServerStore, connectionStringsStore connectionStrings.Store) *ServerService {
+func newTestServerService(store ServerStore, connectionStringsStore connectionStrings.Store) *ServerService {
 	log := slog.Default()
 	return &ServerService{
 		log:               log,
 		mu:                sync.RWMutex{},
 		connectionStrings: connectionStringsStore,
 		ctx:               context.Background(),
-		store:             serverStore,
+		store:             store,
 	}
 }
 
 func TestGetServers(t *testing.T) {
 	// Test case 1: Successful get servers
 	t.Run("successful get servers", func(t *testing.T) {
-		mockStore := &MockServerStore{
+		mockStore := &mockServerStore{
 			servers: []models.RegisteredServer{
 				{ID: "1", Name: "Server 1"},
 				{ID: "2", Name: "Server 2"},
@@ -96,7 +96,7 @@ func TestGetServers(t *testing.T) {
 
 	// Test case 2: Store returns an error
 	t.Run("store error", func(t *testing.T) {
-		mockStore := &MockServerStore{
+		mockStore := &mockServerStore{
 			err: errors.New("store error"),
 		}
 		sm := newTestServerService(mockStore, &MockConnectionStringsStore{})
@@ -110,7 +110,7 @@ func TestGetServers(t *testing.T) {
 
 func TestAddServer(t *testing.T) {
 	t.Run("successful add", func(t *testing.T) {
-		mockStore := &MockServerStore{
+		mockStore := &mockServerStore{
 			servers: []models.RegisteredServer{
 				{ID: "parent", Name: "Parent Group", IsGroup: true},
 			},
@@ -130,7 +130,7 @@ func TestAddServer(t *testing.T) {
 
 func TestUpdateServer(t *testing.T) {
 	t.Run("successful update", func(t *testing.T) {
-		mockStore := &MockServerStore{
+		mockStore := &mockServerStore{
 			servers: []models.RegisteredServer{
 				{ID: "1", Name: "Server 1"},
 			},
@@ -148,7 +148,7 @@ func TestUpdateServer(t *testing.T) {
 	})
 
 	t.Run("server not found", func(t *testing.T) {
-		mockStore := &MockServerStore{
+		mockStore := &mockServerStore{
 			servers: []models.RegisteredServer{},
 		}
 		sm := newTestServerService(mockStore, &MockConnectionStringsStore{})
@@ -161,7 +161,7 @@ func TestUpdateServer(t *testing.T) {
 
 func TestRemoveNode(t *testing.T) {
 	t.Run("successful remove server", func(t *testing.T) {
-		mockStore := &MockServerStore{
+		mockStore := &mockServerStore{
 			servers: []models.RegisteredServer{
 				{ID: "1", Name: "Server 1"},
 			},
@@ -179,7 +179,7 @@ func TestRemoveNode(t *testing.T) {
 	})
 
 	t.Run("successful remove group", func(t *testing.T) {
-		mockStore := &MockServerStore{
+		mockStore := &mockServerStore{
 			servers: []models.RegisteredServer{
 				{ID: "1", Name: "Group 1", IsGroup: true},
 			},
@@ -193,7 +193,7 @@ func TestRemoveNode(t *testing.T) {
 	})
 
 	t.Run("node not found", func(t *testing.T) {
-		mockStore := &MockServerStore{
+		mockStore := &mockServerStore{
 			servers: []models.RegisteredServer{},
 		}
 		sm := newTestServerService(mockStore, &MockConnectionStringsStore{})
@@ -204,7 +204,7 @@ func TestRemoveNode(t *testing.T) {
 	})
 
 	t.Run("cannot remove group with children", func(t *testing.T) {
-		mockStore := &MockServerStore{
+		mockStore := &mockServerStore{
 			servers: []models.RegisteredServer{
 				{ID: "1", Name: "Group 1", IsGroup: true},
 				{ID: "2", Name: "Server 2", ParentID: "1"},
@@ -223,7 +223,7 @@ func TestGetURI(t *testing.T) {
 		mockCSStore := &MockConnectionStringsStore{
 			uris: map[string]string{"1": "mongodb://localhost"},
 		}
-		sm := newTestServerService(&MockServerStore{}, mockCSStore)
+		sm := newTestServerService(&mockServerStore{}, mockCSStore)
 
 		uri, err := sm.GetURI("1")
 
@@ -235,7 +235,7 @@ func TestGetURI(t *testing.T) {
 		mockCSStore := &MockConnectionStringsStore{
 			uris: make(map[string]string),
 		}
-		sm := newTestServerService(&MockServerStore{}, mockCSStore)
+		sm := newTestServerService(&mockServerStore{}, mockCSStore)
 
 		uri, err := sm.GetURI("1")
 

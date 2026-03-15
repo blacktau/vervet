@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import { type DropdownOption, NIcon, NSpace, NText, useThemeVars } from 'naive-ui'
 import { useRender } from '@/utils/render.ts'
-import { h, nextTick, ref, type VNodeArrayChildren, watch } from 'vue'
+import { h, nextTick, ref, type VNodeArrayChildren } from 'vue'
 import { type RegisteredServerNode, useServerStore } from '@/features/server-pane/serverStore.ts'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 import { useSettingsStore } from '@/features/settings/settingsStore.ts'
@@ -45,11 +45,6 @@ const selectedKeys = ref<string[]>([])
 const { contextMenuParams, openContextMenu, handleSelectContextMenu } = useServerTreeContextMenu(
   selectedKeys,
   connectToServer,
-)
-
-watch(
-  () => contextMenuParams.show,
-  (val) => console.log('[ServerTree] contextMenuParams.show changed:', val),
 )
 
 const renderLabel = (x: { option: RegisteredServerNode }) => {
@@ -206,7 +201,6 @@ const nodeProps = ({ option }: { option: RegisteredServerNode }) => {
       }
     },
     onContextmenu(e: PointerEvent) {
-      console.log('[ServerTree-Node] onContextmenu', e)
       openContextMenu(option, e)
     },
   }

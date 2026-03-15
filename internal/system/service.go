@@ -81,14 +81,14 @@ func (ss *Service) SaveFile(title *string, name *string, extensions *[]string) (
 func (ss *Service) Log(level string, message string) {
 	switch level {
 	case "debug":
-		ss.log.Debug(fmt.Sprintf("[UI] %s", message))
+		ss.log.Debug(message, slog.String("origin", "UI"))
 	case "info":
-		ss.log.Info(fmt.Sprintf("[UI] %s",message))
+		ss.log.Info(message, slog.String("origin", "UI"))
 	case "warn":
-		ss.log.Warn(fmt.Sprintf("[UI] %s", message))
+		ss.log.Warn(message, slog.String("origin", "UI"))
 	case "error":
-		ss.log.Error(fmt.Sprintf("[UI] %s", message))
+		ss.log.Error(message, slog.String("origin", "UI"))
 	default:
-		ss.log.Info(fmt.Sprintf("[UI] %s", message))
+		ss.log.Info(message, slog.String("origin", "UI"))
 	}
 }

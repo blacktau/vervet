@@ -2,7 +2,6 @@ package api
 
 import (
 	"vervet/internal/models"
-	"vervet/internal/settings"
 )
 
 type FontProvider interface {
@@ -18,11 +17,11 @@ type SettingsProvider interface {
 }
 
 type SettingsProxy struct {
-	settings settings.Service
+	settings SettingsProvider
 	fp       FontProvider
 }
 
-func NewSettingsProxy(settings settings.Service, fp FontProvider) *SettingsProxy {
+func NewSettingsProxy(settings SettingsProvider, fp FontProvider) *SettingsProxy {
 	return &SettingsProxy{
 		settings: settings,
 		fp:       fp,

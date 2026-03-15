@@ -29,17 +29,4 @@ const dialogStore = useDialogStore()
   box-sizing: border-box;
   position: relative;
 }
-
-.color-preset-item {
-  width: 24px;
-  height: 24px;
-  margin-right: 2px;
-  border: white 3px solid;
-  cursor: pointer;
-
-  &_selected,
-  &:hover {
-    border-color: #cdd0d6;
-  }
-}
 </style>

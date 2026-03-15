@@ -11,7 +11,6 @@ import (
 	"vervet/internal/models"
 
 	"github.com/google/uuid"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"go.mongodb.org/mongo-driver/v2/x/mongo/driver/connstring"
 )
 
@@ -23,33 +22,19 @@ type ServerService struct {
 	mu                sync.RWMutex
 }
 
-func NewService(log *slog.Logger) *ServerService {
+func NewService(log *slog.Logger, store ServerStore, connectionStrings connectionStrings.Store) *ServerService {
 	logger := log.With(slog.String(logging.SourceKey, "ServerService"))
 	return &ServerService{
 		log:               logger,
 		mu:                sync.RWMutex{},
-		connectionStrings: connectionStrings.NewStore(logger),
+		store:             store,
+		connectionStrings: connectionStrings,
 	}
 }
 
-func (sm *ServerService) Init(ctx context.Context) error {
+func (sm *ServerService) Init(ctx context.Context) {
 	sm.log.Debug("Initializing Server Service")
 	sm.ctx = ctx
-
-	store, err := NewServerStore(sm.log)
-
-	if err != nil {
-		_, _ = runtime.MessageDialog(ctx, runtime.MessageDialogOptions{
-			Type:    runtime.ErrorDialog,
-			Title:   "Unrecoverable Error in Vervet",
-			Message: fmt.Sprintf("Error: %v", err),
-		})
-		sm.log.Error("Failed to initialize Server Store", slog.Any("error", err))
-		panic(err)
-	}
-
-	sm.store = store
-	return nil
 }
 
 func (sm *ServerService) GetServers() ([]models.RegisteredServer, error) {
@@ -60,34 +45,6 @@ func (sm *ServerService) GetServers() ([]models.RegisteredServer, error) {
 		return nil, fmt.Errorf("error getting models.RegisteredServers: %w", err)
 	}
 	return registeredServers, nil
-}
-
-func (sm *ServerService) GetServerConfiguration(id string) (*models.RegisteredServerConnection, error) {
-	log := sm.log.With(slog.String("serverID", id))
-	log.Debug("Getting Server Configuration for Server")
-	registeredServers, err := sm.store.LoadServers()
-	if err != nil {
-		log.Error("error getting RegisteredServer", slog.Any("error", err))
-		return nil, fmt.Errorf("error getting models.RegisteredServers: %w", err)
-	}
-
-	server, _ := findServer(id, registeredServers)
-
-
-	if server == nil {
-		return nil, fmt.Errorf("server with ID %s not found", id)
-	}
-
-	uri, err := sm.GetURI(server.ID)
-	if err != nil {
-		log.Error("error getting URI for server", slog.Any("error", err))
-		return nil, fmt.Errorf("error getting URI for server: %w", err)
-	}
-
-	return &models.RegisteredServerConnection{
-		RegisteredServer: 		*server,
-		URI:                     uri,
-	}, nil
 }
 
 func (sm *ServerService) GetServer(id string) (*models.RegisteredServer, error) {
@@ -124,7 +81,7 @@ func (sm *ServerService) AddServer(parentID, name, uri, colour string) error {
 		return fmt.Errorf("failed to load registered servers: %w", err)
 	}
 
-	newId := uuid.New().String()
+	newID := uuid.New().String()
 
 	parent, _ := findServer(parentID, servers)
 	if parent == nil {
@@ -141,7 +98,7 @@ func (sm *ServerService) AddServer(parentID, name, uri, colour string) error {
 	isSrv := connString.Scheme == connstring.SchemeMongoDBSRV
 
 	servers = append(servers, models.RegisteredServer{
-		ID:        newId,
+		ID:        newID,
 		Name:      name,
 		ParentID:  parentID,
 		IsGroup:   false,
@@ -150,7 +107,7 @@ func (sm *ServerService) AddServer(parentID, name, uri, colour string) error {
 		Colour:    colour,
 	})
 
-	err = sm.connectionStrings.StoreRegisteredServerURI(newId, uri)
+	err = sm.connectionStrings.StoreRegisteredServerURI(newID, uri)
 	if err != nil {
 		log.Error("Failed to securely store registeredServer URI", slog.Any("error", err))
 		return fmt.Errorf("failed to securely store registeredServer URI: %w", err)
@@ -158,7 +115,7 @@ func (sm *ServerService) AddServer(parentID, name, uri, colour string) error {
 
 	err = sm.store.SaveServers(servers)
 	if err != nil {
-		_ = sm.connectionStrings.DeleteRegisteredServerURI(newId)
+		_ = sm.connectionStrings.DeleteRegisteredServerURI(newID)
 		log.Error("Failed to save registered server", slog.Any("error", err))
 		return fmt.Errorf("failed to save registered server: %w", err)
 	}
@@ -261,13 +218,13 @@ func (sm *ServerService) GetURI(id string) (string, error) {
 	return uri, nil
 }
 
-func findServer(serverId string, servers []models.RegisteredServer) (*models.RegisteredServer, int) {
+func findServer(serverID string, servers []models.RegisteredServer) (*models.RegisteredServer, int) {
 	if len(servers) == 0 {
 		return nil, -1
 	}
 
 	for idx, server := range servers {
-		if server.ID == serverId {
+		if server.ID == serverID {
 			return &servers[idx], idx
 		}
 	}
@@ -275,13 +232,13 @@ func findServer(serverId string, servers []models.RegisteredServer) (*models.Reg
 	return nil, -1
 }
 
-func hasChildren(parentId string, servers []models.RegisteredServer) bool {
+func hasChildren(parentID string, servers []models.RegisteredServer) bool {
 	if len(servers) == 0 {
 		return false
 	}
 
 	for _, server := range servers {
-		if server.ParentID == parentId {
+		if server.ParentID == parentID {
 			return true
 		}
 	}

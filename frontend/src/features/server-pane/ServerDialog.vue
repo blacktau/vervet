@@ -28,7 +28,6 @@ const i18n = useI18n()
 
 const editServerID = ref(dialogStore.serverDialogData?.serverId)
 const tab = ref('general')
-const showTestResult = ref<boolean>(false)
 const serverColors = ref<string[]>([
   '',
   '#F75B52',
@@ -209,7 +208,6 @@ const onTestConnection = async () => {
   } else {
     notifier.success(i18n.t('serverPane.dialogs.server.testSuccess'))
   }
-  showTestResult.value = true
 }
 </script>
 
@@ -298,20 +296,6 @@ const onTestConnection = async () => {
         </n-tab-pane>
       </n-tabs>
 
-      <!--      <n-alert-->
-      <!--        v-if="showTestResult"-->
-      <!--        :on-close="-->
-      <!--          () => {-->
-      <!--            testResult = ''-->
-      <!--            showTestResult = false-->
-      <!--          }-->
-      <!--        "-->
-      <!--        :title="isEmpty(testResult) ? '' : $t('dialog.server.testFailure')"-->
-      <!--        :type="isEmpty(testResult) ? 'success' : 'error'"-->
-      <!--        closable>-->
-      <!--        <template v-if="isEmpty(testResult)">{{ $t('dialog.server.testSuccess') }}</template>-->
-      <!--        <template v-else>{{ testResult }}</template>-->
-      <!--      </n-alert>-->
     </n-spin>
     <template #action>
       <div class="flex-item-expand">

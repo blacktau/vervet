@@ -80,9 +80,6 @@ export const useSettingsStore = defineStore('settings', {
       }
       return language || 'en'
     },
-    showLineNum(state: SettingsStore) {
-      return get(state.editor, 'showLineNum', true)
-    },
     fontOptions(state: SettingsStore) {
       return state.fontList
     },
@@ -91,9 +88,6 @@ export const useSettingsStore = defineStore('settings', {
     },
     uiFont(state: SettingsStore) {
       return fontToStyle(state.general.font, 'monaco')
-    },
-    terminalFont(state: SettingsStore) {
-      return fontToStyle(state.terminal.font, 'Courier New')
     },
     terminalCursorOptions() {
       return [

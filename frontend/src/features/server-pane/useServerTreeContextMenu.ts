@@ -109,24 +109,16 @@ export function useServerTreeContextMenu(
   }
 
   const openContextMenu = (option: RegisteredServerNode, e: PointerEvent) => {
-    console.log('[contextMenu] openContextMenu called', option.id, e.clientX, e.clientY)
     e.preventDefault()
     contextMenuParams.show = false
     nextTick().then(() => {
       const menuOptions = buildMenuOptions(option)
-      console.log('[contextMenu] menuOptions:', menuOptions)
       contextMenuParams.options = markRaw(menuOptions) as never
       contextMenuParams.currentNode = option
       contextMenuParams.x = e.clientX
       contextMenuParams.y = e.clientY
       contextMenuParams.show = true
       selectedKeys.value = [option.id]
-      console.log('[contextMenu] params after set', {
-        show: contextMenuParams.show,
-        x: contextMenuParams.x,
-        y: contextMenuParams.y,
-        optionCount: contextMenuParams.options.length,
-      })
     })
   }
 

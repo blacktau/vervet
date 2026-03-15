@@ -41,27 +41,10 @@ function collectKeysToDepth(rows: DocumentRow[], depth: number, currentDepth: nu
 
 watch(treeData, (data) => {
   if (data.length > 0) {
-    const depth = props.defaultExpandDepth ?? 1
+    const depth = props.defaultExpandDepth ?? 0
     expandedKeys.value = collectKeysToDepth(data, depth)
   }
 }, { immediate: true })
-
-// const paginationConfig = reactive({
-//   page: 1,
-//   pageSize: 25,
-//   pageSizes: PAGE_SIZES,
-//   showSizePicker: true,
-//   size: 'small' as const,
-//   'on-update:page': (page: number) => {
-//     console.log('on-update:page', page)
-//     paginationConfig.page = page
-//   },
-//   'on-update:page-size': (pageSize: number) => {
-//     console.log('on-update:page-size', pageSize)
-//     paginationConfig.pageSize = pageSize
-//     paginationConfig.page = 1
-//   },
-// })
 
 const pagination = reactive({
   page: 1,
@@ -142,9 +125,6 @@ const columns = computed<DataTableColumns<DocumentRow>>(() => [
 
 function rowProps(row: DocumentRow) {
   return {
-    'on:click.ctrl': () => {
-      console.log('ctrl', row)
-    },
     onClick: (evt: PointerEvent) => {
       if (evt.ctrlKey) {
         if (checkedKeys.value.includes(row.key)) {
@@ -152,7 +132,6 @@ function rowProps(row: DocumentRow) {
         } else {
           checkedKeys.value = [...checkedKeys.value, row.key]
         }
-        console.log(checkedKeys.value, row.key, checkedKeys.value.includes(row.key))
       }
     },
   }

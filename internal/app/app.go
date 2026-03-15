@@ -44,8 +44,13 @@ type App struct {
 
 // NewApp creates a new App application struct
 func NewApp(log *slog.Logger) *App {
-	serverService := servers.NewService(log)
 	connectionStringsStore := connectionStrings.NewStore(log)
+	serverStore, err := servers.NewServerStore(log)
+	if err != nil {
+		log.Error("Failed to initialize server store", slog.Any("error", err))
+		panic(fmt.Errorf("failed to initialize server store: %w", err))
+	}
+	serverService := servers.NewService(log, serverStore, connectionStringsStore)
 	registry := clientregistry.NewClientRegistry(log)
 	connectionManager := connections.NewManager(log, registry, connectionStringsStore, serverService)
 	indexService := indexes.NewIndexService(log, registry)
@@ -79,15 +84,11 @@ func NewApp(log *slog.Logger) *App {
 func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
 
-	err := a.serverService.Init(ctx)
-	if err != nil {
-		a.log.Error("Failed to initialize server service", slog.Any("error", err))
-		panic(fmt.Errorf("failed to initialize server service: %w", err))
-	}
+	a.serverService.Init(ctx)
 
 	a.registry.Init(ctx)
 
-	err = a.connectionManager.Init(ctx)
+	err := a.connectionManager.Init(ctx)
 	if err != nil {
 		a.log.Error("Failed to initialize connection manager", slog.Any("error", err))
 		panic(fmt.Errorf("failed to initialize connection manager: %w", err))

@@ -40,7 +40,7 @@ func TestLoadServers(t *testing.T) {
   name: Server 1
 `),
 		}
-		store := &Store{cfgStore: mockCfgStore}
+		store := &store{cfgStore: mockCfgStore}
 		servers, err := store.LoadServers()
 		assert.NoError(t, err)
 		assert.Len(t, servers, 1)
@@ -50,7 +50,7 @@ func TestLoadServers(t *testing.T) {
 		mockCfgStore := &MockConfigurationStore{
 			data: []byte{},
 		}
-		store := &Store{cfgStore: mockCfgStore}
+		store := &store{cfgStore: mockCfgStore}
 		servers, err := store.LoadServers()
 		assert.NoError(t, err)
 		assert.Len(t, servers, 0)
@@ -60,7 +60,7 @@ func TestLoadServers(t *testing.T) {
 		mockCfgStore := &MockConfigurationStore{
 			err: errors.New("read error"),
 		}
-		store := &Store{cfgStore: mockCfgStore, log: slog.Default()}
+		store := &store{cfgStore: mockCfgStore, log: slog.Default()}
 		servers, err := store.LoadServers()
 		assert.Error(t, err)
 		assert.Nil(t, servers)
@@ -70,7 +70,7 @@ func TestLoadServers(t *testing.T) {
 		mockCfgStore := &MockConfigurationStore{
 			data: []byte(`invalid yaml`),
 		}
-		store := &Store{cfgStore: mockCfgStore, log: slog.Default()}
+		store := &store{cfgStore: mockCfgStore, log: slog.Default()}
 		servers, err := store.LoadServers()
 		assert.Error(t, err)
 		assert.Nil(t, servers)
@@ -80,7 +80,7 @@ func TestLoadServers(t *testing.T) {
 func TestSaveServers(t *testing.T) {
 	t.Run("successful save", func(t *testing.T) {
 		mockCfgStore := &MockConfigurationStore{}
-		store := &Store{cfgStore: mockCfgStore, log: slog.Default()}
+		store := &store{cfgStore: mockCfgStore, log: slog.Default()}
 		servers := []models.RegisteredServer{
 			{ID: "1", Name: "Server 1"},
 		}
@@ -93,7 +93,7 @@ func TestSaveServers(t *testing.T) {
 		mockCfgStore := &MockConfigurationStore{
 			err: errors.New("save error"),
 		}
-		store := &Store{cfgStore: mockCfgStore, log: slog.Default()}
+		store := &store{cfgStore: mockCfgStore, log: slog.Default()}
 		var servers []models.RegisteredServer
 		err := store.SaveServers(servers)
 		assert.Error(t, err)
