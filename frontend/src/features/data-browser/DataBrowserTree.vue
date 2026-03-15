@@ -166,6 +166,25 @@ function handleContextMenuSelect(key: string) {
     }
   }
 
+  if (key === 'refresh') {
+    const nodeKey = node.key as string
+    const parts = nodeKey.split(':')
+    const serverId = parts[0]
+    if (serverId) {
+      if (node.type === DataNodeType.Database) {
+        const dbName = parts[1]
+        if (dbName) {
+          browserStore.refreshDatabaseCollections(serverId, dbName)
+        }
+      } else if (node.type === DataNodeType.Folder || node.type === DataNodeType.Collection || node.type === DataNodeType.View) {
+        const dbName = parts[1]
+        if (dbName) {
+          browserStore.refreshDatabaseCollections(serverId, dbName)
+        }
+      }
+    }
+  }
+
   if (key === 'dropCollection') {
     if (node.type === DataNodeType.Collection || node.type === DataNodeType.View) {
       const nodeKey = node.key as string
