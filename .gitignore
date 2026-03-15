@@ -34,3 +34,6 @@ build/bin
 .memelord
 config
 test-results
+.playwright-mcp
+.superpowers/brainstorm/23158-1773556834
+.mcp.json

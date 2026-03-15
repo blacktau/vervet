@@ -1,13 +1,11 @@
 package api
 
 import (
-	"context"
 	"fmt"
 	"vervet/internal/models"
 )
 
 type ServersProvider interface {
-	Init(ctx context.Context) error
 	GetServers() ([]models.RegisteredServer, error)
 	AddServer(parentID, name, uri, colour string) error
 	UpdateServer(serverID, name, uri, parentID, colour string) error

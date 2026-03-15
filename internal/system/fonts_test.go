@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func newSUT(log *slog.Logger) FontService {
+func newSUT(log *slog.Logger) *FontService {
 	if log == nil {
 		log = slog.Default()
 	}

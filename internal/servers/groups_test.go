@@ -9,7 +9,7 @@ import (
 
 func TestCreateGroup(t *testing.T) {
 	t.Run("successful create", func(t *testing.T) {
-		mockStore := &MockServerStore{
+		mockStore := &mockServerStore{
 			servers: []models.RegisteredServer{
 				{ID: "parent", Name: "Parent Group", IsGroup: true},
 			},
@@ -28,7 +28,7 @@ func TestCreateGroup(t *testing.T) {
 
 func TestUpdateGroup(t *testing.T) {
 	t.Run("successful update", func(t *testing.T) {
-		mockStore := &MockServerStore{
+		mockStore := &mockServerStore{
 			servers: []models.RegisteredServer{
 				{ID: "1", Name: "Group 1", IsGroup: true},
 			},
@@ -42,7 +42,7 @@ func TestUpdateGroup(t *testing.T) {
 	})
 
 	t.Run("group not found", func(t *testing.T) {
-		mockStore := &MockServerStore{
+		mockStore := &mockServerStore{
 			servers: []models.RegisteredServer{},
 		}
 		sm := newTestServerService(mockStore, &MockConnectionStringsStore{})
@@ -53,7 +53,7 @@ func TestUpdateGroup(t *testing.T) {
 	})
 
 	t.Run("not a group", func(t *testing.T) {
-		mockStore := &MockServerStore{
+		mockStore := &mockServerStore{
 			servers: []models.RegisteredServer{
 				{ID: "1", Name: "Server 1", IsGroup: false},
 			},

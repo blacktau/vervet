@@ -57,8 +57,8 @@ func (r *ClientRegistry) Connect(serverID, name, uri string) (*mongo.Client, err
 		Succeeded: func(ctx context.Context, evt *event.CommandSucceededEvent) {
 			if evt.CommandName == "hello" || evt.CommandName == "isMaster" {
 				r.log.Info("Connected to MongoDB",
-					slog.String("ConnectionID", evt.ConnectionID),
-					slog.Any("Reply", evt.Reply))
+					slog.String("connectionID", evt.ConnectionID),
+					slog.Any("reply", evt.Reply))
 			}
 		},
 	}

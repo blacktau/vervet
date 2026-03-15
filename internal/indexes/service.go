@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"vervet/internal/logging"
 	"vervet/internal/models"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -17,6 +18,21 @@ type ClientProvider interface {
 	GetClient(serverID string) (*mongo.Client, error)
 }
 
+type rawIndex struct {
+	Name               string `bson:"name"`
+	Key                bson.D `bson:"key"`
+	Unique             bool   `bson:"unique,omitempty"`
+	Sparse             bool   `bson:"sparse,omitempty"`
+	ExpireAfterSeconds *int32 `bson:"expireAfterSeconds,omitempty"`
+}
+
+type indexStat struct {
+	Name     string `bson:"name"`
+	Accesses struct {
+		Ops int64 `bson:"ops"`
+	} `bson:"accesses"`
+}
+
 // IndexService handles CRUD operations for MongoDB collection indexes
 type IndexService struct {
 	ctx      context.Context
@@ -26,61 +42,47 @@ type IndexService struct {
 
 func NewIndexService(log *slog.Logger, clients ClientProvider) *IndexService {
 	return &IndexService{
-		log:     log.With(slog.String("source", "IndexService")),
+		log:     log.With(slog.String(logging.SourceKey, "IndexService")),
 		clients: clients,
 	}
 }
 
-func (im *IndexService) Init(ctx context.Context) {
-	im.ctx = ctx
+func (s *IndexService) Init(ctx context.Context) {
+	s.ctx = ctx
 }
 
-func (im *IndexService) GetIndexes(serverID, dbName, collectionName string) ([]models.Index, error) {
-	im.log.Debug("Getting indexes",
+func (s *IndexService) GetIndexes(serverID, dbName, collectionName string) ([]models.Index, error) {
+	s.log.Debug("Getting indexes",
 		slog.String("serverID", serverID),
 		slog.String("dbName", dbName),
 		slog.String("collectionName", collectionName))
 
-	client, err := im.clients.GetClient(serverID)
+	client, err := s.clients.GetClient(serverID)
 	if err != nil {
 		return nil, err
 	}
 
 	collection := client.Database(dbName).Collection(collectionName)
-	cursor, err := collection.Indexes().List(im.ctx)
+	cursor, err := collection.Indexes().List(s.ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list indexes: %w", err)
 	}
-	defer cursor.Close(im.ctx)
-
-	type rawIndex struct {
-		Name               string `bson:"name"`
-		Key                bson.D `bson:"key"`
-		Unique             bool   `bson:"unique,omitempty"`
-		Sparse             bool   `bson:"sparse,omitempty"`
-		ExpireAfterSeconds *int32 `bson:"expireAfterSeconds,omitempty"`
-	}
+	defer cursor.Close(s.ctx)
 
 	var results []rawIndex
-	if err := cursor.All(im.ctx, &results); err != nil {
+	if err := cursor.All(s.ctx, &results); err != nil {
 		return nil, fmt.Errorf("failed to decode indexes: %w", err)
 	}
 
 	// Fetch index usage stats via $indexStats aggregation
 	usageMap := make(map[string]int64)
-	statsCursor, err := collection.Aggregate(im.ctx, mongo.Pipeline{
+	statsCursor, err := collection.Aggregate(s.ctx, mongo.Pipeline{
 		{{Key: "$indexStats", Value: bson.D{}}},
 	})
 	if err == nil {
-		defer statsCursor.Close(im.ctx)
-		type indexStat struct {
-			Name     string `bson:"name"`
-			Accesses struct {
-				Ops int64 `bson:"ops"`
-			} `bson:"accesses"`
-		}
+		defer statsCursor.Close(s.ctx)
 		var stats []indexStat
-		if err := statsCursor.All(im.ctx, &stats); err == nil {
+		if err := statsCursor.All(s.ctx, &stats); err == nil {
 			for _, s := range stats {
 				usageMap[s.Name] = s.Accesses.Ops
 			}
@@ -90,7 +92,7 @@ func (im *IndexService) GetIndexes(serverID, dbName, collectionName string) ([]m
 	// Fetch index sizes via collStats command
 	sizeMap := make(map[string]int64)
 	var collStatsResult bson.M
-	err = client.Database(dbName).RunCommand(im.ctx, bson.D{
+	err = client.Database(dbName).RunCommand(s.ctx, bson.D{
 		{Key: "collStats", Value: collectionName},
 	}).Decode(&collStatsResult)
 	if err == nil {
@@ -132,68 +134,68 @@ func (im *IndexService) GetIndexes(serverID, dbName, collectionName string) ([]m
 	return indexes, nil
 }
 
-func (im *IndexService) CreateIndex(serverID, dbName, collectionName string, request models.CreateIndexRequest) error {
-	im.log.Debug("Creating index",
+func (s *IndexService) CreateIndex(serverID, dbName, collectionName string, request models.CreateIndexRequest) error {
+	s.log.Debug("Creating index",
 		slog.String("serverID", serverID),
 		slog.String("dbName", dbName),
 		slog.String("collectionName", collectionName))
 
-	client, err := im.clients.GetClient(serverID)
+	client, err := s.clients.GetClient(serverID)
 	if err != nil {
 		return err
 	}
 
-	model := im.buildIndexModel(request.Keys, request.Name, request.Unique, request.Sparse, request.TTL)
+	model := s.buildIndexModel(request.Keys, request.Name, request.Unique, request.Sparse, request.TTL)
 
 	collection := client.Database(dbName).Collection(collectionName)
-	name, err := collection.Indexes().CreateOne(im.ctx, model)
+	name, err := collection.Indexes().CreateOne(s.ctx, model)
 	if err != nil {
-		im.log.Error("Failed to create index",
+		s.log.Error("Failed to create index",
 			slog.String("serverID", serverID),
 			slog.String("collectionName", collectionName),
 			slog.Any("error", err))
 		return fmt.Errorf("failed to create index: %w", err)
 	}
 
-	im.log.Info("Created index",
+	s.log.Info("Created index",
 		slog.String("serverID", serverID),
 		slog.String("collectionName", collectionName),
 		slog.String("indexName", name))
 	return nil
 }
 
-func (im *IndexService) EditIndex(serverID, dbName, collectionName string, request models.EditIndexRequest) error {
-	im.log.Debug("Editing index",
+func (s *IndexService) EditIndex(serverID, dbName, collectionName string, request models.EditIndexRequest) error {
+	s.log.Debug("Editing index",
 		slog.String("serverID", serverID),
 		slog.String("dbName", dbName),
 		slog.String("collectionName", collectionName),
 		slog.String("oldName", request.OldName))
 
-	client, err := im.clients.GetClient(serverID)
+	client, err := s.clients.GetClient(serverID)
 	if err != nil {
 		return err
 	}
 
 	collection := client.Database(dbName).Collection(collectionName)
-	newModel := im.buildIndexModel(request.Keys, request.Name, request.Unique, request.Sparse, request.TTL)
+	newModel := s.buildIndexModel(request.Keys, request.Name, request.Unique, request.Sparse, request.TTL)
 
 	sameNameEdit := request.Name == "" || request.Name == request.OldName
 
 	if sameNameEdit {
 		// Same name — must drop first to avoid name conflict
-		oldSpec, captureErr := im.captureIndex(collection, request.OldName)
+		oldSpec, captureErr := s.captureIndex(collection, request.OldName)
 
-		_, err = collection.Indexes().DropOne(im.ctx, request.OldName)
+		_, err = collection.Indexes().DropOne(s.ctx, request.OldName)
 		if err != nil {
 			return fmt.Errorf("failed to drop old index: %w", err)
 		}
 
-		_, err = collection.Indexes().CreateOne(im.ctx, newModel)
+		_, err = collection.Indexes().CreateOne(s.ctx, newModel)
 		if err != nil {
 			// Attempt to restore the original index
 			if captureErr == nil && oldSpec != nil {
-				if _, restoreErr := collection.Indexes().CreateOne(im.ctx, *oldSpec); restoreErr != nil {
-					im.log.Error("Failed to restore original index after edit failure",
+				if _, restoreErr := collection.Indexes().CreateOne(s.ctx, *oldSpec); restoreErr != nil {
+					s.log.Error("Failed to restore original index after edit failure",
 						slog.String("indexName", request.OldName),
 						slog.Any("error", restoreErr))
 				}
@@ -202,21 +204,21 @@ func (im *IndexService) EditIndex(serverID, dbName, collectionName string, reque
 		}
 	} else {
 		// Different name — create first, then drop old
-		_, err = collection.Indexes().CreateOne(im.ctx, newModel)
+		_, err = collection.Indexes().CreateOne(s.ctx, newModel)
 		if err != nil {
 			return fmt.Errorf("failed to create new index: %w", err)
 		}
 
-		_, err = collection.Indexes().DropOne(im.ctx, request.OldName)
+		_, err = collection.Indexes().DropOne(s.ctx, request.OldName)
 		if err != nil {
-			im.log.Error("Created new index but failed to drop old one",
+			s.log.Error("Created new index but failed to drop old one",
 				slog.String("oldName", request.OldName),
 				slog.Any("error", err))
 			return fmt.Errorf("new index created but failed to drop old index %q: %w", request.OldName, err)
 		}
 	}
 
-	im.log.Info("Edited index",
+	s.log.Info("Edited index",
 		slog.String("serverID", serverID),
 		slog.String("collectionName", collectionName),
 		slog.String("oldName", request.OldName),
@@ -224,22 +226,22 @@ func (im *IndexService) EditIndex(serverID, dbName, collectionName string, reque
 	return nil
 }
 
-func (im *IndexService) DropIndex(serverID, dbName, collectionName, indexName string) error {
-	im.log.Debug("Dropping index",
+func (s *IndexService) DropIndex(serverID, dbName, collectionName, indexName string) error {
+	s.log.Debug("Dropping index",
 		slog.String("serverID", serverID),
 		slog.String("dbName", dbName),
 		slog.String("collectionName", collectionName),
 		slog.String("indexName", indexName))
 
-	client, err := im.clients.GetClient(serverID)
+	client, err := s.clients.GetClient(serverID)
 	if err != nil {
 		return err
 	}
 
 	collection := client.Database(dbName).Collection(collectionName)
-	_, err = collection.Indexes().DropOne(im.ctx, indexName)
+	_, err = collection.Indexes().DropOne(s.ctx, indexName)
 	if err != nil {
-		im.log.Error("Failed to drop index",
+		s.log.Error("Failed to drop index",
 			slog.String("serverID", serverID),
 			slog.String("collectionName", collectionName),
 			slog.String("indexName", indexName),
@@ -247,14 +249,14 @@ func (im *IndexService) DropIndex(serverID, dbName, collectionName, indexName st
 		return fmt.Errorf("failed to drop index: %w", err)
 	}
 
-	im.log.Info("Dropped index",
+	s.log.Info("Dropped index",
 		slog.String("serverID", serverID),
 		slog.String("collectionName", collectionName),
 		slog.String("indexName", indexName))
 	return nil
 }
 
-func (im *IndexService) buildIndexModel(keys []models.IndexKeyField, name string, unique, sparse bool, ttl *int32) mongo.IndexModel {
+func (s *IndexService) buildIndexModel(keys []models.IndexKeyField, name string, unique, sparse bool, ttl *int32) mongo.IndexModel {
 	bsonKeys := bson.D{}
 	for _, k := range keys {
 		dir := k.Direction
@@ -285,23 +287,15 @@ func (im *IndexService) buildIndexModel(keys []models.IndexKeyField, name string
 	}
 }
 
-func (im *IndexService) captureIndex(collection *mongo.Collection, indexName string) (*mongo.IndexModel, error) {
-	cursor, err := collection.Indexes().List(im.ctx)
+func (s *IndexService) captureIndex(collection *mongo.Collection, indexName string) (*mongo.IndexModel, error) {
+	cursor, err := collection.Indexes().List(s.ctx)
 	if err != nil {
 		return nil, err
 	}
-	defer cursor.Close(im.ctx)
-
-	type rawIndex struct {
-		Name               string `bson:"name"`
-		Key                bson.D `bson:"key"`
-		Unique             bool   `bson:"unique,omitempty"`
-		Sparse             bool   `bson:"sparse,omitempty"`
-		ExpireAfterSeconds *int32 `bson:"expireAfterSeconds,omitempty"`
-	}
+	defer cursor.Close(s.ctx)
 
 	var results []rawIndex
-	if err := cursor.All(im.ctx, &results); err != nil {
+	if err := cursor.All(s.ctx, &results); err != nil {
 		return nil, err
 	}
 

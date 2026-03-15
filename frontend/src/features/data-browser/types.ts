@@ -6,8 +6,6 @@ export enum DataNodeType {
   Folder,
   Collection,
   View,
-  IndexCollection,
-  Index,
 }
 
 export type DataTreeNode = TreeOption & {

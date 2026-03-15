@@ -3,7 +3,6 @@ package servers
 import (
 	"fmt"
 	"log/slog"
-	"sync"
 	"vervet/internal/infrastructure"
 	"vervet/internal/logging"
 	"vervet/internal/models"
@@ -11,9 +10,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-type Store struct {
+type store struct {
 	cfgStore infrastructure.Store
-	mutex    sync.Mutex
 	log      *slog.Logger
 }
 
@@ -22,20 +20,20 @@ type ServerStore interface {
 	SaveServers(servers []models.RegisteredServer) error
 }
 
-func NewServerStore(log *slog.Logger) (ServerStore, error) {
+func NewServerStore(log *slog.Logger) (*store, error) {
 	logger := log.With(slog.String(logging.SourceKey, "ServerStore"))
 	cfgStore, err := infrastructure.NewStore("connections.yaml", logger)
 	if err != nil {
 		return nil, fmt.Errorf("error loading configuration: %v", err)
 	}
 
-	return &Store{
+	return &store{
 		cfgStore: cfgStore,
 		log:      logger,
 	}, nil
 }
 
-func (s *Store) LoadServers() ([]models.RegisteredServer, error) {
+func (s *store) LoadServers() ([]models.RegisteredServer, error) {
 	b, err := s.cfgStore.Read()
 	if err != nil {
 		s.log.Error("error loading registered servers", slog.Any("error", err))
@@ -56,7 +54,7 @@ func (s *Store) LoadServers() ([]models.RegisteredServer, error) {
 	return registeredServers, nil
 }
 
-func (s *Store) SaveServers(registeredServers []models.RegisteredServer) error {
+func (s *store) SaveServers(registeredServers []models.RegisteredServer) error {
 	s.log.Debug("Saving Registered Servers")
 	b, err := yaml.Marshal(&registeredServers)
 	if err != nil {

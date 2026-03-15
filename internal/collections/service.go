@@ -4,6 +4,7 @@ package collections
 import (
 	"context"
 	"log/slog"
+	"vervet/internal/logging"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -23,7 +24,7 @@ type CollectionsService struct {
 
 func NewCollectionsService(log *slog.Logger, clients ClientProvider) *CollectionsService {
 	return &CollectionsService{
-		log:     log.With(slog.String("source", "CollectionsService")),
+		log:     log.With(slog.String(logging.SourceKey, "CollectionsService")),
 		clients: clients,
 	}
 }

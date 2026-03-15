@@ -37,7 +37,7 @@ type settingsService struct {
 	mutex sync.Mutex
 }
 
-func NewService(log *slog.Logger) Service {
+func NewService(log *slog.Logger) *settingsService {
 	log = log.With(slog.String(logging.SourceKey, "SettingsService"))
 	store, err := infrastructure.NewStore("configuration.yaml", log)
 	if err != nil {
@@ -51,21 +51,21 @@ func NewService(log *slog.Logger) Service {
 	}
 }
 
-func (cm *settingsService) Init(ctx context.Context) error {
-	cm.log.Debug("Initializing Settings Service")
-	cm.ctx = ctx
+func (s *settingsService) Init(ctx context.Context) error {
+	s.log.Debug("Initializing Settings Service")
+	s.ctx = ctx
 	return nil
 }
 
-func (cm *settingsService) GetSettings() (models.Settings, error) {
-	cm.mutex.Lock()
-	defer cm.mutex.Unlock()
+func (s *settingsService) GetSettings() (models.Settings, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 
-	cm.log.Info("Loading settings...")
+	s.log.Info("Loading settings...")
 
-	settings, err := cm.getSettings()
+	settings, err := s.getSettings()
 	if err != nil {
-		cm.log.Error("error getting settings", slog.Any("error", err))
+		s.log.Error("error getting settings", slog.Any("error", err))
 		return defaultSettings(), fmt.Errorf("error getting settings: %v", err)
 	}
 
@@ -73,64 +73,69 @@ func (cm *settingsService) GetSettings() (models.Settings, error) {
 	settings.Window.Height = max(settings.Window.Height, DefaultWindowHeight)
 	settings.Window.AsideWidth = max(settings.Window.AsideWidth, DefaultAsideWidth)
 
-	cm.log.Debug("Settings loaded", slog.Any("settings", settings))
+	s.log.Debug("Settings loaded", slog.Any("settings", settings))
 
 	return settings, nil
 }
 
-func (cm *settingsService) SetSettings(settings *models.Settings) error {
-	cm.mutex.Lock()
-	defer cm.mutex.Unlock()
+func (s *settingsService) SetSettings(settings *models.Settings) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 
-	cm.log.Debug("Saving settings", slog.Any("settings", settings))
+	s.log.Debug("Saving settings", slog.Any("settings", settings))
 
-	return cm.saveSettings(settings)
+	return s.saveSettings(settings)
 }
 
-func (cm *settingsService) RestoreSettings() (*models.Settings, error) {
-	cm.mutex.Lock()
-	defer cm.mutex.Unlock()
+func (s *settingsService) RestoreSettings() (*models.Settings, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 
-	cm.log.Info("Resetting configuration...")
+	s.log.Info("Resetting configuration...")
 
 	settings := defaultSettings()
-	err := cm.saveSettings(&settings)
+	err := s.saveSettings(&settings)
 	if err != nil {
-		cm.log.Error("error resetting configuration", slog.Any("error", err))
+		s.log.Error("error resetting configuration", slog.Any("error", err))
 		return nil, fmt.Errorf("error resetting configuration: %v", err)
 	}
 
 	return &settings, nil
 }
 
-func (cm *settingsService) GetWindowState() (models.WindowState, error) {
-	cm.log.Debug("Getting window state")
-	settings, err := cm.GetSettings()
+func (s *settingsService) GetWindowState() (models.WindowState, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	s.log.Debug("Getting window state")
+	settings, err := s.getSettings()
 	if err != nil {
-		cm.log.Error("failed to get configuration for window state", slog.Any("error", err))
+		s.log.Error("failed to get configuration for window state", slog.Any("error", err))
 		return models.WindowState{}, fmt.Errorf("failed to get configuration for window state: %w", err)
 	}
 
-	x, y, width, height := settings.Window.PositionX, settings.Window.PositionY, settings.Window.Width, settings.Window.Height
-	screenWidth, screenHeight := cm.getScreenSize()
+	width := max(settings.Window.Width, DefaultWindowWidth)
+	height := max(settings.Window.Height, DefaultWindowHeight)
+	x, y := settings.Window.PositionX, settings.Window.PositionY
+	screenWidth, screenHeight := s.getScreenSize()
 
 	if x <= 0 || x+width > screenWidth || y <= 0 || y+height > screenHeight {
 		x, y = (screenWidth-width)/2, (screenHeight-height)/2
 	}
 
-	return models.WindowState{x, y, width, height}, nil
+	return models.WindowState{X: x, Y: y, Width: width, Height: height}, nil
 }
 
-func (cm *settingsService) SaveWindowState(state models.WindowState) error {
-	log := cm.log.With(slog.Any("windowState", state))
+func (s *settingsService) SaveWindowState(state models.WindowState) error {
+	log := s.log.With(slog.Any("windowState", state))
 	log.Info("Saving window state")
 
 	if state.Width <= 0 || state.Height <= 0 || state.X < 0 || state.Y < 0 {
-		cm.log.Error("invalid window state", slog.Any("windowState", state))
+		s.log.Error("invalid window state", slog.Any("windowState", state))
 		return fmt.Errorf("invalid window state: %+v", state)
 	}
 
-	err := cm.update(map[string]any{
+	err := s.update(map[string]any{
 		"window.positionX": state.X,
 		"window.positionY": state.Y,
 		"window.width":     state.Width,
@@ -138,37 +143,37 @@ func (cm *settingsService) SaveWindowState(state models.WindowState) error {
 	})
 
 	if err != nil {
-		log.Error("failed to save window state: %v", slog.Any("error", err))
+		log.Error("failed to save window state", slog.Any("error", err))
 		return fmt.Errorf("failed to save window state: %w", err)
 	}
 
 	return nil
 }
 
-func (cm *settingsService) update(values map[string]any) error {
-	cm.mutex.Lock()
-	defer cm.mutex.Unlock()
+func (s *settingsService) update(values map[string]any) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 
-	log := cm.log.With(slog.Any("values", values))
+	log := s.log.With(slog.Any("values", values))
 
-	settings, err := cm.getSettings()
+	settings, err := s.getSettings()
 	if err != nil {
 		log.Error("error getting configuration for update", slog.Any("error", err))
 		return fmt.Errorf("error getting configuration for update: %v", err)
 	}
 
 	for path, v := range values {
-		if err = cm.setSettings(&settings, path, v); err != nil {
+		if err = s.setSettings(&settings, path, v); err != nil {
 			log.Error("error updating configuration", slog.String("path", path), slog.Any("error", err))
 			return fmt.Errorf("error updating '%s' configuration: %v", path, err)
 		}
 	}
 
-	return cm.saveSettings(&settings)
+	return s.saveSettings(&settings)
 }
 
-func (cm *settingsService) getScreenSize() (width, height int) {
-	if screens, err := runtime.ScreenGetAll(cm.ctx); err == nil {
+func (s *settingsService) getScreenSize() (width, height int) {
+	if screens, err := runtime.ScreenGetAll(s.ctx); err == nil {
 		for _, screen := range screens {
 			if screen.IsCurrent {
 				return screen.Size.Width, screen.Size.Height
@@ -179,31 +184,31 @@ func (cm *settingsService) getScreenSize() (width, height int) {
 	return DefaultWindowWidth, DefaultWindowHeight
 }
 
-func (cm *settingsService) getSettings() (models.Settings, error) {
+func (s *settingsService) getSettings() (models.Settings, error) {
 	settings := defaultSettings()
-	b, err := cm.store.Read()
+	b, err := s.store.Read()
 	if err != nil && !os.IsNotExist(err) {
-		slog.Error("error reading configuration", slog.Any("error", err))
+		s.log.Error("error reading configuration", slog.Any("error", err))
 		return settings, fmt.Errorf("error reading configuration: %v", err)
 	}
 
 	if len(b) <= 0 {
-		cm.log.Info("No configuration found, using defaults.")
+		s.log.Info("No configuration found, using defaults.")
 		return settings, nil
 	}
 
 	if err = yaml.Unmarshal(b, &settings); err != nil {
-		cm.log.Error("error parsing configuration", slog.Any("error", err))
+		s.log.Error("error parsing configuration", slog.Any("error", err))
 		return defaultSettings(), fmt.Errorf("error parsing configuration: %v", err)
 	}
 
 	return settings, nil
 }
 
-func (cm *settingsService) setSettings(settings *models.Settings, key string, value any) error {
+func (s *settingsService) setSettings(settings *models.Settings, key string, value any) error {
 	parts := strings.Split(key, ".")
 
-	log := cm.log.With(slog.String("key", key), slog.Any("value", value))
+	log := s.log.With(slog.String("key", key), slog.Any("value", value))
 	log.Debug("Setting configuration value")
 
 	if len(parts) == 0 {
@@ -225,7 +230,7 @@ func (cm *settingsService) setSettings(settings *models.Settings, key string, va
 
 		if idx == len(parts)-1 {
 			if !field.CanSet() {
-				log.Error(fmt.Sprintf("invalid configuration key: %s (field %s is not settable)", key, part))
+				log.Error("invalid configuration key: field is not settable", slog.String("field", part))
 				return fmt.Errorf("invalid configuration key: %s (field %s is not settable)", key, part)
 			}
 
@@ -253,15 +258,15 @@ func (cm *settingsService) setSettings(settings *models.Settings, key string, va
 	return fmt.Errorf("invalid configuration key: %s", key)
 }
 
-func (cm *settingsService) saveSettings(settings *models.Settings) error {
+func (s *settingsService) saveSettings(settings *models.Settings) error {
 	b, err := yaml.Marshal(settings)
 	if err != nil {
-		cm.log.Error("error marshalling configuration", slog.Any("error", err))
+		s.log.Error("error marshalling configuration", slog.Any("error", err))
 		return fmt.Errorf("error marshalling configuration: %v", err)
 	}
 
-	if err = cm.store.Save(b); err != nil {
-		cm.log.Error("error saving configuration", slog.Any("error", err))
+	if err = s.store.Save(b); err != nil {
+		s.log.Error("error saving configuration", slog.Any("error", err))
 		return fmt.Errorf("error saving configuration: %v", err)
 	}
 

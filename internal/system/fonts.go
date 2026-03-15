@@ -1,10 +1,11 @@
 package system
 
 import (
+	"cmp"
 	"fmt"
 	"log/slog"
 	"os"
-	"sort"
+	"slices"
 	"strings"
 	"vervet/internal/models"
 
@@ -16,14 +17,15 @@ type FontService struct {
 	logger *slog.Logger
 }
 
-func NewFontService(logger *slog.Logger) FontService {
-	return FontService{
+func NewFontService(logger *slog.Logger) *FontService {
+	return &FontService{
 		logger: logger,
 	}
 }
 
-func (fs FontService) GetInstalledFonts() []models.Font {
+func (fs *FontService) GetInstalledFonts() []models.Font {
 	fontFiles := findfont.List()
+	seen := make(map[string]struct{}, len(fontFiles))
 	fonts := make([]models.Font, 0, len(fontFiles))
 
 	for _, fontFile := range fontFiles {
@@ -33,27 +35,21 @@ func (fs FontService) GetInstalledFonts() []models.Font {
 			continue
 		}
 
-		exists := false
-		for _, f := range fonts {
-			if f.Family == font.Family {
-				exists = true
-			}
+		if _, ok := seen[font.Family]; ok {
+			continue
 		}
-		if !exists {
-			fonts = append(fonts, *font)
-		}
+		seen[font.Family] = struct{}{}
+		fonts = append(fonts, *font)
 	}
 
-	sort.SliceStable(
-		fonts,
-		func(i, j int) bool {
-			return fonts[i].Family < fonts[j].Family
-		}, )
+	slices.SortStableFunc(fonts, func(a, b models.Font) int {
+		return cmp.Compare(a.Family, b.Family)
+	})
 
 	return fonts
 }
 
-func (fs FontService) processFont(fontFile string) (*models.Font, error) {
+func (fs *FontService) processFont(fontFile string) (*models.Font, error) {
 	file, err := os.Open(fontFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open font file: %w", err)

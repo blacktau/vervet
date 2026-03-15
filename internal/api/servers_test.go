@@ -1,7 +1,6 @@
 package api
 
 import (
-	"context"
 	"errors"
 	"testing"
 
@@ -14,10 +13,6 @@ type MockServersProvider struct {
 	err     error
 	server  *models.RegisteredServer
 	servers []models.RegisteredServer
-}
-
-func (m *MockServersProvider) Init(ctx context.Context) error {
-	return nil
 }
 
 func (m *MockServersProvider) GetServers() ([]models.RegisteredServer, error) {
