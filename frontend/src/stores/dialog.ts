@@ -21,6 +21,7 @@ export const enum DialogType {
   AddDatabase = 'addDatabase',
   AddCollection = 'addCollection',
   CreateIndex = 'createIndex',
+  RenameCollection = 'renameCollection',
 }
 
 export type ServerDialogData = {
@@ -55,6 +56,10 @@ export const useDialogStore = defineStore('dialog', {
         type: DialogMode.New,
       } as DialogState,
       [DialogType.CreateIndex]: {
+        visible: false,
+        type: DialogMode.New,
+      } as DialogState,
+      [DialogType.RenameCollection]: {
         visible: false,
         type: DialogMode.New,
       } as DialogState,
@@ -159,6 +164,12 @@ export const useDialogStore = defineStore('dialog', {
     },
     closeCreateIndexDialog() {
       this.hide(DialogType.CreateIndex)
+    },
+    openRenameCollectionDialog(serverID: string, dbName: string, collectionName: string) {
+      this.showNewDialog(DialogType.RenameCollection, { serverID, dbName, collectionName })
+    },
+    closeRenameCollectionDialog() {
+      this.hide(DialogType.RenameCollection)
     },
   },
   getters: {
