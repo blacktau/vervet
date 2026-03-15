@@ -18,19 +18,19 @@ type SettingsProvider interface {
 }
 
 type SettingsProxy struct {
-	cm settings.Service
-	fp FontProvider
+	settings settings.Service
+	fp       FontProvider
 }
 
-func NewSettingsProxy(cm settings.Service, fp FontProvider) *SettingsProxy {
+func NewSettingsProxy(settings settings.Service, fp FontProvider) *SettingsProxy {
 	return &SettingsProxy{
-		cm: cm,
-		fp: fp,
+		settings: settings,
+		fp:       fp,
 	}
 }
 
-func (cp *SettingsProxy) GetSettings() Result[models.Settings] {
-	cfg, err := cp.cm.GetSettings()
+func (sp *SettingsProxy) GetSettings() Result[models.Settings] {
+	cfg, err := sp.settings.GetSettings()
 	if err != nil {
 		return Result[models.Settings]{
 			IsSuccess: false,
@@ -43,8 +43,8 @@ func (cp *SettingsProxy) GetSettings() Result[models.Settings] {
 	}
 }
 
-func (cp *SettingsProxy) SetSettings(cfg models.Settings) EmptyResult {
-	err := cp.cm.SetSettings(&cfg)
+func (sp *SettingsProxy) SetSettings(cfg models.Settings) EmptyResult {
+	err := sp.settings.SetSettings(&cfg)
 	if err != nil {
 		return EmptyResult{
 			IsSuccess: false,
@@ -54,8 +54,8 @@ func (cp *SettingsProxy) SetSettings(cfg models.Settings) EmptyResult {
 	return Success()
 }
 
-func (cp *SettingsProxy) ResetSettings() Result[*models.Settings] {
-	cfg, err := cp.cm.RestoreSettings()
+func (sp *SettingsProxy) ResetSettings() Result[*models.Settings] {
+	cfg, err := sp.settings.RestoreSettings()
 	if err != nil {
 		return Result[*models.Settings]{
 			IsSuccess: false,
@@ -69,16 +69,16 @@ func (cp *SettingsProxy) ResetSettings() Result[*models.Settings] {
 	}
 }
 
-func (cp *SettingsProxy) GetAvailableFonts() Result[[]models.Font] {
-	fonts := cp.fp.GetInstalledFonts()
+func (sp *SettingsProxy) GetAvailableFonts() Result[[]models.Font] {
+	fonts := sp.fp.GetInstalledFonts()
 	return Result[[]models.Font]{
 		IsSuccess: true,
 		Data:      fonts,
 	}
 }
 
-func (cp *SettingsProxy) GetWindowState() Result[models.WindowState] {
-	state, err := cp.cm.GetWindowState()
+func (sp *SettingsProxy) GetWindowState() Result[models.WindowState] {
+	state, err := sp.settings.GetWindowState()
 	if err != nil {
 		return Result[models.WindowState]{
 			IsSuccess: false,
@@ -92,8 +92,8 @@ func (cp *SettingsProxy) GetWindowState() Result[models.WindowState] {
 	}
 }
 
-func (cp *SettingsProxy) SaveWindowState(state models.WindowState) EmptyResult {
-	err := cp.cm.SaveWindowState(state)
+func (sp *SettingsProxy) SaveWindowState(state models.WindowState) EmptyResult {
+	err := sp.settings.SaveWindowState(state)
 
 	if err != nil {
 		return Error(err.Error())
@@ -102,7 +102,7 @@ func (cp *SettingsProxy) SaveWindowState(state models.WindowState) EmptyResult {
 	return Success()
 }
 
-func (cp *SettingsProxy) GetAppVersion() Result[string] {
+func (sp *SettingsProxy) GetAppVersion() Result[string] {
 	return Result[string]{
 		IsSuccess: true,
 		Data:      "0.0.1",

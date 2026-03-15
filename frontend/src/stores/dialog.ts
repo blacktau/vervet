@@ -109,9 +109,9 @@ export const useDialogStore = defineStore('dialog', {
         mode: 'edit',
       })
     },
-    async showCloneServerDialog(serverID: string) {
+    async showCloneServerDialog(serverId: string) {
       this.showEditDialog(DialogType.Server, {
-        serverId: serverID,
+        serverId: serverId,
         mode: 'clone',
       })
     },

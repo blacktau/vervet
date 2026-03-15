@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"vervet/internal/logging"
 	"vervet/internal/models"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -26,7 +27,7 @@ type IndexService struct {
 
 func NewIndexService(log *slog.Logger, clients ClientProvider) *IndexService {
 	return &IndexService{
-		log:     log.With(slog.String("source", "IndexService")),
+		log:     log.With(slog.String(logging.SourceKey, "IndexService")),
 		clients: clients,
 	}
 }
