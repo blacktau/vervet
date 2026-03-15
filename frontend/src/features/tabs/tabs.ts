@@ -94,7 +94,7 @@ export const useTabStore = defineStore('tabs', {
       if (tab == null) {
         return
       }
-      d.warning(i18nGlobal.t('dialog.closeConfirm', { name: tab.title }), async () => {
+      d.warning(i18nGlobal.t('common.dialog.closeConfirm', { name: tab.title }), async () => {
         const connectionStore = useDataBrowserStore()
         await connectionStore.disconnect(tab.serverId)
       })
