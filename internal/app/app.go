@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"vervet/internal/api"
 	"vervet/internal/clientregistry"
+	"vervet/internal/collections"
 	"vervet/internal/connectionStrings"
 	"vervet/internal/connections"
 	"vervet/internal/indexes"
@@ -23,18 +24,20 @@ import (
 type App struct {
 	log              *slog.Logger
 	ctx              context.Context
-	ServersProxy     *api.ServersProxy
-	ConnectionsProxy *api.ConnectionsProxy
-	IndexesProxy     *api.IndexesProxy
-	ShellProxy       *api.ShellProxy
+	ServersProxy      *api.ServersProxy
+	ConnectionsProxy  *api.ConnectionsProxy
+	IndexesProxy      *api.IndexesProxy
+	CollectionsProxy  *api.CollectionsProxy
+	ShellProxy        *api.ShellProxy
 	SystemProxy      *api.SystemProxy
 	SettingsProxy    *api.SettingsProxy
 
-	serverService     *servers.ServerService
-	registry          *clientregistry.ClientRegistry
-	connectionManager *connections.ConnectionManager
-	indexService      *indexes.IndexService
-	queryExecutor     *queryexecutor.QueryExecutor
+	serverService      *servers.ServerService
+	registry           *clientregistry.ClientRegistry
+	connectionManager  *connections.ConnectionManager
+	indexService       *indexes.IndexService
+	collectionsService *collections.CollectionsService
+	queryExecutor      *queryexecutor.QueryExecutor
 	settingsService   settings.Service
 	systemService     *system.Service
 }
@@ -46,26 +49,29 @@ func NewApp(log *slog.Logger) *App {
 	registry := clientregistry.NewClientRegistry(log)
 	connectionManager := connections.NewManager(log, registry, connectionStringsStore, serverService)
 	indexService := indexes.NewIndexService(log, registry)
+	collectionsService := collections.NewCollectionsService(log, registry)
 	settingsService := settings.NewService(log)
 	queryExecutor := queryexecutor.NewQueryExecutor(log, registry, connectionStringsStore, settingsService)
 	systemService := system.NewSystemService(log)
 	fontService := system.NewFontService(log)
 
 	return &App{
-		log:               log,
-		serverService:     serverService,
-		registry:          registry,
-		connectionManager: connectionManager,
-		indexService:      indexService,
-		queryExecutor:     queryExecutor,
-		settingsService:   settingsService,
-		systemService:     systemService,
-		ServersProxy:      api.NewServersProxy(serverService),
-		ConnectionsProxy:  api.NewConnectionsProxy(connectionManager),
-		IndexesProxy:      api.NewIndexesProxy(indexService),
-		ShellProxy:        api.NewShellProxy(queryExecutor),
-		SystemProxy:       api.NewSystemProxy(systemService),
-		SettingsProxy:     api.NewSettingsProxy(settingsService, fontService),
+		log:                log,
+		serverService:      serverService,
+		registry:           registry,
+		connectionManager:  connectionManager,
+		indexService:       indexService,
+		collectionsService: collectionsService,
+		queryExecutor:      queryExecutor,
+		settingsService:    settingsService,
+		systemService:      systemService,
+		ServersProxy:       api.NewServersProxy(serverService),
+		ConnectionsProxy:   api.NewConnectionsProxy(connectionManager),
+		IndexesProxy:       api.NewIndexesProxy(indexService),
+		CollectionsProxy:   api.NewCollectionsProxy(collectionsService),
+		ShellProxy:         api.NewShellProxy(queryExecutor),
+		SystemProxy:        api.NewSystemProxy(systemService),
+		SettingsProxy:      api.NewSettingsProxy(settingsService, fontService),
 	}
 }
 
@@ -88,6 +94,7 @@ func (a *App) Startup(ctx context.Context) {
 	}
 
 	a.indexService.Init(ctx)
+	a.collectionsService.Init(ctx)
 	a.queryExecutor.Init(ctx)
 
 	err = a.settingsService.Init(ctx)

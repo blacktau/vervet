@@ -44,6 +44,11 @@ export namespace api {
 	    data: boolean;
 	    error: string;
 	}
+	export interface Result_map_string_interface____ {
+	    isSuccess: boolean;
+	    data: Record<string, any>;
+	    error: string;
+	}
 	export interface Result_string_ {
 	    isSuccess: boolean;
 	    data: string;

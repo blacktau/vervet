@@ -16,6 +16,7 @@ import UnconnectedContent from '@/features/unconnected-content/UnconnectedConten
 import TitleBar from '@/app/TitleBar.vue'
 import QueryContentPane from '@/features/queries/QueryContentPane.vue'
 import IndexContentPane from '@/features/indexes/IndexContentPane.vue'
+import StatisticsContentPane from '@/features/statistics/StatisticsContentPane.vue'
 import { BrowserSubTabType } from '@/consts/BrowserSubTabType.ts'
 
 const themeVars = useThemeVars()
@@ -130,6 +131,9 @@ onMounted(async () => {
             class="flex-item-expand" />
           <index-content-pane
             v-show="tabStore.currentSubTab === BrowserSubTabType.Indexes"
+            class="flex-item-expand" />
+          <statistics-content-pane
+            v-show="tabStore.currentSubTab === BrowserSubTabType.Statistics"
             class="flex-item-expand" />
         </div>
         <div
