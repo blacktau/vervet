@@ -395,7 +395,7 @@ export const useTabStore = defineStore('tabs', {
     },
 
     statisticsTabLabel(_tab: ServerTabItem, statsTab: StatisticsTabItem): string {
-      return `${statsTab.collectionName} statistics`
+      return i18nGlobal.t('statistics.tabLabel', { collection: statsTab.collectionName })
     },
   },
 })

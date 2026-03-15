@@ -153,6 +153,7 @@ export default {
     },
   },
   statistics: {
+    tabLabel: '{collection} statistics',
     emptyState: 'Right-click a collection to view its statistics',
     toolbar: {
       refresh: 'Refresh',

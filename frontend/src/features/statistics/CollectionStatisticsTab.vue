@@ -2,6 +2,7 @@
 import { onMounted, ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { formatBytes } from '@/utils/formatBytes.ts'
+import { ArrowPathIcon } from '@heroicons/vue/24/outline'
 import StatisticsTab from './StatisticsTab.vue'
 import type { StatCard } from './StatisticsSummaryCards.vue'
 import * as collectionsProxy from 'wailsjs/go/api/CollectionsProxy'
@@ -114,8 +115,18 @@ onMounted(() => {
 </script>
 
 <template>
-  <div v-if="error" class="error-state">
-    <n-result status="error" :title="t('statistics.error')" :description="error" />
+  <div v-if="error" class="error-container">
+    <div class="error-toolbar">
+      <n-button size="small" @click="fetchStatistics">
+        <template #icon>
+          <n-icon :component="ArrowPathIcon" />
+        </template>
+        {{ t('statistics.toolbar.refresh') }}
+      </n-button>
+    </div>
+    <div class="error-state">
+      <n-result status="error" :title="t('statistics.error')" :description="error" />
+    </div>
   </div>
   <statistics-tab
     v-else
@@ -126,6 +137,18 @@ onMounted(() => {
 </template>
 
 <style lang="scss" scoped>
+.error-container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.error-toolbar {
+  padding: 4px 12px 8px;
+  flex-shrink: 0;
+}
+
 .error-state {
   display: flex;
   align-items: center;

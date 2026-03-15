@@ -94,7 +94,7 @@ function handleContextMenuSelect(key: string) {
   }
 
   if (key === 'statistics') {
-    if (node.type === DataNodeType.Collection) {
+    if (node.type === DataNodeType.Collection || node.type === DataNodeType.View) {
       const nodeKey = node.key as string
       const parts = nodeKey.split(':')
       const serverId = parts[0]
