@@ -11,6 +11,7 @@ import { CodeBracketIcon } from '@heroicons/vue/24/outline'
 import ListTreeIcon from '@/features/icon/ListTreeIcon.vue'
 import { ref, onMounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import type { CollectionContext } from '@/features/results-document-tree/useDocumentContextMenu'
 
 const props = defineProps<{
   queryId: string
@@ -35,6 +36,19 @@ const queryTabItem = computed(() => {
     return undefined
   }
   return tab.queries.find((q) => q.id === props.queryId)
+})
+
+const collectionContext = computed<CollectionContext | undefined>(() => {
+  const item = queryTabItem.value
+  const tab = tabStore.currentTab
+  if (!item?.collectionName || !tab) {
+    return undefined
+  }
+  return {
+    serverId: tab.serverId,
+    dbName: item.database,
+    collectionName: item.collectionName,
+  }
 })
 
 const resizeOffset = computed(() => {
@@ -65,6 +79,15 @@ const cancelQuery = () => {
 
 function setResultView(view: 'table' | 'json') {
   queryState.value.resultView = view
+}
+
+async function handleDocumentChanged() {
+  const editor_val = editor.value
+  if (!editor_val) {
+    return
+  }
+  const query = editor_val.getValue()
+  await queryStore.executeQuery(props.queryId, query)
 }
 
 onMounted(async () => {
@@ -159,7 +182,11 @@ onMounted(async () => {
             }}</pre>
             <template v-else-if="hasDocuments">
               <div v-if="queryState.resultView === 'table'" class="structured-results">
-                <document-tree-table :documents="queryState.documents" />
+                <document-tree-table
+                  :documents="queryState.documents"
+                  :enable-context-menu="true"
+                  :collection-context="collectionContext"
+                  @document-changed="handleDocumentChanged" />
               </div>
               <div v-else class="json-results">
                 <json-result-view :content="queryState.rawJson" />

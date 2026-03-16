@@ -1,10 +1,18 @@
 <script lang="ts" setup>
-import { computed, h, reactive, ref, watch } from 'vue'
+import { computed, h, onBeforeUnmount, onMounted, reactive, ref, toRef, watch, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { DataTableColumns, DataTableRowKey } from 'naive-ui'
 import { buildTreeData } from './documentTreeUtils'
 import type { DocumentRow } from './types'
-import { typeColorMap } from '@/features/queries/typeColorMap.ts'
+import { typeColorMap } from '@/features/queries/typeColorMap'
+import { useDocumentContextMenu, type CollectionContext } from './useDocumentContextMenu'
+import { useNotifier } from '@/utils/dialog'
+import { resolveRawValue } from './resolveRawValue'
+import { humanizeEjson, toJsExpression } from './humanizeEjson'
+import DocumentContextMenu from './DocumentContextMenu.vue'
+import DocumentViewDialog from './DocumentViewDialog.vue'
+import DocumentEditDialog from './DocumentEditDialog.vue'
+import * as shellProxy from 'wailsjs/go/api/ShellProxy'
 
 const PAGE_SIZES = [25, 50, 100, 200, 500]
 
@@ -12,10 +20,13 @@ const props = defineProps<{
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   documents: any[]
   defaultExpandDepth?: number
+  enableContextMenu?: boolean
+  collectionContext?: CollectionContext
 }>()
 
 const emit = defineEmits<{
   (e: 'update:checkedKeys', keys: DataTableRowKey[]): void
+  (e: 'document-changed'): void
 }>()
 
 const { t } = useI18n()
@@ -24,6 +35,23 @@ const treeData = computed(() => buildTreeData(props.documents))
 
 const expandedKeys = ref<DataTableRowKey[]>([])
 const checkedKeys = ref<DataTableRowKey[]>([])
+
+// Context menu
+const collectionContextRef = toRef(props, 'collectionContext')
+const contextMenu = useDocumentContextMenu(collectionContextRef as Ref<CollectionContext | undefined>)
+const notifier = useNotifier()
+const dialog = useDialog()
+
+// Active row for keyboard shortcuts
+const activeRow = ref<DocumentRow | null>(null)
+const tableWrapper = ref<HTMLElement | null>(null)
+
+// Dialog state
+const showViewDialog = ref(false)
+const showEditDialog = ref(false)
+const viewDocument = ref<unknown>(null)
+const editDocument = ref<unknown>(null)
+const editMode = ref<'edit' | 'insert'>('edit')
 
 function collectKeysToDepth(rows: DocumentRow[], depth: number, currentDepth: number = 0): string[] {
   if (currentDepth >= depth) {
@@ -123,17 +151,142 @@ const columns = computed<DataTableColumns<DocumentRow>>(() => [
   },
 ])
 
+function handleContextMenuSelect(key: string) {
+  const row = contextMenu.targetRow.value
+  if (!row) {
+    return
+  }
+
+  if (key === 'viewDocument') {
+    viewDocument.value = resolveRawValue(props.documents, row.key)
+    showViewDialog.value = true
+  }
+
+  if (key === 'editDocument') {
+    editDocument.value = resolveRawValue(props.documents, row.key)
+    editMode.value = 'edit'
+    showEditDialog.value = true
+  }
+
+  if (key === 'insertDocument') {
+    editDocument.value = {}
+    editMode.value = 'insert'
+    showEditDialog.value = true
+  }
+
+  if (key === 'deleteDocument') {
+    const doc = resolveRawValue(props.documents, row.key) as Record<string, unknown>
+    const idDisplay = doc?._id ? JSON.stringify(doc._id) : 'unknown'
+    dialog.warning({
+      title: t('query.dialogs.deleteConfirmTitle'),
+      content: `${t('query.dialogs.deleteConfirmContent')}\n\n_id: ${idDisplay}`,
+      positiveText: t('common.confirm'),
+      negativeText: t('common.cancel'),
+      onPositiveClick: async () => {
+        if (!props.collectionContext) {
+          return
+        }
+        const { serverId, dbName, collectionName } = props.collectionContext
+        const filter = `{ _id: ${toJsExpression(doc._id)} }`
+        const query = `db.getCollection('${collectionName}').deleteOne(${filter})`
+        const result = await shellProxy.ExecuteQuery(serverId, dbName, query)
+        if (result.isSuccess) {
+          emit('document-changed')
+        } else {
+          notifier.error(result.error)
+        }
+      },
+    })
+  }
+
+  if (key === 'copyDocument') {
+    const doc = resolveRawValue(props.documents, row.key)
+    copyToClipboard(JSON.stringify(humanizeEjson(doc), null, 2))
+  }
+
+  if (key === 'copyValue') {
+    const val = resolveRawValue(props.documents, row.key)
+    const humanized = humanizeEjson(val)
+    copyToClipboard(typeof humanized === 'string' ? humanized : JSON.stringify(humanized))
+  }
+
+  if (key === 'copyField') {
+    const val = resolveRawValue(props.documents, row.key)
+    const humanized = humanizeEjson(val)
+    const formatted = typeof humanized === 'string' ? `"${humanized}"` : JSON.stringify(humanized)
+    copyToClipboard(`"${row.field}": ${formatted}`)
+  }
+}
+
+async function copyToClipboard(text: string) {
+  try {
+    await navigator.clipboard.writeText(text)
+    notifier.success(t('query.contextMenu.copied'), { duration: 2000 })
+  } catch {
+    notifier.error('Failed to copy to clipboard')
+  }
+}
+
+function switchToEdit() {
+  showViewDialog.value = false
+  editDocument.value = viewDocument.value
+  editMode.value = 'edit'
+  showEditDialog.value = true
+}
+
+function handleDocumentSaved() {
+  emit('document-changed')
+}
+
+function handleCopyShortcut(evt: KeyboardEvent) {
+  if (!(evt.ctrlKey || evt.metaKey) || evt.key !== 'c') {
+    return
+  }
+  // Don't intercept if text is selected (let browser handle normal copy)
+  const selection = window.getSelection()
+  if (selection && selection.toString().length > 0) {
+    return
+  }
+  if (!activeRow.value) {
+    return
+  }
+  evt.preventDefault()
+  const row = activeRow.value
+  if (row.isDocRoot) {
+    const doc = resolveRawValue(props.documents, row.key)
+    copyToClipboard(JSON.stringify(humanizeEjson(doc), null, 2))
+  } else {
+    const val = resolveRawValue(props.documents, row.key)
+    const humanized = humanizeEjson(val)
+    copyToClipboard(typeof humanized === 'string' ? humanized : JSON.stringify(humanized))
+  }
+}
+
+onMounted(() => {
+  tableWrapper.value?.addEventListener('keydown', handleCopyShortcut)
+})
+
+onBeforeUnmount(() => {
+  tableWrapper.value?.removeEventListener('keydown', handleCopyShortcut)
+})
+
 function rowProps(row: DocumentRow) {
   return {
     onClick: (evt: PointerEvent) => {
-      if (evt.ctrlKey) {
+      if (evt.ctrlKey || evt.metaKey) {
         if (checkedKeys.value.includes(row.key)) {
           checkedKeys.value = checkedKeys.value.filter((key) => key !== row.key)
         } else {
           checkedKeys.value = [...checkedKeys.value, row.key]
         }
       }
+      activeRow.value = row
     },
+    onContextmenu: props.enableContextMenu
+      ? (evt: MouseEvent) => {
+          contextMenu.openMenu(row, evt)
+        }
+      : undefined,
   }
 }
 
@@ -159,26 +312,56 @@ function rowClassName(row: DocumentRow): string {
 </script>
 
 <template>
-  <n-data-table
-    :columns="columns"
-    :data="treeData"
-    :pagination="pagination"
-    :row-key="(row: DocumentRow) => row.key"
-    :expanded-row-keys="expandedKeys"
-    :checked-row-keys="checkedKeys"
-    :row-class-name="rowClassName"
-    :row-props="rowProps"
-    :style="{ height: '100%' }"
-    children-key="children"
-    striped
-    virtual-scroll
-    flex-height
-    size="small"
-    @update:expanded-row-keys="handleExpandedKeysUpdate"
-    @update:checked-row-keys="handleCheckedKeysUpdate" />
+  <div ref="tableWrapper" class="table-wrapper" tabindex="-1">
+    <n-data-table
+      :columns="columns"
+      :data="treeData"
+      :pagination="pagination"
+      :row-key="(row: DocumentRow) => row.key"
+      :expanded-row-keys="expandedKeys"
+      :checked-row-keys="checkedKeys"
+      :row-class-name="rowClassName"
+      :row-props="rowProps"
+      :style="{ height: '100%' }"
+      children-key="children"
+      striped
+      virtual-scroll
+      flex-height
+      size="small"
+      @update:expanded-row-keys="handleExpandedKeysUpdate"
+      @update:checked-row-keys="handleCheckedKeysUpdate" />
+  <template v-if="enableContextMenu">
+    <DocumentContextMenu
+      :show="contextMenu.showMenu.value"
+      :x="contextMenu.menuX.value"
+      :y="contextMenu.menuY.value"
+      :options="contextMenu.menuOptions.value"
+      @select="handleContextMenuSelect"
+      @close="contextMenu.closeMenu" />
+    <DocumentViewDialog
+      v-model:show="showViewDialog"
+      :document="viewDocument"
+      :can-edit="!!collectionContext"
+      @edit="switchToEdit" />
+    <DocumentEditDialog
+      v-if="collectionContext"
+      v-model:show="showEditDialog"
+      :document="editDocument"
+      :mode="editMode"
+      :server-id="collectionContext.serverId"
+      :db-name="collectionContext.dbName"
+      :collection-name="collectionContext.collectionName"
+      @saved="handleDocumentSaved" />
+  </template>
+  </div>
 </template>
 
 <style lang="scss" scoped>
+.table-wrapper {
+  height: 100%;
+  outline: none;
+}
+
 :deep(.doc-root-row td) {
   background-color: var(--n-td-color-hover) !important;
 }

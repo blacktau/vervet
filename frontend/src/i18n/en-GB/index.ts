@@ -3,6 +3,7 @@ export default {
   common: {
     confirm: 'Confirm',
     cancel: 'Cancel',
+    close: 'Close',
     success: 'Success',
     warning: 'Warning',
     error: 'Error',
@@ -237,6 +238,25 @@ export default {
     timestampValue: 'Timestamp({t}, {i})',
     noDatabaseSelected: 'No database selected',
     queryCancelled: 'Query cancelled',
+    contextMenu: {
+      viewDocument: 'View Document',
+      editDocument: 'Edit Document',
+      insertDocument: 'Insert Document',
+      copyDocument: 'Copy Document',
+      deleteDocument: 'Delete Document',
+      copyValue: 'Copy Value',
+      copyField: 'Copy Field',
+      copied: 'Copied to clipboard',
+    },
+    dialogs: {
+      viewDocument: 'View Document',
+      editDocument: 'Edit Document',
+      insertDocument: 'Insert Document',
+      deleteConfirmTitle: 'Delete Document',
+      deleteConfirmContent: 'Are you sure you want to delete this document? This action cannot be undone.',
+      save: 'Save',
+      invalidJson: 'Invalid JSON: {error}',
+    },
     types: {
       null: 'Null',
       array: 'Array',

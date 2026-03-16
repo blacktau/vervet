@@ -82,7 +82,7 @@ function handleContextMenuSelect(key: string) {
       const name = parts[3]
       if (serverId && dbName && name) {
         const queryText = `db.getCollection('${name}').find({}).limit(42)`
-        tabStore.openQuery(serverId, dbName, queryText)
+        tabStore.openQuery(serverId, dbName, queryText, name)
       }
     }
   }
