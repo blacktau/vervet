@@ -8,6 +8,7 @@ import { typeColorMap } from '@/features/queries/typeColorMap'
 import { useDocumentContextMenu, type CollectionContext } from './useDocumentContextMenu'
 import { useNotifier } from '@/utils/dialog'
 import { resolveRawValue } from './resolveRawValue'
+import { toJsExpression } from './humanizeEjson'
 import DocumentContextMenu from './DocumentContextMenu.vue'
 import DocumentViewDialog from './DocumentViewDialog.vue'
 import DocumentEditDialog from './DocumentEditDialog.vue'
@@ -182,7 +183,7 @@ function handleContextMenuSelect(key: string) {
           return
         }
         const { serverId, dbName, collectionName } = props.collectionContext
-        const filter = JSON.stringify({ _id: doc._id })
+        const filter = `{ _id: ${toJsExpression(doc._id)} }`
         const query = `db.getCollection('${collectionName}').deleteOne(${filter})`
         const result = await shellProxy.ExecuteQuery(serverId, dbName, query)
         if (result.isSuccess) {
@@ -217,6 +218,13 @@ async function copyToClipboard(text: string) {
   } catch {
     notifier.error('Failed to copy to clipboard')
   }
+}
+
+function switchToEdit() {
+  showViewDialog.value = false
+  editDocument.value = viewDocument.value
+  editMode.value = 'edit'
+  showEditDialog.value = true
 }
 
 function handleDocumentSaved() {
@@ -291,7 +299,9 @@ function rowClassName(row: DocumentRow): string {
       @close="contextMenu.closeMenu" />
     <DocumentViewDialog
       v-model:show="showViewDialog"
-      :document="viewDocument" />
+      :document="viewDocument"
+      :can-edit="!!collectionContext"
+      @edit="switchToEdit" />
     <DocumentEditDialog
       v-if="collectionContext"
       v-model:show="showEditDialog"

@@ -9,10 +9,12 @@ import * as monaco from 'monaco-editor'
 const props = defineProps<{
   show: boolean
   document: unknown
+  canEdit?: boolean
 }>()
 
 const emit = defineEmits<{
   'update:show': [value: boolean]
+  edit: []
 }>()
 
 const { t } = useI18n()
@@ -95,8 +97,11 @@ function close() {
         <n-button @click="copyToClipboard">
           {{ t('query.contextMenu.copyDocument') }}
         </n-button>
+        <n-button v-if="canEdit" type="primary" @click="emit('edit')">
+          {{ t('query.dialogs.editDocument') }}
+        </n-button>
         <n-button @click="close">
-          {{ t('common.cancel') }}
+          {{ t('common.close') }}
         </n-button>
       </n-space>
     </template>

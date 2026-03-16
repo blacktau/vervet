@@ -3,7 +3,7 @@ import { ref, watch, computed, nextTick, shallowRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useNotifier } from '@/utils/dialog'
 import { useSettingsStore } from '@/features/settings/settingsStore'
-import { humanizeEjson, dehumanizeEjson } from './humanizeEjson'
+import { humanizeEjson, toJsExpression } from './humanizeEjson'
 import * as shellProxy from 'wailsjs/go/api/ShellProxy'
 import * as monaco from 'monaco-editor'
 
@@ -115,18 +115,17 @@ async function save() {
     return
   }
 
-  // Dehumanize (convert ISO strings back to $date, etc.)
-  const dehumanized = dehumanizeEjson(parsed) as Record<string, unknown>
+  // Convert humanized JSON to JS expression with BSON constructors
+  const jsBody = toJsExpression(parsed)
 
   saving.value = true
   try {
     let query: string
     if (props.mode === 'edit') {
-      const filter = JSON.stringify({ _id: documentId.value })
-      const replacement = JSON.stringify(dehumanized)
-      query = `db.getCollection('${props.collectionName}').replaceOne(${filter}, ${replacement})`
+      const filter = `{ _id: ${toJsExpression(documentId.value)} }`
+      query = `db.getCollection('${props.collectionName}').replaceOne(${filter}, ${jsBody})`
     } else {
-      query = `db.getCollection('${props.collectionName}').insertOne(${JSON.stringify(dehumanized)})`
+      query = `db.getCollection('${props.collectionName}').insertOne(${jsBody})`
     }
 
     const result = await shellProxy.ExecuteQuery(props.serverId, props.dbName, query)

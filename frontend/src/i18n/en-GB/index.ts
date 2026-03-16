@@ -3,6 +3,7 @@ export default {
   common: {
     confirm: 'Confirm',
     cancel: 'Cancel',
+    close: 'Close',
     success: 'Success',
     warning: 'Warning',
     error: 'Error',

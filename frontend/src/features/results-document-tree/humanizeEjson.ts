@@ -102,45 +102,142 @@ export function humanizeEjson(value: unknown): unknown {
 }
 
 /**
- * Reverses humanization for the edit dialog: converts human-readable values
- * back to EJSON so mongosh can interpret them correctly.
+ * Converts a value (humanized or raw EJSON) into a JavaScript expression string
+ * using the BSON constructor functions available in the Go query engine:
+ * ObjectId(), ISODate(), UUID(), NumberLong(), NumberDecimal(), Timestamp(),
+ * MinKey(), MaxKey(), BinData().
  *
- * - ISO date strings  → { "$date": "..." }
- * - 24-char hex strings → { "$oid": "..." }
- * - UUID strings       → { "$binary": { base64, subType: "04" } }
- * - Plain numbers      → left as-is (mongosh accepts them)
+ * Handles both:
+ * - Raw EJSON values (e.g. { $oid: "..." } → ObjectId("..."))
+ * - Humanized values (e.g. ISO date string → ISODate("..."))
  */
-export function dehumanizeEjson(value: unknown): unknown {
-  if (value === null || value === undefined) {
-    return value
+export function toJsExpression(value: unknown): string {
+  if (value === null) {
+    return 'null'
+  }
+  if (value === undefined) {
+    return 'undefined'
   }
 
   if (Array.isArray(value)) {
-    return value.map(dehumanizeEjson)
-  }
-
-  if (typeof value === 'string') {
-    if (isIsoDateString(value)) {
-      return { $date: value }
-    }
-    if (isObjectIdHex(value)) {
-      return { $oid: value }
-    }
-    if (isUuidString(value)) {
-      return { $binary: { base64: uuidToBase64(value), subType: '04' } }
-    }
+    const items = value.map(toJsExpression)
+    return `[${items.join(', ')}]`
   }
 
   if (typeof value === 'object') {
     const obj = value as Record<string, unknown>
-    const result: Record<string, unknown> = {}
-    for (const [k, v] of Object.entries(obj)) {
-      result[k] = dehumanizeEjson(v)
+
+    // EJSON types → BSON constructors
+    if ('$oid' in obj && typeof obj.$oid === 'string') {
+      return `ObjectId("${obj.$oid}")`
     }
-    return result
+
+    if ('$date' in obj) {
+      const dateVal = obj.$date
+      if (typeof dateVal === 'string') {
+        return `ISODate("${dateVal}")`
+      }
+      if (typeof dateVal === 'object' && dateVal !== null && '$numberLong' in dateVal) {
+        const ms = Number((dateVal as Record<string, unknown>).$numberLong)
+        return `ISODate("${new Date(ms).toISOString()}")`
+      }
+      return `ISODate("${String(dateVal)}")`
+    }
+
+    if ('$numberLong' in obj && typeof obj.$numberLong === 'string') {
+      return `NumberLong("${obj.$numberLong}")`
+    }
+
+    if ('$numberInt' in obj && typeof obj.$numberInt === 'string') {
+      return obj.$numberInt
+    }
+
+    if ('$numberDouble' in obj && typeof obj.$numberDouble === 'string') {
+      return obj.$numberDouble
+    }
+
+    if ('$numberDecimal' in obj && typeof obj.$numberDecimal === 'string') {
+      return `NumberDecimal("${obj.$numberDecimal}")`
+    }
+
+    if ('$binary' in obj) {
+      const binary = obj.$binary as Record<string, unknown>
+      if (typeof binary?.base64 === 'string') {
+        if (binary.subType === '04' || binary.subType === '03') {
+          return `UUID("${base64ToUUID(binary.base64)}")`
+        }
+        return `BinData(${Number(binary.subType)}, "${binary.base64}")`
+      }
+    }
+
+    if ('$regularExpression' in obj) {
+      const re = obj.$regularExpression as Record<string, unknown>
+      return `/${re.pattern}/${re.options || ''}`
+    }
+
+    if ('$regex' in obj) {
+      return `/${obj.$regex}/${obj.$options || ''}`
+    }
+
+    if ('$timestamp' in obj) {
+      const ts = obj.$timestamp as Record<string, unknown>
+      return `Timestamp(${ts.t}, ${ts.i})`
+    }
+
+    if ('$minKey' in obj) {
+      return 'MinKey()'
+    }
+
+    if ('$maxKey' in obj) {
+      return 'MaxKey()'
+    }
+
+    // Regular object
+    const entries = Object.entries(obj).map(([k, v]) => {
+      const key = needsQuoting(k) ? JSON.stringify(k) : k
+      return `${key}: ${toJsExpression(v)}`
+    })
+    return `{ ${entries.join(', ')} }`
   }
 
-  return value
+  if (typeof value === 'string') {
+    // Detect humanized BSON types
+    if (isIsoDateString(value)) {
+      return `ISODate("${value}")`
+    }
+    if (isObjectIdHex(value)) {
+      return `ObjectId("${value}")`
+    }
+    if (isUuidString(value)) {
+      return `UUID("${value}")`
+    }
+    return JSON.stringify(value)
+  }
+
+  if (typeof value === 'number') {
+    if (!isFinite(value)) {
+      if (value === Infinity) {
+        return 'Infinity'
+      }
+      if (value === -Infinity) {
+        return '-Infinity'
+      }
+      return 'NaN'
+    }
+    return String(value)
+  }
+
+  if (typeof value === 'boolean') {
+    return String(value)
+  }
+
+  return String(value)
+}
+
+const JS_IDENTIFIER_RE = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/
+
+function needsQuoting(key: string): boolean {
+  return !JS_IDENTIFIER_RE.test(key)
 }
 
 // --- Helpers ---
@@ -187,15 +284,3 @@ function base64ToUUID(b64: string): string {
   return hexToUUID(base64ToHex(b64))
 }
 
-function uuidToBase64(uuid: string): string {
-  const hex = uuid.replace(/-/g, '')
-  const bytes = new Uint8Array(hex.length / 2)
-  for (let i = 0; i < hex.length; i += 2) {
-    bytes[i / 2] = parseInt(hex.slice(i, i + 2), 16)
-  }
-  let binary = ''
-  for (const byte of bytes) {
-    binary += String.fromCharCode(byte)
-  }
-  return btoa(binary)
-}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { humanizeEjson, dehumanizeEjson } from '../humanizeEjson'
+import { humanizeEjson, toJsExpression } from '../humanizeEjson'
 
 describe('humanizeEjson', () => {
   // --- ObjectId ---
@@ -43,7 +43,6 @@ describe('humanizeEjson', () => {
   })
 
   it('keeps $numberDecimal as string when not safely representable', () => {
-    // High-precision value that loses precision as a JS number
     expect(humanizeEjson({ $numberDecimal: '1234567890.123456789012345' })).toBe(
       '1234567890.123456789012345',
     )
@@ -51,7 +50,6 @@ describe('humanizeEjson', () => {
 
   // --- Binary: UUID ---
   it('converts $binary UUID (subType 04) to UUID string', () => {
-    // UUID: 550e8400-e29b-41d4-a716-446655440000
     const base64 = btoa(
       String.fromCharCode(
         ...[0x55, 0x0e, 0x84, 0x00, 0xe2, 0x9b, 0x41, 0xd4, 0xa7, 0x16, 0x44, 0x66, 0x55, 0x44, 0x00, 0x00],
@@ -161,119 +159,166 @@ describe('humanizeEjson', () => {
   })
 })
 
-describe('dehumanizeEjson', () => {
-  // --- Dates ---
-  it('converts ISO date strings back to $date', () => {
-    expect(dehumanizeEjson('2024-01-23T10:13:20.000Z')).toEqual({
-      $date: '2024-01-23T10:13:20.000Z',
-    })
+describe('toJsExpression', () => {
+  // --- EJSON types → BSON constructors ---
+  it('converts $oid to ObjectId()', () => {
+    expect(toJsExpression({ $oid: '507f1f77bcf86cd799439011' })).toBe(
+      'ObjectId("507f1f77bcf86cd799439011")',
+    )
   })
 
-  it('converts ISO dates with timezone offset', () => {
-    expect(dehumanizeEjson('2024-01-23T10:13:20.000+05:30')).toEqual({
-      $date: '2024-01-23T10:13:20.000+05:30',
-    })
+  it('converts $date string to ISODate()', () => {
+    expect(toJsExpression({ $date: '2024-01-23T10:13:20.000Z' })).toBe(
+      'ISODate("2024-01-23T10:13:20.000Z")',
+    )
   })
 
-  it('does not convert non-ISO strings', () => {
-    expect(dehumanizeEjson('hello')).toBe('hello')
-    expect(dehumanizeEjson('2024-01-23')).toBe('2024-01-23')
-    expect(dehumanizeEjson('not a date at all')).toBe('not a date at all')
+  it('converts $date with $numberLong to ISODate()', () => {
+    const input = { $date: { $numberLong: '1706004800000' } }
+    expect(toJsExpression(input)).toBe(
+      `ISODate("${new Date(1706004800000).toISOString()}")`,
+    )
   })
 
-  // --- ObjectId ---
-  it('converts 24-char hex strings back to $oid', () => {
-    expect(dehumanizeEjson('507f1f77bcf86cd799439011')).toEqual({
-      $oid: '507f1f77bcf86cd799439011',
-    })
+  it('converts $numberLong to NumberLong()', () => {
+    expect(toJsExpression({ $numberLong: '9007199254740993' })).toBe(
+      'NumberLong("9007199254740993")',
+    )
   })
 
-  it('does not convert non-24-char hex strings', () => {
-    expect(dehumanizeEjson('abcdef')).toBe('abcdef')
-    expect(dehumanizeEjson('not-hex-at-all-24-chars!')).toBe('not-hex-at-all-24-chars!')
+  it('converts $numberInt to plain number', () => {
+    expect(toJsExpression({ $numberInt: '42' })).toBe('42')
   })
 
-  // --- UUID ---
-  it('converts UUID strings back to $binary', () => {
-    const uuid = '550e8400-e29b-41d4-a716-446655440000'
-    const result = dehumanizeEjson(uuid) as Record<string, unknown>
-    expect(result.$binary).toBeDefined()
-    const binary = result.$binary as Record<string, unknown>
-    expect(binary.subType).toBe('04')
-    // Round-trip: humanize the result and confirm we get the UUID back
-    expect(humanizeEjson(result)).toBe(uuid)
+  it('converts $numberDouble to plain number', () => {
+    expect(toJsExpression({ $numberDouble: '3.14' })).toBe('3.14')
   })
 
-  // --- Numbers ---
-  it('leaves numbers as-is', () => {
-    expect(dehumanizeEjson(42)).toBe(42)
-    expect(dehumanizeEjson(3.14)).toBe(3.14)
+  it('converts $numberDecimal to NumberDecimal()', () => {
+    expect(toJsExpression({ $numberDecimal: '123.456' })).toBe('NumberDecimal("123.456")')
   })
 
-  // --- Recursion ---
-  it('recurses into nested objects', () => {
-    const input = {
+  it('converts $binary UUID to UUID()', () => {
+    const base64 = btoa(
+      String.fromCharCode(
+        ...[0x55, 0x0e, 0x84, 0x00, 0xe2, 0x9b, 0x41, 0xd4, 0xa7, 0x16, 0x44, 0x66, 0x55, 0x44, 0x00, 0x00],
+      ),
+    )
+    expect(toJsExpression({ $binary: { base64, subType: '04' } })).toBe(
+      'UUID("550e8400-e29b-41d4-a716-446655440000")',
+    )
+  })
+
+  it('converts $binary generic to BinData()', () => {
+    expect(toJsExpression({ $binary: { base64: 'AQID', subType: '00' } })).toBe(
+      'BinData(0, "AQID")',
+    )
+  })
+
+  it('converts $regularExpression to regex literal', () => {
+    expect(toJsExpression({ $regularExpression: { pattern: '^test', options: 'i' } })).toBe(
+      '/^test/i',
+    )
+  })
+
+  it('converts $timestamp to Timestamp()', () => {
+    expect(toJsExpression({ $timestamp: { t: 1700000000, i: 1 } })).toBe(
+      'Timestamp(1700000000, 1)',
+    )
+  })
+
+  it('converts $minKey to MinKey()', () => {
+    expect(toJsExpression({ $minKey: 1 })).toBe('MinKey()')
+  })
+
+  it('converts $maxKey to MaxKey()', () => {
+    expect(toJsExpression({ $maxKey: 1 })).toBe('MaxKey()')
+  })
+
+  // --- Humanized values → BSON constructors ---
+  it('detects ISO date strings and wraps with ISODate()', () => {
+    expect(toJsExpression('2024-01-23T10:13:20.000Z')).toBe(
+      'ISODate("2024-01-23T10:13:20.000Z")',
+    )
+  })
+
+  it('detects 24-char hex and wraps with ObjectId()', () => {
+    expect(toJsExpression('507f1f77bcf86cd799439011')).toBe(
+      'ObjectId("507f1f77bcf86cd799439011")',
+    )
+  })
+
+  it('detects UUID strings and wraps with UUID()', () => {
+    expect(toJsExpression('550e8400-e29b-41d4-a716-446655440000')).toBe(
+      'UUID("550e8400-e29b-41d4-a716-446655440000")',
+    )
+  })
+
+  it('wraps plain strings in quotes', () => {
+    expect(toJsExpression('hello')).toBe('"hello"')
+  })
+
+  it('escapes special characters in strings', () => {
+    expect(toJsExpression('say "hello"')).toBe('"say \\"hello\\""')
+  })
+
+  // --- Primitives ---
+  it('handles numbers', () => {
+    expect(toJsExpression(42)).toBe('42')
+    expect(toJsExpression(3.14)).toBe('3.14')
+  })
+
+  it('handles booleans', () => {
+    expect(toJsExpression(true)).toBe('true')
+    expect(toJsExpression(false)).toBe('false')
+  })
+
+  it('handles null', () => {
+    expect(toJsExpression(null)).toBe('null')
+  })
+
+  // --- Containers ---
+  it('generates array expression', () => {
+    expect(toJsExpression([1, 'hello', null])).toBe('[1, "hello", null]')
+  })
+
+  it('generates object expression', () => {
+    const result = toJsExpression({ name: 'Alice', age: 30 })
+    expect(result).toBe('{ name: "Alice", age: 30 }')
+  })
+
+  it('quotes keys that need quoting', () => {
+    const result = toJsExpression({ 'my-key': 1, 'has space': 2, normal: 3 })
+    expect(result).toBe('{ "my-key": 1, "has space": 2, normal: 3 }')
+  })
+
+  // --- Full document round-trip ---
+  it('generates correct JS for a humanized document', () => {
+    const humanized = {
       name: 'Alice',
       createdAt: '2024-01-01T00:00:00.000Z',
       userId: '507f1f77bcf86cd799439011',
       age: 30,
-    }
-    expect(dehumanizeEjson(input)).toEqual({
-      name: 'Alice',
-      createdAt: { $date: '2024-01-01T00:00:00.000Z' },
-      userId: { $oid: '507f1f77bcf86cd799439011' },
-      age: 30,
-    })
-  })
-
-  it('recurses into arrays', () => {
-    const input = ['2024-01-01T00:00:00.000Z', 99, 'plain string']
-    expect(dehumanizeEjson(input)).toEqual([
-      { $date: '2024-01-01T00:00:00.000Z' },
-      99,
-      'plain string',
-    ])
-  })
-
-  it('handles null and undefined', () => {
-    expect(dehumanizeEjson(null)).toBeNull()
-    expect(dehumanizeEjson(undefined)).toBeUndefined()
-  })
-
-  // --- Round-trip ---
-  it('round-trips with humanizeEjson for common types', () => {
-    const original = {
-      _id: { $oid: '507f1f77bcf86cd799439011' },
-      name: 'Alice',
-      createdAt: { $date: '2024-01-01T00:00:00.000Z' },
-      age: { $numberInt: '30' },
-      score: { $numberDouble: '95.5' },
       tags: ['a', 'b'],
     }
-    const humanized = humanizeEjson(original)
-    const restored = dehumanizeEjson(humanized)
-
-    // $oid round-trips correctly
-    expect(restored).toEqual({
-      _id: { $oid: '507f1f77bcf86cd799439011' },
-      name: 'Alice',
-      createdAt: { $date: '2024-01-01T00:00:00.000Z' },
-      age: 30,
-      score: 95.5,
-      tags: ['a', 'b'],
-    })
+    const result = toJsExpression(humanized)
+    expect(result).toBe(
+      '{ name: "Alice", createdAt: ISODate("2024-01-01T00:00:00.000Z"), userId: ObjectId("507f1f77bcf86cd799439011"), age: 30, tags: ["a", "b"] }',
+    )
   })
 
-  it('round-trips UUID through humanize/dehumanize', () => {
-    const original = {
-      $binary: { base64: btoa(String.fromCharCode(
+  it('generates correct JS for a raw EJSON _id filter', () => {
+    // Binary UUID _id
+    const base64 = btoa(
+      String.fromCharCode(
         ...[0x55, 0x0e, 0x84, 0x00, 0xe2, 0x9b, 0x41, 0xd4, 0xa7, 0x16, 0x44, 0x66, 0x55, 0x44, 0x00, 0x00],
-      )), subType: '04' },
-    }
-    const humanized = humanizeEjson(original)
-    expect(humanized).toBe('550e8400-e29b-41d4-a716-446655440000')
-    const restored = dehumanizeEjson(humanized)
-    // Re-humanize to verify round-trip
-    expect(humanizeEjson(restored)).toBe('550e8400-e29b-41d4-a716-446655440000')
+      ),
+    )
+    const rawId = { $binary: { base64, subType: '04' } }
+    expect(toJsExpression(rawId)).toBe('UUID("550e8400-e29b-41d4-a716-446655440000")')
+
+    // ObjectId _id
+    const oid = { $oid: '507f1f77bcf86cd799439011' }
+    expect(toJsExpression(oid)).toBe('ObjectId("507f1f77bcf86cd799439011")')
   })
 })
