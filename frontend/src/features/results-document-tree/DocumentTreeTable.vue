@@ -8,7 +8,7 @@ import { typeColorMap } from '@/features/queries/typeColorMap'
 import { useDocumentContextMenu, type CollectionContext } from './useDocumentContextMenu'
 import { useNotifier } from '@/utils/dialog'
 import { resolveRawValue } from './resolveRawValue'
-import { toJsExpression } from './humanizeEjson'
+import { humanizeEjson, toJsExpression } from './humanizeEjson'
 import DocumentContextMenu from './DocumentContextMenu.vue'
 import DocumentViewDialog from './DocumentViewDialog.vue'
 import DocumentEditDialog from './DocumentEditDialog.vue'
@@ -197,17 +197,20 @@ function handleContextMenuSelect(key: string) {
 
   if (key === 'copyDocument') {
     const doc = resolveRawValue(props.documents, row.key)
-    copyToClipboard(JSON.stringify(doc, null, 2))
+    copyToClipboard(JSON.stringify(humanizeEjson(doc), null, 2))
   }
 
   if (key === 'copyValue') {
     const val = resolveRawValue(props.documents, row.key)
-    copyToClipboard(JSON.stringify(val))
+    const humanized = humanizeEjson(val)
+    copyToClipboard(typeof humanized === 'string' ? humanized : JSON.stringify(humanized))
   }
 
   if (key === 'copyField') {
     const val = resolveRawValue(props.documents, row.key)
-    copyToClipboard(`"${row.field}": ${JSON.stringify(val)}`)
+    const humanized = humanizeEjson(val)
+    const formatted = typeof humanized === 'string' ? `"${humanized}"` : JSON.stringify(humanized)
+    copyToClipboard(`"${row.field}": ${formatted}`)
   }
 }
 
