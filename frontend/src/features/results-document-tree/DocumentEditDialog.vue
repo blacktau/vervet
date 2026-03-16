@@ -77,6 +77,9 @@ watch(
           wordWrap: 'on',
           padding: { top: 8 },
         })
+        editor.value.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
+          save()
+        })
       } else if (editor.value) {
         editor.value.setValue(content)
       }

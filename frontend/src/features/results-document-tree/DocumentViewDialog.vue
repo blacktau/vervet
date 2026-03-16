@@ -47,6 +47,11 @@ watch(
           domReadOnly: true,
           folding: true,
         })
+        if (props.canEdit) {
+          editor.value.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyE, () => {
+            emit('edit')
+          })
+        }
       } else if (editor.value) {
         editor.value.setValue(jsonText.value)
       }
@@ -71,7 +76,7 @@ watch(
 async function copyToClipboard() {
   try {
     await navigator.clipboard.writeText(jsonText.value)
-    notifier.success(t('query.contextMenu.copied'))
+    notifier.success(t('query.contextMenu.copied'), { duration: 2000 })
   } catch {
     notifier.error('Failed to copy to clipboard')
   }
