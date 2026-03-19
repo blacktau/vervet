@@ -21,7 +21,11 @@ const onClear = () => {
 }
 
 const handleSaveFile = async () => {
-  const result = await filesProxy.SaveFile(undefined, props.defaultPath, ['*.csv'])
+  const result = await filesProxy.SaveFile(
+    undefined,
+    props.defaultPath,
+    [{ displayName: 'CSV Files (*.csv)', pattern: '*.csv' }],
+  )
   if (result.isSuccess) {
     const path = result.data ?? ''
     emit('update:value', path)

@@ -21,7 +21,10 @@ const onClear = () => {
 }
 
 const handleSelectFile = async () => {
-  const result = await filesProxy.SelectFile('', isEmpty(props.ext) ? undefined : [`*.${props.ext}`])
+  const result = await filesProxy.SelectFile(
+    '',
+    isEmpty(props.ext) ? [] : [{ displayName: `${props.ext} files`, pattern: `*.${props.ext}` }],
+  )
   if (result.isSuccess) {
     const path = result.data ?? ''
     emit('update:value', path)

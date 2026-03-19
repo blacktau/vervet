@@ -5,7 +5,7 @@ import { useMonacoEditor } from './useMonacoEditor'
 import VerticalResizeableWrapper from '@/features/common/VerticalResizeableWrapper.vue'
 import DocumentTreeTable from '@/features/results-document-tree/DocumentTreeTable.vue'
 import JsonResultView from '@/features/results-json-view/JsonResultView.vue'
-import { NButton, NIcon, NSpace, NSpin } from 'naive-ui'
+import { NButton, NIcon, NSpace, NSpin, useThemeVars } from 'naive-ui'
 import { PlayIcon, StopIcon } from '@heroicons/vue/24/solid'
 import { CodeBracketIcon, FolderOpenIcon, ArrowDownTrayIcon, DocumentArrowDownIcon } from '@heroicons/vue/24/outline'
 import ListTreeIcon from '@/features/icon/ListTreeIcon.vue'
@@ -22,6 +22,11 @@ const { t } = useI18n()
 const queryStore = useQueryStore()
 const tabStore = useTabStore()
 const dialog = useDialog()
+const themeVars = useThemeVars()
+
+const filenameBarStyle = computed(() => ({
+  background: `${themeVars.value.primaryColor}15`,
+}))
 
 const queryContentRef = ref<HTMLElement | null>(null)
 const editorHeight = ref(300)
@@ -249,7 +254,7 @@ onMounted(async () => {
     <div v-if="queryStore.mongoshAvailable === false" class="mongosh-warning">
       {{ t('query.mongoshNotFound') }}
     </div>
-    <div v-if="queryState.filePath" class="filename-bar" :title="queryState.filePath">
+    <div v-if="queryState.filePath" class="filename-bar" :style="filenameBarStyle" :title="queryState.filePath">
       <span class="filename-text">{{ fileName }}</span>
       <span v-if="queryState.isDirty" class="dirty-indicator">&bull;</span>
     </div>
@@ -366,7 +371,6 @@ onMounted(async () => {
   padding: 2px 8px;
   font-size: 12px;
   color: var(--n-text-color-3);
-  background: var(--n-color);
   border-bottom: 1px solid var(--n-border-color);
   flex-shrink: 0;
 }

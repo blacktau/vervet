@@ -177,7 +177,11 @@ export const useQueryStore = defineStore('query', {
     async openFile(queryId: string): Promise<string | null> {
       const result = await filesProxy.SelectFile(
         i18nGlobal.t('query.openFileDialogTitle'),
-        ['*.js', '*.mongodb', '*.*'],
+        [
+          { displayName: i18nGlobal.t('query.filterJavascript'), pattern: '*.js' },
+          { displayName: i18nGlobal.t('query.filterMongodb'), pattern: '*.mongodb' },
+          { displayName: i18nGlobal.t('query.filterAllFiles'), pattern: '*.*' },
+        ],
       )
       if (!result.isSuccess || !result.data) {
         return null
@@ -218,7 +222,11 @@ export const useQueryStore = defineStore('query', {
       const pathResult = await filesProxy.SaveFile(
         i18nGlobal.t('query.saveFileDialogTitle'),
         defaultName,
-        ['*.js', '*.mongodb', '*.*'],
+        [
+          { displayName: i18nGlobal.t('query.filterJavascript'), pattern: '*.js' },
+          { displayName: i18nGlobal.t('query.filterMongodb'), pattern: '*.mongodb' },
+          { displayName: i18nGlobal.t('query.filterAllFiles'), pattern: '*.*' },
+        ],
       )
       if (!pathResult.isSuccess || !pathResult.data) {
         return false

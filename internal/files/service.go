@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"os"
 
+	"vervet/internal/api"
+
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -25,19 +27,12 @@ func (s *Service) Init(ctx context.Context) error {
 	return nil
 }
 
-func (s *Service) SelectFile(title string, extensions *[]string) (string, error) {
-	filters := make([]runtime.FileFilter, 0)
-	if extensions != nil {
-		for _, ext := range *extensions {
-			filters = append(filters, runtime.FileFilter{
-				Pattern: ext,
-			})
-		}
-	}
+func (s *Service) SelectFile(title string, filters []api.FileFilter) (string, error) {
+	runtimeFilters := toRuntimeFilters(filters)
 
 	filepath, err := runtime.OpenFileDialog(s.ctx, runtime.OpenDialogOptions{
 		Title:           title,
-		Filters:         filters,
+		Filters:         runtimeFilters,
 		ShowHiddenFiles: true,
 	})
 	if err != nil {
@@ -48,15 +43,8 @@ func (s *Service) SelectFile(title string, extensions *[]string) (string, error)
 	return filepath, nil
 }
 
-func (s *Service) SaveFile(title *string, name *string, extensions *[]string) (string, error) {
-	filters := make([]runtime.FileFilter, 0)
-	if extensions != nil {
-		for _, ext := range *extensions {
-			filters = append(filters, runtime.FileFilter{
-				Pattern: ext,
-			})
-		}
-	}
+func (s *Service) SaveFile(title *string, name *string, filters []api.FileFilter) (string, error) {
+	runtimeFilters := toRuntimeFilters(filters)
 
 	dialogTitle := ""
 	if title != nil {
@@ -71,7 +59,7 @@ func (s *Service) SaveFile(title *string, name *string, extensions *[]string) (s
 	filepath, err := runtime.SaveFileDialog(s.ctx, runtime.SaveDialogOptions{
 		Title:           dialogTitle,
 		DefaultFilename: defaultFilename,
-		Filters:         filters,
+		Filters:         runtimeFilters,
 	})
 	if err != nil {
 		s.log.Error("Failed to select save file", slog.Any("error", err))
@@ -94,4 +82,15 @@ func (s *Service) WriteFile(path string, content string) error {
 		return fmt.Errorf("failed to write file: %w", err)
 	}
 	return nil
+}
+
+func toRuntimeFilters(filters []api.FileFilter) []runtime.FileFilter {
+	result := make([]runtime.FileFilter, len(filters))
+	for i, f := range filters {
+		result[i] = runtime.FileFilter{
+			DisplayName: f.DisplayName,
+			Pattern:     f.Pattern,
+		}
+	}
+	return result
 }
