@@ -7,11 +7,12 @@ import DocumentTreeTable from '@/features/results-document-tree/DocumentTreeTabl
 import JsonResultView from '@/features/results-json-view/JsonResultView.vue'
 import { NButton, NIcon, NSpace, NSpin } from 'naive-ui'
 import { PlayIcon, StopIcon } from '@heroicons/vue/24/solid'
-import { CodeBracketIcon } from '@heroicons/vue/24/outline'
+import { CodeBracketIcon, FolderOpenIcon, ArrowDownTrayIcon, DocumentArrowDownIcon } from '@heroicons/vue/24/outline'
 import ListTreeIcon from '@/features/icon/ListTreeIcon.vue'
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { CollectionContext } from '@/features/results-document-tree/useDocumentContextMenu'
+import * as monaco from 'monaco-editor'
 
 const props = defineProps<{
   queryId: string
@@ -20,6 +21,7 @@ const props = defineProps<{
 const { t } = useI18n()
 const queryStore = useQueryStore()
 const tabStore = useTabStore()
+const dialog = useDialog()
 
 const queryContentRef = ref<HTMLElement | null>(null)
 const editorHeight = ref(300)
@@ -77,6 +79,63 @@ const cancelQuery = () => {
   queryStore.cancelQuery(props.queryId)
 }
 
+const fileName = computed(() => {
+  const fp = queryState.value.filePath
+  if (!fp) {
+    return null
+  }
+  return fp.split('/').pop() ?? fp
+})
+
+const saveFile = async () => {
+  if (!editor.value) {
+    return
+  }
+  await queryStore.saveFile(props.queryId, editor.value.getValue())
+}
+
+const saveFileAs = async () => {
+  if (!editor.value) {
+    return
+  }
+  await queryStore.saveFileAs(props.queryId, editor.value.getValue())
+}
+
+const promptSaveIfDirty = async (): Promise<boolean> => {
+  return new Promise((resolve) => {
+    dialog.warning({
+      title: t('query.unsavedChangesTitle'),
+      content: t('query.unsavedChangesMessage', { filename: fileName.value ?? 'Untitled' }),
+      positiveText: t('query.unsavedChangesSave'),
+      negativeText: t('query.unsavedChangesDontSave'),
+      onPositiveClick: async () => {
+        await saveFile()
+        resolve(true)
+      },
+      onNegativeClick: () => {
+        resolve(true)
+      },
+      onClose: () => {
+        resolve(false)
+      },
+    })
+  })
+}
+
+const openFile = async () => {
+  if (queryState.value.isDirty) {
+    const shouldContinue = await promptSaveIfDirty()
+    if (!shouldContinue) {
+      return
+    }
+  }
+
+  const content = await queryStore.openFile(props.queryId)
+  if (content !== null && editor.value) {
+    editor.value.setValue(content)
+  }
+}
+
 function setResultView(view: 'table' | 'json') {
   queryState.value.resultView = view
 }
@@ -90,6 +149,16 @@ async function handleDocumentChanged() {
   await queryStore.executeQuery(props.queryId, query)
 }
 
+watch(
+  () => queryState.value.filePath,
+  (newPath) => {
+    const item = queryTabItem.value
+    if (item) {
+      item.filePath = newPath ?? undefined
+    }
+  }
+)
+
 onMounted(async () => {
   const item = queryTabItem.value
   if (item) {
@@ -98,6 +167,38 @@ onMounted(async () => {
   }
 
   await queryStore.checkMongosh()
+
+  if (editor.value) {
+    editor.value.addAction({
+      id: 'vervet.openFile',
+      label: 'Open File',
+      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyO],
+      run: () => { openFile() },
+    })
+
+    editor.value.addAction({
+      id: 'vervet.saveFile',
+      label: 'Save File',
+      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS],
+      run: () => { saveFile() },
+    })
+
+    editor.value.addAction({
+      id: 'vervet.saveFileAs',
+      label: 'Save File As',
+      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyS],
+      run: () => { saveFileAs() },
+    })
+
+    editor.value.onDidChangeModelContent(() => {
+      const currentContent = editor.value?.getValue() ?? ''
+      queryStore.setCurrentContent(props.queryId, currentContent)
+      const saved = queryState.value.savedContent
+      if (saved !== null) {
+        queryStore.setDirty(props.queryId, currentContent !== saved)
+      }
+    })
+  }
 })
 </script>
 
@@ -127,9 +228,30 @@ onMounted(async () => {
           {{ t('query.cancel') }}
         </n-button>
       </n-space>
-      <div v-if="queryStore.mongoshAvailable === false" class="mongosh-warning">
-        {{ t('query.mongoshNotFound') }}
-      </div>
+      <n-space align="center" :size="4">
+        <n-button size="small" quaternary @click="openFile" :title="t('query.openFile')">
+          <template #icon>
+            <n-icon :component="FolderOpenIcon" />
+          </template>
+        </n-button>
+        <n-button size="small" quaternary @click="saveFile" :title="t('query.saveFile')">
+          <template #icon>
+            <n-icon :component="ArrowDownTrayIcon" />
+          </template>
+        </n-button>
+        <n-button size="small" quaternary @click="saveFileAs" :title="t('query.saveFileAs')">
+          <template #icon>
+            <n-icon :component="DocumentArrowDownIcon" />
+          </template>
+        </n-button>
+      </n-space>
+    </div>
+    <div v-if="queryStore.mongoshAvailable === false" class="mongosh-warning">
+      {{ t('query.mongoshNotFound') }}
+    </div>
+    <div v-if="queryState.filePath" class="filename-bar" :title="queryState.filePath">
+      <span class="filename-text">{{ fileName }}</span>
+      <span v-if="queryState.isDirty" class="dirty-indicator">&bull;</span>
     </div>
     <div ref="queryContentRef" class="query-content">
       <vertical-resizeable-wrapper
@@ -221,6 +343,9 @@ onMounted(async () => {
 
 .toolbar {
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .database-label {
@@ -232,6 +357,30 @@ onMounted(async () => {
   margin-top: 4px;
   font-size: 12px;
   color: var(--n-error-color);
+}
+
+.filename-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  font-size: 12px;
+  color: var(--n-text-color-3);
+  background: var(--n-color);
+  border-bottom: 1px solid var(--n-border-color);
+  flex-shrink: 0;
+}
+
+.filename-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dirty-indicator {
+  color: var(--n-warning-color);
+  font-size: 16px;
+  line-height: 1;
 }
 
 .query-content {

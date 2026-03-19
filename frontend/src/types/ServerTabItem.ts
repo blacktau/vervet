@@ -5,6 +5,7 @@ export type QueryTabItem = {
   database: string
   initialText?: string
   collectionName?: string
+  filePath?: string
 }
 
 export type IndexTabItem = {

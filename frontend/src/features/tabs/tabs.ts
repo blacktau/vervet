@@ -5,6 +5,7 @@ import { i18nGlobal } from '@/i18n'
 import { findIndex } from 'lodash'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 import { BrowserSubTabType } from '@/consts/BrowserSubTabType.ts'
+import { useQueryStore } from '@/features/queries/queryStore'
 
 interface TabStoreState {
   nav: NavType
@@ -88,12 +89,44 @@ export const useTabStore = defineStore('tabs', {
         this.nav = NavType.Servers
       }
     },
-    closeTab(serverId: string) {
+    async closeTab(serverId: string) {
       const d = useDialoger()
       const tab = this.tabItems.find((x) => x.serverId === serverId)
       if (tab == null) {
         return
       }
+
+      // Check for dirty queries before disconnecting
+      const queryStore = useQueryStore()
+      for (const query of tab.queries) {
+        const state = queryStore.getQueryState(query.id)
+        if (state.isDirty) {
+          const filename = state.filePath?.split('/').pop() ?? 'Untitled'
+          const shouldContinue = await new Promise<boolean>((resolve) => {
+            d.show({
+              type: 'warning',
+              title: i18nGlobal.t('query.unsavedChangesTitle'),
+              content: i18nGlobal.t('query.unsavedChangesMessage', { filename }),
+              positiveText: i18nGlobal.t('query.unsavedChangesSave'),
+              negativeText: i18nGlobal.t('query.unsavedChangesDontSave'),
+              onPositiveClick: async () => {
+                const saved = await queryStore.saveFile(query.id, state.currentContent)
+                resolve(saved)
+              },
+              onNegativeClick: () => {
+                resolve(true)
+              },
+              onClose: () => {
+                resolve(false)
+              },
+            })
+          })
+          if (!shouldContinue) {
+            return
+          }
+        }
+      }
+
       d.warning(i18nGlobal.t('common.dialog.closeConfirm', { name: tab.title }), async () => {
         const connectionStore = useDataBrowserStore()
         await connectionStore.disconnect(tab.serverId)
@@ -236,6 +269,9 @@ export const useTabStore = defineStore('tabs', {
     },
 
     queryTabLabel(tab: ServerTabItem, query: QueryTabItem): string {
+      if (query.filePath) {
+        return query.filePath.split('/').pop() ?? query.database
+      }
       const sameDbQueries = tab.queries.filter((q) => q.database === query.database)
       if (sameDbQueries.length <= 1) {
         return query.database

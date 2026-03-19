@@ -279,6 +279,17 @@ export default {
       minKey: 'MinKey',
       maxKey: 'MaxKey',
     },
+    openFile: 'Open',
+    saveFile: 'Save',
+    saveFileAs: 'Save As',
+    openFileDialogTitle: 'Open Query File',
+    saveFileDialogTitle: 'Save Query File',
+    unsavedChangesTitle: 'Unsaved Changes',
+    unsavedChangesMessage: 'Save changes to {filename}?',
+    unsavedChangesSave: 'Save',
+    unsavedChangesDontSave: "Don't Save",
+    unsavedChangesCancel: 'Cancel',
+    modified: 'Modified',
   },
   serverPane: {
     serverTree: {
