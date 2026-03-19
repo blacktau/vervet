@@ -77,6 +77,7 @@ func main() {
 			application.ShellProxy,
 			application.SystemProxy,
 			application.SettingsProxy,
+			application.FilesProxy,
 		},
 		EnumBind: []any{
 			api.AllOperatingSystems,

@@ -1,7 +1,6 @@
 package api
 
 import (
-	"context"
 	"runtime"
 )
 
@@ -27,9 +26,6 @@ type SystemProxy struct {
 }
 
 type SystemProvider interface {
-	Init(ctx context.Context) error
-	SelectFile(title string, extensions *[]string) (string, error)
-	SaveFile(title *string, name *string, extensions *[]string) (string, error)
 	Log(level string, message string)
 }
 
@@ -55,36 +51,6 @@ func (sp *SystemProxy) GetOs() Result[OperatingSystem] {
 	return Result[OperatingSystem]{
 		IsSuccess: true,
 		Data:      os,
-	}
-}
-
-func (sp *SystemProxy) SelectFile(title string, extensions *[]string) Result[string] {
-	path, err := sp.service.SelectFile(title, extensions)
-
-	if err != nil {
-		return Result[string]{
-			IsSuccess: false,
-			Error:     err.Error(),
-		}
-	}
-
-	return Result[string]{
-		IsSuccess: true,
-		Data:      path,
-	}
-}
-
-func (sp *SystemProxy) SaveFile(title, defaultName *string, extensions *[]string) Result[string] {
-	path, err := sp.service.SaveFile(title, defaultName, extensions)
-	if err != nil {
-		return Result[string]{
-			IsSuccess: false,
-			Error:     err.Error(),
-		}
-	}
-	return Result[string]{
-		IsSuccess: true,
-		Data:      path,
 	}
 }
 
