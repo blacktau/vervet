@@ -7,7 +7,7 @@ require (
 	github.com/flopp/go-findfont v0.1.0
 	github.com/stretchr/testify v1.11.1
 	github.com/wailsapp/wails/v2 v2.10.2
-	go.mongodb.org/mongo-driver/v2 v2.4.1
+	go.mongodb.org/mongo-driver/v2 v2.5.0
 	golang.org/x/image v0.18.0
 	gopkg.in/yaml.v3 v3.0.1
 )
