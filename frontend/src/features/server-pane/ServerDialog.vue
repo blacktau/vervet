@@ -100,6 +100,7 @@ const onSaveServer = async () => {
       generalForm.value.name,
       generalForm.value.connectionString,
       generalForm.value.parentId,
+      generalForm.value.colour,
     )
     if (!result.success) {
       messager.error(result.msg || 'unknown error')
