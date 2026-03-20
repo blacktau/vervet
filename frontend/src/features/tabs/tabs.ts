@@ -41,6 +41,29 @@ let queryIdCounter = 0
 let indexTabIdCounter = 0
 let statisticsTabIdCounter = 0
 
+function innerTabType(id: string): BrowserSubTabType {
+  if (id.startsWith('index-')) {
+    return BrowserSubTabType.Indexes
+  }
+  if (id.startsWith('stats-')) {
+    return BrowserSubTabType.Statistics
+  }
+  return BrowserSubTabType.Query
+}
+
+function findFallbackInnerTabId(tab: ServerTabItem): string | undefined {
+  if (tab.queries.length > 0) {
+    return tab.queries[tab.queries.length - 1]!.id
+  }
+  if (tab.indexTabs && tab.indexTabs.length > 0) {
+    return tab.indexTabs[tab.indexTabs.length - 1]!.id
+  }
+  if (tab.statisticsTabs && tab.statisticsTabs.length > 0) {
+    return tab.statisticsTabs[tab.statisticsTabs.length - 1]!.id
+  }
+  return undefined
+}
+
 export const useTabStore = defineStore('tabs', {
   state: (): TabStoreState => ({
     nav: NavType.Servers,
@@ -59,7 +82,11 @@ export const useTabStore = defineStore('tabs', {
       return state.tabItems[state.activeTabIndex]?.serverId
     },
     currentSubTab(state: TabStoreState) {
-      return state.tabItems[state.activeTabIndex]?.subTab
+      const tab = state.tabItems[state.activeTabIndex]
+      if (!tab?.activeInnerTabId) {
+        return undefined
+      }
+      return innerTabType(tab.activeInnerTabId)
     },
     currentQueries(state: TabStoreState) {
       return state.tabItems[state.activeTabIndex]?.queries ?? []
@@ -72,10 +99,10 @@ export const useTabStore = defineStore('tabs', {
     },
     currentStatisticsTab(state: TabStoreState) {
       const tab = state.tabItems[state.activeTabIndex]
-      if (!tab?.statisticsTabs || !tab.activeStatisticsTabId) {
+      if (!tab?.statisticsTabs || !tab.activeInnerTabId) {
         return undefined
       }
-      return tab.statisticsTabs.find((t) => t.id === tab.activeStatisticsTabId)
+      return tab.statisticsTabs.find((t) => t.id === tab.activeInnerTabId)
     },
   } as TabStoreGetters,
   actions: {
@@ -139,8 +166,6 @@ export const useTabStore = defineStore('tabs', {
           serverId: options.serverId,
           title: options.title,
           blank: false,
-          subTab: BrowserSubTabType.Query,
-          queryOpen: false,
           queries: [],
           indexTabs: [],
           statisticsTabs: [],
@@ -193,20 +218,20 @@ export const useTabStore = defineStore('tabs', {
       this._setActivatedIndex(-1, false)
     },
 
-    switchSubTab(name: BrowserSubTabType) {
-      const tab = this.tabItems[this.activeTabIndex]
-      if (tab == null) {
-        return
-      }
-      tab.subTab = name
-    },
-
     setActiveTab(tab: ServerTabItem) {
       this.activeTabIndex = this.tabItems.indexOf(tab)
     },
 
     setActiveTabIndex(index: number) {
       this.activeTabIndex = index
+    },
+
+    setActiveInnerTab(innerTabId: string) {
+      const tab = this.tabItems[this.activeTabIndex]
+      if (!tab) {
+        return
+      }
+      tab.activeInnerTabId = innerTabId
     },
 
     openQuery(serverId: string, database: string, initialText?: string, collectionName?: string) {
@@ -228,8 +253,7 @@ export const useTabStore = defineStore('tabs', {
       }
 
       tab.queries.push(queryItem)
-      tab.queryOpen = true
-      tab.activeQueryId = queryItem.id
+      tab.activeInnerTabId = queryItem.id
       this._setActivatedIndex(tabIndex, true)
     },
 
@@ -251,21 +275,14 @@ export const useTabStore = defineStore('tabs', {
 
       tab.queries.splice(queryIndex, 1)
 
-      if (tab.queries.length === 0) {
-        tab.queryOpen = false
-        tab.activeQueryId = undefined
-      } else if (tab.activeQueryId === queryId) {
-        const newIndex = Math.min(queryIndex, tab.queries.length - 1)
-        tab.activeQueryId = tab.queries[newIndex]?.id
+      if (tab.activeInnerTabId === queryId) {
+        if (tab.queries.length > 0) {
+          const newIndex = Math.min(queryIndex, tab.queries.length - 1)
+          tab.activeInnerTabId = tab.queries[newIndex]?.id
+        } else {
+          tab.activeInnerTabId = findFallbackInnerTabId(tab)
+        }
       }
-    },
-
-    setActiveQuery(queryId: string) {
-      const tab = this.tabItems[this.activeTabIndex]
-      if (!tab) {
-        return
-      }
-      tab.activeQueryId = queryId
     },
 
     queryTabLabel(tab: ServerTabItem, query: QueryTabItem): string {
@@ -299,8 +316,7 @@ export const useTabStore = defineStore('tabs', {
         (t) => t.dbName === dbName && t.collectionName === collectionName,
       )
       if (existing) {
-        tab.activeIndexTabId = existing.id
-        tab.subTab = BrowserSubTabType.Indexes
+        tab.activeInnerTabId = existing.id
         this._setActivatedIndex(tabIndex, true)
         return
       }
@@ -313,8 +329,7 @@ export const useTabStore = defineStore('tabs', {
       }
 
       tab.indexTabs.push(indexTab)
-      tab.activeIndexTabId = indexTab.id
-      tab.subTab = BrowserSubTabType.Indexes
+      tab.activeInnerTabId = indexTab.id
       this._setActivatedIndex(tabIndex, true)
     },
 
@@ -336,12 +351,13 @@ export const useTabStore = defineStore('tabs', {
 
       tab.indexTabs.splice(idx, 1)
 
-      if (tab.indexTabs.length === 0) {
-        tab.activeIndexTabId = undefined
-        tab.subTab = BrowserSubTabType.Query
-      } else if (tab.activeIndexTabId === indexTabId) {
-        const newIdx = Math.min(idx, tab.indexTabs.length - 1)
-        tab.activeIndexTabId = tab.indexTabs[newIdx]?.id
+      if (tab.activeInnerTabId === indexTabId) {
+        if (tab.indexTabs.length > 0) {
+          const newIdx = Math.min(idx, tab.indexTabs.length - 1)
+          tab.activeInnerTabId = tab.indexTabs[newIdx]?.id
+        } else {
+          tab.activeInnerTabId = findFallbackInnerTabId(tab)
+        }
       }
     },
 
@@ -350,7 +366,7 @@ export const useTabStore = defineStore('tabs', {
       if (!tab) {
         return
       }
-      tab.activeIndexTabId = indexTabId
+      tab.activeInnerTabId = indexTabId
     },
 
     indexTabLabel(tab: ServerTabItem, indexTab: IndexTabItem): string {
@@ -376,8 +392,7 @@ export const useTabStore = defineStore('tabs', {
         (t) => t.dbName === dbName && t.collectionName === collectionName && t.level === level,
       )
       if (existing) {
-        tab.activeStatisticsTabId = existing.id
-        tab.subTab = BrowserSubTabType.Statistics
+        tab.activeInnerTabId = existing.id
         this._setActivatedIndex(tabIndex, true)
         return
       }
@@ -391,8 +406,7 @@ export const useTabStore = defineStore('tabs', {
       }
 
       tab.statisticsTabs.push(statsTab)
-      tab.activeStatisticsTabId = statsTab.id
-      tab.subTab = BrowserSubTabType.Statistics
+      tab.activeInnerTabId = statsTab.id
       this._setActivatedIndex(tabIndex, true)
     },
 
@@ -414,12 +428,13 @@ export const useTabStore = defineStore('tabs', {
 
       tab.statisticsTabs.splice(idx, 1)
 
-      if (tab.statisticsTabs.length === 0) {
-        tab.activeStatisticsTabId = undefined
-        tab.subTab = BrowserSubTabType.Query
-      } else if (tab.activeStatisticsTabId === statisticsTabId) {
-        const newIdx = Math.min(idx, tab.statisticsTabs.length - 1)
-        tab.activeStatisticsTabId = tab.statisticsTabs[newIdx]?.id
+      if (tab.activeInnerTabId === statisticsTabId) {
+        if (tab.statisticsTabs.length > 0) {
+          const newIdx = Math.min(idx, tab.statisticsTabs.length - 1)
+          tab.activeInnerTabId = tab.statisticsTabs[newIdx]?.id
+        } else {
+          tab.activeInnerTabId = findFallbackInnerTabId(tab)
+        }
       }
     },
 
@@ -428,7 +443,7 @@ export const useTabStore = defineStore('tabs', {
       if (!tab) {
         return
       }
-      tab.activeStatisticsTabId = statisticsTabId
+      tab.activeInnerTabId = statisticsTabId
     },
 
     statisticsTabLabel(tab: ServerTabItem, statsTab: StatisticsTabItem): string {
