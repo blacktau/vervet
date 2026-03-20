@@ -173,6 +173,18 @@ func appendDatabase(uri, dbName string) string {
 	// Remove trailing slash if present
 	base = strings.TrimRight(base, "/")
 
+	// Strip existing database name if present.
+	// After the scheme (mongodb:// or mongodb+srv://) and host(s), the path
+	// segment is the database name. We find the end of the host portion by
+	// looking for the third slash (scheme has two).
+	if idx := strings.Index(base, "://"); idx >= 0 {
+		hostStart := idx + 3
+		if slashIdx := strings.Index(base[hostStart:], "/"); slashIdx >= 0 {
+			// There's already a database path — remove it
+			base = base[:hostStart+slashIdx]
+		}
+	}
+
 	// Append database name
 	base = base + "/" + dbName
 
