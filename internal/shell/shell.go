@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -77,14 +78,27 @@ func Execute(ctx context.Context, uri string, query string, cfg Config) (models.
 	defer cancel()
 
 	wrapped := wrapQuery(query)
-	args := buildArgs(uri, wrapped)
+
+	tmpFile, err := os.CreateTemp("", "vervet-query-*.js")
+	if err != nil {
+		return models.QueryResult{}, fmt.Errorf("failed to create temp file: %w", err)
+	}
+	defer os.Remove(tmpFile.Name())
+
+	if _, err = tmpFile.WriteString(wrapped); err != nil {
+		tmpFile.Close()
+		return models.QueryResult{}, fmt.Errorf("failed to write query file: %w", err)
+	}
+	tmpFile.Close()
+
+	args := buildArgs(uri, tmpFile.Name())
 	cmd := exec.CommandContext(ctx, "mongosh", args...)
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
-	err := cmd.Run()
+	err = cmd.Run()
 	if err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
 			return models.QueryResult{}, ErrQueryTimeout
@@ -146,11 +160,11 @@ func parseOutput(output string) models.QueryResult {
 	return models.QueryResult{RawOutput: output}
 }
 
-func buildArgs(uri string, query string) []string {
+func buildArgs(uri string, queryFile string) []string {
 	return []string{
 		uri,
 		"--quiet",
 		"--norc",
-		"--eval", query,
+		"--file", queryFile,
 	}
 }

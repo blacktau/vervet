@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -150,11 +151,17 @@ func (qe *QueryExecutor) getURI(serverID, dbName string) (string, error) {
 	}
 
 	if dbName != "" {
+		if !validDBName.MatchString(dbName) {
+			return "", fmt.Errorf("invalid database name: %q", dbName)
+		}
 		uri = appendDatabase(uri, dbName)
 	}
 
 	return uri, nil
 }
+
+// validDBName matches valid MongoDB database names: letters, digits, underscores, hyphens, dots.
+var validDBName = regexp.MustCompile(`^[a-zA-Z0-9_\-\.]+$`)
 
 // appendDatabase appends the database name to a MongoDB URI.
 // It handles both mongodb:// and mongodb+srv:// schemes.
