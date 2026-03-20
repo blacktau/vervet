@@ -1,5 +1,3 @@
-import { type BrowserSubTabType } from '@/consts/BrowserSubTabType'
-
 export type QueryTabItem = {
   id: string
   database: string
@@ -28,12 +26,8 @@ export type ServerTabItem = {
   blank: boolean
   icon?: string
   serverId: string
-  subTab: BrowserSubTabType
-  queryOpen?: boolean
   queries: QueryTabItem[]
-  activeQueryId?: string
   indexTabs?: IndexTabItem[]
-  activeIndexTabId?: string
   statisticsTabs?: StatisticsTabItem[]
-  activeStatisticsTabId?: string
+  activeInnerTabId?: string
 }
