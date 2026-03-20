@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import * as systemProxy from 'wailsjs/go/api/SystemProxy'
+import * as filesProxy from 'wailsjs/go/api/FilesProxy'
 import { isEmpty } from 'lodash'
 const props = defineProps<{
   value?: string
@@ -21,7 +21,10 @@ const onClear = () => {
 }
 
 const handleSelectFile = async () => {
-  const result = await systemProxy.SelectFile('', isEmpty(props.ext) ? undefined : [props.ext])
+  const result = await filesProxy.SelectFile(
+    '',
+    isEmpty(props.ext) ? [] : [{ displayName: `${props.ext} files`, pattern: `*.${props.ext}` }],
+  )
   if (result.isSuccess) {
     const path = result.data ?? ''
     emit('update:value', path)

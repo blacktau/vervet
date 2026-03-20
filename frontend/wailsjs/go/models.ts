@@ -9,6 +9,10 @@ export namespace api {
 	    isSuccess: boolean;
 	    error: string;
 	}
+	export interface FileFilter {
+	    displayName: string;
+	    pattern: string;
+	}
 	export interface Result__vervet_internal_models_Settings_ {
 	    isSuccess: boolean;
 	    data?: models.Settings;

@@ -11,6 +11,7 @@ import (
 	"vervet/internal/connectionStrings"
 	"vervet/internal/connections"
 	"vervet/internal/databases"
+	"vervet/internal/files"
 	"vervet/internal/indexes"
 	"vervet/internal/models"
 	"vervet/internal/queryexecutor"
@@ -25,14 +26,15 @@ import (
 type App struct {
 	log              *slog.Logger
 	ctx              context.Context
-	ServersProxy      *api.ServersProxy
-	ConnectionsProxy  *api.ConnectionsProxy
-	DatabasesProxy    *api.DatabasesProxy
-	IndexesProxy      *api.IndexesProxy
-	CollectionsProxy  *api.CollectionsProxy
-	ShellProxy        *api.ShellProxy
+	ServersProxy     *api.ServersProxy
+	ConnectionsProxy *api.ConnectionsProxy
+	DatabasesProxy   *api.DatabasesProxy
+	IndexesProxy     *api.IndexesProxy
+	CollectionsProxy *api.CollectionsProxy
+	ShellProxy       *api.ShellProxy
 	SystemProxy      *api.SystemProxy
 	SettingsProxy    *api.SettingsProxy
+	FilesProxy       *api.FilesProxy
 
 	serverService      *servers.ServerService
 	registry           *clientregistry.ClientRegistry
@@ -41,8 +43,9 @@ type App struct {
 	indexService       *indexes.IndexService
 	collectionsService *collections.CollectionsService
 	queryExecutor      *queryexecutor.QueryExecutor
-	settingsService   settings.Service
-	systemService     *system.Service
+	settingsService    settings.Service
+	systemService      *system.Service
+	filesService       *files.Service
 }
 
 // NewApp creates a new App application struct
@@ -63,6 +66,7 @@ func NewApp(log *slog.Logger) *App {
 	queryExecutor := queryexecutor.NewQueryExecutor(log, registry, connectionStringsStore, settingsService)
 	systemService := system.NewSystemService(log)
 	fontService := system.NewFontService(log)
+	filesService := files.NewService(log)
 
 	return &App{
 		log:                log,
@@ -75,6 +79,7 @@ func NewApp(log *slog.Logger) *App {
 		queryExecutor:      queryExecutor,
 		settingsService:    settingsService,
 		systemService:      systemService,
+		filesService:       filesService,
 		ServersProxy:       api.NewServersProxy(serverService),
 		ConnectionsProxy:   api.NewConnectionsProxy(connectionManager),
 		DatabasesProxy:     api.NewDatabasesProxy(databasesService),
@@ -83,6 +88,7 @@ func NewApp(log *slog.Logger) *App {
 		ShellProxy:         api.NewShellProxy(queryExecutor),
 		SystemProxy:        api.NewSystemProxy(systemService),
 		SettingsProxy:      api.NewSettingsProxy(settingsService, fontService),
+		FilesProxy:         api.NewFilesProxy(filesService),
 	}
 }
 
@@ -111,11 +117,7 @@ func (a *App) Startup(ctx context.Context) {
 		panic(fmt.Errorf("failed to initialize settings service: %w", err))
 	}
 
-	err = a.systemService.Init(ctx)
-	if err != nil {
-		a.log.Error("Failed to initialize system service", slog.Any("error", err))
-		panic(fmt.Errorf("failed to initialize system service: %w", err))
-	}
+	a.filesService.Init(ctx)
 }
 
 // DomReady is called after front-end resources have been loaded

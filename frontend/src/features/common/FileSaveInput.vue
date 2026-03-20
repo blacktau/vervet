@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import * as systemProxy from 'wailsjs/go/api/SystemProxy'
+import * as filesProxy from 'wailsjs/go/api/FilesProxy'
 
 const props = defineProps<{
   value?: string
@@ -21,7 +21,11 @@ const onClear = () => {
 }
 
 const handleSaveFile = async () => {
-  const result = await systemProxy.SaveFile(undefined, props.defaultPath, ['csv'])
+  const result = await filesProxy.SaveFile(
+    undefined,
+    props.defaultPath,
+    [{ displayName: 'CSV Files (*.csv)', pattern: '*.csv' }],
+  )
   if (result.isSuccess) {
     const path = result.data ?? ''
     emit('update:value', path)

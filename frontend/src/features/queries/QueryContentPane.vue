@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import { useTabStore } from '@/features/tabs/tabs'
 import { useQueryStore } from '@/features/queries/queryStore'
+import { type QueryState } from '@/features/queries/queryStore'
 import { useI18n } from 'vue-i18n'
 import QueryTab from './QueryTab.vue'
 import { computed } from 'vue'
@@ -8,19 +9,54 @@ import { computed } from 'vue'
 const tabStore = useTabStore()
 const queryStore = useQueryStore()
 const { t } = useI18n()
+const dialog = useDialog()
 
 const activeQueryId = computed({
   get: () => tabStore.currentTab?.activeQueryId ?? '',
   set: (val: string) => tabStore.setActiveQuery(val),
 })
 
-function handleClose(queryId: string) {
-  const serverId = tabStore.currentTabId
+async function handleClose(queryId: string) {
+  const state = queryStore.getQueryState(queryId)
+  if (state.isDirty) {
+    const shouldClose = await promptSaveBeforeClose(queryId, state)
+    if (!shouldClose) {
+      return
+    }
+  }
+
+  const serverId = tabStore.currentTab?.serverId
   if (!serverId) {
     return
   }
   queryStore.removeQueryState(queryId)
   tabStore.closeQuery(serverId, queryId)
+}
+
+async function promptSaveBeforeClose(queryId: string, state: QueryState): Promise<boolean> {
+  const filename = state.filePath?.split('/').pop() ?? 'Untitled'
+  return new Promise((resolve) => {
+    dialog.warning({
+      title: t('query.unsavedChangesTitle'),
+      content: t('query.unsavedChangesMessage', { filename }),
+      positiveText: t('query.unsavedChangesSave'),
+      negativeText: t('query.unsavedChangesDontSave'),
+      onPositiveClick: async () => {
+        const saved = await queryStore.saveFile(queryId, state.currentContent)
+        if (!saved) {
+          resolve(false)
+          return
+        }
+        resolve(true)
+      },
+      onNegativeClick: () => {
+        resolve(true)
+      },
+      onClose: () => {
+        resolve(false)
+      },
+    })
+  })
 }
 </script>
 
