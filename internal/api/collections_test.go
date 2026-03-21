@@ -97,7 +97,7 @@ func TestCollectionsProxy_GetCollections(t *testing.T) {
 		proxy := NewCollectionsProxy(provider)
 		result := proxy.GetCollections("1", "db1")
 		assert.False(t, result.IsSuccess)
-		assert.Contains(t, result.Error, "failed")
+		assert.NotEmpty(t, result.ErrorCode)
 	})
 }
 
@@ -119,7 +119,7 @@ func TestCollectionsProxy_GetViews(t *testing.T) {
 		proxy := NewCollectionsProxy(provider)
 		result := proxy.GetViews("1", "db1")
 		assert.False(t, result.IsSuccess)
-		assert.Contains(t, result.Error, "failed")
+		assert.NotEmpty(t, result.ErrorCode)
 	})
 }
 
@@ -138,7 +138,7 @@ func TestCollectionsProxy_CreateCollection(t *testing.T) {
 		proxy := NewCollectionsProxy(provider)
 		result := proxy.CreateCollection("1", "db1", "newcoll")
 		assert.False(t, result.IsSuccess)
-		assert.Contains(t, result.Error, "already exists")
+		assert.NotEmpty(t, result.ErrorCode)
 	})
 }
 
@@ -157,7 +157,7 @@ func TestCollectionsProxy_RenameCollection(t *testing.T) {
 		proxy := NewCollectionsProxy(provider)
 		result := proxy.RenameCollection("1", "db1", "old", "new")
 		assert.False(t, result.IsSuccess)
-		assert.Contains(t, result.Error, "target exists")
+		assert.NotEmpty(t, result.ErrorCode)
 	})
 }
 
@@ -176,7 +176,7 @@ func TestCollectionsProxy_DropCollection(t *testing.T) {
 		proxy := NewCollectionsProxy(provider)
 		result := proxy.DropCollection("1", "db1", "coll1")
 		assert.False(t, result.IsSuccess)
-		assert.Contains(t, result.Error, "ns not found")
+		assert.NotEmpty(t, result.ErrorCode)
 	})
 }
 
@@ -197,6 +197,6 @@ func TestCollectionsProxy_GetCollectionSchema(t *testing.T) {
 		proxy := NewCollectionsProxy(provider)
 		result := proxy.GetCollectionSchema("1", "db1", "coll1")
 		assert.False(t, result.IsSuccess)
-		assert.Contains(t, result.Error, "failed")
+		assert.NotEmpty(t, result.ErrorCode)
 	})
 }

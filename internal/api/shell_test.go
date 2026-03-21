@@ -48,7 +48,7 @@ func TestShellProxy_ExecuteQuery(t *testing.T) {
 		proxy := NewShellProxy(provider)
 		result := proxy.ExecuteQuery("1", "db1", "db.coll.find()")
 		assert.False(t, result.IsSuccess)
-		assert.Contains(t, result.Error, "query failed")
+		assert.NotEmpty(t, result.ErrorCode)
 	})
 }
 

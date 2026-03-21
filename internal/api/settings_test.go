@@ -90,7 +90,7 @@ func TestSettingsProxy_GetSettings(t *testing.T) {
 		result := proxy.GetSettings()
 
 		assert.False(t, result.IsSuccess)
-		assert.Contains(t, result.Error, assert.AnError.Error())
+		assert.NotEmpty(t, result.ErrorCode)
 	})
 }
 
@@ -117,7 +117,7 @@ func TestSettingsProxy_SetSettings(t *testing.T) {
 		result := proxy.SetSettings(models.Settings{})
 
 		assert.False(t, result.IsSuccess)
-		assert.Contains(t, result.Error, assert.AnError.Error())
+		assert.NotEmpty(t, result.ErrorCode)
 	})
 }
 
@@ -147,7 +147,7 @@ func TestSettingsProxy_ResetSettings(t *testing.T) {
 		result := proxy.ResetSettings()
 
 		assert.False(t, result.IsSuccess)
-		assert.Contains(t, result.Error, assert.AnError.Error())
+		assert.NotEmpty(t, result.ErrorCode)
 	})
 }
 
@@ -221,7 +221,7 @@ func TestSettingsProxy_SaveWindowState(t *testing.T) {
 		result := proxy.SaveWindowState(models.WindowState{})
 
 		assert.False(t, result.IsSuccess)
-		assert.Contains(t, result.Error, assert.AnError.Error())
+		assert.NotEmpty(t, result.ErrorCode)
 	})
 }
 

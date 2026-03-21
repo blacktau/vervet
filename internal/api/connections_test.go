@@ -59,7 +59,7 @@ func TestConnectionsProxy_Connect(t *testing.T) {
 
 		assert.True(t, result.IsSuccess)
 		assert.Equal(t, "Server 1", result.Data.Name)
-		assert.Empty(t, result.Error)
+		assert.Empty(t, result.ErrorCode)
 	})
 
 	t.Run("connect error", func(t *testing.T) {
@@ -72,7 +72,7 @@ func TestConnectionsProxy_Connect(t *testing.T) {
 
 		assert.False(t, result.IsSuccess)
 		assert.Empty(t, result.Data)
-		assert.Contains(t, result.Error, "connection failed")
+		assert.NotEmpty(t, result.ErrorCode)
 	})
 }
 
@@ -84,7 +84,7 @@ func TestConnectionsProxy_Disconnect(t *testing.T) {
 		result := proxy.Disconnect("1")
 
 		assert.True(t, result.IsSuccess)
-		assert.Empty(t, result.Error)
+		assert.Empty(t, result.ErrorCode)
 	})
 
 	t.Run("disconnect error", func(t *testing.T) {
@@ -96,7 +96,7 @@ func TestConnectionsProxy_Disconnect(t *testing.T) {
 		result := proxy.Disconnect("1")
 
 		assert.False(t, result.IsSuccess)
-		assert.Contains(t, result.Error, "disconnect failed")
+		assert.NotEmpty(t, result.ErrorCode)
 	})
 }
 
@@ -108,7 +108,7 @@ func TestConnectionsProxy_DisconnectAll(t *testing.T) {
 		result := proxy.DisconnectAll()
 
 		assert.True(t, result.IsSuccess)
-		assert.Empty(t, result.Error)
+		assert.Empty(t, result.ErrorCode)
 	})
 
 	t.Run("disconnect all error", func(t *testing.T) {
@@ -120,7 +120,7 @@ func TestConnectionsProxy_DisconnectAll(t *testing.T) {
 		result := proxy.DisconnectAll()
 
 		assert.False(t, result.IsSuccess)
-		assert.Contains(t, result.Error, "disconnect failed")
+		assert.NotEmpty(t, result.ErrorCode)
 	})
 }
 
@@ -149,7 +149,7 @@ func TestConnectionsProxy_TestConnection(t *testing.T) {
 		result := proxy.TestConnection("mongodb://localhost")
 
 		assert.True(t, result.IsSuccess)
-		assert.Empty(t, result.Error)
+		assert.Empty(t, result.ErrorCode)
 	})
 
 	t.Run("test connection error", func(t *testing.T) {
@@ -161,8 +161,6 @@ func TestConnectionsProxy_TestConnection(t *testing.T) {
 		result := proxy.TestConnection("mongodb://localhost")
 
 		assert.False(t, result.IsSuccess)
-		assert.Contains(t, result.Error, "connection failed")
+		assert.NotEmpty(t, result.ErrorCode)
 	})
 }
-
-

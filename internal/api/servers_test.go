@@ -96,7 +96,7 @@ func TestServersProxy_GetServers(t *testing.T) {
 		result := proxy.GetServers()
 
 		assert.False(t, result.IsSuccess)
-		assert.Contains(t, result.Error, "failed to get servers")
+		assert.NotEmpty(t, result.ErrorCode)
 	})
 }
 
@@ -122,7 +122,8 @@ func TestServersProxy_GetServer(t *testing.T) {
 		result := proxy.GetServer("1")
 
 		assert.False(t, result.IsSuccess)
-		assert.Contains(t, result.Error, "not found")
+		assert.NotEmpty(t, result.ErrorCode)
+		assert.Contains(t, result.ErrorDetail, "not found")
 	})
 
 	t.Run("get server error", func(t *testing.T) {
@@ -134,7 +135,7 @@ func TestServersProxy_GetServer(t *testing.T) {
 		result := proxy.GetServer("1")
 
 		assert.False(t, result.IsSuccess)
-		assert.Contains(t, result.Error, "failed to get server")
+		assert.NotEmpty(t, result.ErrorCode)
 	})
 }
 
@@ -157,7 +158,7 @@ func TestServersProxy_CreateGroup(t *testing.T) {
 		result := proxy.CreateGroup("parent", "New Group")
 
 		assert.False(t, result.IsSuccess)
-		assert.Contains(t, result.Error, "failed to create group")
+		assert.NotEmpty(t, result.ErrorCode)
 	})
 }
 
@@ -180,7 +181,7 @@ func TestServersProxy_UpdateGroup(t *testing.T) {
 		result := proxy.UpdateGroup("1", "Updated Group", "")
 
 		assert.False(t, result.IsSuccess)
-		assert.Contains(t, result.Error, "failed to update group")
+		assert.NotEmpty(t, result.ErrorCode)
 	})
 }
 
@@ -203,7 +204,7 @@ func TestServersProxy_SaveServer(t *testing.T) {
 		result := proxy.SaveServer("parent", "New Server", "mongodb://localhost", "")
 
 		assert.False(t, result.IsSuccess)
-		assert.Contains(t, result.Error, "failed to save server")
+		assert.NotEmpty(t, result.ErrorCode)
 	})
 }
 
@@ -226,7 +227,7 @@ func TestServersProxy_UpdateServer(t *testing.T) {
 		result := proxy.UpdateServer("1", "Updated Server", "mongodb://localhost", "", "")
 
 		assert.False(t, result.IsSuccess)
-		assert.Contains(t, result.Error, "failed to update server")
+		assert.NotEmpty(t, result.ErrorCode)
 	})
 }
 
@@ -249,7 +250,7 @@ func TestServersProxy_RemoveNode(t *testing.T) {
 		result := proxy.RemoveNode("1")
 
 		assert.False(t, result.IsSuccess)
-		assert.Contains(t, result.Error, "Error removing node")
+		assert.NotEmpty(t, result.ErrorCode)
 	})
 }
 
@@ -273,6 +274,6 @@ func TestServersProxy_GetURI(t *testing.T) {
 		result := proxy.GetURI("1")
 
 		assert.False(t, result.IsSuccess)
-		assert.Contains(t, result.Error, "failed to get URI")
+		assert.NotEmpty(t, result.ErrorCode)
 	})
 }

@@ -34,44 +34,29 @@ func NewServersProxy(sm ServersProvider) *ServersProxy {
 func (sp *ServersProxy) GetServers() Result[[]models.RegisteredServer] {
 	registeredServers, err := sp.sm.GetServers()
 	if err != nil {
-		return Result[[]models.RegisteredServer]{
-			IsSuccess: false,
-			Error:     err.Error(),
-		}
+		return FailResult[[]models.RegisteredServer](err)
 	}
 
-	return Result[[]models.RegisteredServer]{
-		IsSuccess: true,
-		Data:      registeredServers,
-	}
+	return SuccessResult(registeredServers)
 }
 
 func (sp *ServersProxy) GetServer(id string) Result[models.RegisteredServer] {
 	registerServer, err := sp.sm.GetServer(id)
 	if err != nil {
-		return Result[models.RegisteredServer]{
-			IsSuccess: false,
-			Error:     err.Error(),
-		}
+		return FailResult[models.RegisteredServer](err)
 	}
 
 	if registerServer == nil {
-		return Result[models.RegisteredServer]{
-			IsSuccess: false,
-			Error:     fmt.Sprintf("Server with id %s not found", id),
-		}
+		return FailResult[models.RegisteredServer](fmt.Errorf("server with id %s not found", id))
 	}
 
-	return Result[models.RegisteredServer]{
-		IsSuccess: true,
-		Data:      *registerServer,
-	}
+	return SuccessResult(*registerServer)
 }
 
 func (sp *ServersProxy) CreateGroup(name, parentID string) EmptyResult {
 	err := sp.sm.CreateGroup(parentID, name)
 	if err != nil {
-		return Error(err.Error())
+		return Fail(err)
 	}
 
 	return Success()
@@ -80,7 +65,7 @@ func (sp *ServersProxy) CreateGroup(name, parentID string) EmptyResult {
 func (sp *ServersProxy) UpdateGroup(groupID, name, parentID string) EmptyResult {
 	err := sp.sm.UpdateGroup(groupID, name, parentID)
 	if err != nil {
-		return Error(err.Error())
+		return Fail(err)
 	}
 
 	return Success()
@@ -90,7 +75,7 @@ func (sp *ServersProxy) UpdateGroup(groupID, name, parentID string) EmptyResult 
 func (sp *ServersProxy) SaveServer(parentID, name, uri, colour string) EmptyResult {
 	err := sp.sm.AddServer(parentID, name, uri, colour)
 	if err != nil {
-		return Error(err.Error())
+		return Fail(err)
 	}
 
 	return Success()
@@ -99,7 +84,7 @@ func (sp *ServersProxy) SaveServer(parentID, name, uri, colour string) EmptyResu
 func (sp *ServersProxy) UpdateServer(serverID, name, uri, parentID, colour string) EmptyResult {
 	err := sp.sm.UpdateServer(serverID, name, uri, parentID, colour)
 	if err != nil {
-		return Error(err.Error())
+		return Fail(err)
 	}
 
 	return Success()
@@ -108,7 +93,7 @@ func (sp *ServersProxy) UpdateServer(serverID, name, uri, parentID, colour strin
 func (sp *ServersProxy) RemoveNode(id string) EmptyResult {
 	err := sp.sm.RemoveNode(id)
 	if err != nil {
-		return Error(fmt.Sprintf("Error removing node: %v", err))
+		return Fail(err)
 	}
 	return Success()
 }
@@ -116,7 +101,7 @@ func (sp *ServersProxy) RemoveNode(id string) EmptyResult {
 func (sp *ServersProxy) SaveServerWithConfig(parentID, name, colour string, cfg models.ConnectionConfig) EmptyResult {
 	err := sp.sm.AddServerWithConfig(parentID, name, colour, cfg)
 	if err != nil {
-		return Error(err.Error())
+		return Fail(err)
 	}
 	return Success()
 }
@@ -124,7 +109,7 @@ func (sp *ServersProxy) SaveServerWithConfig(parentID, name, colour string, cfg 
 func (sp *ServersProxy) UpdateServerWithConfig(serverID, name, parentID, colour string, cfg models.ConnectionConfig) EmptyResult {
 	err := sp.sm.UpdateServerWithConfig(serverID, name, parentID, colour, cfg)
 	if err != nil {
-		return Error(err.Error())
+		return Fail(err)
 	}
 	return Success()
 }
@@ -132,24 +117,18 @@ func (sp *ServersProxy) UpdateServerWithConfig(serverID, name, parentID, colour 
 func (sp *ServersProxy) GetConnectionConfig(id string) Result[models.ConnectionConfig] {
 	cfg, err := sp.sm.GetConnectionConfig(id)
 	if err != nil {
-		return Result[models.ConnectionConfig]{IsSuccess: false, Error: err.Error()}
+		return FailResult[models.ConnectionConfig](err)
 	}
 	// Strip refresh token — sensitive credential should not reach the frontend
 	cfg.RefreshToken = ""
-	return Result[models.ConnectionConfig]{IsSuccess: true, Data: cfg}
+	return SuccessResult(cfg)
 }
 
 func (sp *ServersProxy) GetURI(id string) Result[string] {
 	uri, err := sp.sm.GetURI(id)
 	if err != nil {
-		return Result[string]{
-			IsSuccess: false,
-			Error:     err.Error(),
-		}
+		return FailResult[string](err)
 	}
 
-	return Result[string]{
-		IsSuccess: true,
-		Data:      uri,
-	}
+	return SuccessResult(uri)
 }

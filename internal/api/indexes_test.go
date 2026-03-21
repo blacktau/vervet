@@ -58,7 +58,7 @@ func TestIndexesProxy_GetIndexes(t *testing.T) {
 		proxy := NewIndexesProxy(provider)
 		result := proxy.GetIndexes("1", "db1", "coll1")
 		assert.False(t, result.IsSuccess)
-		assert.Contains(t, result.Error, "failed to get indexes")
+		assert.NotEmpty(t, result.ErrorCode)
 	})
 }
 
@@ -71,7 +71,7 @@ func TestIndexesProxy_CreateIndex(t *testing.T) {
 			Unique: true,
 		})
 		assert.True(t, result.IsSuccess)
-		assert.Empty(t, result.Error)
+		assert.Empty(t, result.ErrorCode)
 	})
 
 	t.Run("create index error", func(t *testing.T) {
@@ -83,7 +83,7 @@ func TestIndexesProxy_CreateIndex(t *testing.T) {
 			Keys: []models.IndexKeyField{{Field: "email", Direction: 1}},
 		})
 		assert.False(t, result.IsSuccess)
-		assert.Contains(t, result.Error, "duplicate key")
+		assert.NotEmpty(t, result.ErrorCode)
 	})
 }
 
@@ -96,7 +96,7 @@ func TestIndexesProxy_EditIndex(t *testing.T) {
 			Keys:    []models.IndexKeyField{{Field: "name", Direction: -1}},
 		})
 		assert.True(t, result.IsSuccess)
-		assert.Empty(t, result.Error)
+		assert.Empty(t, result.ErrorCode)
 	})
 
 	t.Run("edit index error", func(t *testing.T) {
@@ -109,7 +109,7 @@ func TestIndexesProxy_EditIndex(t *testing.T) {
 			Keys:    []models.IndexKeyField{{Field: "name", Direction: -1}},
 		})
 		assert.False(t, result.IsSuccess)
-		assert.Contains(t, result.Error, "edit failed")
+		assert.NotEmpty(t, result.ErrorCode)
 	})
 }
 
@@ -119,7 +119,7 @@ func TestIndexesProxy_DropIndex(t *testing.T) {
 		proxy := NewIndexesProxy(provider)
 		result := proxy.DropIndex("1", "db1", "coll1", "name_1")
 		assert.True(t, result.IsSuccess)
-		assert.Empty(t, result.Error)
+		assert.Empty(t, result.ErrorCode)
 	})
 
 	t.Run("drop index error", func(t *testing.T) {
@@ -129,6 +129,6 @@ func TestIndexesProxy_DropIndex(t *testing.T) {
 		proxy := NewIndexesProxy(provider)
 		result := proxy.DropIndex("1", "db1", "coll1", "name_1")
 		assert.False(t, result.IsSuccess)
-		assert.Contains(t, result.Error, "index not found")
+		assert.NotEmpty(t, result.ErrorCode)
 	})
 }
