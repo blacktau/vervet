@@ -136,7 +136,7 @@ async function save() {
       emit('saved')
       emit('update:show', false)
     } else {
-      notifier.error(result.error)
+      notifier.error(t(`errors.${result.errorCode}`))
     }
   } catch (e) {
     notifier.error(String(e))

@@ -249,7 +249,7 @@ const onTestConnection = async () => {
   try {
     const result = await connectionsProxy.TestConnection(generalForm.value.connectionString)
     if (!result.isSuccess) {
-      testingResult = result.error
+      testingResult = i18n.t(`errors.${result.errorCode}`)
     }
   } catch (e: unknown) {
     const err = e as Error

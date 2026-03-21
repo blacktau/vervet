@@ -69,7 +69,7 @@ async function onConfirm() {
       form.collectionName,
     )
     if (!result.isSuccess) {
-      notifier.error(result.error)
+      notifier.error(i18n.t(`errors.${result.errorCode}`))
       return false
     }
 

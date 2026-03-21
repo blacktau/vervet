@@ -159,7 +159,7 @@ function handleContextMenuSelect(key: string) {
           onPositiveClick: async () => {
             const result = await databasesProxy.DropDatabase(serverId, dbName)
             if (!result.isSuccess) {
-              notifier.error(result.error)
+              notifier.error(t(`errors.${result.errorCode}`))
               return
             }
             await browserStore.refreshServerDatabases(serverId)
@@ -204,7 +204,7 @@ function handleContextMenuSelect(key: string) {
           onPositiveClick: async () => {
             const result = await collectionsProxy.DropCollection(serverId, dbName, collectionName)
             if (!result.isSuccess) {
-              notifier.error(result.error)
+              notifier.error(t(`errors.${result.errorCode}`))
               return
             }
             await browserStore.refreshDatabaseCollections(serverId, dbName)
