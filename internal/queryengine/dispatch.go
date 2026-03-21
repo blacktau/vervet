@@ -101,7 +101,9 @@ func dispatchFind(ctx context.Context, coll *mongo.Collection, op CapturedOp) (m
 		return models.QueryResult{}, fmt.Errorf("reading cursor: %w", err)
 	}
 
-	return docsToResult(results), nil
+	result := docsToResult(results)
+	result.OperationType = "find"
+	return result, nil
 }
 
 func dispatchFindOne(ctx context.Context, coll *mongo.Collection, op CapturedOp) (models.QueryResult, error) {
@@ -113,13 +115,15 @@ func dispatchFindOne(ctx context.Context, coll *mongo.Collection, op CapturedOp)
 	var result bson.M
 	err := coll.FindOne(ctx, filter).Decode(&result)
 	if err == mongo.ErrNoDocuments {
-		return models.QueryResult{Documents: []any{}}, nil
+		return models.QueryResult{Documents: []any{}, OperationType: "findOne"}, nil
 	}
 	if err != nil {
 		return models.QueryResult{}, fmt.Errorf("findOne failed: %w", err)
 	}
 
-	return docsToResult([]bson.M{result}), nil
+	result2 := docsToResult([]bson.M{result})
+	result2.OperationType = "findOne"
+	return result2, nil
 }
 
 func dispatchInsertOne(ctx context.Context, coll *mongo.Collection, op CapturedOp) (models.QueryResult, error) {
@@ -133,10 +137,13 @@ func dispatchInsertOne(ctx context.Context, coll *mongo.Collection, op CapturedO
 		return models.QueryResult{}, fmt.Errorf("insertOne failed: %w", err)
 	}
 
-	return singleToResult(map[string]any{
+	result := singleToResult(map[string]any{
 		"acknowledged": true,
 		"insertedId":   res.InsertedID,
-	}), nil
+	})
+	result.OperationType = "insertOne"
+	result.AffectedCount = 1
+	return result, nil
 }
 
 func dispatchInsertMany(ctx context.Context, coll *mongo.Collection, op CapturedOp) (models.QueryResult, error) {
@@ -159,10 +166,13 @@ func dispatchInsertMany(ctx context.Context, coll *mongo.Collection, op Captured
 		return models.QueryResult{}, fmt.Errorf("insertMany failed: %w", err)
 	}
 
-	return singleToResult(map[string]any{
+	result := singleToResult(map[string]any{
 		"acknowledged": true,
 		"insertedIds":  res.InsertedIDs,
-	}), nil
+	})
+	result.OperationType = "insertMany"
+	result.AffectedCount = len(res.InsertedIDs)
+	return result, nil
 }
 
 func dispatchUpdateOne(ctx context.Context, coll *mongo.Collection, op CapturedOp) (models.QueryResult, error) {
@@ -178,7 +188,10 @@ func dispatchUpdateOne(ctx context.Context, coll *mongo.Collection, op CapturedO
 		return models.QueryResult{}, fmt.Errorf("updateOne failed: %w", err)
 	}
 
-	return updateResultToQueryResult(res), nil
+	result := updateResultToQueryResult(res)
+	result.OperationType = "updateOne"
+	result.AffectedCount = int(res.ModifiedCount)
+	return result, nil
 }
 
 func dispatchUpdateMany(ctx context.Context, coll *mongo.Collection, op CapturedOp) (models.QueryResult, error) {
@@ -194,7 +207,10 @@ func dispatchUpdateMany(ctx context.Context, coll *mongo.Collection, op Captured
 		return models.QueryResult{}, fmt.Errorf("updateMany failed: %w", err)
 	}
 
-	return updateResultToQueryResult(res), nil
+	result := updateResultToQueryResult(res)
+	result.OperationType = "updateMany"
+	result.AffectedCount = int(res.ModifiedCount)
+	return result, nil
 }
 
 func dispatchDeleteOne(ctx context.Context, coll *mongo.Collection, op CapturedOp) (models.QueryResult, error) {
@@ -208,10 +224,13 @@ func dispatchDeleteOne(ctx context.Context, coll *mongo.Collection, op CapturedO
 		return models.QueryResult{}, fmt.Errorf("deleteOne failed: %w", err)
 	}
 
-	return singleToResult(map[string]any{
+	result := singleToResult(map[string]any{
 		"acknowledged": true,
 		"deletedCount": res.DeletedCount,
-	}), nil
+	})
+	result.OperationType = "deleteOne"
+	result.AffectedCount = int(res.DeletedCount)
+	return result, nil
 }
 
 func dispatchDeleteMany(ctx context.Context, coll *mongo.Collection, op CapturedOp) (models.QueryResult, error) {
@@ -225,10 +244,13 @@ func dispatchDeleteMany(ctx context.Context, coll *mongo.Collection, op Captured
 		return models.QueryResult{}, fmt.Errorf("deleteMany failed: %w", err)
 	}
 
-	return singleToResult(map[string]any{
+	result := singleToResult(map[string]any{
 		"acknowledged": true,
 		"deletedCount": res.DeletedCount,
-	}), nil
+	})
+	result.OperationType = "deleteMany"
+	result.AffectedCount = int(res.DeletedCount)
+	return result, nil
 }
 
 func dispatchReplaceOne(ctx context.Context, coll *mongo.Collection, op CapturedOp) (models.QueryResult, error) {
@@ -244,7 +266,10 @@ func dispatchReplaceOne(ctx context.Context, coll *mongo.Collection, op Captured
 		return models.QueryResult{}, fmt.Errorf("replaceOne failed: %w", err)
 	}
 
-	return updateResultToQueryResult(res), nil
+	result := updateResultToQueryResult(res)
+	result.OperationType = "replaceOne"
+	result.AffectedCount = int(res.ModifiedCount)
+	return result, nil
 }
 
 func dispatchCountDocuments(ctx context.Context, coll *mongo.Collection, op CapturedOp) (models.QueryResult, error) {
@@ -258,9 +283,11 @@ func dispatchCountDocuments(ctx context.Context, coll *mongo.Collection, op Capt
 		return models.QueryResult{}, fmt.Errorf("countDocuments failed: %w", err)
 	}
 
-	return singleToResult(map[string]any{
+	result := singleToResult(map[string]any{
 		"count": count,
-	}), nil
+	})
+	result.OperationType = "countDocuments"
+	return result, nil
 }
 
 func dispatchAggregate(ctx context.Context, coll *mongo.Collection, op CapturedOp) (models.QueryResult, error) {
@@ -281,7 +308,9 @@ func dispatchAggregate(ctx context.Context, coll *mongo.Collection, op CapturedO
 		return models.QueryResult{}, fmt.Errorf("reading aggregate cursor: %w", err)
 	}
 
-	return docsToResult(results), nil
+	result := docsToResult(results)
+	result.OperationType = "aggregate"
+	return result, nil
 }
 
 func dispatchDistinct(ctx context.Context, coll *mongo.Collection, op CapturedOp) (models.QueryResult, error) {
@@ -304,9 +333,11 @@ func dispatchDistinct(ctx context.Context, coll *mongo.Collection, op CapturedOp
 		return models.QueryResult{}, fmt.Errorf("distinct failed: %w", err)
 	}
 
-	return singleToResult(map[string]any{
+	result := singleToResult(map[string]any{
 		"values": results,
-	}), nil
+	})
+	result.OperationType = "distinct"
+	return result, nil
 }
 
 func dispatchFindOneAndDelete(ctx context.Context, coll *mongo.Collection, op CapturedOp) (models.QueryResult, error) {
@@ -322,13 +353,15 @@ func dispatchFindOneAndDelete(ctx context.Context, coll *mongo.Collection, op Ca
 	var result bson.M
 	err := coll.FindOneAndDelete(ctx, filter).Decode(&result)
 	if err == mongo.ErrNoDocuments {
-		return models.QueryResult{Documents: []any{}}, nil
+		return models.QueryResult{Documents: []any{}, OperationType: "findOneAndDelete"}, nil
 	}
 	if err != nil {
 		return models.QueryResult{}, fmt.Errorf("findOneAndDelete failed: %w", err)
 	}
 
-	return docsToResult([]bson.M{result}), nil
+	r := docsToResult([]bson.M{result})
+	r.OperationType = "findOneAndDelete"
+	return r, nil
 }
 
 func dispatchFindOneAndReplace(ctx context.Context, coll *mongo.Collection, op CapturedOp) (models.QueryResult, error) {
@@ -349,13 +382,15 @@ func dispatchFindOneAndReplace(ctx context.Context, coll *mongo.Collection, op C
 	var result bson.M
 	err := coll.FindOneAndReplace(ctx, filter, replacement).Decode(&result)
 	if err == mongo.ErrNoDocuments {
-		return models.QueryResult{Documents: []any{}}, nil
+		return models.QueryResult{Documents: []any{}, OperationType: "findOneAndReplace"}, nil
 	}
 	if err != nil {
 		return models.QueryResult{}, fmt.Errorf("findOneAndReplace failed: %w", err)
 	}
 
-	return docsToResult([]bson.M{result}), nil
+	r := docsToResult([]bson.M{result})
+	r.OperationType = "findOneAndReplace"
+	return r, nil
 }
 
 func dispatchFindOneAndUpdate(ctx context.Context, coll *mongo.Collection, op CapturedOp) (models.QueryResult, error) {
@@ -369,13 +404,15 @@ func dispatchFindOneAndUpdate(ctx context.Context, coll *mongo.Collection, op Ca
 	var result bson.M
 	err := coll.FindOneAndUpdate(ctx, filter, update).Decode(&result)
 	if err == mongo.ErrNoDocuments {
-		return models.QueryResult{Documents: []any{}}, nil
+		return models.QueryResult{Documents: []any{}, OperationType: "findOneAndUpdate"}, nil
 	}
 	if err != nil {
 		return models.QueryResult{}, fmt.Errorf("findOneAndUpdate failed: %w", err)
 	}
 
-	return docsToResult([]bson.M{result}), nil
+	r := docsToResult([]bson.M{result})
+	r.OperationType = "findOneAndUpdate"
+	return r, nil
 }
 
 func dispatchEstimatedDocumentCount(ctx context.Context, coll *mongo.Collection) (models.QueryResult, error) {
@@ -384,9 +421,11 @@ func dispatchEstimatedDocumentCount(ctx context.Context, coll *mongo.Collection)
 		return models.QueryResult{}, fmt.Errorf("estimatedDocumentCount failed: %w", err)
 	}
 
-	return singleToResult(map[string]any{
+	result := singleToResult(map[string]any{
 		"count": count,
-	}), nil
+	})
+	result.OperationType = "estimatedDocumentCount"
+	return result, nil
 }
 
 func dispatchBulkWrite(ctx context.Context, coll *mongo.Collection, op CapturedOp) (models.QueryResult, error) {
@@ -417,21 +456,24 @@ func dispatchBulkWrite(ctx context.Context, coll *mongo.Collection, op CapturedO
 		return models.QueryResult{}, fmt.Errorf("bulkWrite failed: %w", err)
 	}
 
-	return singleToResult(map[string]any{
+	result := singleToResult(map[string]any{
 		"acknowledged":  true,
 		"insertedCount": res.InsertedCount,
 		"matchedCount":  res.MatchedCount,
 		"modifiedCount": res.ModifiedCount,
 		"deletedCount":  res.DeletedCount,
 		"upsertedCount": res.UpsertedCount,
-	}), nil
+	})
+	result.OperationType = "bulkWrite"
+	result.AffectedCount = int(res.ModifiedCount + res.InsertedCount + res.DeletedCount)
+	return result, nil
 }
 
 func dispatchDrop(ctx context.Context, coll *mongo.Collection) (models.QueryResult, error) {
 	if err := coll.Drop(ctx); err != nil {
 		return models.QueryResult{}, fmt.Errorf("drop failed: %w", err)
 	}
-	return models.QueryResult{}, nil
+	return models.QueryResult{OperationType: "drop"}, nil
 }
 
 func dispatchCreateIndex(ctx context.Context, coll *mongo.Collection, op CapturedOp) (models.QueryResult, error) {
@@ -449,9 +491,11 @@ func dispatchCreateIndex(ctx context.Context, coll *mongo.Collection, op Capture
 		return models.QueryResult{}, fmt.Errorf("createIndex failed: %w", err)
 	}
 
-	return singleToResult(map[string]any{
+	result := singleToResult(map[string]any{
 		"name": name,
-	}), nil
+	})
+	result.OperationType = "createIndex"
+	return result, nil
 }
 
 func dispatchCreateIndexes(ctx context.Context, coll *mongo.Collection, op CapturedOp) (models.QueryResult, error) {
@@ -478,9 +522,11 @@ func dispatchCreateIndexes(ctx context.Context, coll *mongo.Collection, op Captu
 		return models.QueryResult{}, fmt.Errorf("createIndexes failed: %w", err)
 	}
 
-	return singleToResult(map[string]any{
+	result := singleToResult(map[string]any{
 		"indexNames": names,
-	}), nil
+	})
+	result.OperationType = "createIndexes"
+	return result, nil
 }
 
 func dispatchDropIndex(ctx context.Context, coll *mongo.Collection, op CapturedOp) (models.QueryResult, error) {
@@ -503,7 +549,9 @@ func dispatchDropIndex(ctx context.Context, coll *mongo.Collection, op CapturedO
 		return models.QueryResult{}, fmt.Errorf("dropIndex failed to parse response: %w", err)
 	}
 
-	return singleToResult(result), nil
+	qr := singleToResult(result)
+	qr.OperationType = "dropIndex"
+	return qr, nil
 }
 
 func dispatchDropIndexes(ctx context.Context, coll *mongo.Collection, op CapturedOp) (models.QueryResult, error) {
@@ -519,7 +567,9 @@ func dispatchDropIndexes(ctx context.Context, coll *mongo.Collection, op Capture
 			return models.QueryResult{}, fmt.Errorf("dropIndexes failed to parse response: %w", err)
 		}
 
-		return singleToResult(result), nil
+		qr := singleToResult(result)
+		qr.OperationType = "dropIndexes"
+		return qr, nil
 	}
 
 	name, ok := op.Args[0].(string)
@@ -534,7 +584,9 @@ func dispatchDropIndexes(ctx context.Context, coll *mongo.Collection, op Capture
 			return models.QueryResult{}, fmt.Errorf("dropIndexes failed to parse response: %w", err)
 		}
 
-		return singleToResult(result), nil
+		qr := singleToResult(result)
+		qr.OperationType = "dropIndexes"
+		return qr, nil
 	}
 
 	rawKeys, ok := op.Args[0].([]any)
@@ -564,7 +616,9 @@ func dispatchDropIndexes(ctx context.Context, coll *mongo.Collection, op Capture
 		results = append(results, r)
 	}
 
-	return docsToResult(results), nil
+	qr := docsToResult(results)
+	qr.OperationType = "dropIndexes"
+	return qr, nil
 }
 
 func dispatchListIndexes(ctx context.Context, coll *mongo.Collection) (models.QueryResult, error) {
@@ -577,7 +631,9 @@ func dispatchListIndexes(ctx context.Context, coll *mongo.Collection) (models.Qu
 	if err := cursor.All(ctx, &results); err != nil {
 		return models.QueryResult{}, fmt.Errorf("reading listIndexes cursor: %w", err)
 	}
-	return docsToResult(results), nil
+	qr := docsToResult(results)
+	qr.OperationType = "listIndexes"
+	return qr, nil
 }
 
 // toBulkWriteModel converts a map[string]any (from goja) to a mongo.WriteModel.
