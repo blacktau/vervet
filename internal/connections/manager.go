@@ -11,6 +11,7 @@ import (
 	"vervet/internal/connectionStrings"
 	"vervet/internal/logging"
 	"vervet/internal/models"
+	"vervet/internal/oidc"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
@@ -30,19 +31,21 @@ type ConnectionManager struct {
 	store          connectionStrings.Store
 	serverProvider ServerProvider
 	log            *slog.Logger
+	tokenManager   *oidc.TokenManager
 }
 
 type ServerProvider interface {
 	GetServer(id string) (*models.RegisteredServer, error)
 }
 
-func NewManager(log *slog.Logger, registry *clientregistry.ClientRegistry, store connectionStrings.Store, provider ServerProvider) *ConnectionManager {
+func NewManager(log *slog.Logger, registry *clientregistry.ClientRegistry, store connectionStrings.Store, provider ServerProvider, tokenManager *oidc.TokenManager) *ConnectionManager {
 	log = log.With(slog.String(logging.SourceKey, "ConnectionManager"))
 	return &ConnectionManager{
 		log:            log,
 		registry:       registry,
 		store:          store,
 		serverProvider: provider,
+		tokenManager:   tokenManager,
 	}
 }
 
@@ -68,13 +71,21 @@ func (cm *ConnectionManager) Connect(serverID string) (models.Connection, error)
 		return models.Connection{}, fmt.Errorf("error retrieving server: %w", err)
 	}
 
-	uri, err := cm.store.GetRegisteredServerURI(serverID)
+	cfg, err := cm.store.GetConnectionConfig(serverID)
 	if err != nil {
-		cm.log.Error("Error retrieving connection URI", slog.String("serverID", serverID))
-		return models.Connection{}, fmt.Errorf("error retrieving connection URI: %w", err)
+		cm.log.Error("Error retrieving connection config", slog.String("serverID", serverID))
+		return models.Connection{}, fmt.Errorf("error retrieving connection config: %w", err)
 	}
 
-	_, err = cm.registry.Connect(serverID, server.Name, uri)
+	if cfg.AuthMethod == models.AuthOIDC {
+		if err := cm.tokenManager.Authenticate(cm.ctx, serverID); err != nil {
+			return models.Connection{}, fmt.Errorf("OIDC authentication failed: %w", err)
+		}
+		_, err = cm.registry.ConnectWithConfig(serverID, server.Name, cfg)
+	} else {
+		_, err = cm.registry.Connect(serverID, server.Name, cfg.URI)
+	}
+
 	if err != nil {
 		return models.Connection{}, err
 	}
@@ -124,6 +135,38 @@ func (cm *ConnectionManager) TestConnection(uri string) (bool, error) {
 	err = client.Disconnect(ctx)
 	if err != nil {
 		scrubbed := cleanConnectionString(uri)
+		cm.log.Error("Error disconnecting from mongo server", slog.String("uri", scrubbed), slog.Any("error", err))
+	}
+
+	return true, nil
+}
+
+func (cm *ConnectionManager) TestConnectionWithConfig(ctx context.Context, cfg models.ConnectionConfig) (bool, error) {
+	if cfg.AuthMethod == models.AuthOIDC {
+		return false, fmt.Errorf("test connection not supported for OIDC — save the server first, then connect")
+	}
+
+	clientOptions := options.Client().ApplyURI(cfg.URI)
+	connectCtx, connectCancel := context.WithTimeout(ctx, 30*time.Second)
+	defer connectCancel()
+
+	client, err := mongo.Connect(connectCtx, clientOptions)
+	if err != nil {
+		scrubbed := cleanConnectionString(cfg.URI)
+		cm.log.Error("Failed to connect to MongoDB:", slog.String("uri", scrubbed), slog.Any("error", err))
+		return false, fmt.Errorf("failed to connect to database: %w", err)
+	}
+
+	if err = client.Ping(connectCtx, nil); err != nil {
+		_ = client.Disconnect(ctx)
+		scrubbed := cleanConnectionString(cfg.URI)
+		cm.log.Error("Ping failed:", slog.String("uri", scrubbed), slog.Any("error", err))
+		return false, fmt.Errorf("failed to connect to database: %w", err)
+	}
+
+	err = client.Disconnect(ctx)
+	if err != nil {
+		scrubbed := cleanConnectionString(cfg.URI)
 		cm.log.Error("Error disconnecting from mongo server", slog.String("uri", scrubbed), slog.Any("error", err))
 	}
 
