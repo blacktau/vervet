@@ -100,13 +100,27 @@ func (qe *QueryExecutor) executeWithGoja(ctx context.Context, serverID, dbName, 
 }
 
 func (qe *QueryExecutor) executeWithMongosh(ctx context.Context, serverID, dbName, query string) (models.QueryResult, error) {
-	uri, err := qe.getURI(serverID, dbName)
+	cfg, err := qe.store.GetConnectionConfig(serverID)
 	if err != nil {
-		qe.log.Error("Failed to get URI for query", slog.String("serverID", serverID), slog.Any("error", err))
+		qe.log.Error("Failed to get connection config", slog.String("serverID", serverID), slog.Any("error", err))
 		return models.QueryResult{}, err
 	}
 
-	result, err := shell.Execute(ctx, uri, query, qe.cfg)
+	uri := cfg.URI
+	if dbName != "" {
+		if !validDBName.MatchString(dbName) {
+			return models.QueryResult{}, fmt.Errorf("invalid database name: %q", dbName)
+		}
+		uri = appendDatabase(uri, dbName)
+	}
+
+	var result models.QueryResult
+	if cfg.AuthMethod == models.AuthOIDC {
+		result, err = shell.ExecuteWithOIDC(ctx, uri, query, qe.cfg)
+	} else {
+		result, err = shell.Execute(ctx, uri, query, qe.cfg)
+	}
+
 	if err != nil {
 		qe.log.Error("Query execution failed", slog.String("serverID", serverID), slog.Any("error", err))
 		return models.QueryResult{}, err

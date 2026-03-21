@@ -3,10 +3,12 @@ import { useThemeVars } from 'naive-ui'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { NavType, useTabStore } from '@/features/tabs/tabs.ts'
 import { useSettingsStore } from '@/features/settings/settingsStore.ts'
+import { useServerStore } from '@/features/server-pane/serverStore.ts'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 import { extraTheme } from '@/utils/extraTheme'
 import { debounce } from 'lodash'
 import { isMacOS, isWindows } from '@/init/environment'
+import { useI18n } from 'vue-i18n'
 import * as runtime from 'wailsjs/runtime'
 import LeftRibbon from '@/features/sidebar/LeftRibbon.vue'
 import ResizeableWrapper from '@/features/common/ResizeableWrapper.vue'
@@ -21,9 +23,22 @@ const props = defineProps<{
   loading: boolean
 }>()
 
+const i18n = useI18n()
+const notification = useNotification()
 const tabStore = useTabStore()
+const serverStore = useServerStore()
 const dataBrowserStore = useDataBrowserStore()
 const settingsStore = useSettingsStore()
+
+runtime.EventsOn('oidc-reauth-required', (serverID: string) => {
+  const server = serverStore.findServerById(serverID)
+  const name = server?.name ?? serverID
+  notification.warning({
+    title: i18n.t('oidc.reAuthTitle'),
+    content: i18n.t('oidc.reAuthMessage', { name }),
+    duration: 10000,
+  })
+})
 
 const data = reactive({
   navMenuWidth: 50,

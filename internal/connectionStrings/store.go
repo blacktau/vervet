@@ -1,10 +1,12 @@
 package connectionStrings
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"time"
 	"vervet/internal/logging"
+	"vervet/internal/models"
 
 	"github.com/zalando/go-keyring"
 )
@@ -16,6 +18,9 @@ type Store interface {
 	StoreRegisteredServerURI(registeredServerID, uri string) error
 	GetRegisteredServerURI(registeredServerID string) (string, error)
 	DeleteRegisteredServerURI(registeredServerID string) error
+	StoreConnectionConfig(registeredServerID string, cfg models.ConnectionConfig) error
+	GetConnectionConfig(registeredServerID string) (models.ConnectionConfig, error)
+	UpdateRefreshToken(registeredServerID string, refreshToken string) error
 }
 
 type store struct {
@@ -88,4 +93,56 @@ func withTimeout(timeout time.Duration, fn func() error) error {
 
 func getKey(registeredServerID string) string {
 	return fmt.Sprintf("conn_%s", registeredServerID)
+}
+
+func serialiseConnectionConfig(cfg models.ConnectionConfig) (string, error) {
+	data, err := json.Marshal(cfg)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+func deserialiseConnectionConfig(raw string) (models.ConnectionConfig, error) {
+	var cfg models.ConnectionConfig
+	if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
+		// Not JSON — treat as legacy raw URI
+		return models.ConnectionConfig{
+			URI:        raw,
+			AuthMethod: models.AuthPassword,
+		}, nil
+	}
+	// If JSON parsed but URI is empty, it's not a valid config
+	if cfg.URI == "" {
+		return models.ConnectionConfig{
+			URI:        raw,
+			AuthMethod: models.AuthPassword,
+		}, nil
+	}
+	return cfg, nil
+}
+
+func (s *store) StoreConnectionConfig(registeredServerID string, cfg models.ConnectionConfig) error {
+	data, err := serialiseConnectionConfig(cfg)
+	if err != nil {
+		return err
+	}
+	return s.StoreRegisteredServerURI(registeredServerID, data)
+}
+
+func (s *store) GetConnectionConfig(registeredServerID string) (models.ConnectionConfig, error) {
+	raw, err := s.GetRegisteredServerURI(registeredServerID)
+	if err != nil {
+		return models.ConnectionConfig{}, err
+	}
+	return deserialiseConnectionConfig(raw)
+}
+
+func (s *store) UpdateRefreshToken(registeredServerID string, refreshToken string) error {
+	cfg, err := s.GetConnectionConfig(registeredServerID)
+	if err != nil {
+		return err
+	}
+	cfg.RefreshToken = refreshToken
+	return s.StoreConnectionConfig(registeredServerID, cfg)
 }

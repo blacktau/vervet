@@ -92,17 +92,19 @@ watch(
     :theme="settingsStore.isDark ? darkTheme : undefined"
     :theme-overrides="settingsStore.isDark ? darkThemeOverrides : themeOverrides"
     class="fill-height">
-    <n-dialog-provider>
-      <app-content :loading="initializing" />
-      <server-dialog v-if="dialogStore.isVisible(DialogType.Server)" />
-      <group-dialog v-if="dialogStore.isVisible(DialogType.Group)" />
-      <settings-dialog v-if="dialogStore.isVisible(DialogType.Settings)" />
-      <about-dialog v-if="dialogStore.isVisible(DialogType.About)" />
-      <add-database-dialog v-if="dialogStore.isVisible(DialogType.AddDatabase)" />
-      <add-collection-dialog v-if="dialogStore.isVisible(DialogType.AddCollection)" />
-      <create-index-dialog v-if="dialogStore.isVisible(DialogType.CreateIndex)" />
-      <rename-collection-dialog v-if="dialogStore.isVisible(DialogType.RenameCollection)" />
-    </n-dialog-provider>
+    <n-notification-provider>
+      <n-dialog-provider>
+        <app-content :loading="initializing" />
+        <server-dialog v-if="dialogStore.isVisible(DialogType.Server)" />
+        <group-dialog v-if="dialogStore.isVisible(DialogType.Group)" />
+        <settings-dialog v-if="dialogStore.isVisible(DialogType.Settings)" />
+        <about-dialog v-if="dialogStore.isVisible(DialogType.About)" />
+        <add-database-dialog v-if="dialogStore.isVisible(DialogType.AddDatabase)" />
+        <add-collection-dialog v-if="dialogStore.isVisible(DialogType.AddCollection)" />
+        <create-index-dialog v-if="dialogStore.isVisible(DialogType.CreateIndex)" />
+        <rename-collection-dialog v-if="dialogStore.isVisible(DialogType.RenameCollection)" />
+      </n-dialog-provider>
+    </n-notification-provider>
   </n-config-provider>
 </template>
 

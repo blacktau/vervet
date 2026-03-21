@@ -9,6 +9,7 @@ import (
 	"vervet/internal/connectionStrings"
 	"vervet/internal/logging"
 	"vervet/internal/models"
+	"vervet/internal/oidc"
 
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/x/mongo/driver/connstring"
@@ -19,16 +20,18 @@ type ServerService struct {
 	log               *slog.Logger
 	store             ServerStore
 	connectionStrings connectionStrings.Store
+	tokenManager      *oidc.TokenManager
 	mu                sync.RWMutex
 }
 
-func NewService(log *slog.Logger, store ServerStore, connectionStrings connectionStrings.Store) *ServerService {
+func NewService(log *slog.Logger, store ServerStore, connectionStrings connectionStrings.Store, tokenManager *oidc.TokenManager) *ServerService {
 	logger := log.With(slog.String(logging.SourceKey, "ServerService"))
 	return &ServerService{
 		log:               logger,
 		mu:                sync.RWMutex{},
 		store:             store,
 		connectionStrings: connectionStrings,
+		tokenManager:      tokenManager,
 	}
 }
 
@@ -164,6 +167,106 @@ func (sm *ServerService) UpdateServer(serverID, name, uri, parentID, colour stri
 	return nil
 }
 
+func (sm *ServerService) AddServerWithConfig(parentID, name, colour string, cfg models.ConnectionConfig) error {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	log := sm.log.With(slog.String("parentID", parentID), slog.String("name", name))
+	log.Debug("Adding Server")
+
+	servers, err := sm.store.LoadServers()
+	if err != nil {
+		log.Error("Failed to load registered servers", slog.Any("error", err))
+		return fmt.Errorf("failed to load registered servers: %w", err)
+	}
+
+	newID := uuid.New().String()
+
+	parent, _ := findServer(parentID, servers)
+	if parent == nil {
+		parentID = ""
+	}
+
+	connString, err := connstring.Parse(cfg.URI)
+	if err != nil {
+		log.Error("Failed to parse connection string", slog.Any("error", err))
+		return fmt.Errorf("failed to parse connection string: %w", err)
+	}
+
+	isCluster := len(connString.Hosts) > 1
+	isSrv := connString.Scheme == connstring.SchemeMongoDBSRV
+
+	servers = append(servers, models.RegisteredServer{
+		ID:        newID,
+		Name:      name,
+		ParentID:  parentID,
+		IsGroup:   false,
+		IsCluster: isCluster,
+		IsSrv:     isSrv,
+		Colour:    colour,
+	})
+
+	err = sm.connectionStrings.StoreConnectionConfig(newID, cfg)
+	if err != nil {
+		log.Error("Failed to securely store connection config", slog.Any("error", err))
+		return fmt.Errorf("failed to securely store connection config: %w", err)
+	}
+
+	err = sm.store.SaveServers(servers)
+	if err != nil {
+		_ = sm.connectionStrings.DeleteRegisteredServerURI(newID)
+		log.Error("Failed to save registered server", slog.Any("error", err))
+		return fmt.Errorf("failed to save registered server: %w", err)
+	}
+	return nil
+}
+
+func (sm *ServerService) UpdateServerWithConfig(serverID, name, parentID, colour string, cfg models.ConnectionConfig) error {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+	log := sm.log.With(
+		slog.String("serverID", serverID),
+		slog.String("name", name),
+		slog.String("parentID", parentID),
+		slog.String("colour", colour))
+
+	log.Debug("Updating Server")
+
+	servers, err := sm.store.LoadServers()
+	if err != nil {
+		log.Error("Failed to load registered servers", slog.Any("error", err))
+		return fmt.Errorf("failed to load registered servers: %w", err)
+	}
+
+	server, _ := findServer(serverID, servers)
+	if server == nil {
+		log.Error("Failed to find registered server")
+		return fmt.Errorf("failed to find registered server with ID %s", serverID)
+	}
+
+	server.Name = name
+	server.ParentID = parentID
+	server.Colour = colour
+
+	err = sm.store.SaveServers(servers)
+	if err != nil {
+		log.Error("Failed to save registered server metadata", slog.Any("error", err))
+		return fmt.Errorf("failed to save registered server metadata: %w", err)
+	}
+
+	err = sm.connectionStrings.StoreConnectionConfig(serverID, cfg)
+	if err != nil {
+		log.Error("Failed to securely store connection config", slog.Any("error", err))
+		return fmt.Errorf("failed to securely store connection config: %w", err)
+	}
+
+	return nil
+}
+
+func (sm *ServerService) GetConnectionConfig(serverID string) (models.ConnectionConfig, error) {
+	return sm.connectionStrings.GetConnectionConfig(serverID)
+}
+
 // RemoveNode removes a group or registeredServer and its uri
 func (sm *ServerService) RemoveNode(id string) error {
 	sm.mu.Lock()
@@ -200,6 +303,9 @@ func (sm *ServerService) RemoveNode(id string) error {
 		err := sm.connectionStrings.DeleteRegisteredServerURI(id)
 		if err != nil {
 			log.Error("Failed to delete keyring entry for server", slog.Any("error", err))
+		}
+		if sm.tokenManager != nil {
+			sm.tokenManager.CleanupServer(id)
 		}
 	}
 

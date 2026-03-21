@@ -68,6 +68,11 @@ export namespace api {
 	    data: models.CollectionSchema;
 	    error: string;
 	}
+	export interface Result_vervet_internal_models_ConnectionConfig_ {
+	    isSuccess: boolean;
+	    data: models.ConnectionConfig;
+	    error: string;
+	}
 	export interface Result_vervet_internal_models_Connection_ {
 	    isSuccess: boolean;
 	    data: models.Connection;
@@ -109,6 +114,18 @@ export namespace models {
 	export interface Connection {
 	    serverID?: string;
 	    name?: string;
+	}
+	export interface OIDCConfig {
+	    providerUrl: string;
+	    clientId: string;
+	    scopes?: string[];
+	    workloadIdentity: boolean;
+	}
+	export interface ConnectionConfig {
+	    uri: string;
+	    authMethod: string;
+	    oidcConfig?: OIDCConfig;
+	    refreshToken?: string;
 	}
 	export interface IndexKeyField {
 	    field: string;
@@ -162,6 +179,7 @@ export namespace models {
 	    size: number;
 	    usage: number;
 	}
+	
 	
 	export interface QueryResult {
 	    documents: any[];

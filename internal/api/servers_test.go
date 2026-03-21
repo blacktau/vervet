@@ -56,6 +56,21 @@ func (m *MockServersProvider) UpdateGroup(groupID, name, parentID string) error 
 	return m.err
 }
 
+func (m *MockServersProvider) AddServerWithConfig(parentID, name, colour string, cfg models.ConnectionConfig) error {
+	return m.err
+}
+
+func (m *MockServersProvider) UpdateServerWithConfig(serverID, name, parentID, colour string, cfg models.ConnectionConfig) error {
+	return m.err
+}
+
+func (m *MockServersProvider) GetConnectionConfig(serverID string) (models.ConnectionConfig, error) {
+	if m.err != nil {
+		return models.ConnectionConfig{}, m.err
+	}
+	return models.ConnectionConfig{URI: "mongodb://localhost", AuthMethod: models.AuthPassword}, nil
+}
+
 func TestServersProxy_GetServers(t *testing.T) {
 	t.Run("successful get servers", func(t *testing.T) {
 		provider := &MockServersProvider{
