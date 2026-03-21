@@ -321,7 +321,7 @@ onMounted(async () => {
             </template>
             <pre v-else-if="hasRawOutput" class="results-content">{{ queryState.rawOutput }}</pre>
           </n-tab-pane>
-          <n-tab-pane name="messages" :tab="t('query.messages')">
+          <n-tab-pane name="messages" :tab="t('query.messagesTab')">
             <n-log
               class="messages-log"
               :log="queryState.messages"
