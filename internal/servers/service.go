@@ -9,6 +9,7 @@ import (
 	"vervet/internal/connectionStrings"
 	"vervet/internal/logging"
 	"vervet/internal/models"
+	"vervet/internal/oidc"
 
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/x/mongo/driver/connstring"
@@ -19,16 +20,18 @@ type ServerService struct {
 	log               *slog.Logger
 	store             ServerStore
 	connectionStrings connectionStrings.Store
+	tokenManager      *oidc.TokenManager
 	mu                sync.RWMutex
 }
 
-func NewService(log *slog.Logger, store ServerStore, connectionStrings connectionStrings.Store) *ServerService {
+func NewService(log *slog.Logger, store ServerStore, connectionStrings connectionStrings.Store, tokenManager *oidc.TokenManager) *ServerService {
 	logger := log.With(slog.String(logging.SourceKey, "ServerService"))
 	return &ServerService{
 		log:               logger,
 		mu:                sync.RWMutex{},
 		store:             store,
 		connectionStrings: connectionStrings,
+		tokenManager:      tokenManager,
 	}
 }
 
@@ -300,6 +303,9 @@ func (sm *ServerService) RemoveNode(id string) error {
 		err := sm.connectionStrings.DeleteRegisteredServerURI(id)
 		if err != nil {
 			log.Error("Failed to delete keyring entry for server", slog.Any("error", err))
+		}
+		if sm.tokenManager != nil {
+			sm.tokenManager.CleanupServer(id)
 		}
 	}
 

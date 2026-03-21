@@ -58,8 +58,8 @@ func NewApp(log *slog.Logger) *App {
 		log.Error("Failed to initialize server store", slog.Any("error", err))
 		panic(fmt.Errorf("failed to initialize server store: %w", err))
 	}
-	serverService := servers.NewService(log, serverStore, connectionStringsStore)
 	tokenManager := oidc.NewTokenManager(connectionStringsStore)
+	serverService := servers.NewService(log, serverStore, connectionStringsStore, tokenManager)
 	registry := clientregistry.NewClientRegistry(log, tokenManager)
 	connectionManager := connections.NewManager(log, registry, connectionStringsStore, serverService, tokenManager)
 	databasesService := databases.NewDatabasesService(log, registry)
@@ -102,6 +102,7 @@ func (a *App) Startup(ctx context.Context) {
 
 	a.serverService.Init(ctx)
 
+	a.tokenManager.Init(ctx)
 	a.tokenManager.SetOpenBrowser(func(url string) {
 		wailsRuntime.BrowserOpenURL(ctx, url)
 	})

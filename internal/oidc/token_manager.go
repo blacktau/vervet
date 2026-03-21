@@ -7,6 +7,7 @@ import (
 	"time"
 
 	gooidc "github.com/coreos/go-oidc/v3/oidc"
+	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 	"golang.org/x/oauth2"
 
 	"vervet/internal/connectionStrings"
@@ -20,6 +21,7 @@ type CachedToken struct {
 }
 
 type TokenManager struct {
+	ctx         context.Context
 	store       connectionStrings.Store
 	mu          sync.RWMutex
 	cache       map[string]*CachedToken
@@ -31,6 +33,10 @@ func NewTokenManager(store connectionStrings.Store) *TokenManager {
 		store: store,
 		cache: make(map[string]*CachedToken),
 	}
+}
+
+func (tm *TokenManager) Init(ctx context.Context) {
+	tm.ctx = ctx
 }
 
 func (tm *TokenManager) SetOpenBrowser(fn func(url string)) {
@@ -127,7 +133,10 @@ func (tm *TokenManager) GetAccessToken(ctx context.Context, serverID string) (st
 			}
 			return tok.AccessToken, tok.ExpiresAt, nil
 		}
-		// Refresh failed — caller must re-authenticate
+		// Refresh failed — notify frontend
+		if tm.ctx != nil {
+			wailsRuntime.EventsEmit(tm.ctx, "oidc-reauth-required", serverID)
+		}
 	}
 
 	return "", time.Time{}, fmt.Errorf("no valid token for server %s — re-authentication required", serverID)
