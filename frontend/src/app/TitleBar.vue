@@ -124,6 +124,7 @@ onUnmounted(() => {
   align-self: flex-end;
   margin-bottom: -1px;
   margin-left: 3px;
-  overflow: auto;
+  min-width: 0;
+  overflow: hidden;
 }
 </style>

@@ -3,7 +3,9 @@ import { useTabStore } from '@/features/tabs/tabs'
 import { useQueryStore } from '@/features/queries/queryStore'
 import { type QueryState } from '@/features/queries/queryStore'
 import { useI18n } from 'vue-i18n'
-import { computed } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { ChevronDownIcon } from '@heroicons/vue/24/outline'
+import type { DropdownOption } from 'naive-ui'
 import QueryTab from '@/features/queries/QueryTab.vue'
 import IndexTab from '@/features/indexes/IndexTab.vue'
 import CollectionStatisticsTab from '@/features/statistics/CollectionStatisticsTab.vue'
@@ -62,6 +64,47 @@ const unifiedTabs = computed<UnifiedTab[]>(() => {
 })
 
 const hasInnerTabs = computed(() => unifiedTabs.value.length > 0)
+
+const innerTabsRef = ref<HTMLElement | null>(null)
+const isOverflowing = ref(false)
+let resizeObserver: ResizeObserver | null = null
+
+function checkOverflow() {
+  const el = innerTabsRef.value?.$el ?? innerTabsRef.value
+  if (!el) {
+    return
+  }
+  const scrollWrapper = el.querySelector('.n-tabs-nav-scroll-content')
+  const scrollContainer = el.querySelector('.n-tabs-nav-scroll-wrapper')
+  if (scrollWrapper && scrollContainer) {
+    isOverflowing.value = scrollWrapper.scrollWidth > scrollContainer.clientWidth
+  }
+}
+
+onMounted(() => {
+  resizeObserver = new ResizeObserver(checkOverflow)
+  const el = innerTabsRef.value?.$el ?? innerTabsRef.value
+  if (el) {
+    resizeObserver.observe(el)
+  }
+})
+
+onBeforeUnmount(() => {
+  resizeObserver?.disconnect()
+})
+
+watch(() => unifiedTabs.value.length, () => nextTick(checkOverflow))
+
+const tabDropdownOptions = computed<DropdownOption[]>(() => {
+  return unifiedTabs.value.map((tab) => ({
+    label: tab.label,
+    key: tab.id,
+  }))
+})
+
+function handleTabSelect(key: string) {
+  activeInnerTabId.value = key
+}
 
 function findIndexTabById(id: string) {
   return (tabStore.currentTab?.indexTabs ?? []).find((t) => t.id === id)
@@ -125,10 +168,25 @@ async function promptSaveBeforeClose(queryId: string, state: QueryState): Promis
   <div class="content-container flex-box-v" style="margin-right: 5px">
     <n-tabs
       v-if="hasInnerTabs"
+      ref="innerTabsRef"
       v-model:value="activeInnerTabId"
       type="card"
       closable
       @close="handleClose">
+      <template v-if="isOverflowing" #suffix>
+        <n-dropdown
+          :options="tabDropdownOptions"
+          trigger="click"
+          @select="handleTabSelect">
+          <n-button quaternary size="small" style="margin-right: 4px">
+            <template #icon>
+              <n-icon>
+                <ChevronDownIcon />
+              </n-icon>
+            </template>
+          </n-button>
+        </n-dropdown>
+      </template>
       <n-tab-pane
         v-for="uTab in unifiedTabs"
         :key="uTab.id"
@@ -172,6 +230,9 @@ async function promptSaveBeforeClose(queryId: string, state: QueryState): Promis
 
 <style lang="scss" scoped>
 .content-container {
+  min-width: 0;
+  overflow: hidden;
+
   :deep(.n-tabs) {
     flex: 1;
     min-height: 0;

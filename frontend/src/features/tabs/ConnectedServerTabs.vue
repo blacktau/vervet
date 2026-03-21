@@ -1,12 +1,13 @@
 <script lang="ts" setup>
 import { useTabStore } from '@/features/tabs/tabs.ts'
 import { useThemeVars } from 'naive-ui'
+import type { DropdownOption } from 'naive-ui'
 import { get } from 'lodash'
-import { computed } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useServerStore } from '@/features/server-pane/serverStore.ts'
 import { extraTheme } from '@/utils/extraTheme.ts'
 import { useSettingsStore } from '@/features/settings/settingsStore.ts'
-import { ServerIcon } from '@heroicons/vue/24/outline'
+import { ChevronDownIcon, ServerIcon } from '@heroicons/vue/24/outline'
 import type { ServerTabItem } from '@/types/ServerTabItem.ts'
 import Color from 'color'
 
@@ -14,6 +15,47 @@ const tabStore = useTabStore()
 const serverStore = useServerStore()
 const settingsStore = useSettingsStore()
 const themeVars = useThemeVars()
+
+const tabsRef = ref<HTMLElement | null>(null)
+const isOverflowing = ref(false)
+let resizeObserver: ResizeObserver | null = null
+
+function checkOverflow() {
+  const el = tabsRef.value?.$el ?? tabsRef.value
+  if (!el) {
+    return
+  }
+  const scrollWrapper = el.querySelector('.n-tabs-nav-scroll-content')
+  const scrollContainer = el.querySelector('.n-tabs-nav-scroll-wrapper')
+  if (scrollWrapper && scrollContainer) {
+    isOverflowing.value = scrollWrapper.scrollWidth > scrollContainer.clientWidth
+  }
+}
+
+onMounted(() => {
+  resizeObserver = new ResizeObserver(checkOverflow)
+  const el = tabsRef.value?.$el ?? tabsRef.value
+  if (el) {
+    resizeObserver.observe(el)
+  }
+})
+
+onBeforeUnmount(() => {
+  resizeObserver?.disconnect()
+})
+
+watch(() => tabStore.tabs.length, () => nextTick(checkOverflow))
+
+const serverDropdownOptions = computed<DropdownOption[]>(() => {
+  return tabStore.tabs.map((tab, index) => ({
+    label: tab.title,
+    key: index,
+  }))
+})
+
+function handleServerSelect(index: number) {
+  tabStore.setActiveTabIndex(index)
+}
 
 const onCloseTab = (tabIndex: number) => {
   const tab = get(tabStore.tabs, tabIndex)
@@ -64,6 +106,7 @@ const exThemeVars = computed(() => {
 
 <template>
   <n-tabs
+    ref="tabsRef"
     v-model:value="tabStore.activeTabIndex"
     :closeable="true"
     :tabs-padding="3"
@@ -77,6 +120,20 @@ const exThemeVars = computed(() => {
     type="card"
     @close="onCloseTab"
     @update:value="(tabIndex: number) => tabStore.setActiveTabIndex(tabIndex)">
+    <template v-if="isOverflowing" #suffix>
+      <n-dropdown
+        :options="serverDropdownOptions"
+        trigger="click"
+        @select="handleServerSelect">
+        <n-button quaternary size="tiny" style="margin-left: 4px; --wails-draggable: none">
+          <template #icon>
+            <n-icon>
+              <ChevronDownIcon />
+            </n-icon>
+          </template>
+        </n-button>
+      </n-dropdown>
+    </template>
     <n-tab
       v-for="(t, index) in tabStore.tabs"
       :key="index"
