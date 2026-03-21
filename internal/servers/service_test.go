@@ -66,6 +66,29 @@ func (m *MockConnectionStringsStore) DeleteRegisteredServerURI(id string) error 
 	return nil
 }
 
+func (m *MockConnectionStringsStore) StoreConnectionConfig(id string, cfg models.ConnectionConfig) error {
+	if m.err != nil {
+		return m.err
+	}
+	m.uris[id] = cfg.URI
+	return nil
+}
+
+func (m *MockConnectionStringsStore) GetConnectionConfig(id string) (models.ConnectionConfig, error) {
+	if m.err != nil {
+		return models.ConnectionConfig{}, m.err
+	}
+	uri, ok := m.uris[id]
+	if !ok {
+		return models.ConnectionConfig{}, errors.New("config not found")
+	}
+	return models.ConnectionConfig{URI: uri, AuthMethod: models.AuthPassword}, nil
+}
+
+func (m *MockConnectionStringsStore) UpdateRefreshToken(id string, refreshToken string) error {
+	return m.err
+}
+
 func newTestServerService(store ServerStore, connectionStringsStore connectionStrings.Store) *ServerService {
 	log := slog.Default()
 	return &ServerService{
