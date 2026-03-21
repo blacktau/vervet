@@ -6,6 +6,31 @@ import { useNotifier } from '@/utils/dialog'
 import { useSettingsStore } from '@/features/settings/settingsStore'
 import { i18nGlobal } from '@/i18n'
 
+function formatDuration(ms: number): string {
+  if (ms < 1000) {
+    return `${ms}ms`
+  }
+  return `${(ms / 1000).toFixed(1)}s`
+}
+
+function translateError(errorCode: string, errorDetail: string): string {
+  const key = `errors.${errorCode}`
+  const translated = i18nGlobal.t(key)
+  if (translated === key) {
+    return errorDetail || errorCode
+  }
+  return translated
+}
+
+function resultMessage(operationType: string, count: number, duration: string): string {
+  const key = `query.messages.${operationType}Result`
+  const translated = i18nGlobal.t(key, { count, time: duration })
+  if (translated === key) {
+    return i18nGlobal.t('query.messages.genericResult', { time: duration })
+  }
+  return translated
+}
+
 export interface QueryState {
   loading: boolean
   documents: unknown[]
@@ -87,15 +112,20 @@ export const useQueryStore = defineStore('query', {
       }
 
       const state = this.getQueryState(queryId)
+      const timestamp = new Date().toLocaleTimeString()
 
       if (!state.selectedDatabase) {
-        state.error = i18nGlobal.t('query.noDatabaseSelected')
+        const msg = i18nGlobal.t('errors.no_database_selected')
+        state.error = msg
+        state.messages += `${timestamp} [ERROR] ${msg}\n`
         return
       }
 
       const settingsStore = useSettingsStore()
       if (settingsStore.editor.queryEngine === 'mongosh' && this.mongoshAvailable === false) {
-        state.error = i18nGlobal.t('query.mongoshNotFound')
+        const msg = i18nGlobal.t('errors.shell_not_found')
+        state.error = msg
+        state.messages += `${timestamp} [ERROR] ${msg}\n`
         return
       }
 
@@ -105,6 +135,9 @@ export const useQueryStore = defineStore('query', {
       state.rawOutput = ''
       state.error = ''
       state.selectedDocIndex = 0
+      state.messages += `${timestamp} [INFO] ${i18nGlobal.t('query.messages.executing')}\n`
+
+      const startTime = Date.now()
 
       try {
         const result = await shellProxy.ExecuteQuery(
@@ -122,18 +155,29 @@ export const useQueryStore = defineStore('query', {
             state.rawOutput = data.rawOutput
           }
           state.activeResultTab = 'results'
+
+          const elapsed = formatDuration(Date.now() - startTime)
+          const docCount = data.documents?.length ?? 0
+          const opType = data.operationType || 'find'
+          const msg = resultMessage(opType, data.affectedCount || docCount, elapsed)
+          const ts = new Date().toLocaleTimeString()
+          state.messages += `${ts} [INFO] ${msg}\n`
         } else {
-          const timestamp = new Date().toLocaleTimeString()
-          state.error = result.error
-          state.messages += `${timestamp} [ERROR] ${result.error}\n`
+          const translated = translateError(result.errorCode, result.errorDetail)
+          state.error = translated
+          const ts = new Date().toLocaleTimeString()
+          state.messages += `${ts} [ERROR] ${translated}\n`
+          if (result.errorDetail && result.errorDetail !== translated) {
+            state.messages += `${ts} [ERROR] ${result.errorDetail}\n`
+          }
           state.activeResultTab = 'messages'
         }
       } catch (e) {
         const notifier = useNotifier()
-        notifier.error(`Query execution failed: ${e}`)
+        notifier.error(String(e))
         state.error = String(e)
-        const timestamp = new Date().toLocaleTimeString()
-        state.messages += `${timestamp} [ERROR] ${String(e)}\n`
+        const ts = new Date().toLocaleTimeString()
+        state.messages += `${ts} [ERROR] ${String(e)}\n`
         state.activeResultTab = 'messages'
       } finally {
         state.loading = false
@@ -150,7 +194,9 @@ export const useQueryStore = defineStore('query', {
       await shellProxy.CancelQuery(serverId)
       const state = this.getQueryState(queryId)
       state.loading = false
-      state.error = i18nGlobal.t('query.queryCancelled')
+      state.error = i18nGlobal.t('errors.query_cancelled')
+      const ts = new Date().toLocaleTimeString()
+      state.messages += `${ts} [WARNING] ${i18nGlobal.t('errors.query_cancelled')}\n`
     },
 
     setFilePath(queryId: string, filePath: string | null) {

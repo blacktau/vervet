@@ -7,7 +7,13 @@ import DocumentTreeTable from '@/features/results-document-tree/DocumentTreeTabl
 import JsonResultView from '@/features/results-json-view/JsonResultView.vue'
 import { NButton, NIcon, NSpace, NSpin, useThemeVars } from 'naive-ui'
 import { PlayIcon, StopIcon } from '@heroicons/vue/24/solid'
-import { CodeBracketIcon, FolderOpenIcon, ArrowDownTrayIcon, DocumentArrowDownIcon } from '@heroicons/vue/24/outline'
+import {
+  CodeBracketIcon,
+  FolderOpenIcon,
+  ArrowDownTrayIcon,
+  DocumentArrowDownIcon,
+  TrashIcon,
+} from '@heroicons/vue/24/outline'
 import ListTreeIcon from '@/features/icon/ListTreeIcon.vue'
 import { ref, onMounted, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -64,6 +70,19 @@ const resizeOffset = computed(() => {
 
 const hasDocuments = computed(() => queryState.value.documents.length > 0)
 const hasRawOutput = computed(() => queryState.value.rawOutput !== '')
+const hasExecuted = computed(() => queryState.value.messages.length > 0)
+const hasNoResults = computed(
+  () =>
+    !queryState.value.error &&
+    !hasDocuments.value &&
+    !hasRawOutput.value &&
+    hasExecuted.value &&
+    !queryState.value.loading,
+)
+
+function clearMessages() {
+  queryState.value.messages = ''
+}
 
 const initialText = queryTabItem.value?.initialText
 const { container: editorContainer, editor } = useMonacoEditor({
@@ -320,8 +339,26 @@ onMounted(async () => {
               </div>
             </template>
             <pre v-else-if="hasRawOutput" class="results-content">{{ queryState.rawOutput }}</pre>
+            <div v-else-if="hasNoResults" class="empty-results">
+              <span class="empty-results-text">{{ t('query.noResults') }}</span>
+            </div>
           </n-tab-pane>
-          <n-tab-pane name="messages" :tab="t('query.messagesTab')">
+          <n-tab-pane name="messages">
+            <template #tab>
+              <div style="display: flex; align-items: center; gap: 4px">
+                {{ t('query.messagesTab') }}
+                <n-button
+                  v-if="queryState.messages"
+                  text
+                  size="tiny"
+                  @click.stop="clearMessages"
+                >
+                  <template #icon>
+                    <n-icon :component="TrashIcon" :size="14" />
+                  </template>
+                </n-button>
+              </div>
+            </template>
             <n-log
               class="messages-log"
               :log="queryState.messages"
@@ -451,6 +488,18 @@ onMounted(async () => {
 
   .results-error {
     color: var(--n-error-color);
+  }
+
+  .empty-results {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    color: var(--n-text-color-3);
+  }
+
+  .empty-results-text {
+    font-size: 14px;
   }
 
   :deep(.messages-log) {
