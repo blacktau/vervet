@@ -7,6 +7,8 @@ import (
 	"sync"
 	"time"
 	"vervet/internal/logging"
+	"vervet/internal/models"
+	"vervet/internal/oidc"
 
 	"go.mongodb.org/mongo-driver/event"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -25,19 +27,21 @@ type ConnectedClient struct {
 }
 
 type ClientRegistry struct {
-	mu      sync.RWMutex
-	ctx     context.Context
-	log     *slog.Logger
-	clients map[string]registeredClient
+	mu           sync.RWMutex
+	ctx          context.Context
+	log          *slog.Logger
+	clients      map[string]registeredClient
+	tokenManager *oidc.TokenManager
 }
 
-func NewClientRegistry(log *slog.Logger) *ClientRegistry {
+func NewClientRegistry(log *slog.Logger, tokenManager *oidc.TokenManager) *ClientRegistry {
 	if log == nil {
 		log = slog.Default()
 	}
 	return &ClientRegistry{
-		log:     log.With(slog.String(logging.SourceKey, "ClientRegistry")),
-		clients: make(map[string]registeredClient),
+		log:          log.With(slog.String(logging.SourceKey, "ClientRegistry")),
+		clients:      make(map[string]registeredClient),
+		tokenManager: tokenManager,
 	}
 }
 
@@ -66,6 +70,86 @@ func (r *ClientRegistry) Connect(serverID, name, uri string) (*mongo.Client, err
 	clientOptions := options.Client().
 		ApplyURI(uri).
 		SetMonitor(monitor)
+	ctx, cancel := context.WithTimeout(r.ctx, 10*time.Second)
+	defer cancel()
+
+	client, err := mongo.Connect(ctx, clientOptions)
+	if err != nil {
+		r.log.Error("Failed to connect to MongoDB",
+			slog.String("serverID", serverID), slog.Any("error", err))
+		return nil, fmt.Errorf("failed to connect to database: %w", err)
+	}
+
+	if err = client.Ping(ctx, nil); err != nil {
+		r.log.Error("Ping failed",
+			slog.String("serverID", serverID), slog.Any("error", err))
+		_ = client.Disconnect(r.ctx)
+		return nil, fmt.Errorf("ping failed, connection invalid: %w", err)
+	}
+
+	r.clients[serverID] = registeredClient{
+		client:   client,
+		serverID: serverID,
+		name:     name,
+	}
+
+	r.log.Info("Registered client",
+		slog.String("serverID", serverID), slog.String("name", name))
+	return client, nil
+}
+
+func (r *ClientRegistry) ConnectWithConfig(serverID, name string, cfg models.ConnectionConfig) (*mongo.Client, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if _, ok := r.clients[serverID]; ok {
+		return nil, fmt.Errorf("already connected to server %s", serverID)
+	}
+
+	monitor := &event.CommandMonitor{
+		Succeeded: func(ctx context.Context, evt *event.CommandSucceededEvent) {
+			if evt.CommandName == "hello" || evt.CommandName == "isMaster" {
+				r.log.Info("Connected to MongoDB",
+					slog.String("connectionID", evt.ConnectionID),
+					slog.Any("reply", evt.Reply))
+			}
+		},
+	}
+
+	clientOptions := options.Client().
+		ApplyURI(cfg.URI).
+		SetMonitor(monitor)
+
+	if cfg.AuthMethod == models.AuthOIDC && cfg.OIDCConfig != nil {
+		credential := options.Credential{
+			AuthMechanism: "MONGODB-OIDC",
+		}
+		if cfg.OIDCConfig.WorkloadIdentity {
+			credential.OIDCMachineCallback = func(ctx context.Context, args *options.OIDCArgs) (*options.OIDCCredential, error) {
+				accessToken, expiresAt, err := r.tokenManager.GetAccessToken(ctx, serverID)
+				if err != nil {
+					return nil, err
+				}
+				return &options.OIDCCredential{
+					AccessToken: accessToken,
+					ExpiresAt:   &expiresAt,
+				}, nil
+			}
+		} else {
+			credential.OIDCHumanCallback = func(ctx context.Context, args *options.OIDCArgs) (*options.OIDCCredential, error) {
+				accessToken, expiresAt, err := r.tokenManager.GetAccessToken(ctx, serverID)
+				if err != nil {
+					return nil, err
+				}
+				return &options.OIDCCredential{
+					AccessToken: accessToken,
+					ExpiresAt:   &expiresAt,
+				}, nil
+			}
+		}
+		clientOptions.SetAuth(credential)
+	}
+
 	ctx, cancel := context.WithTimeout(r.ctx, 10*time.Second)
 	defer cancel()
 
