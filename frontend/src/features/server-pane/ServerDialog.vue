@@ -53,7 +53,7 @@ const authMethod = ref<AuthMethod>('password')
 const oidcConfig = ref<OIDCConfig>({
   providerUrl: '',
   clientId: '',
-  scopes: ['openid'],
+  scopes: [],
   workloadIdentity: false,
 })
 
@@ -177,7 +177,7 @@ const resetForm = () => {
   oidcConfig.value = {
     providerUrl: '',
     clientId: '',
-    scopes: ['openid'],
+    scopes: [],
     workloadIdentity: false,
   }
 }
@@ -237,6 +237,12 @@ function stripAuthMechanism(uri: string): string {
 }
 
 const onTestConnection = async () => {
+  if (authMethod.value === 'oidc') {
+    const notifier = useNotifier()
+    notifier.info(i18n.t('serverPane.dialogs.server.testOIDCUnsupported'))
+    return
+  }
+
   testing.value = true
 
   let testingResult = ''
@@ -350,19 +356,19 @@ const onTestConnection = async () => {
                   <n-form-item-gi
                     :label="$t('serverPane.dialogs.server.oidcProviderUrl')"
                     :span="24">
-                    <n-input v-model:value="oidcConfig.providerUrl" placeholder="https://accounts.google.com" />
+                    <n-input v-model:value="oidcConfig.providerUrl" placeholder="Auto-detected from server" />
                   </n-form-item-gi>
                   <n-form-item-gi
                     :label="$t('serverPane.dialogs.server.oidcClientId')"
                     :span="24">
-                    <n-input v-model:value="oidcConfig.clientId" />
+                    <n-input v-model:value="oidcConfig.clientId" placeholder="Auto-detected from server" />
                   </n-form-item-gi>
                   <n-form-item-gi
                     :label="$t('serverPane.dialogs.server.oidcScopes')"
                     :span="24">
                     <n-input
                       :value="oidcConfig.scopes?.join(', ')"
-                      placeholder="openid"
+                      placeholder="Auto-detected from server"
                       @update:value="(v: string) => oidcConfig.scopes = v.split(',').map(s => s.trim()).filter(Boolean)"
                     />
                   </n-form-item-gi>

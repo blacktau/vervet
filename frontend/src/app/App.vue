@@ -2,7 +2,7 @@
 import { useSettingsStore } from '@/features/settings/settingsStore.ts'
 import { useI18n } from 'vue-i18n'
 import { onMounted, ref, watch } from 'vue'
-import { EventsOn, WindowSetDarkTheme, WindowSetLightTheme } from 'wailsjs/runtime'
+import { WindowSetDarkTheme, WindowSetLightTheme } from 'wailsjs/runtime'
 import { darkTheme, type NLocale } from 'naive-ui'
 import { darkThemeOverrides, themeOverrides } from '@/utils/theme'
 import { useServerStore } from '@/features/server-pane/serverStore.ts'
@@ -40,7 +40,6 @@ const browserStore = useDataBrowserStore()
 const dialogStore = useDialogStore()
 
 const i18n = useI18n()
-const notification = useNotification()
 const initializing = ref(true)
 
 const locale = ref<NLocale | undefined>(undefined)
@@ -55,16 +54,6 @@ onMounted(async () => {
   } finally {
     initializing.value = false
   }
-})
-
-EventsOn('oidc-reauth-required', (serverID: string) => {
-  const server = serverStore.findServerById(serverID)
-  const name = server?.name ?? serverID
-  notification.warning({
-    title: i18n.t('oidc.reAuthTitle'),
-    content: i18n.t('oidc.reAuthMessage', { name }),
-    duration: 10000,
-  })
 })
 
 watch(
@@ -103,17 +92,19 @@ watch(
     :theme="settingsStore.isDark ? darkTheme : undefined"
     :theme-overrides="settingsStore.isDark ? darkThemeOverrides : themeOverrides"
     class="fill-height">
-    <n-dialog-provider>
-      <app-content :loading="initializing" />
-      <server-dialog v-if="dialogStore.isVisible(DialogType.Server)" />
-      <group-dialog v-if="dialogStore.isVisible(DialogType.Group)" />
-      <settings-dialog v-if="dialogStore.isVisible(DialogType.Settings)" />
-      <about-dialog v-if="dialogStore.isVisible(DialogType.About)" />
-      <add-database-dialog v-if="dialogStore.isVisible(DialogType.AddDatabase)" />
-      <add-collection-dialog v-if="dialogStore.isVisible(DialogType.AddCollection)" />
-      <create-index-dialog v-if="dialogStore.isVisible(DialogType.CreateIndex)" />
-      <rename-collection-dialog v-if="dialogStore.isVisible(DialogType.RenameCollection)" />
-    </n-dialog-provider>
+    <n-notification-provider>
+      <n-dialog-provider>
+        <app-content :loading="initializing" />
+        <server-dialog v-if="dialogStore.isVisible(DialogType.Server)" />
+        <group-dialog v-if="dialogStore.isVisible(DialogType.Group)" />
+        <settings-dialog v-if="dialogStore.isVisible(DialogType.Settings)" />
+        <about-dialog v-if="dialogStore.isVisible(DialogType.About)" />
+        <add-database-dialog v-if="dialogStore.isVisible(DialogType.AddDatabase)" />
+        <add-collection-dialog v-if="dialogStore.isVisible(DialogType.AddCollection)" />
+        <create-index-dialog v-if="dialogStore.isVisible(DialogType.CreateIndex)" />
+        <rename-collection-dialog v-if="dialogStore.isVisible(DialogType.RenameCollection)" />
+      </n-dialog-provider>
+    </n-notification-provider>
   </n-config-provider>
 </template>
 

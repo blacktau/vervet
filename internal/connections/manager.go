@@ -11,7 +11,6 @@ import (
 	"vervet/internal/connectionStrings"
 	"vervet/internal/logging"
 	"vervet/internal/models"
-	"vervet/internal/oidc"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
@@ -31,21 +30,19 @@ type ConnectionManager struct {
 	store          connectionStrings.Store
 	serverProvider ServerProvider
 	log            *slog.Logger
-	tokenManager   *oidc.TokenManager
 }
 
 type ServerProvider interface {
 	GetServer(id string) (*models.RegisteredServer, error)
 }
 
-func NewManager(log *slog.Logger, registry *clientregistry.ClientRegistry, store connectionStrings.Store, provider ServerProvider, tokenManager *oidc.TokenManager) *ConnectionManager {
+func NewManager(log *slog.Logger, registry *clientregistry.ClientRegistry, store connectionStrings.Store, provider ServerProvider) *ConnectionManager {
 	log = log.With(slog.String(logging.SourceKey, "ConnectionManager"))
 	return &ConnectionManager{
 		log:            log,
 		registry:       registry,
 		store:          store,
 		serverProvider: provider,
-		tokenManager:   tokenManager,
 	}
 }
 
@@ -77,10 +74,13 @@ func (cm *ConnectionManager) Connect(serverID string) (models.Connection, error)
 		return models.Connection{}, fmt.Errorf("error retrieving connection config: %w", err)
 	}
 
+	cm.log.Info("Connection config retrieved",
+		slog.String("serverID", serverID),
+		slog.String("authMethod", string(cfg.AuthMethod)),
+		slog.Bool("hasOIDCConfig", cfg.OIDCConfig != nil))
+
 	if cfg.AuthMethod == models.AuthOIDC {
-		if err := cm.tokenManager.Authenticate(cm.ctx, serverID); err != nil {
-			return models.Connection{}, fmt.Errorf("OIDC authentication failed: %w", err)
-		}
+		cm.log.Info("Connecting with OIDC authentication", slog.String("serverID", serverID))
 		_, err = cm.registry.ConnectWithConfig(serverID, server.Name, cfg)
 	} else {
 		_, err = cm.registry.Connect(serverID, server.Name, cfg.URI)

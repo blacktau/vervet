@@ -45,12 +45,11 @@ func (tm *TokenManager) browserLogin(ctx context.Context, providerURL, clientID 
 		return nil, fmt.Errorf("OIDC discovery failed for %s: %w", providerURL, err)
 	}
 
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	listener, err := net.Listen("tcp", "127.0.0.1:27097")
 	if err != nil {
 		return nil, fmt.Errorf("failed to start callback listener: %w", err)
 	}
-	port := listener.Addr().(*net.TCPAddr).Port
-	redirectURL := fmt.Sprintf("http://localhost:%d/callback", port)
+	redirectURL := "http://localhost:27097/redirect"
 
 	oauth2Cfg := &oauth2.Config{
 		ClientID:    clientID,
@@ -75,7 +74,7 @@ func (tm *TokenManager) browserLogin(ctx context.Context, providerURL, clientID 
 	errCh := make(chan error, 1)
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/redirect", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("state") != state {
 			errCh <- fmt.Errorf("state mismatch")
 			http.Error(w, "State mismatch", http.StatusBadRequest)
@@ -98,11 +97,13 @@ func (tm *TokenManager) browserLogin(ctx context.Context, providerURL, clientID 
 			return
 		}
 
+		accessToken := token.AccessToken
+
 		w.Header().Set("Content-Type", "text/html")
 		fmt.Fprint(w, "<html><body><h2>Authentication successful</h2><p>You can close this tab.</p></body></html>")
 
 		resultCh <- &BrowserFlowResult{
-			AccessToken:  token.AccessToken,
+			AccessToken:  accessToken,
 			RefreshToken: token.RefreshToken,
 			ExpiresAt:    token.Expiry,
 		}
@@ -120,7 +121,7 @@ func (tm *TokenManager) browserLogin(ctx context.Context, providerURL, clientID 
 		tm.openBrowser(authURL)
 	}
 
-	timeout := time.After(2 * time.Minute)
+	timeout := time.After(5 * time.Minute)
 	defer server.Close()
 
 	select {

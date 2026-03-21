@@ -58,10 +58,10 @@ func NewApp(log *slog.Logger) *App {
 		log.Error("Failed to initialize server store", slog.Any("error", err))
 		panic(fmt.Errorf("failed to initialize server store: %w", err))
 	}
-	tokenManager := oidc.NewTokenManager(connectionStringsStore)
+	tokenManager := oidc.NewTokenManager(log, connectionStringsStore)
 	serverService := servers.NewService(log, serverStore, connectionStringsStore, tokenManager)
 	registry := clientregistry.NewClientRegistry(log, tokenManager)
-	connectionManager := connections.NewManager(log, registry, connectionStringsStore, serverService, tokenManager)
+	connectionManager := connections.NewManager(log, registry, connectionStringsStore, serverService)
 	databasesService := databases.NewDatabasesService(log, registry)
 	indexService := indexes.NewIndexService(log, registry)
 	collectionsService := collections.NewCollectionsService(log, registry)

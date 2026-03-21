@@ -120,37 +120,26 @@ func (r *ClientRegistry) ConnectWithConfig(serverID, name string, cfg models.Con
 		ApplyURI(cfg.URI).
 		SetMonitor(monitor)
 
-	if cfg.AuthMethod == models.AuthOIDC && cfg.OIDCConfig != nil {
+	if cfg.AuthMethod == models.AuthOIDC {
 		credential := options.Credential{
 			AuthMechanism: "MONGODB-OIDC",
+			AuthMechanismProperties: map[string]string{
+				"ALLOWED_HOSTS": "*",
+			},
 		}
-		if cfg.OIDCConfig.WorkloadIdentity {
-			credential.OIDCMachineCallback = func(ctx context.Context, args *options.OIDCArgs) (*options.OIDCCredential, error) {
-				accessToken, expiresAt, err := r.tokenManager.GetAccessToken(ctx, serverID)
-				if err != nil {
-					return nil, err
-				}
-				return &options.OIDCCredential{
-					AccessToken: accessToken,
-					ExpiresAt:   &expiresAt,
-				}, nil
-			}
+		if cfg.OIDCConfig != nil && cfg.OIDCConfig.WorkloadIdentity {
+			credential.OIDCMachineCallback = r.tokenManager.MachineCallback(serverID)
 		} else {
-			credential.OIDCHumanCallback = func(ctx context.Context, args *options.OIDCArgs) (*options.OIDCCredential, error) {
-				accessToken, expiresAt, err := r.tokenManager.GetAccessToken(ctx, serverID)
-				if err != nil {
-					return nil, err
-				}
-				return &options.OIDCCredential{
-					AccessToken: accessToken,
-					ExpiresAt:   &expiresAt,
-				}, nil
-			}
+			credential.OIDCHumanCallback = r.tokenManager.HumanCallback(serverID, cfg.OIDCConfig)
 		}
 		clientOptions.SetAuth(credential)
 	}
 
-	ctx, cancel := context.WithTimeout(r.ctx, 10*time.Second)
+	connectTimeout := 10 * time.Second
+	if cfg.AuthMethod == models.AuthOIDC {
+		connectTimeout = 5 * time.Minute
+	}
+	ctx, cancel := context.WithTimeout(r.ctx, connectTimeout)
 	defer cancel()
 
 	client, err := mongo.Connect(ctx, clientOptions)
@@ -164,6 +153,9 @@ func (r *ClientRegistry) ConnectWithConfig(serverID, name string, cfg models.Con
 		r.log.Error("Ping failed",
 			slog.String("serverID", serverID), slog.Any("error", err))
 		_ = client.Disconnect(r.ctx)
+		if cfg.AuthMethod == models.AuthOIDC {
+			r.tokenManager.CleanupServer(serverID)
+		}
 		return nil, fmt.Errorf("ping failed, connection invalid: %w", err)
 	}
 
