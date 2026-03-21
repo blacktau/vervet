@@ -9,7 +9,7 @@ import (
 
 func TestNewClientRegistry(t *testing.T) {
 	t.Run("creates registry with empty clients map", func(t *testing.T) {
-		reg := NewClientRegistry(nil)
+		reg := NewClientRegistry(nil, nil)
 		assert.NotNil(t, reg)
 		assert.False(t, reg.IsConnected("nonexistent"))
 	})
@@ -17,7 +17,7 @@ func TestNewClientRegistry(t *testing.T) {
 
 func TestClientRegistry_Connect_GetClient(t *testing.T) {
 	t.Run("GetClient returns error for unknown serverID", func(t *testing.T) {
-		reg := NewClientRegistry(nil)
+		reg := NewClientRegistry(nil, nil)
 		reg.Init(context.Background())
 
 		_, err := reg.GetClient("unknown")
@@ -27,7 +27,7 @@ func TestClientRegistry_Connect_GetClient(t *testing.T) {
 
 func TestClientRegistry_IsConnected(t *testing.T) {
 	t.Run("returns false for unknown serverID", func(t *testing.T) {
-		reg := NewClientRegistry(nil)
+		reg := NewClientRegistry(nil, nil)
 		assert.False(t, reg.IsConnected("unknown"))
 	})
 }
