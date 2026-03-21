@@ -14,6 +14,9 @@ type ServersProvider interface {
 	CreateGroup(parentID, name string) error
 	UpdateGroup(groupID, name, parentID string) error
 	GetServer(id string) (*models.RegisteredServer, error)
+	AddServerWithConfig(parentID, name, colour string, cfg models.ConnectionConfig) error
+	UpdateServerWithConfig(serverID, name, parentID, colour string, cfg models.ConnectionConfig) error
+	GetConnectionConfig(serverID string) (models.ConnectionConfig, error)
 }
 
 // ServersProxy exposes the ServerService to the UI
@@ -108,6 +111,32 @@ func (sp *ServersProxy) RemoveNode(id string) EmptyResult {
 		return Error(fmt.Sprintf("Error removing node: %v", err))
 	}
 	return Success()
+}
+
+func (sp *ServersProxy) SaveServerWithConfig(parentID, name, colour string, cfg models.ConnectionConfig) EmptyResult {
+	err := sp.sm.AddServerWithConfig(parentID, name, colour, cfg)
+	if err != nil {
+		return Error(err.Error())
+	}
+	return Success()
+}
+
+func (sp *ServersProxy) UpdateServerWithConfig(serverID, name, parentID, colour string, cfg models.ConnectionConfig) EmptyResult {
+	err := sp.sm.UpdateServerWithConfig(serverID, name, parentID, colour, cfg)
+	if err != nil {
+		return Error(err.Error())
+	}
+	return Success()
+}
+
+func (sp *ServersProxy) GetConnectionConfig(id string) Result[models.ConnectionConfig] {
+	cfg, err := sp.sm.GetConnectionConfig(id)
+	if err != nil {
+		return Result[models.ConnectionConfig]{IsSuccess: false, Error: err.Error()}
+	}
+	// Strip refresh token — sensitive credential should not reach the frontend
+	cfg.RefreshToken = ""
+	return Result[models.ConnectionConfig]{IsSuccess: true, Data: cfg}
 }
 
 func (sp *ServersProxy) GetURI(id string) Result[string] {
