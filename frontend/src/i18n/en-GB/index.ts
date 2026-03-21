@@ -326,6 +326,17 @@ export default {
         testFailure: 'Failed to connect to server',
         testSuccess: 'Successfully connected to server',
         colour: 'Colour',
+        authMethod: 'Authentication',
+        authNone: 'None',
+        authPassword: 'Password (URI)',
+        authX509: 'X.509 Certificate',
+        authOIDC: 'OIDC',
+        authAWS: 'AWS IAM',
+        oidcProviderUrl: 'Provider URL',
+        oidcClientId: 'Client ID',
+        oidcScopes: 'Scopes',
+        oidcWorkloadIdentity: 'Workload Identity',
+        oidcWorkloadIdentityDesc: 'Use environment credentials (Azure/GCP)',
       },
       group: {
         edit: 'Edit Group',
@@ -343,6 +354,10 @@ export default {
     addGroup: 'Add Group',
     filter: 'Filter',
     typeName: 'Server',
+  },
+  oidc: {
+    reAuthTitle: 'Session Expired',
+    reAuthMessage: 'OIDC session expired for {name}. Reconnect to re-authenticate.',
   },
   dialog: {
     common: {},

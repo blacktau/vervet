@@ -4,6 +4,7 @@ import { type models } from 'wailsjs/go/models.ts'
 import { isEmpty } from 'lodash'
 import { useNotifier } from '@/utils/dialog.ts'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
+import type { ConnectionConfig } from '@/types/ConnectionConfig'
 
 export interface RegisteredServerNode extends models.RegisteredServer {
   children?: RegisteredServerNode[]
@@ -80,16 +81,27 @@ export const useServerStore = defineStore('server', {
         return undefined
       }
 
-      const uriResponse = await serversProxy.GetURI(id)
-      if (!uriResponse.isSuccess) {
-        const notifier = useNotifier()
-        notifier.error(`error retrieving server URI: ${uriResponse.error}`)
-        return undefined
+      const configResult = await serversProxy.GetConnectionConfig(id)
+      if (!configResult.isSuccess) {
+        // Fallback to legacy URI fetch
+        const uriResponse = await serversProxy.GetURI(id)
+        if (!uriResponse.isSuccess) {
+          const notifier = useNotifier()
+          notifier.error(`error retrieving server URI: ${uriResponse.error}`)
+          return undefined
+        }
+        return {
+          ...response.data,
+          uri: uriResponse.data,
+          authMethod: 'password' as const,
+        }
       }
 
       return {
         ...response.data,
-        uri: uriResponse.data,
+        uri: configResult.data.uri,
+        authMethod: configResult.data.authMethod,
+        oidcConfig: configResult.data.oidcConfig,
       }
     },
     async saveServer(name: string, connectionString: string, parentId?: string, colour?: string) {
@@ -103,6 +115,14 @@ export const useServerStore = defineStore('server', {
         return { success: false, msg: result.error }
       }
 
+      await this.refreshServers(true)
+      return { success: true }
+    },
+    async saveServerWithConfig(name: string, parentId: string, colour: string, config: ConnectionConfig) {
+      const result = await serversProxy.SaveServerWithConfig(parentId, name, colour, config)
+      if (!result.isSuccess) {
+        return { success: false, msg: result.error }
+      }
       await this.refreshServers(true)
       return { success: true }
     },
@@ -127,6 +147,17 @@ export const useServerStore = defineStore('server', {
         return { success: false, msg: result.error }
       }
 
+      await this.refreshServers(true)
+      return { success: true }
+    },
+    async updateServerWithConfig(serverId: string | null, name: string, parentId: string, colour: string, config: ConnectionConfig) {
+      if (serverId == null) {
+        return { success: false, msg: 'serverId is required' }
+      }
+      const result = await serversProxy.UpdateServerWithConfig(serverId, name, parentId, colour, config)
+      if (!result.isSuccess) {
+        return { success: false, msg: result.error }
+      }
       await this.refreshServers(true)
       return { success: true }
     },

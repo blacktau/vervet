@@ -11,6 +11,7 @@ import { useMessager, useNotifier } from '@/utils/dialog.ts'
 import { parseUri } from '@/features/server-pane/connectionStrings.ts'
 import { filterGroupMap } from '@/features/server-pane/helpers.ts'
 import * as connectionsProxy from 'wailsjs/go/api/ConnectionsProxy'
+import type { AuthMethod, OIDCConfig } from '@/types/ConnectionConfig'
 
 type EditableRegisteredServer = {
   id: string
@@ -48,6 +49,13 @@ const generalForm = ref<EditableRegisteredServer>({
 
 const generalFormRef = ref<FormInst | undefined>(undefined)
 const testing = ref(false)
+const authMethod = ref<AuthMethod>('password')
+const oidcConfig = ref<OIDCConfig>({
+  providerUrl: '',
+  clientId: '',
+  scopes: ['openid'],
+  workloadIdentity: false,
+})
 
 const generalFormRules = () => {
   const requiredMsg = i18n.t('common.dialog.fieldRequired')
@@ -94,25 +102,31 @@ const onSaveServer = async () => {
     }
   })
 
+  const cfg = {
+    uri: generalForm.value.connectionString,
+    authMethod: authMethod.value,
+    oidcConfig: authMethod.value === 'oidc' ? { ...oidcConfig.value } : undefined,
+  }
+
   const messager = useMessager()
   if (!isEditMode.value) {
-    const result = await serverStore.saveServer(
+    const result = await serverStore.saveServerWithConfig(
       generalForm.value.name,
-      generalForm.value.connectionString,
       generalForm.value.parentId,
       generalForm.value.colour,
+      cfg,
     )
     if (!result.success) {
       messager.error(result.msg || 'unknown error')
       return
     }
   } else {
-    const result = await serverStore.updateServer(
+    const result = await serverStore.updateServerWithConfig(
       editServerID.value || null,
       generalForm.value.name,
-      generalForm.value.connectionString,
       generalForm.value.parentId,
       generalForm.value.colour,
+      cfg,
     )
     if (!result.success) {
       messager.error(result.msg || 'unknown error')
@@ -159,6 +173,13 @@ const resetForm = () => {
   }
   generalFormRef.value?.restoreValidation()
   testing.value = false
+  authMethod.value = 'password'
+  oidcConfig.value = {
+    providerUrl: '',
+    clientId: '',
+    scopes: ['openid'],
+    workloadIdentity: false,
+  }
 }
 
 watch(
@@ -178,12 +199,42 @@ watch(
             connectionString: server.uri,
             parentId: server.parentID || '',
           }
+          authMethod.value = server.authMethod ?? 'password'
+          if (server.oidcConfig) {
+            oidcConfig.value = { ...server.oidcConfig }
+          }
         }
       }
     }
   },
   { immediate: true },
 )
+
+watch(
+  () => generalForm.value.connectionString,
+  (uri) => {
+    if (!uri) {
+      return
+    }
+    const lower = uri.toLowerCase()
+    if (lower.includes('authmechanism=mongodb-oidc')) {
+      authMethod.value = 'oidc'
+      generalForm.value.connectionString = stripAuthMechanism(uri)
+    } else if (lower.includes('authmechanism=mongodb-x509')) {
+      authMethod.value = 'x509'
+    } else if (lower.includes('authmechanism=mongodb-aws')) {
+      authMethod.value = 'aws'
+    }
+  },
+)
+
+function stripAuthMechanism(uri: string): string {
+  return uri
+    .replace(/[?&]authMechanism=[^&]*/gi, '')
+    .replace(/[?&]authMechanismProperties=[^&]*/gi, '')
+    .replace(/\?&/, '?')
+    .replace(/\?$/, '')
+}
 
 const onTestConnection = async () => {
   testing.value = true
@@ -273,6 +324,50 @@ const onTestConnection = async () => {
                   v-model:value="generalForm.connectionString"
                   :placeholder="$t('serverPane.dialogs.server.connectionStringTip')" />
               </n-form-item-gi>
+              <n-form-item-gi
+                :label="$t('serverPane.dialogs.server.authMethod')"
+                :span="24">
+                <n-select
+                  v-model:value="authMethod"
+                  :options="[
+                    { label: $t('serverPane.dialogs.server.authNone'), value: 'none' },
+                    { label: $t('serverPane.dialogs.server.authPassword'), value: 'password' },
+                    { label: $t('serverPane.dialogs.server.authX509'), value: 'x509' },
+                    { label: $t('serverPane.dialogs.server.authOIDC'), value: 'oidc' },
+                    { label: $t('serverPane.dialogs.server.authAWS'), value: 'aws' },
+                  ]"
+                />
+              </n-form-item-gi>
+              <template v-if="authMethod === 'oidc'">
+                <n-form-item-gi
+                  :label="$t('serverPane.dialogs.server.oidcWorkloadIdentity')"
+                  :span="24">
+                  <n-checkbox v-model:checked="oidcConfig.workloadIdentity">
+                    {{ $t('serverPane.dialogs.server.oidcWorkloadIdentityDesc') }}
+                  </n-checkbox>
+                </n-form-item-gi>
+                <template v-if="!oidcConfig.workloadIdentity">
+                  <n-form-item-gi
+                    :label="$t('serverPane.dialogs.server.oidcProviderUrl')"
+                    :span="24">
+                    <n-input v-model:value="oidcConfig.providerUrl" placeholder="https://accounts.google.com" />
+                  </n-form-item-gi>
+                  <n-form-item-gi
+                    :label="$t('serverPane.dialogs.server.oidcClientId')"
+                    :span="24">
+                    <n-input v-model:value="oidcConfig.clientId" />
+                  </n-form-item-gi>
+                  <n-form-item-gi
+                    :label="$t('serverPane.dialogs.server.oidcScopes')"
+                    :span="24">
+                    <n-input
+                      :value="oidcConfig.scopes?.join(', ')"
+                      placeholder="openid"
+                      @update:value="(v: string) => oidcConfig.scopes = v.split(',').map(s => s.trim()).filter(Boolean)"
+                    />
+                  </n-form-item-gi>
+                </template>
+              </template>
               <n-form-item-gi
                 :label="$t('serverPane.dialogs.server.colour')"
                 :span="24"
