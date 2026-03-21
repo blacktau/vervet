@@ -14,6 +14,7 @@ import (
 	"vervet/internal/files"
 	"vervet/internal/indexes"
 	"vervet/internal/models"
+	"vervet/internal/oidc"
 	"vervet/internal/queryexecutor"
 	"vervet/internal/servers"
 	"vervet/internal/settings"
@@ -43,6 +44,7 @@ type App struct {
 	indexService       *indexes.IndexService
 	collectionsService *collections.CollectionsService
 	queryExecutor      *queryexecutor.QueryExecutor
+	tokenManager       *oidc.TokenManager
 	settingsService    settings.Service
 	systemService      *system.Service
 	filesService       *files.Service
@@ -57,8 +59,9 @@ func NewApp(log *slog.Logger) *App {
 		panic(fmt.Errorf("failed to initialize server store: %w", err))
 	}
 	serverService := servers.NewService(log, serverStore, connectionStringsStore)
-	registry := clientregistry.NewClientRegistry(log)
-	connectionManager := connections.NewManager(log, registry, connectionStringsStore, serverService)
+	tokenManager := oidc.NewTokenManager(connectionStringsStore)
+	registry := clientregistry.NewClientRegistry(log, tokenManager)
+	connectionManager := connections.NewManager(log, registry, connectionStringsStore, serverService, tokenManager)
 	databasesService := databases.NewDatabasesService(log, registry)
 	indexService := indexes.NewIndexService(log, registry)
 	collectionsService := collections.NewCollectionsService(log, registry)
@@ -77,6 +80,7 @@ func NewApp(log *slog.Logger) *App {
 		indexService:       indexService,
 		collectionsService: collectionsService,
 		queryExecutor:      queryExecutor,
+		tokenManager:       tokenManager,
 		settingsService:    settingsService,
 		systemService:      systemService,
 		filesService:       filesService,
@@ -97,6 +101,10 @@ func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
 
 	a.serverService.Init(ctx)
+
+	a.tokenManager.SetOpenBrowser(func(url string) {
+		wailsRuntime.BrowserOpenURL(ctx, url)
+	})
 
 	a.registry.Init(ctx)
 
