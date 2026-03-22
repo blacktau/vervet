@@ -12,6 +12,7 @@ import {
   BugAntIcon,
   CircleStackIcon,
   Cog8ToothIcon,
+  FolderIcon,
   ServerIcon,
   WrenchScrewdriverIcon,
 } from '@heroicons/vue/24/outline'
@@ -54,6 +55,11 @@ const menuOptions = computed(() => {
       label: 'ribbon.servers',
       key: 'servers',
       icon: ServerIcon,
+    },
+    {
+      label: 'ribbon.workspaces',
+      key: 'workspaces',
+      icon: FolderIcon,
     },
   ]
 })
