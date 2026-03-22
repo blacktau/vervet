@@ -22,7 +22,10 @@ interface DirectoryEntry {
   isDirectory: boolean
 }
 
-function entriesToTreeOptions(entries: DirectoryEntry[]): TreeOption[] {
+function entriesToTreeOptions(entries: DirectoryEntry[] | null): TreeOption[] {
+  if (!entries) {
+    return []
+  }
   return entries.map((entry) => ({
     key: entry.path,
     label: entry.name,
