@@ -3,7 +3,7 @@ import { h, ref } from 'vue'
 import { NInput, type TreeOption } from 'naive-ui'
 import { useWorkspaceStore } from '@/features/workspaces/workspaceStore'
 import { useDialoger } from '@/utils/dialog'
-import { useDialogStore, DialogType } from '@/stores/dialog'
+import { useDialogStore } from '@/stores/dialog'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
