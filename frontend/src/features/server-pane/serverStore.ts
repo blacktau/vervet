@@ -4,6 +4,7 @@ import { type models } from 'wailsjs/go/models.ts'
 import { isEmpty } from 'lodash'
 import { useNotifier } from '@/utils/dialog.ts'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
+import { i18nGlobal } from '@/i18n'
 import type { ConnectionConfig } from '@/types/ConnectionConfig'
 
 export interface RegisteredServerNode extends models.RegisteredServer {
@@ -33,7 +34,7 @@ export const useServerStore = defineStore('server', {
 
       if (!result.isSuccess) {
         const notifier = useNotifier()
-        notifier.error(`error retrieving registered servers: ${result.error}`)
+        notifier.error(i18nGlobal.t(`errors.${result.errorCode}`), { title: i18nGlobal.t('errorTitles.loadServers'), detail: result.errorDetail })
         return
       }
 
@@ -77,7 +78,7 @@ export const useServerStore = defineStore('server', {
       const response = await serversProxy.GetServer(id)
       if (!response.isSuccess) {
         const notifier = useNotifier()
-        notifier.error(`error retrieving registered server: ${response.error}`)
+        notifier.error(i18nGlobal.t(`errors.${response.errorCode}`), { title: i18nGlobal.t('errorTitles.loadServerDetails'), detail: response.errorDetail })
         return undefined
       }
 
@@ -87,7 +88,7 @@ export const useServerStore = defineStore('server', {
         const uriResponse = await serversProxy.GetURI(id)
         if (!uriResponse.isSuccess) {
           const notifier = useNotifier()
-          notifier.error(`error retrieving server URI: ${uriResponse.error}`)
+          notifier.error(i18nGlobal.t(`errors.${uriResponse.errorCode}`), { title: i18nGlobal.t('errorTitles.loadServerDetails'), detail: uriResponse.errorDetail })
           return undefined
         }
         return {
@@ -112,7 +113,7 @@ export const useServerStore = defineStore('server', {
         colour || '',
       )
       if (!result.isSuccess) {
-        return { success: false, msg: result.error }
+        return { success: false, msg: i18nGlobal.t(`errors.${result.errorCode}`) }
       }
 
       await this.refreshServers(true)
@@ -121,7 +122,7 @@ export const useServerStore = defineStore('server', {
     async saveServerWithConfig(name: string, parentId: string, colour: string, config: ConnectionConfig) {
       const result = await serversProxy.SaveServerWithConfig(parentId, name, colour, config)
       if (!result.isSuccess) {
-        return { success: false, msg: result.error }
+        return { success: false, msg: i18nGlobal.t(`errors.${result.errorCode}`) }
       }
       await this.refreshServers(true)
       return { success: true }
@@ -144,7 +145,7 @@ export const useServerStore = defineStore('server', {
         colour || '',
       )
       if (!result.isSuccess) {
-        return { success: false, msg: result.error }
+        return { success: false, msg: i18nGlobal.t(`errors.${result.errorCode}`) }
       }
 
       await this.refreshServers(true)
@@ -156,7 +157,7 @@ export const useServerStore = defineStore('server', {
       }
       const result = await serversProxy.UpdateServerWithConfig(serverId, name, parentId, colour, config)
       if (!result.isSuccess) {
-        return { success: false, msg: result.error }
+        return { success: false, msg: i18nGlobal.t(`errors.${result.errorCode}`) }
       }
       await this.refreshServers(true)
       return { success: true }
@@ -166,7 +167,7 @@ export const useServerStore = defineStore('server', {
       await browserStore.disconnect(serverId)
       const result = await serversProxy.RemoveNode(serverId)
       if (!result.isSuccess) {
-        return { success: false, msg: result.error }
+        return { success: false, msg: i18nGlobal.t(`errors.${result.errorCode}`) }
       }
       await this.refreshServers(true)
       return { success: true }
@@ -174,7 +175,7 @@ export const useServerStore = defineStore('server', {
     async createGroup(name: string, parentId?: string) {
       const result = await serversProxy.CreateGroup(name, parentId || '')
       if (!result.isSuccess) {
-        return { success: false, msg: result.error }
+        return { success: false, msg: i18nGlobal.t(`errors.${result.errorCode}`) }
       }
       await this.refreshServers(true)
       return { success: true }
@@ -191,7 +192,7 @@ export const useServerStore = defineStore('server', {
 
       const result = await serversProxy.UpdateGroup(groupId, newName, parentId || '')
       if (!result.isSuccess) {
-        return { success: false, msg: result.error }
+        return { success: false, msg: i18nGlobal.t(`errors.${result.errorCode}`) }
       }
 
       await this.refreshServers(true)
@@ -200,7 +201,7 @@ export const useServerStore = defineStore('server', {
     async deleteGroup(groupId: string) {
       const result = await serversProxy.RemoveNode(groupId)
       if (!result.isSuccess) {
-        return { success: false, msg: result.error }
+        return { success: false, msg: i18nGlobal.t(`errors.${result.errorCode}`) }
       }
       await this.refreshServers(true)
       return { success: true }

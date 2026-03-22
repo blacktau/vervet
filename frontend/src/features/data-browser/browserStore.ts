@@ -5,6 +5,7 @@ import * as collectionsProxy from 'wailsjs/go/api/CollectionsProxy'
 import * as databasesProxy from 'wailsjs/go/api/DatabasesProxy'
 import { useTabStore } from '@/features/tabs/tabs.ts'
 import { useNotifier } from '@/utils/dialog.ts'
+import { i18nGlobal } from '@/i18n'
 import { type models } from 'wailsjs/go/models.ts'
 import { DataNodeType, type DataTreeNode } from '@/features/data-browser/types.ts'
 
@@ -348,7 +349,7 @@ export const useDataBrowserStore = defineStore('browser', {
       }
 
       const notifier = useNotifier()
-      notifier.error(`error retrieving databases: ${databases.error}`)
+      notifier.error(i18nGlobal.t(`errors.${databases.errorCode}`), { title: i18nGlobal.t('errorTitles.listDatabases'), detail: databases.errorDetail })
       return []
     },
     async getCollectionList(
@@ -377,7 +378,7 @@ export const useDataBrowserStore = defineStore('browser', {
       }
 
       const notifier = useNotifier()
-      notifier.error(`error retrieving collections: ${collections.error}`)
+      notifier.error(i18nGlobal.t(`errors.${collections.errorCode}`), { title: i18nGlobal.t('errorTitles.listCollections'), detail: collections.errorDetail })
       return []
     },
     async getViewList(serverId: string, dbName: string, force: boolean = false): Promise<string[]> {
@@ -402,7 +403,7 @@ export const useDataBrowserStore = defineStore('browser', {
       }
 
       const notifier = useNotifier()
-      notifier.error(`error retrieving views: ${views.error}`)
+      notifier.error(i18nGlobal.t(`errors.${views.errorCode}`), { title: i18nGlobal.t('errorTitles.listViews'), detail: views.errorDetail })
       return []
     },
     findDatabase(serverId: string, dbName: string): Database | undefined {
@@ -462,7 +463,7 @@ export const useDataBrowserStore = defineStore('browser', {
       const result = await connectionsProxy.Connect(serverId)
       if (!result.isSuccess) {
         const notifier = useNotifier()
-        notifier.error(`error connecting to server: ${result.error}`)
+        notifier.error(i18nGlobal.t(`errors.${result.errorCode}`), { title: i18nGlobal.t('errorTitles.connect'), detail: result.errorDetail })
         return {
           success: false,
         }

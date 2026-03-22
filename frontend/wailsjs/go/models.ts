@@ -7,7 +7,8 @@ export namespace api {
 	}
 	export interface EmptyResult {
 	    isSuccess: boolean;
-	    error: string;
+	    errorCode?: string;
+	    errorDetail?: string;
 	}
 	export interface FileFilter {
 	    displayName: string;
@@ -16,87 +17,104 @@ export namespace api {
 	export interface Result__vervet_internal_models_Settings_ {
 	    isSuccess: boolean;
 	    data?: models.Settings;
-	    error: string;
+	    errorCode?: string;
+	    errorDetail?: string;
 	}
 	export interface Result___string_ {
 	    isSuccess: boolean;
 	    data: string[];
-	    error: string;
+	    errorCode?: string;
+	    errorDetail?: string;
 	}
 	export interface Result___vervet_internal_models_Connection_ {
 	    isSuccess: boolean;
 	    data: models.Connection[];
-	    error: string;
+	    errorCode?: string;
+	    errorDetail?: string;
 	}
 	export interface Result___vervet_internal_models_Font_ {
 	    isSuccess: boolean;
 	    data: models.Font[];
-	    error: string;
+	    errorCode?: string;
+	    errorDetail?: string;
 	}
 	export interface Result___vervet_internal_models_Index_ {
 	    isSuccess: boolean;
 	    data: models.Index[];
-	    error: string;
+	    errorCode?: string;
+	    errorDetail?: string;
 	}
 	export interface Result___vervet_internal_models_RegisteredServer_ {
 	    isSuccess: boolean;
 	    data: models.RegisteredServer[];
-	    error: string;
+	    errorCode?: string;
+	    errorDetail?: string;
 	}
 	export interface Result_bool_ {
 	    isSuccess: boolean;
 	    data: boolean;
-	    error: string;
+	    errorCode?: string;
+	    errorDetail?: string;
 	}
 	export interface Result_map_string_interface____ {
 	    isSuccess: boolean;
 	    data: Record<string, any>;
-	    error: string;
+	    errorCode?: string;
+	    errorDetail?: string;
 	}
 	export interface Result_string_ {
 	    isSuccess: boolean;
 	    data: string;
-	    error: string;
+	    errorCode?: string;
+	    errorDetail?: string;
 	}
 	export interface Result_vervet_internal_api_OperatingSystem_ {
 	    isSuccess: boolean;
 	    data: OperatingSystem;
-	    error: string;
+	    errorCode?: string;
+	    errorDetail?: string;
 	}
 	export interface Result_vervet_internal_models_CollectionSchema_ {
 	    isSuccess: boolean;
 	    data: models.CollectionSchema;
-	    error: string;
+	    errorCode?: string;
+	    errorDetail?: string;
 	}
 	export interface Result_vervet_internal_models_ConnectionConfig_ {
 	    isSuccess: boolean;
 	    data: models.ConnectionConfig;
-	    error: string;
+	    errorCode?: string;
+	    errorDetail?: string;
 	}
 	export interface Result_vervet_internal_models_Connection_ {
 	    isSuccess: boolean;
 	    data: models.Connection;
-	    error: string;
+	    errorCode?: string;
+	    errorDetail?: string;
 	}
 	export interface Result_vervet_internal_models_QueryResult_ {
 	    isSuccess: boolean;
 	    data: models.QueryResult;
-	    error: string;
+	    errorCode?: string;
+	    errorDetail?: string;
 	}
 	export interface Result_vervet_internal_models_RegisteredServer_ {
 	    isSuccess: boolean;
 	    data: models.RegisteredServer;
-	    error: string;
+	    errorCode?: string;
+	    errorDetail?: string;
 	}
 	export interface Result_vervet_internal_models_Settings_ {
 	    isSuccess: boolean;
 	    data: models.Settings;
-	    error: string;
+	    errorCode?: string;
+	    errorDetail?: string;
 	}
 	export interface Result_vervet_internal_models_WindowState_ {
 	    isSuccess: boolean;
 	    data: models.WindowState;
-	    error: string;
+	    errorCode?: string;
+	    errorDetail?: string;
 	}
 
 }
@@ -184,6 +202,8 @@ export namespace models {
 	export interface QueryResult {
 	    documents: any[];
 	    rawOutput: string;
+	    operationType?: string;
+	    affectedCount?: number;
 	}
 	export interface RegisteredServer {
 	    id: string;

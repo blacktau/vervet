@@ -36,7 +36,7 @@ const handleClose = () => {
 <template>
   <n-space :size="0" :wrap-item="false" align="center" justify="center">
     <n-tooltip :delay="1000" :show-arrow="false">
-      {{ $t('menu.minimise') }}
+      {{ $t('window.minimise') }}
       <template #trigger>
         <div class="btn-wrapper" @click="handleMinimise">
           <window-min />
@@ -44,7 +44,7 @@ const handleClose = () => {
       </template>
     </n-tooltip>
     <n-tooltip v-if="maximised" :delay="1000" :show-arrow="false">
-      {{ $t('menu.restore') }}
+      {{ $t('window.restore') }}
       <template #trigger>
         <div class="btn-wrapper" @click="handleMaximise">
           <window-restore />
@@ -52,7 +52,7 @@ const handleClose = () => {
       </template>
     </n-tooltip>
     <n-tooltip v-else :delay="1000" :show-arrow="false">
-      {{ $t('menu.maximise') }}
+      {{ $t('window.maximise') }}
       <template #trigger>
         <div class="btn-wrapper" @click="handleMaximise">
           <window-max />
@@ -60,7 +60,7 @@ const handleClose = () => {
       </template>
     </n-tooltip>
     <n-tooltip :delay="1000" :show-arrow="false">
-      {{ $t('menu.close') }}
+      {{ $t('window.close') }}
       <template #trigger>
         <div class="btn-wrapper" @click="handleClose">
           <window-close />

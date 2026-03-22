@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"fmt"
 	"vervet/internal/models"
 )
 
@@ -35,22 +34,16 @@ func NewConnectionsProxy(provider ConnectionsProvider) *ConnectionsProxy {
 func (cp *ConnectionsProxy) Connect(serverID string) Result[models.Connection] {
 	connection, err := cp.provider.Connect(serverID)
 	if err != nil {
-		return Result[models.Connection]{
-			IsSuccess: false,
-			Error:     fmt.Sprintf("Error connecting to mongo instance: %v", err),
-		}
+		return FailResult[models.Connection](err)
 	}
 
-	return Result[models.Connection]{
-		IsSuccess: true,
-		Data:      connection,
-	}
+	return SuccessResult(connection)
 }
 
 func (cp *ConnectionsProxy) Disconnect(serverID string) EmptyResult {
 	err := cp.provider.Disconnect(serverID)
 	if err != nil {
-		return Error(fmt.Sprintf("Error disconnecting from mongo instance: %v", err))
+		return Fail(err)
 	}
 
 	return Success()
@@ -59,26 +52,21 @@ func (cp *ConnectionsProxy) Disconnect(serverID string) EmptyResult {
 func (cp *ConnectionsProxy) DisconnectAll() EmptyResult {
 	err := cp.provider.DisconnectAll()
 	if err != nil {
-		return Error(fmt.Sprintf("Error disconnecting from all connections: %v", err))
+		return Fail(err)
 	}
 
 	return Success()
 }
 
 func (cp *ConnectionsProxy) GetConnections() Result[[]models.Connection] {
-	return Result[[]models.Connection]{
-		IsSuccess: true,
-		Data:      cp.provider.GetConnections(),
-	}
+	return SuccessResult(cp.provider.GetConnections())
 }
 
 func (cp *ConnectionsProxy) TestConnection(uri string) EmptyResult {
 	_, err := cp.provider.TestConnection(uri)
 	if err != nil {
-		return Error(fmt.Sprintf("failed to connect to mongo server: %v", err))
+		return Fail(err)
 	}
 
 	return Success()
 }
-
-

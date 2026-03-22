@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { useNotifier } from '@/utils/dialog.ts'
+import { i18nGlobal } from '@/i18n'
 import * as indexesProxy from 'wailsjs/go/api/IndexesProxy'
 
 type IndexKeyField = {
@@ -39,7 +40,7 @@ export const useIndexStore = defineStore('indexes', {
       try {
         const result = await indexesProxy.GetIndexes(serverId, dbName, collectionName)
         if (!result.isSuccess) {
-          useNotifier().error(result.error)
+          useNotifier().error(i18nGlobal.t(`errors.${result.errorCode}`), { title: i18nGlobal.t('errorTitles.loadIndexes'), detail: result.errorDetail })
           return
         }
         this.indexes[key] = result.data ?? []
@@ -71,7 +72,7 @@ export const useIndexStore = defineStore('indexes', {
           request,
         )
         if (!result.isSuccess) {
-          useNotifier().error(result.error)
+          useNotifier().error(i18nGlobal.t(`errors.${result.errorCode}`), { title: i18nGlobal.t('errorTitles.createIndex'), detail: result.errorDetail })
           return false
         }
         await this.getIndexes(serverId, dbName, collectionName)
@@ -104,7 +105,7 @@ export const useIndexStore = defineStore('indexes', {
           request,
         )
         if (!result.isSuccess) {
-          useNotifier().error(result.error)
+          useNotifier().error(i18nGlobal.t(`errors.${result.errorCode}`), { title: i18nGlobal.t('errorTitles.editIndex'), detail: result.errorDetail })
           return false
         }
         await this.getIndexes(serverId, dbName, collectionName)
@@ -130,7 +131,7 @@ export const useIndexStore = defineStore('indexes', {
           indexName,
         )
         if (!result.isSuccess) {
-          useNotifier().error(result.error)
+          useNotifier().error(i18nGlobal.t(`errors.${result.errorCode}`), { title: i18nGlobal.t('errorTitles.dropIndex'), detail: result.errorDetail })
           return false
         }
         await this.getIndexes(serverId, dbName, collectionName)

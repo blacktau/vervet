@@ -1,7 +1,6 @@
 package api
 
 import (
-	"fmt"
 	"vervet/internal/models"
 )
 
@@ -23,21 +22,15 @@ func NewIndexesProxy(provider IndexesProvider) *IndexesProxy {
 func (ip *IndexesProxy) GetIndexes(serverID string, dbName string, collectionName string) Result[[]models.Index] {
 	result, err := ip.provider.GetIndexes(serverID, dbName, collectionName)
 	if err != nil {
-		return Result[[]models.Index]{
-			IsSuccess: false,
-			Error:     err.Error(),
-		}
+		return FailResult[[]models.Index](err)
 	}
-	return Result[[]models.Index]{
-		IsSuccess: true,
-		Data:      result,
-	}
+	return SuccessResult(result)
 }
 
 func (ip *IndexesProxy) CreateIndex(serverID string, dbName string, collectionName string, request models.CreateIndexRequest) EmptyResult {
 	err := ip.provider.CreateIndex(serverID, dbName, collectionName, request)
 	if err != nil {
-		return Error(fmt.Sprintf("Error creating index: %v", err))
+		return Fail(err)
 	}
 	return Success()
 }
@@ -45,7 +38,7 @@ func (ip *IndexesProxy) CreateIndex(serverID string, dbName string, collectionNa
 func (ip *IndexesProxy) EditIndex(serverID string, dbName string, collectionName string, request models.EditIndexRequest) EmptyResult {
 	err := ip.provider.EditIndex(serverID, dbName, collectionName, request)
 	if err != nil {
-		return Error(fmt.Sprintf("Error editing index: %v", err))
+		return Fail(err)
 	}
 	return Success()
 }
@@ -53,7 +46,7 @@ func (ip *IndexesProxy) EditIndex(serverID string, dbName string, collectionName
 func (ip *IndexesProxy) DropIndex(serverID string, dbName string, collectionName string, indexName string) EmptyResult {
 	err := ip.provider.DropIndex(serverID, dbName, collectionName, indexName)
 	if err != nil {
-		return Error(fmt.Sprintf("Error dropping index: %v", err))
+		return Fail(err)
 	}
 	return Success()
 }

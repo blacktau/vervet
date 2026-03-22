@@ -1,7 +1,6 @@
 package api
 
 import (
-	"fmt"
 	"vervet/internal/models"
 )
 
@@ -18,16 +17,10 @@ func NewShellProxy(provider ShellProvider) *ShellProxy {
 func (sp *ShellProxy) ExecuteQuery(serverID string, dbName string, query string) Result[models.QueryResult] {
 	result, err := sp.provider.ExecuteQuery(serverID, dbName, query)
 	if err != nil {
-		return Result[models.QueryResult]{
-			IsSuccess: false,
-			Error:     fmt.Sprintf("Query execution failed: %v", err),
-		}
+		return FailResult[models.QueryResult](err)
 	}
 
-	return Result[models.QueryResult]{
-		IsSuccess: true,
-		Data:      result,
-	}
+	return SuccessResult(result)
 }
 
 func (sp *ShellProxy) CancelQuery(serverID string) EmptyResult {
@@ -36,8 +29,5 @@ func (sp *ShellProxy) CancelQuery(serverID string) EmptyResult {
 }
 
 func (sp *ShellProxy) CheckMongosh() Result[bool] {
-	return Result[bool]{
-		IsSuccess: true,
-		Data:      sp.provider.CheckMongosh(),
-	}
+	return SuccessResult(sp.provider.CheckMongosh())
 }

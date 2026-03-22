@@ -8,11 +8,11 @@ import (
 )
 
 type MockDatabasesProvider struct {
-	databases            []string
-	getDatabasesErr      error
-	dbStats              map[string]any
-	getDatabaseStatsErr  error
-	dropDatabaseErr      error
+	databases           []string
+	getDatabasesErr     error
+	dbStats             map[string]any
+	getDatabaseStatsErr error
+	dropDatabaseErr     error
 }
 
 func (m *MockDatabasesProvider) GetDatabases(serverID string) ([]string, error) {
@@ -55,7 +55,7 @@ func TestDatabasesProxy_GetDatabases(t *testing.T) {
 		result := proxy.GetDatabases("1")
 
 		assert.False(t, result.IsSuccess)
-		assert.Contains(t, result.Error, "failed to get databases")
+		assert.NotEmpty(t, result.ErrorCode)
 	})
 }
 
@@ -81,7 +81,7 @@ func TestDatabasesProxy_GetDatabaseStatistics(t *testing.T) {
 		result := proxy.GetDatabaseStatistics("1", "testdb")
 
 		assert.False(t, result.IsSuccess)
-		assert.Contains(t, result.Error, "stats error")
+		assert.NotEmpty(t, result.ErrorCode)
 	})
 }
 
@@ -93,7 +93,7 @@ func TestDatabasesProxy_DropDatabase(t *testing.T) {
 		result := proxy.DropDatabase("1", "testdb")
 
 		assert.True(t, result.IsSuccess)
-		assert.Empty(t, result.Error)
+		assert.Empty(t, result.ErrorCode)
 	})
 
 	t.Run("drop database error", func(t *testing.T) {
@@ -105,6 +105,6 @@ func TestDatabasesProxy_DropDatabase(t *testing.T) {
 		result := proxy.DropDatabase("1", "testdb")
 
 		assert.False(t, result.IsSuccess)
-		assert.Contains(t, result.Error, "drop failed")
+		assert.NotEmpty(t, result.ErrorCode)
 	})
 }

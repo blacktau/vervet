@@ -245,23 +245,26 @@ const onTestConnection = async () => {
 
   testing.value = true
 
-  let testingResult = ''
+  let testingMessage = ''
+  let testingDetail = ''
   try {
     const result = await connectionsProxy.TestConnection(generalForm.value.connectionString)
     if (!result.isSuccess) {
-      testingResult = result.error
+      testingMessage = i18n.t(`errors.${result.errorCode}`)
+      testingDetail = result.errorDetail
     }
   } catch (e: unknown) {
     const err = e as Error
-    testingResult = err.message
+    testingMessage = err.message
   } finally {
     testing.value = false
   }
 
   const notifier = useNotifier()
-  if (!isEmpty(testingResult)) {
-    notifier.error(testingResult, {
+  if (!isEmpty(testingMessage)) {
+    notifier.error(testingMessage, {
       title: i18n.t('serverPane.dialogs.server.testFailure'),
+      detail: testingDetail,
     })
   } else {
     notifier.success(i18n.t('serverPane.dialogs.server.testSuccess'))
