@@ -113,16 +113,18 @@ function handleGearSelect(key: string) {
 
     <n-tooltip :delay="800" :keep-alive-on-hover="false" :show-arrow="false">
       <template #trigger>
-        <n-dropdown
-          :options="gearOptions"
-          trigger="click"
-          @select="handleGearSelect">
-          <icon-button
-            :disabled="!workspaceStore.activeWorkspace"
-            :icon="Cog6ToothIcon"
-            :stroke-width="2.5"
-            size="18" />
-        </n-dropdown>
+        <span>
+          <n-dropdown
+            :options="gearOptions"
+            trigger="click"
+            @select="handleGearSelect">
+            <icon-button
+              :disabled="!workspaceStore.activeWorkspace"
+              :icon="Cog6ToothIcon"
+              :stroke-width="2.5"
+              size="18" />
+          </n-dropdown>
+        </span>
       </template>
       {{ t('workspaces.settings') }}
     </n-tooltip>
