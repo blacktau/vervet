@@ -42,6 +42,9 @@ export const useSettingsStore = defineStore('settings', {
         },
         cursorStyle: 'block',
       },
+      workspaces: {
+        fileExtensions: ['.js', '.mongodb'] as string[],
+      },
       fontList: [],
     }) as unknown as SettingsStore,
   getters: {
