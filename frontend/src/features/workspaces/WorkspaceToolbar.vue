@@ -115,12 +115,16 @@ function handleGearSelect(key: string) {
       :options="gearOptions"
       trigger="click"
       @select="handleGearSelect">
-      <icon-button
+      <n-button
         :disabled="!workspaceStore.activeWorkspace"
-        :icon="Cog6ToothIcon"
-        :stroke-width="2.5"
-        size="18"
-        t-tooltip="workspaces.settings" />
+        :focusable="false"
+        text>
+        <template #icon>
+          <n-icon size="18">
+            <Cog6ToothIcon :stroke-width="2.5" />
+          </n-icon>
+        </template>
+      </n-button>
     </n-dropdown>
 
     <icon-button
