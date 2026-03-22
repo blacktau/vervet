@@ -113,7 +113,7 @@ function handleGearSelect(key: string) {
 
     <n-tooltip :delay="800" :keep-alive-on-hover="false" :show-arrow="false">
       <template #trigger>
-        <span>
+        <span style="display: inline-flex">
           <n-dropdown
             :options="gearOptions"
             trigger="click"
