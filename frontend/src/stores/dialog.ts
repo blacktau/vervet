@@ -22,6 +22,7 @@ export const enum DialogType {
   AddCollection = 'addCollection',
   CreateIndex = 'createIndex',
   RenameCollection = 'renameCollection',
+  ServerPicker = 'serverPicker',
 }
 
 export type ServerDialogData = {
@@ -170,6 +171,9 @@ export const useDialogStore = defineStore('dialog', {
     },
     closeRenameCollectionDialog() {
       this.hide(DialogType.RenameCollection)
+    },
+    openServerPickerDialog(data?: unknown) {
+      this.showNewDialog(DialogType.ServerPicker, data)
     },
   },
   getters: {

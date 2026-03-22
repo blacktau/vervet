@@ -35,6 +35,7 @@ type TabUpsertOptions = ServerTabItem & {
 export const enum NavType {
   Servers = 'servers',
   Browser = 'browser',
+  Workspaces = 'workspaces',
 }
 
 let queryIdCounter = 0
@@ -255,6 +256,7 @@ export const useTabStore = defineStore('tabs', {
       tab.queries.push(queryItem)
       tab.activeInnerTabId = queryItem.id
       this._setActivatedIndex(tabIndex, true)
+      return queryItem.id
     },
 
     closeQuery(serverId: string, queryId: string) {
