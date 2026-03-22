@@ -193,7 +193,7 @@ function handleContextMenuSelect(key: string) {
         if (result.isSuccess) {
           emit('document-changed')
         } else {
-          notifier.error(t(`errors.${result.errorCode}`))
+          notifier.error(t(`errors.${result.errorCode}`), { title: t('errorTitles.deleteDocument'), detail: result.errorDetail })
         }
       },
     })

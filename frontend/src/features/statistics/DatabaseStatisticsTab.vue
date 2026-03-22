@@ -107,7 +107,9 @@ async function fetchStatistics() {
     if (result.isSuccess) {
       stats.value = result.data
     } else {
-      error.value = t(`errors.${result.errorCode}`)
+      error.value = result.errorDetail
+        ? `${t(`errors.${result.errorCode}`)}\n${result.errorDetail}`
+        : t(`errors.${result.errorCode}`)
     }
   } catch (e) {
     error.value = String(e)

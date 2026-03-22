@@ -27,7 +27,7 @@ hljs.registerLanguage('vervet-log', () => ({
       relevance: 10,
     },
     {
-      className: 'emphasis',
+      className: 'warning',
       begin: /^.*\[WARNING\].*$/,
       relevance: 10,
     },
@@ -120,5 +120,9 @@ watch(
 
 .hljs-comment {
   color: #7f848e;
+}
+
+.hljs-warning {
+  color: #e8a838;
 }
 </style>

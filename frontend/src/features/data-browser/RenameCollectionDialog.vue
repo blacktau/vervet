@@ -79,7 +79,7 @@ async function onConfirm() {
       form.newName,
     )
     if (!result.isSuccess) {
-      notifier.error(i18n.t(`errors.${result.errorCode}`))
+      notifier.error(i18n.t(`errors.${result.errorCode}`), { title: i18n.t('errorTitles.renameCollection'), detail: result.errorDetail })
       return false
     }
 

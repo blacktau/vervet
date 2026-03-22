@@ -349,7 +349,7 @@ export const useDataBrowserStore = defineStore('browser', {
       }
 
       const notifier = useNotifier()
-      notifier.error(i18nGlobal.t(`errors.${databases.errorCode}`))
+      notifier.error(i18nGlobal.t(`errors.${databases.errorCode}`), { title: i18nGlobal.t('errorTitles.listDatabases'), detail: databases.errorDetail })
       return []
     },
     async getCollectionList(
@@ -378,7 +378,7 @@ export const useDataBrowserStore = defineStore('browser', {
       }
 
       const notifier = useNotifier()
-      notifier.error(i18nGlobal.t(`errors.${collections.errorCode}`))
+      notifier.error(i18nGlobal.t(`errors.${collections.errorCode}`), { title: i18nGlobal.t('errorTitles.listCollections'), detail: collections.errorDetail })
       return []
     },
     async getViewList(serverId: string, dbName: string, force: boolean = false): Promise<string[]> {
@@ -403,7 +403,7 @@ export const useDataBrowserStore = defineStore('browser', {
       }
 
       const notifier = useNotifier()
-      notifier.error(i18nGlobal.t(`errors.${views.errorCode}`))
+      notifier.error(i18nGlobal.t(`errors.${views.errorCode}`), { title: i18nGlobal.t('errorTitles.listViews'), detail: views.errorDetail })
       return []
     },
     findDatabase(serverId: string, dbName: string): Database | undefined {
@@ -463,7 +463,7 @@ export const useDataBrowserStore = defineStore('browser', {
       const result = await connectionsProxy.Connect(serverId)
       if (!result.isSuccess) {
         const notifier = useNotifier()
-        notifier.error(i18nGlobal.t(`errors.${result.errorCode}`))
+        notifier.error(i18nGlobal.t(`errors.${result.errorCode}`), { title: i18nGlobal.t('errorTitles.connect'), detail: result.errorDetail })
         return {
           success: false,
         }

@@ -1,8 +1,9 @@
 import { useSettingsStore } from '@/features/settings/settingsStore.ts'
-import { computed, type VNodeChild } from 'vue'
+import { computed, h, type VNodeChild } from 'vue'
 import {
   createDiscreteApi,
   darkTheme,
+  NButton,
   type DialogOptions,
   type MessageOptions,
   type NotificationReactive
@@ -86,6 +87,7 @@ interface Notification {
   title?: string
   meta?: string
   content?: string
+  detail?: string
   icon?: string | (() => VNodeChild)
   action?: string | (() => VNodeChild)
 }
@@ -100,6 +102,35 @@ export interface Notifier {
 }
 
 function createNotifier(notification: NotificationApiInjection): Notifier {
+  function withDetailAction(option: Notification & { content?: string }): void {
+    if (option.detail) {
+      const detail = option.detail
+      option.action = () =>
+        h(
+          NButton,
+          {
+            text: true,
+            type: 'primary',
+            size: 'small',
+            onClick: () => {
+              window.$dialoger.show({
+                title: option.title || i18nGlobal.t('common.error'),
+                content: () =>
+                  h('pre', {
+                    style: 'white-space: pre-wrap; word-break: break-all; margin: 0; font-size: 13px; user-select: text; cursor: text;',
+                  }, detail),
+                positiveText: i18nGlobal.t('common.copyToClipboard'),
+                onPositiveClick: () => {
+                  navigator.clipboard.writeText(detail)
+                },
+              })
+            },
+          },
+          { default: () => i18nGlobal.t('common.details') },
+        )
+    }
+  }
+
   return {
     show(option: NotificationOptions) {
       return notification.create(option)
@@ -107,20 +138,24 @@ function createNotifier(notification: NotificationApiInjection): Notifier {
     error: (content, option = {}) => {
       option.content = content
       option.title = option.title || i18nGlobal.t('common.error')
+      withDetailAction(option)
       return notification.error(option)
     },
     info: (content, option = {}) => {
       option.content = content
+      withDetailAction(option)
       return notification.info(option)
     },
     success: (content, option = {}) => {
       option.content = content
       option.title = option.title || i18nGlobal.t('common.success')
+      withDetailAction(option)
       return notification.success(option)
     },
     warning: (content, option = {}) => {
       option.content = content
       option.title = option.title || i18nGlobal.t('common.warning')
+      withDetailAction(option)
       return notification.warning(option)
     },
   }

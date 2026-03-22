@@ -34,7 +34,7 @@ export const useServerStore = defineStore('server', {
 
       if (!result.isSuccess) {
         const notifier = useNotifier()
-        notifier.error(i18nGlobal.t(`errors.${result.errorCode}`))
+        notifier.error(i18nGlobal.t(`errors.${result.errorCode}`), { title: i18nGlobal.t('errorTitles.loadServers'), detail: result.errorDetail })
         return
       }
 
@@ -78,7 +78,7 @@ export const useServerStore = defineStore('server', {
       const response = await serversProxy.GetServer(id)
       if (!response.isSuccess) {
         const notifier = useNotifier()
-        notifier.error(i18nGlobal.t(`errors.${response.errorCode}`))
+        notifier.error(i18nGlobal.t(`errors.${response.errorCode}`), { title: i18nGlobal.t('errorTitles.loadServerDetails'), detail: response.errorDetail })
         return undefined
       }
 
@@ -88,7 +88,7 @@ export const useServerStore = defineStore('server', {
         const uriResponse = await serversProxy.GetURI(id)
         if (!uriResponse.isSuccess) {
           const notifier = useNotifier()
-          notifier.error(i18nGlobal.t(`errors.${uriResponse.errorCode}`))
+          notifier.error(i18nGlobal.t(`errors.${uriResponse.errorCode}`), { title: i18nGlobal.t('errorTitles.loadServerDetails'), detail: uriResponse.errorDetail })
           return undefined
         }
         return {

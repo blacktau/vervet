@@ -75,3 +75,27 @@ func TestClassifyError_WrappedShellNotFound(t *testing.T) {
 	result := errcodes.ClassifyError(wrapped)
 	assert.Equal(t, errcodes.ShellNotFound, result.Code)
 }
+
+func TestClassifyError_MessageFallback_AuthFailed(t *testing.T) {
+	err := errors.New("server selection error: server selection timeout, current topology: { Type: Unknown, Servers: [{ Addr: localhost:27017, Type: Unknown, Last error: connection() error occurred during connection handshake: auth error: sasl conversation error: Authentication failed. }] }")
+	result := errcodes.ClassifyError(err)
+	assert.Equal(t, errcodes.AuthFailed, result.Code)
+}
+
+func TestClassifyError_MessageFallback_ConnectionRefused(t *testing.T) {
+	err := errors.New("server selection error: server selection timeout, current topology: { Type: Unknown, Servers: [{ Addr: localhost:27017, Type: Unknown, Last error: connection refused }] }")
+	result := errcodes.ClassifyError(err)
+	assert.Equal(t, errcodes.ConnectionFailed, result.Code)
+}
+
+func TestClassifyError_MessageFallback_ServerSelectionTimeout(t *testing.T) {
+	err := errors.New("server selection error: server selection timeout, current topology: { Type: Unknown, Servers: [] }")
+	result := errcodes.ClassifyError(err)
+	assert.Equal(t, errcodes.ConnectionFailed, result.Code)
+}
+
+func TestClassifyError_MessageFallback_NotAuthorized(t *testing.T) {
+	err := errors.New("server selection error: not authorized on admin to execute command")
+	result := errcodes.ClassifyError(err)
+	assert.Equal(t, errcodes.NotAuthorized, result.Code)
+}

@@ -148,7 +148,7 @@ export const useSettingsStore = defineStore('settings', {
       const result = await settingsProxy.GetAvailableFonts()
       if (!result.isSuccess) {
         const notifier = useNotifier()
-        notifier.error(i18nGlobal.t(`errors.${result.errorCode}`))
+        notifier.error(i18nGlobal.t(`errors.${result.errorCode}`), { title: i18nGlobal.t('errorTitles.saveSettings'), detail: result.errorDetail })
         return
       }
 

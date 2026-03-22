@@ -136,7 +136,7 @@ async function save() {
       emit('saved')
       emit('update:show', false)
     } else {
-      notifier.error(t(`errors.${result.errorCode}`))
+      notifier.error(t(`errors.${result.errorCode}`), { title: t(props.mode === 'edit' ? 'errorTitles.updateDocument' : 'errorTitles.insertDocument'), detail: result.errorDetail })
     }
   } catch (e) {
     notifier.error(String(e))

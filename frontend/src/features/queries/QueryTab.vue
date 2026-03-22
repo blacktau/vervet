@@ -253,21 +253,36 @@ onMounted(async () => {
         </n-button>
       </n-space>
       <n-space align="center" :size="4">
-        <n-button size="small" quaternary @click="openFile" :title="t('query.openFile')">
-          <template #icon>
-            <n-icon :component="FolderOpenIcon" />
+        <n-tooltip>
+          <template #trigger>
+            <n-button size="small" @click="openFile">
+              <template #icon>
+                <n-icon :component="FolderOpenIcon" />
+              </template>
+            </n-button>
           </template>
-        </n-button>
-        <n-button size="small" quaternary @click="saveFile" :title="t('query.saveFile')">
-          <template #icon>
-            <n-icon :component="ArrowDownTrayIcon" />
+          {{ t('query.openFile') }}
+        </n-tooltip>
+        <n-tooltip>
+          <template #trigger>
+            <n-button size="small" @click="saveFile">
+              <template #icon>
+                <n-icon :component="ArrowDownTrayIcon" />
+              </template>
+            </n-button>
           </template>
-        </n-button>
-        <n-button size="small" quaternary @click="saveFileAs" :title="t('query.saveFileAs')">
-          <template #icon>
-            <n-icon :component="DocumentArrowDownIcon" />
+          {{ t('query.saveFile') }}
+        </n-tooltip>
+        <n-tooltip>
+          <template #trigger>
+            <n-button size="small" @click="saveFileAs">
+              <template #icon>
+                <n-icon :component="DocumentArrowDownIcon" />
+              </template>
+            </n-button>
           </template>
-        </n-button>
+          {{ t('query.saveFileAs') }}
+        </n-tooltip>
       </n-space>
     </div>
     <div v-if="queryStore.mongoshAvailable === false" class="mongosh-warning">
@@ -290,39 +305,72 @@ onMounted(async () => {
       <div class="results-pane">
         <n-tabs
           v-model:value="queryState.activeResultTab"
-          type="line"
+          type="card"
           size="small"
           :animated="false"
-          pane-style="display: flex; flex-direction: column; flex: 1; min-height: 0;"
+          :closable="false"
+          pane-style="display: flex; flex-direction: column; flex: 1; min-height: 0; padding-top: 0;"
         >
           <template #suffix>
-            <n-space v-if="hasDocuments" :size="2" style="margin-right: 8px">
-              <n-button
-                size="tiny"
-                :type="queryState.resultView === 'table' ? 'primary' : 'default'"
-                quaternary
-                :title="t('query.tableView')"
-                @click="setResultView('table')"
-              >
-                <template #icon>
-                  <n-icon :component="ListTreeIcon" />
+            <n-space v-if="hasDocuments && queryState.activeResultTab === 'results'" :size="4" style="margin-right: 8px">
+              <n-tooltip>
+                <template #trigger>
+                  <n-button
+                    size="small"
+                    :type="queryState.resultView === 'table' ? 'primary' : 'default'"
+                    @click="setResultView('table')"
+                  >
+                    <template #icon>
+                      <n-icon :component="ListTreeIcon" />
+                    </template>
+                  </n-button>
                 </template>
-              </n-button>
-              <n-button
-                size="tiny"
-                :type="queryState.resultView === 'json' ? 'primary' : 'default'"
-                quaternary
-                :title="t('query.jsonView')"
-                @click="setResultView('json')"
-              >
-                <template #icon>
-                  <n-icon :component="CodeBracketIcon" />
+                {{ t('query.tableView') }}
+              </n-tooltip>
+              <n-tooltip>
+                <template #trigger>
+                  <n-button
+                    size="small"
+                    :type="queryState.resultView === 'json' ? 'primary' : 'default'"
+                    @click="setResultView('json')"
+                  >
+                    <template #icon>
+                      <n-icon :component="CodeBracketIcon" />
+                    </template>
+                  </n-button>
                 </template>
-              </n-button>
+                {{ t('query.jsonView') }}
+              </n-tooltip>
+            </n-space>
+            <n-space v-if="queryState.activeResultTab === 'messages'" :size="4" style="margin-right: 8px">
+              <n-tooltip>
+                <template #trigger>
+                  <n-button
+                    size="small"
+                    :disabled="!queryState.messages"
+                    @click="clearMessages"
+                  >
+                    <template #icon>
+                      <n-icon :component="TrashIcon" />
+                    </template>
+                  </n-button>
+                </template>
+                {{ t('query.clearMessages') }}
+              </n-tooltip>
             </n-space>
           </template>
           <n-tab-pane name="results" :tab="t('query.results')">
-            <n-spin v-if="queryState.loading" :size="12" style="margin: 8px" />
+            <div v-if="queryState.loading" class="loading-state">
+              <n-spin size="medium">
+                <template #description>
+                  {{ t('query.messages.executing') }}
+                </template>
+                <div class="loading-state-spacer" />
+              </n-spin>
+              <n-button size="small" @click="cancelQuery">
+                {{ t('query.cancel') }}
+              </n-button>
+            </div>
             <pre v-else-if="queryState.error" class="results-content results-error">{{
               queryState.error
             }}</pre>
@@ -335,7 +383,7 @@ onMounted(async () => {
                   @document-changed="handleDocumentChanged" />
               </div>
               <div v-else class="json-results">
-                <json-result-view :content="queryState.rawJson" />
+                <json-result-view :content="queryStore.getRawJson(props.queryId)" />
               </div>
             </template>
             <pre v-else-if="hasRawOutput" class="results-content">{{ queryState.rawOutput }}</pre>
@@ -343,22 +391,7 @@ onMounted(async () => {
               <span class="empty-results-text">{{ t('query.noResults') }}</span>
             </div>
           </n-tab-pane>
-          <n-tab-pane name="messages">
-            <template #tab>
-              <div style="display: flex; align-items: center; gap: 4px">
-                {{ t('query.messagesTab') }}
-                <n-button
-                  v-if="queryState.messages"
-                  text
-                  size="tiny"
-                  @click.stop="clearMessages"
-                >
-                  <template #icon>
-                    <n-icon :component="TrashIcon" :size="14" />
-                  </template>
-                </n-button>
-              </div>
-            </template>
+          <n-tab-pane name="messages" :tab="t('query.messagesTab')">
             <n-log
               class="messages-log"
               :log="queryState.messages"
@@ -490,6 +523,24 @@ onMounted(async () => {
     color: var(--n-error-color);
   }
 
+  .loading-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    flex: 1;
+
+    :deep(.n-spin-description) {
+      white-space: nowrap;
+    }
+  }
+
+  .loading-state-spacer {
+    height: 60px;
+    min-width: 200px;
+  }
+
   .empty-results {
     display: flex;
     align-items: center;
@@ -505,6 +556,7 @@ onMounted(async () => {
   :deep(.messages-log) {
     height: 0 !important;
     flex: 1;
+    padding-top: 8px;
     -webkit-user-select: text;
     user-select: text;
     cursor: text;
