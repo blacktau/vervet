@@ -146,7 +146,7 @@ export const useWorkspaceStore = defineStore('workspaces', () => {
 
     const workspace = workspaces.value.find((w) => w.id === activeWorkspaceId.value)
     if (workspace) {
-      workspace.folders = result.data as string[]
+      workspace.folders.push(result.data as string)
     }
     await loadTree()
   }
@@ -176,20 +176,37 @@ export const useWorkspaceStore = defineStore('workspaces', () => {
       return
     }
 
-    const result = await workspacesProxy.GetWorkspaceTree(activeWorkspaceId.value!)
-    if (!result.isSuccess) {
-      const notifier = useNotifier()
-      notifier.error(result.errorDetail || result.errorCode)
-      return
+    const folders = activeWorkspace.value.folders
+    const rootNodes: TreeOption[] = []
+
+    for (const folder of folders) {
+      const result = await workspacesProxy.ReadDirectory(folder)
+      if (!result.isSuccess) {
+        // Show folder as a leaf with no children if unreadable
+        rootNodes.push({
+          key: folder,
+          label: folder.split('/').pop() || folder,
+          isLeaf: false,
+          children: [],
+        })
+        continue
+      }
+
+      const entries = result.data as DirectoryEntry[]
+      rootNodes.push({
+        key: folder,
+        label: folder.split('/').pop() || folder,
+        isLeaf: false,
+        children: entriesToTreeOptions(entries),
+      })
     }
 
-    const entries = result.data as DirectoryEntry[]
-    treeData.value = entriesToTreeOptions(entries)
-    expandedKeys.value = []
+    treeData.value = rootNodes
+    expandedKeys.value = folders
   }
 
   async function loadDirectory(path: string): Promise<TreeOption[]> {
-    const result = await workspacesProxy.GetDirectoryContents(path)
+    const result = await workspacesProxy.ReadDirectory(path)
     if (!result.isSuccess) {
       const notifier = useNotifier()
       notifier.error(result.errorDetail || result.errorCode)

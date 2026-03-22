@@ -175,7 +175,7 @@ func (s *WorkspaceService) ReadDirectory(dirPath string, extensions []string) ([
 				IsDirectory: true,
 			})
 		} else {
-			ext := filepath.Ext(name)
+			ext := strings.ToLower(filepath.Ext(name))
 			if slices.Contains(extensions, ext) {
 				files = append(files, models.DirectoryEntry{
 					Name: name,

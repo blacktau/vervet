@@ -2,14 +2,16 @@
 import { h, ref } from 'vue'
 import { NInput, type TreeOption } from 'naive-ui'
 import { useWorkspaceStore } from '@/features/workspaces/workspaceStore'
-import { useDialoger } from '@/utils/dialog'
+import { useDialoger, useNotifier } from '@/utils/dialog'
 import { useDialogStore } from '@/stores/dialog'
 import { useI18n } from 'vue-i18n'
+import * as workspacesProxy from 'wailsjs/go/api/WorkspacesProxy'
 
 const { t } = useI18n()
 const workspaceStore = useWorkspaceStore()
 const dialoger = useDialoger()
 const dialogStore = useDialogStore()
+const notifier = useNotifier()
 
 const contextMenuX = ref(0)
 const contextMenuY = ref(0)
@@ -34,10 +36,16 @@ function handleExpandedKeysUpdate(keys: string[]) {
   workspaceStore.expandedKeys = keys
 }
 
-function handleNodeDblClick(info: { option: TreeOption }) {
-  const node = info.option
-  if (node.isLeaf) {
-    openFile(node.key as string)
+function nodeProps(info: { option: TreeOption }) {
+  return {
+    onDblclick: () => {
+      if (info.option.isLeaf) {
+        openFile(info.option.key as string)
+      }
+    },
+    onContextmenu: (event: MouseEvent) => {
+      handleContextMenu({ event, option: info.option })
+    },
   }
 }
 
@@ -126,8 +134,14 @@ function handleNewFile(node: TreeOption) {
       }
 
       const dirPath = node.key as string
-      const filePath = `${dirPath}/${fileName}`
-      openFile(filePath)
+      const result = await workspacesProxy.CreateFile(dirPath, fileName)
+      if (!result.isSuccess) {
+        notifier.error(result.errorDetail || result.errorCode)
+        return
+      }
+
+      await workspaceStore.refreshTree()
+      openFile(result.data as string)
     },
   })
 }
@@ -147,30 +161,47 @@ function handleRename(node: TreeOption) {
     }),
     onPositiveClick: async () => {
       const newName = nameRef.value.trim()
-      if (!newName) {
+      if (!newName || newName === node.label) {
         return
       }
-      // Rename will be handled by a future proxy call
+
+      const oldPath = node.key as string
+      const parentDir = oldPath.substring(0, oldPath.lastIndexOf('/'))
+      const newPath = `${parentDir}/${newName}`
+
+      const result = await workspacesProxy.RenameFile(oldPath, newPath)
+      if (!result.isSuccess) {
+        notifier.error(result.errorDetail || result.errorCode)
+        return
+      }
+
       await workspaceStore.refreshTree()
     },
   })
 }
 
 function handleDelete(node: TreeOption) {
-  dialoger.warning({
+  dialoger.show({
+    type: 'warning',
     title: t('workspaces.deleteFile'),
     content: t('workspaces.deleteFileConfirm', { name: node.label }),
     positiveText: t('common.delete'),
     negativeText: t('common.cancel'),
     onPositiveClick: async () => {
-      // Delete will be handled by a future proxy call
+      const result = await workspacesProxy.DeleteFile(node.key as string)
+      if (!result.isSuccess) {
+        notifier.error(result.errorDetail || result.errorCode)
+        return
+      }
+
       await workspaceStore.refreshTree()
     },
   })
 }
 
 function handleRemoveFolder(node: TreeOption) {
-  dialoger.warning({
+  dialoger.show({
+    type: 'warning',
     title: t('workspaces.removeFolder'),
     content: t('workspaces.removeFolderConfirm', { name: node.label }),
     positiveText: t('common.remove'),
@@ -188,13 +219,10 @@ function handleRemoveFolder(node: TreeOption) {
       :data="workspaceStore.treeData"
       :expanded-keys="workspaceStore.expandedKeys"
       :on-load="handleLoad"
+      :node-props="nodeProps"
       block-line
       selectable
-      @update:expanded-keys="handleExpandedKeysUpdate"
-      @node-props="(info) => ({
-        onDblclick: () => handleNodeDblClick({ option: info.option }),
-        onContextmenu: (event: MouseEvent) => handleContextMenu({ event, option: info.option }),
-      })" />
+      @update:expanded-keys="handleExpandedKeysUpdate" />
 
     <n-dropdown
       :options="contextMenuOptions"

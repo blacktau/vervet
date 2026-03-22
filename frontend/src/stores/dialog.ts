@@ -64,6 +64,10 @@ export const useDialogStore = defineStore('dialog', {
         visible: false,
         type: DialogMode.New,
       } as DialogState,
+      [DialogType.ServerPicker]: {
+        visible: false,
+        type: DialogMode.New,
+      } as DialogState,
     } as Record<DialogType, DialogState>,
   }),
   actions: {
