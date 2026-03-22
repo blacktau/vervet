@@ -209,15 +209,55 @@ Key actions:
 - **`tabs.ts`** — reuse `openQuery()` for opening files as query tabs
 - **`queryStore.ts`** — add new `loadFileByPath(queryId, filePath)` action for loading file content by known path into a query tab
 - **`dialogStore.ts`** — add `showServerPicker` flag if using the shared dialog pattern
+- **`SettingsDialog.vue`** — add new Workspaces section with file extension configuration
+- **`models/settings.go`** — add `WorkspacesSettings` to `Settings` struct
 - **`i18n/en-GB/`** — add workspace-related translation keys
 
 ## File Type Filtering
 
-Query-relevant file extensions:
+The list of file extensions shown in the workspace tree is user-configurable via a new **Workspaces** section in the Settings dialog.
+
+### Default extensions
 - `.js` — JavaScript query files
 - `.mongodb` — MongoDB-specific query files
 
-These are the only files shown in the workspace tree. Directories that contain no matching files (recursively) show a greyed-out "(no query files)" label.
+### Settings integration
+
+The Go `Settings` model gains a new `Workspaces` field:
+
+```go
+type WorkspacesSettings struct {
+    FileExtensions []string `yaml:"fileExtensions"`
+}
+```
+
+Added to the existing `Settings` struct:
+
+```go
+type Settings struct {
+    Window    WindowSettings     `yaml:"window"`
+    General   GeneralSettings    `yaml:"general"`
+    Editor    EditorSettings     `yaml:"editor"`
+    Terminal  TerminalSettings   `yaml:"terminal"`
+    Workspaces WorkspacesSettings `yaml:"workspaces"`
+}
+```
+
+If `FileExtensions` is empty or nil, the defaults (`.js`, `.mongodb`) are used. This is handled in the backend when filtering directory entries.
+
+### Settings dialog UI
+
+A new **Workspaces** tab/section in the Settings dialog containing:
+- A list of file extensions with the ability to add and remove entries
+- Uses Naive UI's `n-dynamic-tags` or similar component for an editable tag list
+- Each tag displays the extension (e.g. `.js`, `.mongodb`, `.mql`)
+- A "Reset to Defaults" link to restore the default list
+
+### Backend usage
+
+`ReadDirectory(path)` reads the current file extensions from settings when filtering. The workspace tree refreshes when settings are saved so changes take effect immediately.
+
+Directories that contain no matching files (recursively) show a greyed-out "(no query files)" label.
 
 ## Error Handling
 
