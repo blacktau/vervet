@@ -117,7 +117,6 @@ function handleClickOutside() {
 function handleNewFile(node: TreeOption) {
   const nameRef = ref('')
   dialoger.show({
-    type: 'info',
     title: t('workspaces.newFile'),
     positiveText: t('common.create'),
     negativeText: t('common.cancel'),
@@ -149,7 +148,6 @@ function handleNewFile(node: TreeOption) {
 function handleRename(node: TreeOption) {
   const nameRef = ref(node.label as string)
   dialoger.show({
-    type: 'info',
     title: t('workspaces.renameFile'),
     positiveText: t('common.save'),
     negativeText: t('common.cancel'),

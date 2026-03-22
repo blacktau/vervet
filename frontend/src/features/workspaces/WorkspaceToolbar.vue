@@ -35,7 +35,6 @@ function handleWorkspaceChange(value: string) {
 function handleCreate() {
   const nameRef = ref('')
   dialoger.show({
-    type: 'info',
     title: t('workspaces.createWorkspace'),
     positiveText: t('common.create'),
     negativeText: t('common.cancel'),
@@ -61,7 +60,6 @@ function handleGearSelect(key: string) {
   if (key === 'rename') {
     const nameRef = ref(workspaceStore.activeWorkspace.name)
     dialoger.show({
-      type: 'info',
       title: t('workspaces.renameWorkspace'),
       positiveText: t('common.save'),
       negativeText: t('common.cancel'),
