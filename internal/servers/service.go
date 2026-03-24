@@ -280,32 +280,39 @@ func (sm *ServerService) RemoveNode(id string) error {
 		return fmt.Errorf("failed to load registered servers: %w", err)
 	}
 
-	node, idx := findServer(id, servers)
+	node, _ := findServer(id, servers)
 	if node == nil {
 		log.Error("Failed to find registered server with ID")
 		return fmt.Errorf("failed to find registered server with ID %s", id)
 	}
 
-	if node.IsGroup && hasChildren(node.ID, servers) {
-		log.Error("Cannot remove node from registered servers: still contains children")
-		return fmt.Errorf("cannot remove node %s from registered servers: still contains children", node.ID)
+	removeIDs := map[string]bool{id: true}
+	if node.IsGroup {
+		collectDescendants(id, servers, removeIDs)
 	}
 
-	servers = append(servers[:idx], servers[idx+1:]...)
+	var remaining []models.RegisteredServer
+	for _, s := range servers {
+		if !removeIDs[s.ID] {
+			remaining = append(remaining, s)
+		}
+	}
 
-	err = sm.store.SaveServers(servers)
+	err = sm.store.SaveServers(remaining)
 	if err != nil {
 		log.Error("Failed to delete node", slog.Any("error", err))
 		return fmt.Errorf("failed to delete node: %w", err)
 	}
 
-	if !node.IsGroup {
-		err := sm.connectionStrings.DeleteRegisteredServerURI(id)
-		if err != nil {
-			log.Error("Failed to delete keyring entry for server", slog.Any("error", err))
-		}
-		if sm.tokenManager != nil {
-			sm.tokenManager.CleanupServer(id)
+	for rid := range removeIDs {
+		removed, _ := findServer(rid, servers)
+		if removed != nil && !removed.IsGroup {
+			if err := sm.connectionStrings.DeleteRegisteredServerURI(rid); err != nil {
+				log.Error("Failed to delete keyring entry for server", slog.String("serverID", rid), slog.Any("error", err))
+			}
+			if sm.tokenManager != nil {
+				sm.tokenManager.CleanupServer(rid)
+			}
 		}
 	}
 
@@ -339,10 +346,6 @@ func findServer(serverID string, servers []models.RegisteredServer) (*models.Reg
 }
 
 func hasChildren(parentID string, servers []models.RegisteredServer) bool {
-	if len(servers) == 0 {
-		return false
-	}
-
 	for _, server := range servers {
 		if server.ParentID == parentID {
 			return true
@@ -350,4 +353,15 @@ func hasChildren(parentID string, servers []models.RegisteredServer) bool {
 	}
 
 	return false
+}
+
+func collectDescendants(parentID string, servers []models.RegisteredServer, ids map[string]bool) {
+	for _, server := range servers {
+		if server.ParentID == parentID {
+			ids[server.ID] = true
+			if server.IsGroup {
+				collectDescendants(server.ID, servers, ids)
+			}
+		}
+	}
 }

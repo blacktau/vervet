@@ -187,6 +187,10 @@ watch(
   async (visible: boolean) => {
     if (visible) {
       resetForm()
+      const rawData = dialogStore.dialogs[DialogType.Server].data as Record<string, string> | undefined
+      if (rawData?.parentId) {
+        generalForm.value.parentId = rawData.parentId
+      }
       const data = dialogStore.serverDialogData
       if (data?.mode == 'edit' || data?.mode == 'clone') {
         editServerID.value = data?.serverId
@@ -405,7 +409,7 @@ const onTestConnection = async () => {
     <template #action>
       <div class="flex-item-expand">
         <n-button
-          :disabled="closingConnection"
+          :disabled="closingConnection || !generalForm.connectionString"
           :focusable="false"
           :loading="testing"
           @click="onTestConnection">
@@ -417,7 +421,7 @@ const onTestConnection = async () => {
           {{ $t('common.cancel') }}
         </n-button>
         <n-button
-          :disabled="closingConnection"
+          :disabled="closingConnection || !generalForm.name || !generalForm.connectionString"
           :focusable="false"
           type="primary"
           @click="onSaveServer">

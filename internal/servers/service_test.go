@@ -226,18 +226,23 @@ func TestRemoveNode(t *testing.T) {
 		assert.Error(t, err)
 	})
 
-	t.Run("cannot remove group with children", func(t *testing.T) {
+	t.Run("remove group with children recursively", func(t *testing.T) {
+		mockCSStore := &MockConnectionStringsStore{
+			uris: map[string]string{"2": "mongodb://localhost"},
+		}
 		mockStore := &mockServerStore{
 			servers: []models.RegisteredServer{
 				{ID: "1", Name: "Group 1", IsGroup: true},
 				{ID: "2", Name: "Server 2", ParentID: "1"},
 			},
 		}
-		sm := newTestServerService(mockStore, &MockConnectionStringsStore{})
+		sm := newTestServerService(mockStore, mockCSStore)
 
 		err := sm.RemoveNode("1")
 
-		assert.Error(t, err)
+		assert.NoError(t, err)
+		assert.Len(t, mockStore.servers, 0)
+		assert.Len(t, mockCSStore.uris, 0)
 	})
 }
 
