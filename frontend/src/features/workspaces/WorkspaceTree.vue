@@ -16,7 +16,7 @@ const notifier = useNotifier()
 const contextMenuX = ref(0)
 const contextMenuY = ref(0)
 const showContextMenu = ref(false)
-const contextMenuOptions = ref<Array<{ label: string; key: string }>>([])
+const contextMenuOptions = ref<Array<{ label?: string; key: string; type?: string }>>([])
 const contextNode = ref<TreeOption | null>(null)
 
 function isRootFolder(node: TreeOption): boolean {
@@ -64,6 +64,7 @@ function handleContextMenu(info: { event: MouseEvent; option: TreeOption }) {
     contextMenuOptions.value = [
       { label: t('workspaces.openFile'), key: 'open' },
       { label: t('workspaces.renameFile'), key: 'rename' },
+      { type: 'divider', key: 'd1' },
       { label: t('workspaces.deleteFile'), key: 'delete' },
     ]
   } else if (isRootFolder(info.option)) {
@@ -71,6 +72,7 @@ function handleContextMenu(info: { event: MouseEvent; option: TreeOption }) {
     contextMenuOptions.value = [
       { label: t('workspaces.newFile'), key: 'newFile' },
       { label: t('workspaces.newFolder'), key: 'newFolder' },
+      { type: 'divider', key: 'd1' },
       { label: t('workspaces.removeFolder'), key: 'removeFolder' },
     ]
   } else {

@@ -25,6 +25,7 @@ const workspaceOptions = computed(() => {
 
 const gearOptions = computed(() => [
   { label: t('workspaces.rename'), key: 'rename' },
+  { type: 'divider', key: 'd1' },
   { label: t('workspaces.delete'), key: 'delete' },
 ])
 
