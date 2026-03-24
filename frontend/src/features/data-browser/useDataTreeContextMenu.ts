@@ -30,6 +30,7 @@ export function useDataTreeContextMenu() {
       key: 'serverStatus',
       disabled: false,
     },
+    { type: 'divider', key: 'd1', label: '' },
     {
       label: t('dataBrowser.contextMenu.disconnect'),
       key: 'disconnect',
@@ -44,11 +45,6 @@ export function useDataTreeContextMenu() {
       disabled: false,
     },
     {
-      label: t('dataBrowser.contextMenu.dropDatabase'),
-      key: 'dropDatabase',
-      disabled: false,
-    },
-    {
       label: t('dataBrowser.contextMenu.statistics'),
       key: 'statistics',
       disabled: false,
@@ -56,6 +52,12 @@ export function useDataTreeContextMenu() {
     {
       label: t('dataBrowser.contextMenu.refresh'),
       key: 'refresh',
+      disabled: false,
+    },
+    { type: 'divider', key: 'd1', label: '' },
+    {
+      label: t('dataBrowser.contextMenu.dropDatabase'),
+      key: 'dropDatabase',
       disabled: false,
     },
   ])
@@ -93,11 +95,6 @@ export function useDataTreeContextMenu() {
       disabled: false,
     },
     {
-      label: t('dataBrowser.contextMenu.dropCollection'),
-      key: 'dropCollection',
-      disabled: false,
-    },
-    {
       label: t('dataBrowser.contextMenu.viewIndexes'),
       key: 'viewIndexes',
       disabled: false,
@@ -110,6 +107,12 @@ export function useDataTreeContextMenu() {
     {
       label: t('dataBrowser.contextMenu.refresh'),
       key: 'refresh',
+      disabled: false,
+    },
+    { type: 'divider', key: 'd1', label: '' },
+    {
+      label: t('dataBrowser.contextMenu.dropCollection'),
+      key: 'dropCollection',
       disabled: false,
     },
   ])

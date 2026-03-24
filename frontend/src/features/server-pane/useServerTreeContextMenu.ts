@@ -3,17 +3,21 @@ import { useI18n } from 'vue-i18n'
 import {
   Cog8ToothIcon,
   DocumentDuplicateIcon,
+  FolderPlusIcon,
   PencilSquareIcon,
+  PlusCircleIcon,
   TrashIcon,
 } from '@heroicons/vue/24/outline'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
-import { useDialogStore } from '@/stores/dialog.ts'
+import { DialogType, useDialogStore } from '@/stores/dialog.ts'
 import { type RegisteredServerNode, useServerStore } from '@/features/server-pane/serverStore.ts'
 import { useDialoger, useMessager } from '@/utils/dialog.ts'
 import PlugConnected from '@/features/icon/PlugConnected.vue'
 import PlugDisconnected from '@/features/icon/PlugDisconnected.vue'
 
 export const MenuKeys = {
+  GroupAddServer: 'group_add_server',
+  GroupAddSubGroup: 'group_add_sub_group',
   GroupRename: 'group_rename',
   GroupDelete: 'group_delete',
   ServerDisconnect: 'server_disconnect',
@@ -57,10 +61,21 @@ export function useServerTreeContextMenu(
     if (option.isGroup) {
       return [
         {
+          key: MenuKeys.GroupAddServer,
+          label: 'serverPane.serverTree.addServerToGroup',
+          icon: PlusCircleIcon,
+        },
+        {
+          key: MenuKeys.GroupAddSubGroup,
+          label: 'serverPane.serverTree.addSubGroup',
+          icon: FolderPlusIcon,
+        },
+        {
           key: MenuKeys.GroupRename,
           label: 'serverPane.serverTree.renameGroup',
           icon: PencilSquareIcon,
         },
+        { type: 'divider', key: 'd1', label: '' },
         {
           key: MenuKeys.GroupDelete,
           label: 'serverPane.serverTree.deleteGroup',
@@ -88,24 +103,19 @@ export function useServerTreeContextMenu(
       },
     ]
 
-    if (browserStore.isConnected(option.id)) {
-      return [
-        ...common,
-        {
+    const connectOption: ContextMenuEntry = browserStore.isConnected(option.id)
+      ? {
           key: MenuKeys.ServerDisconnect,
           label: 'serverPane.serverTree.disconnect',
           icon: PlugDisconnected,
-        },
-      ]
-    }
-    return [
-      ...common,
-      {
-        key: MenuKeys.ServerConnect,
-        label: 'serverPane.serverTree.connectServer',
-        icon: PlugConnected,
-      },
-    ]
+        }
+      : {
+          key: MenuKeys.ServerConnect,
+          label: 'serverPane.serverTree.connectServer',
+          icon: PlugConnected,
+        }
+
+    return [connectOption, ...common]
   }
 
   const openContextMenu = (option: RegisteredServerNode, e: PointerEvent) => {
@@ -141,12 +151,32 @@ export function useServerTreeContextMenu(
     const dialoger = useDialoger()
     const group = serverStore.findServerById(groupId)
     const name = group?.name ?? 'unknown'
-    dialoger.warning(i18n.t('serverPane.serverTree.deleteGroupTooltip', { name }), async () => {
+    const hasChildren = (group?.children?.length ?? 0) > 0
+
+    const content = hasChildren
+      ? i18n.t('serverPane.serverTree.deleteGroupWithChildrenTooltip', { name })
+      : i18n.t('serverPane.serverTree.deleteGroupTooltip', { name })
+
+    const onConfirm = async () => {
       const { success, msg } = await serverStore.deleteGroup(groupId)
       if (!success) {
         useMessager().error(msg || '')
       }
-    })
+    }
+
+    if (hasChildren) {
+      dialoger.show({
+        type: 'error',
+        title: i18n.t('common.warning'),
+        content,
+        positiveText: i18n.t('common.confirm'),
+        negativeText: i18n.t('common.cancel'),
+        positiveButtonProps: { type: 'error' },
+        onPositiveClick: onConfirm,
+      })
+    } else {
+      dialoger.warning(content, onConfirm)
+    }
   }
 
   const handleSelectContextMenu = (key: string) => {
@@ -179,6 +209,12 @@ export function useServerTreeContextMenu(
           if (!closed) return
           useMessager().success(i18n.t('common.dialog.handleSuccess'))
         })
+        break
+      case MenuKeys.GroupAddServer:
+        dialogStore.showNewDialog(DialogType.Server, { parentId: serverId })
+        break
+      case MenuKeys.GroupAddSubGroup:
+        dialogStore.showNewDialog(DialogType.Group, { parentId: serverId })
         break
       case MenuKeys.GroupRename:
         dialogStore.openRenameGroupDialog(serverId)

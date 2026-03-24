@@ -4,7 +4,7 @@ import { ref, watchEffect } from 'vue'
 import { DialogType, useDialogStore } from '@/stores/dialog.ts'
 import GeneralSettings from '@/features/settings/GeneralSettings.vue'
 import EditorSettings from '@/features/settings/EditorSettings.vue'
-import TerminalSettings from '@/features/settings/TerminalSettings.vue'
+import MessagesSettings from '@/features/settings/MessagesSettings.vue'
 import WorkspacesSettings from '@/features/settings/WorkspacesSettings.vue'
 
 const settingsStore = useSettingsStore()
@@ -78,7 +78,7 @@ const onClose = async () => {
           :tab="$t('settings.terminal.name')"
           display-directive="show:lazy"
           name="terminal">
-          <terminal-settings :loading="loading" />
+          <messages-settings :loading="loading" />
         </n-tab-pane>
         <n-tab-pane
           :tab="$t('settings.workspaces.name')"

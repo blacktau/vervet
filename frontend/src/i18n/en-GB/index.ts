@@ -50,6 +50,7 @@ export default {
       font: 'Font',
       fontTip: 'Select or input font name',
       fontSize: 'Font Size',
+      defaultFont: 'Default',
     },
     general: {
       name: 'General',
@@ -73,11 +74,7 @@ export default {
         'Built-in engine requires no external dependencies. mongosh requires mongosh to be installed separately.',
     },
     terminal: {
-      name: 'Terminal',
-      cursorStyle: 'Cursor Style',
-      cursorStyleBlock: 'Block',
-      cursorStyleUnderline: 'Underline',
-      cursorStyleBar: 'Bar',
+      name: 'Messages',
     },
     workspaces: {
       name: 'Workspaces',
@@ -383,6 +380,8 @@ export default {
   },
   serverPane: {
     serverTree: {
+      addServerToGroup: 'Add Server',
+      addSubGroup: 'Add Sub-Group',
       renameGroup: 'Rename Group',
       deleteGroup: 'Delete Group',
       disconnect: 'Disconnect',
@@ -393,7 +392,8 @@ export default {
       editDisconnectConfirmation:
         'Relevant open connections must be closed before editing. Continue?',
       empty: 'No Mongo Servers Added',
-      deleteGroupTooltip: 'Group "{name}" and all its Servers will be deleted',
+      deleteGroupTooltip: 'Are you sure you want to delete group "{name}"?',
+      deleteGroupWithChildrenTooltip: 'Delete "{name}" and all its sub-groups and servers?',
     },
     dialogs: {
       common: {

@@ -16,5 +16,6 @@ export interface ContextMenuOption {
   label: string
   key: string
   disabled?: boolean
+  type?: 'divider'
   children?: ContextMenuOption[]
 }

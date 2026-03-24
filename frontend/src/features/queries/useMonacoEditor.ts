@@ -43,7 +43,8 @@ export function useMonacoEditor(options: MonacoEditorOptions) {
       theme: settingsStore.isDark ? 'vervet-dark' : 'vervet-light',
       automaticLayout: true,
       minimap: { enabled: false },
-      fontSize: options.fontSize ?? 14,
+      fontSize: settingsStore.editor.font.size || options.fontSize || 14,
+      fontFamily: settingsStore.editor.font.family || undefined,
       lineNumbers: 'on',
       scrollBeyondLastLine: false,
       wordWrap: 'on',
@@ -63,6 +64,18 @@ export function useMonacoEditor(options: MonacoEditorOptions) {
     (isDark) => {
       if (editor.value) {
         monaco.editor.setTheme(isDark ? 'vervet-dark' : 'vervet-light')
+      }
+    },
+  )
+
+  watch(
+    () => [settingsStore.editor.font.family, settingsStore.editor.font.size],
+    ([family, size]) => {
+      if (editor.value) {
+        editor.value.updateOptions({
+          fontFamily: (family as string) || undefined,
+          fontSize: (size as number) || 14,
+        })
       }
     },
   )

@@ -1,7 +1,7 @@
 import { useOsTheme } from 'naive-ui'
 import { defineStore } from 'pinia'
 import { i18nGlobal, translations } from '@/i18n'
-import { cloneDeep, get, isEmpty, join, map, set, split } from 'lodash'
+import { cloneDeep, get, isEmpty, set, split } from 'lodash'
 import * as settingsProxy from 'wailsjs/go/api/SettingsProxy'
 import { type models } from 'wailsjs/go/models.ts'
 import { useNotifier } from '@/utils/dialog.ts'
@@ -145,6 +145,11 @@ export const useSettingsStore = defineStore('settings', {
       if (links === undefined) {
         set(result.data, 'editor.links', true)
       }
+      const fileExtensions = get(result.data, 'workspaces.fileExtensions')
+      if (fileExtensions === undefined) {
+        set(this, 'workspaces.fileExtensions', ['.js', '.mongodb'])
+      }
+
       i18nGlobal.locale = this.currentLanguage
     },
     async loadFontList(): Promise<void> {
@@ -177,10 +182,8 @@ function fontToStyle(font: models.FontSettings, defaultFontFamily?: string) {
     fontSize: (font.size || 14) + 'px',
   }
   if (!isEmpty(font.family)) {
-    style['fontFamily'] = join(
-      map(font.family, (f) => `"${f}`),
-      ',',
-    )
+    const families = Array.isArray(font.family) ? font.family : [font.family]
+    style['fontFamily'] = families.map((f) => `"${f}"`).join(', ')
   }
 
   if (isEmpty(style['fontFamily']) && !isEmpty(defaultFontFamily)) {

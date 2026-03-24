@@ -61,6 +61,7 @@ const onConfirm = async () => {
 
       if (success) {
         messager.success(i18n.t('common.dialog.handleSuccess'))
+        onClose()
       } else {
         messager.error(msg!)
       }
@@ -68,6 +69,7 @@ const onConfirm = async () => {
       const { success, msg } = await serverStore.createGroup(name, parentId)
       if (success) {
         messager.success(i18n.t('common.dialog.handleSuccess'))
+        onClose()
       } else {
         messager.error(msg!)
       }
@@ -113,11 +115,18 @@ const groupOptions = computed(() => {
 
 watchEffect(() => {
   if (dialogStore.dialogs[DialogType.Group].visible) {
-    const groupId = dialogStore.dialogs[DialogType.Group].data as string
-    const group = serverStore.findServerById(groupId)
-    editGroup.value = groupId
-    groupForm.name = group?.name || ''
-    groupForm.parentId = group?.parentID
+    const rawData = dialogStore.dialogs[DialogType.Group].data
+    if (typeof rawData === 'object' && rawData !== null && 'parentId' in rawData) {
+      editGroup.value = ''
+      groupForm.name = ''
+      groupForm.parentId = (rawData as { parentId: string }).parentId
+    } else {
+      const groupId = rawData as string
+      const group = serverStore.findServerById(groupId)
+      editGroup.value = groupId
+      groupForm.name = group?.name || ''
+      groupForm.parentId = group?.parentID
+    }
   }
 })
 </script>
@@ -149,7 +158,8 @@ watchEffect(() => {
       <n-form-item :label="$t('serverPane.dialogs.group.name')" path="name" required>
         <n-input
           v-model:value="groupForm.name"
-          :placeholder="$t('serverPane.dialogs.group.namePlaceholder')" />
+          :placeholder="$t('serverPane.dialogs.group.namePlaceholder')"
+          @keyup.enter="onConfirm" />
       </n-form-item>
       <n-form-item :label="$t('serverPane.dialogs.group.parent')" :span="24" required>
         <n-tree-select

@@ -1,10 +1,18 @@
 <script lang="ts" setup>
+import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useSettingsStore } from '@/features/settings/settingsStore.ts'
 import { QuestionMarkCircleIcon } from '@heroicons/vue/24/outline'
 
 const props = defineProps<{ loading: boolean }>()
 
+const { t } = useI18n()
 const settingsStore = useSettingsStore()
+
+const fontOptions = computed(() => [
+  { label: t('settings.common.defaultFont'), value: '' },
+  ...settingsStore.monoFontOptions.map((f) => ({ label: f.family, value: f.family })),
+])
 </script>
 
 <template>
@@ -28,12 +36,10 @@ const settingsStore = useSettingsStore()
         </template>
         <n-select
           v-model:value="settingsStore.editor.font.family"
-          :options="settingsStore.monoFontOptions"
-          :placeholder="$t('settings.common.fontTip')"
+          :options="fontOptions"
+          :placeholder="$t('settings.common.defaultFont')"
           filterable
-          label-field="family"
-          tag
-          value-field="family" />
+          tag />
       </n-form-item-gi>
       <n-form-item-gi :label="$t('settings.common.fontSize')" :span="24">
         <n-input-number v-model:value="settingsStore.editor.font.size" :max="65535" :min="1" />

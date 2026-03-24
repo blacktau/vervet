@@ -1,10 +1,17 @@
 <script lang="ts" setup>
+import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useSettingsStore } from '@/features/settings/settingsStore.ts'
-import type { SelectOption } from 'naive-ui'
 
 const props = defineProps<{ loading: boolean }>()
 
+const { t } = useI18n()
 const settingsStore = useSettingsStore()
+
+const fontOptions = computed(() => [
+  { label: t('settings.common.defaultFont'), value: '' },
+  ...settingsStore.monoFontOptions.map((f) => ({ label: f.family, value: f.family })),
+])
 </script>
 
 <template>
@@ -28,28 +35,13 @@ const settingsStore = useSettingsStore()
         </template>
         <n-select
           v-model:value="settingsStore.terminal.font.family"
-          :options="settingsStore.monoFontOptions"
-          :placeholder="$t('settings.common.fontTip')"
-          :render-label="({ label, value }: SelectOption) => value || $t(label as string)"
+          :options="fontOptions"
+          :placeholder="$t('settings.common.defaultFont')"
           filterable
-          multiple
           tag />
       </n-form-item-gi>
       <n-form-item-gi :label="$t('settings.common.fontSize')" :span="24">
         <n-input-number v-model:value="settingsStore.terminal.font.size" :max="65535" :min="1" />
-      </n-form-item-gi>
-      <n-form-item-gi :label="$t('settings.terminal.cursorStyle')" :span="24">
-        <n-radio-group
-          v-model:value="settingsStore.terminal.cursorStyle"
-          name="theme"
-          size="medium">
-          <n-radio-button
-            v-for="opt in settingsStore.terminalCursorOptions"
-            :key="opt.value"
-            :value="opt.value">
-            {{ $t(opt.label) }}
-          </n-radio-button>
-        </n-radio-group>
       </n-form-item-gi>
     </n-grid>
   </n-form>

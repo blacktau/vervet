@@ -15,6 +15,7 @@ import {
   TrashIcon,
 } from '@heroicons/vue/24/outline'
 import ListTreeIcon from '@/features/icon/ListTreeIcon.vue'
+import { useSettingsStore } from '@/features/settings/settingsStore'
 import { ref, onMounted, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { CollectionContext } from '@/features/results-document-tree/useDocumentContextMenu'
@@ -27,12 +28,24 @@ const props = defineProps<{
 const { t } = useI18n()
 const queryStore = useQueryStore()
 const tabStore = useTabStore()
+const settingsStore = useSettingsStore()
 const dialog = useDialog()
 const themeVars = useThemeVars()
 
 const filenameBarStyle = computed(() => ({
   background: `${themeVars.value.primaryColor}15`,
 }))
+
+const messagesFontSize = computed(() => settingsStore.terminal.font.size || 13)
+
+const messagesFontKey = computed(() =>
+  `${settingsStore.terminal.font.family}-${settingsStore.terminal.font.size}`,
+)
+
+const messagesLogStyle = computed(() => {
+  const family = settingsStore.terminal.font.family
+  return family ? { '--n-font-family': `"${family}"` } : {}
+})
 
 const queryContentRef = ref<HTMLElement | null>(null)
 const editorHeight = ref(300)
@@ -393,9 +406,11 @@ onMounted(async () => {
           </n-tab-pane>
           <n-tab-pane name="messages" :tab="t('query.messagesTab')">
             <n-log
+              :key="messagesFontKey"
               class="messages-log"
               :log="queryState.messages"
-              :font-size="13"
+              :font-size="messagesFontSize"
+              :style="messagesLogStyle"
               language="vervet-log"
               trim
             />
