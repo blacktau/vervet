@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { DialogType, useDialogStore } from '@/stores/dialog'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore'
+import { useServerStore, type RegisteredServerNode } from '@/features/server-pane/serverStore'
 import { useTabStore } from '@/features/tabs/tabs'
 import { useQueryStore } from '@/features/queries/queryStore'
 import * as databasesProxy from 'wailsjs/go/api/DatabasesProxy'
@@ -11,6 +12,7 @@ import { useI18n } from 'vue-i18n'
 const { t } = useI18n()
 const dialogStore = useDialogStore()
 const browserStore = useDataBrowserStore()
+const serverStore = useServerStore()
 const tabStore = useTabStore()
 const queryStore = useQueryStore()
 const notifier = useNotifier()
@@ -19,6 +21,7 @@ const selectedServerId = ref<string | null>(null)
 const selectedDatabase = ref<string | null>(null)
 const databases = ref<string[]>([])
 const loadingDatabases = ref(false)
+const connecting = ref(false)
 
 interface ServerPickerData {
   filePath: string
@@ -36,10 +39,23 @@ const visible = computed({
   set: () => dialogStore.hide(DialogType.ServerPicker),
 })
 
+function flattenServers(nodes: RegisteredServerNode[]): RegisteredServerNode[] {
+  const result: RegisteredServerNode[] = []
+  for (const node of nodes) {
+    if (!node.isGroup) {
+      result.push(node)
+    }
+    if (node.children) {
+      result.push(...flattenServers(node.children))
+    }
+  }
+  return result
+}
+
 const serverOptions = computed(() => {
-  return browserStore.connections.map((c) => ({
-    label: c.name,
-    value: c.serverID,
+  return flattenServers(serverStore.serverTree).map((s) => ({
+    label: s.name,
+    value: s.id,
   }))
 })
 
@@ -51,7 +67,7 @@ const databaseOptions = computed(() => {
 })
 
 const canConfirm = computed(() => {
-  return selectedServerId.value && selectedDatabase.value
+  return selectedServerId.value && selectedDatabase.value && !connecting.value
 })
 
 watch(visible, (isVisible) => {
@@ -59,12 +75,29 @@ watch(visible, (isVisible) => {
     selectedServerId.value = dialogData.value?.serverId ?? null
     selectedDatabase.value = dialogData.value?.database ?? null
     databases.value = []
+    connecting.value = false
 
     if (selectedServerId.value) {
-      loadDatabases(selectedServerId.value)
+      ensureConnectedAndLoadDatabases(selectedServerId.value)
     }
   }
 })
+
+async function ensureConnectedAndLoadDatabases(serverId: string) {
+  if (!browserStore.isConnected(serverId)) {
+    connecting.value = true
+    try {
+      const result = await browserStore.connect(serverId)
+      if (!result.success) {
+        return
+      }
+    } finally {
+      connecting.value = false
+    }
+  }
+
+  await loadDatabases(serverId)
+}
 
 async function loadDatabases(serverId: string) {
   loadingDatabases.value = true
@@ -85,7 +118,7 @@ function handleServerChange(value: string) {
   selectedDatabase.value = null
   databases.value = []
   if (value) {
-    loadDatabases(value)
+    ensureConnectedAndLoadDatabases(value)
   }
 }
 
@@ -135,7 +168,8 @@ function onClose() {
     <div class="server-picker-form">
       <n-form-item :label="t('workspaces.server')">
         <n-select
-          :disabled="dialogData?.skipServerSelection"
+          :disabled="dialogData?.skipServerSelection || connecting"
+          :loading="connecting"
           :options="serverOptions"
           :value="selectedServerId"
           :placeholder="t('workspaces.selectServer')"
@@ -143,7 +177,7 @@ function onClose() {
       </n-form-item>
       <n-form-item :label="t('workspaces.database')">
         <n-select
-          :disabled="!selectedServerId"
+          :disabled="!selectedServerId || connecting"
           :loading="loadingDatabases"
           :options="databaseOptions"
           :value="selectedDatabase"
