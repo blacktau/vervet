@@ -17,6 +17,7 @@ import DataBrowserPane from '@/features/data-browser/DataBrowserPane.vue'
 import UnconnectedContent from '@/features/unconnected-content/UnconnectedContent.vue'
 import TitleBar from '@/app/TitleBar.vue'
 import UnifiedContentPane from '@/features/tabs/UnifiedContentPane.vue'
+import WorkspacePane from '@/features/workspaces/WorkspacePane.vue'
 
 const themeVars = useThemeVars()
 const props = defineProps<{
@@ -152,6 +153,19 @@ onMounted(async () => {
             <server-pane class="app-side flex-item-expand" />
           </resizeable-wrapper>
           <unconnected-content class="flex-item-expand" />
+        </div>
+        <div
+          v-show="tabStore.nav === NavType.Workspaces"
+          class="content-area flex-box-h flex-item-expand">
+          <resizeable-wrapper
+            v-model:size="settingsStore.window.asideWidth"
+            :min-size="300"
+            :offset="data.navMenuWidth"
+            class="flex-item"
+            @update:size="handleResize">
+            <workspace-pane class="app-side flex-item-expand" />
+          </resizeable-wrapper>
+          <unified-content-pane class="flex-item-expand" />
         </div>
       </div>
     </div>

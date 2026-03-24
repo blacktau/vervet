@@ -7,10 +7,15 @@ type Font struct {
 }
 
 type Settings struct {
-	Window   WindowSettings   `json:"window" yaml:"window"`
-	General  GeneralSettings  `json:"general" yaml:"general"`
-	Editor   EditorSettings   `json:"editor" yaml:"editor"`
-	Terminal TerminalSettings `json:"terminal" yaml:"terminal"`
+	Window     WindowSettings     `json:"window" yaml:"window"`
+	General    GeneralSettings    `json:"general" yaml:"general"`
+	Editor     EditorSettings     `json:"editor" yaml:"editor"`
+	Terminal   TerminalSettings   `json:"terminal" yaml:"terminal"`
+	Workspaces WorkspacesSettings `json:"workspaces" yaml:"workspaces"`
+}
+
+type WorkspacesSettings struct {
+	FileExtensions []string `json:"fileExtensions" yaml:"fileExtensions"`
 }
 
 type WindowSettings struct {

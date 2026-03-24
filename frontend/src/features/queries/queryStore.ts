@@ -270,6 +270,22 @@ export const useQueryStore = defineStore('query', {
       return readResult.data
     },
 
+    async loadFileByPath(queryId: string, filePath: string): Promise<boolean> {
+      const result = await filesProxy.ReadFile(filePath)
+      if (!result.isSuccess) {
+        const notifier = useNotifier()
+        notifier.error(result.errorDetail || result.errorCode)
+        return false
+      }
+
+      const state = this.getQueryState(queryId)
+      state.filePath = filePath
+      state.savedContent = result.data
+      state.currentContent = result.data
+      state.isDirty = false
+      return true
+    },
+
     async saveFile(queryId: string, content: string): Promise<boolean> {
       const state = this.getQueryState(queryId)
       if (!state.filePath) {

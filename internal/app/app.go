@@ -13,6 +13,7 @@ import (
 	"vervet/internal/databases"
 	"vervet/internal/files"
 	"vervet/internal/indexes"
+	"vervet/internal/workspaces"
 	"vervet/internal/models"
 	"vervet/internal/oidc"
 	"vervet/internal/queryexecutor"
@@ -36,6 +37,7 @@ type App struct {
 	SystemProxy      *api.SystemProxy
 	SettingsProxy    *api.SettingsProxy
 	FilesProxy       *api.FilesProxy
+	WorkspacesProxy  *api.WorkspacesProxy
 
 	serverService      *servers.ServerService
 	registry           *clientregistry.ClientRegistry
@@ -70,6 +72,12 @@ func NewApp(log *slog.Logger) *App {
 	systemService := system.NewSystemService(log)
 	fontService := system.NewFontService(log)
 	filesService := files.NewService(log)
+	workspaceStore, err := workspaces.NewStore(log)
+	if err != nil {
+		log.Error("Failed to initialize workspace store", slog.Any("error", err))
+		panic(fmt.Errorf("failed to initialize workspace store: %w", err))
+	}
+	workspaceService := workspaces.NewService(log, workspaceStore)
 
 	return &App{
 		log:                log,
@@ -93,6 +101,7 @@ func NewApp(log *slog.Logger) *App {
 		SystemProxy:        api.NewSystemProxy(systemService),
 		SettingsProxy:      api.NewSettingsProxy(settingsService, fontService),
 		FilesProxy:         api.NewFilesProxy(filesService),
+		WorkspacesProxy:    api.NewWorkspacesProxy(workspaceService, settingsService),
 	}
 }
 
@@ -127,6 +136,7 @@ func (a *App) Startup(ctx context.Context) {
 	}
 
 	a.filesService.Init(ctx)
+	a.WorkspacesProxy.Init(ctx)
 }
 
 // DomReady is called after front-end resources have been loaded

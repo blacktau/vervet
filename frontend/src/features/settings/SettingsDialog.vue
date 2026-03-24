@@ -5,6 +5,7 @@ import { DialogType, useDialogStore } from '@/stores/dialog.ts'
 import GeneralSettings from '@/features/settings/GeneralSettings.vue'
 import EditorSettings from '@/features/settings/EditorSettings.vue'
 import TerminalSettings from '@/features/settings/TerminalSettings.vue'
+import WorkspacesSettings from '@/features/settings/WorkspacesSettings.vue'
 
 const settingsStore = useSettingsStore()
 const dialogStore = useDialogStore()
@@ -78,6 +79,12 @@ const onClose = async () => {
           display-directive="show:lazy"
           name="terminal">
           <terminal-settings :loading="loading" />
+        </n-tab-pane>
+        <n-tab-pane
+          :tab="$t('settings.workspaces.name')"
+          display-directive="show:lazy"
+          name="workspaces">
+          <workspaces-settings />
         </n-tab-pane>
       </n-tabs>
     </n-spin>
