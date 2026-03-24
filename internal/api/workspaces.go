@@ -98,6 +98,14 @@ func (p *WorkspacesProxy) ReadDirectory(path string) Result[[]models.DirectoryEn
 	return SuccessResult(entries)
 }
 
+func (p *WorkspacesProxy) CreateFolder(dirPath, name string) Result[string] {
+	fullPath, err := p.service.CreateFolder(dirPath, name)
+	if err != nil {
+		return FailResult[string](err)
+	}
+	return SuccessResult(fullPath)
+}
+
 func (p *WorkspacesProxy) CreateFile(dirPath, name string) Result[string] {
 	fullPath, err := p.service.CreateFile(dirPath, name)
 	if err != nil {

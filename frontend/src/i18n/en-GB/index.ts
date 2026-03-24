@@ -98,6 +98,8 @@ export default {
     open: 'Open',
     openOnServer: 'Open on Server...',
     newFile: 'New File',
+    newFolder: 'New Folder',
+    folderName: 'Enter folder name',
     openFile: 'Open',
     renameFile: 'Rename',
     deleteFile: 'Delete',

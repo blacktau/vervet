@@ -70,12 +70,14 @@ function handleContextMenu(info: { event: MouseEvent; option: TreeOption }) {
     // Root folder context menu
     contextMenuOptions.value = [
       { label: t('workspaces.newFile'), key: 'newFile' },
+      { label: t('workspaces.newFolder'), key: 'newFolder' },
       { label: t('workspaces.removeFolder'), key: 'removeFolder' },
     ]
   } else {
     // Subfolder context menu
     contextMenuOptions.value = [
       { label: t('workspaces.newFile'), key: 'newFile' },
+      { label: t('workspaces.newFolder'), key: 'newFolder' },
     ]
   }
 
@@ -95,6 +97,10 @@ function handleContextMenuSelect(key: string) {
 
   if (key === 'newFile') {
     handleNewFile(node)
+  }
+
+  if (key === 'newFolder') {
+    handleNewFolder(node)
   }
 
   if (key === 'rename') {
@@ -141,6 +147,36 @@ function handleNewFile(node: TreeOption) {
 
       await workspaceStore.refreshTree()
       openFile(result.data as string)
+    },
+  })
+}
+
+function handleNewFolder(node: TreeOption) {
+  const nameRef = ref('')
+  dialoger.show({
+    title: t('workspaces.newFolder'),
+    positiveText: t('common.create'),
+    negativeText: t('common.cancel'),
+    content: () => h(NInput, {
+      value: nameRef.value,
+      onUpdateValue: (v: string) => { nameRef.value = v },
+      placeholder: t('workspaces.folderName'),
+      autofocus: true,
+    }),
+    onPositiveClick: async () => {
+      const folderName = nameRef.value.trim()
+      if (!folderName) {
+        return
+      }
+
+      const dirPath = node.key as string
+      const result = await workspacesProxy.CreateFolder(dirPath, folderName)
+      if (!result.isSuccess) {
+        notifier.error(result.errorDetail || result.errorCode)
+        return
+      }
+
+      await workspaceStore.refreshTree()
     },
   })
 }

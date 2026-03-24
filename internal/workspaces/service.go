@@ -195,6 +195,20 @@ func (s *WorkspaceService) ReadDirectory(dirPath string, extensions []string) ([
 	return append(dirs, files...), nil
 }
 
+func (s *WorkspaceService) CreateFolder(dirPath, name string) (string, error) {
+	fullPath := filepath.Join(dirPath, name)
+
+	if _, err := os.Stat(fullPath); err == nil {
+		return "", fmt.Errorf("folder already exists: %s", fullPath)
+	}
+
+	if err := os.MkdirAll(fullPath, 0755); err != nil {
+		return "", err
+	}
+
+	return fullPath, nil
+}
+
 func (s *WorkspaceService) CreateFile(dirPath, name string) (string, error) {
 	fullPath := filepath.Join(dirPath, name)
 
