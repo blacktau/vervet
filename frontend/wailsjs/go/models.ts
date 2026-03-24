@@ -32,6 +32,12 @@ export namespace api {
 	    errorCode?: string;
 	    errorDetail?: string;
 	}
+	export interface Result___vervet_internal_models_DirectoryEntry_ {
+	    isSuccess: boolean;
+	    data: models.DirectoryEntry[];
+	    errorCode?: string;
+	    errorDetail?: string;
+	}
 	export interface Result___vervet_internal_models_Font_ {
 	    isSuccess: boolean;
 	    data: models.Font[];
@@ -116,6 +122,18 @@ export namespace api {
 	    errorCode?: string;
 	    errorDetail?: string;
 	}
+	export interface Result_vervet_internal_models_WorkspaceData_ {
+	    isSuccess: boolean;
+	    data: models.WorkspaceData;
+	    errorCode?: string;
+	    errorDetail?: string;
+	}
+	export interface Result_vervet_internal_models_Workspace_ {
+	    isSuccess: boolean;
+	    data: models.Workspace;
+	    errorCode?: string;
+	    errorDetail?: string;
+	}
 
 }
 
@@ -155,6 +173,12 @@ export namespace models {
 	    unique: boolean;
 	    sparse: boolean;
 	    ttl?: number;
+	}
+	export interface DirectoryEntry {
+	    name: string;
+	    path: string;
+	    isDirectory: boolean;
+	    children?: DirectoryEntry[];
 	}
 	export interface EditIndexRequest {
 	    oldName: string;
@@ -214,6 +238,9 @@ export namespace models {
 	    isCluster: boolean;
 	    isSrv: boolean;
 	}
+	export interface WorkspacesSettings {
+	    fileExtensions: string[];
+	}
 	export interface TerminalSettings {
 	    font: FontSettings;
 	    cursorStyle: string;
@@ -231,6 +258,7 @@ export namespace models {
 	    general: GeneralSettings;
 	    editor: EditorSettings;
 	    terminal: TerminalSettings;
+	    workspaces: WorkspacesSettings;
 	}
 	
 	
@@ -239,6 +267,15 @@ export namespace models {
 	    height: number;
 	    x: number;
 	    y: number;
+	}
+	export interface Workspace {
+	    id: string;
+	    name: string;
+	    folders: string[];
+	}
+	export interface WorkspaceData {
+	    activeWorkspaceId: string;
+	    workspaces: Workspace[];
 	}
 
 }
