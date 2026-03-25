@@ -304,6 +304,7 @@ export default {
       dropIndexesResult: 'Indexes dropped in {time}',
       listIndexesResult: '{count} index(es) returned in {time}',
       commandResult: 'Command completed in {time}',
+      switchedDatabase: 'Switched to database \'{name}\'',
       genericResult: 'Query completed in {time}',
     },
     database: 'Database',

@@ -8,7 +8,7 @@ import {
   updateOperators,
   aggExpressions,
 } from './completionData'
-import { getCollectionSchema, getCollectionNames } from './useSchemaCache'
+import { getCollectionSchema, getCollectionNames, getDatabaseNames } from './useSchemaCache'
 import { useTabStore } from '@/features/tabs/tabs'
 import { useQueryStore } from '@/features/queries/queryStore'
 import type { CompletionContext } from './completionContext'
@@ -74,55 +74,79 @@ function fieldCompletions(
   }))
 }
 
-export function registerMongoCompletions(queryId: string): monaco.IDisposable {
-  return monaco.languages.registerCompletionItemProvider('javascript', {
-    triggerCharacters: ['.', '{', '[', ' ', ',', '"', "'", '$'],
+let globalProviderRegistered = false
+const editorQueryMap = new WeakMap<monaco.editor.ITextModel, string>()
 
-    async provideCompletionItems(
-      model: monaco.editor.ITextModel,
-      position: monaco.Position,
-    ): Promise<monaco.languages.CompletionList> {
-      const textBeforeCursor = model.getValueInRange({
-        startLineNumber: 1,
-        startColumn: 1,
-        endLineNumber: position.lineNumber,
-        endColumn: position.column,
-      })
+export function registerMongoCompletions(queryId: string, editorInstance: monaco.editor.IStandaloneCodeEditor): monaco.IDisposable {
+  const model = editorInstance.getModel()
+  if (model) {
+    editorQueryMap.set(model, queryId)
+  }
 
-      const ctx = analyzeContext(textBeforeCursor)
+  if (!globalProviderRegistered) {
+    globalProviderRegistered = true
+    monaco.languages.registerCompletionItemProvider('javascript', {
+      triggerCharacters: ['.', '{', '[', ' ', ',', '"', "'", '$'],
 
-      const word = model.getWordUntilPosition(position)
-      let range: monaco.IRange = {
-        startLineNumber: position.lineNumber,
-        endLineNumber: position.lineNumber,
-        startColumn: word.startColumn,
-        endColumn: word.endColumn,
-      }
+      async provideCompletionItems(
+        model: monaco.editor.ITextModel,
+        position: monaco.Position,
+      ): Promise<monaco.languages.CompletionList> {
+        const modelQueryId = editorQueryMap.get(model)
+        if (!modelQueryId) {
+          return { suggestions: [] }
+        }
 
-      // For field names inside quotes, extend the range to cover the full dotted prefix
-      // so the entire typed path gets replaced by the completion
-      if (ctx.type === 'FIELD_NAME' && ctx.insideQuotes && ctx.prefix.includes('.')) {
-        const lineText = model.getLineContent(position.lineNumber)
-        // Find the opening quote before the cursor
-        const textBeforeOnLine = lineText.substring(0, position.column - 1)
-        const lastQuote = Math.max(
-          textBeforeOnLine.lastIndexOf('"'),
-          textBeforeOnLine.lastIndexOf("'"),
-        )
-        if (lastQuote >= 0) {
-          range = {
-            startLineNumber: position.lineNumber,
-            endLineNumber: position.lineNumber,
-            startColumn: lastQuote + 2, // after the quote character (1-indexed)
-            endColumn: position.column,
+        const textBeforeCursor = model.getValueInRange({
+          startLineNumber: 1,
+          startColumn: 1,
+          endLineNumber: position.lineNumber,
+          endColumn: position.column,
+        })
+
+        const ctx = analyzeContext(textBeforeCursor)
+
+        const word = model.getWordUntilPosition(position)
+        let range: monaco.IRange = {
+          startLineNumber: position.lineNumber,
+          endLineNumber: position.lineNumber,
+          startColumn: word.startColumn,
+          endColumn: word.endColumn,
+        }
+
+        // For field names inside quotes, extend the range to cover the full dotted prefix
+        // so the entire typed path gets replaced by the completion
+        if (ctx.type === 'FIELD_NAME' && ctx.insideQuotes && ctx.prefix.includes('.')) {
+          const lineText = model.getLineContent(position.lineNumber)
+          // Find the opening quote before the cursor
+          const textBeforeOnLine = lineText.substring(0, position.column - 1)
+          const lastQuote = Math.max(
+            textBeforeOnLine.lastIndexOf('"'),
+            textBeforeOnLine.lastIndexOf("'"),
+          )
+          if (lastQuote >= 0) {
+            range = {
+              startLineNumber: position.lineNumber,
+              endLineNumber: position.lineNumber,
+              startColumn: lastQuote + 2, // after the quote character (1-indexed)
+              endColumn: position.column,
+            }
           }
         }
-      }
 
-      const suggestions = await getSuggestions(ctx, range, queryId)
-      return { suggestions }
+        const suggestions = await getSuggestions(ctx, range, modelQueryId)
+        return { suggestions }
+      },
+    })
+  }
+
+  return {
+    dispose() {
+      if (model) {
+        editorQueryMap.delete(model)
+      }
     },
-  })
+  }
 }
 
 async function getSuggestions(
@@ -212,8 +236,24 @@ async function getSuggestions(
     case 'AGG_EXPRESSION':
       return toCompletionItems(aggExpressions, range, monaco.languages.CompletionItemKind.Function)
 
-    case 'KEYWORD':
-      return [
+    case 'USE_DATABASE': {
+      if (!serverId) {
+        return []
+      }
+      const dbNames = await getDatabaseNames(serverId)
+      return dbNames
+        .filter((n) => n.startsWith(ctx.prefix))
+        .map((name) => ({
+          label: name,
+          kind: monaco.languages.CompletionItemKind.Module,
+          detail: 'Database',
+          insertText: name,
+          range,
+        }))
+    }
+
+    case 'KEYWORD': {
+      const keywords: monaco.languages.CompletionItem[] = [
         {
           label: 'db',
           kind: monaco.languages.CompletionItemKind.Variable,
@@ -221,7 +261,16 @@ async function getSuggestions(
           insertText: 'db',
           range,
         },
+        {
+          label: 'use',
+          kind: monaco.languages.CompletionItemKind.Keyword,
+          detail: 'Switch database',
+          insertText: 'use',
+          range,
+        },
       ]
+      return keywords.filter((k) => k.label.startsWith(ctx.prefix))
+    }
 
     case 'UPDATE_OPERATOR':
       return toCompletionItems(updateOperators, range, monaco.languages.CompletionItemKind.Operator)

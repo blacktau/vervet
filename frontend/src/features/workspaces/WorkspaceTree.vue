@@ -4,6 +4,9 @@ import { NInput, type TreeOption } from 'naive-ui'
 import { useWorkspaceStore } from '@/features/workspaces/workspaceStore'
 import { useDialoger, useNotifier } from '@/utils/dialog'
 import { useDialogStore } from '@/stores/dialog'
+import { useTabStore } from '@/features/tabs/tabs'
+import { useQueryStore } from '@/features/queries/queryStore'
+import { useDataBrowserStore } from '@/features/data-browser/browserStore'
 import { useI18n } from 'vue-i18n'
 import * as workspacesProxy from 'wailsjs/go/api/WorkspacesProxy'
 
@@ -11,6 +14,9 @@ const { t } = useI18n()
 const workspaceStore = useWorkspaceStore()
 const dialoger = useDialoger()
 const dialogStore = useDialogStore()
+const tabStore = useTabStore()
+const queryStore = useQueryStore()
+const browserStore = useDataBrowserStore()
 const notifier = useNotifier()
 
 const contextMenuX = ref(0)
@@ -50,6 +56,27 @@ function nodeProps(info: { option: TreeOption }) {
 }
 
 function openFile(filePath: string) {
+  const currentTab = tabStore.currentTab
+  if (currentTab && browserStore.isConnected(currentTab.serverId)) {
+    // Find the database from the active query tab, if any
+    const activeQueryId = currentTab.activeInnerTabId
+    const activeQuery = activeQueryId
+      ? currentTab.queries.find((q) => q.id === activeQueryId)
+      : currentTab.queries[0]
+
+    const database = activeQuery
+      ? (queryStore.getQueryState(activeQuery.id).selectedDatabase || activeQuery.database)
+      : undefined
+
+    if (database) {
+      const queryId = tabStore.openQuery(currentTab.serverId, database)
+      if (queryId) {
+        queryStore.loadFileByPath(queryId, filePath)
+      }
+      return
+    }
+  }
+
   dialogStore.openServerPickerDialog({ filePath })
 }
 

@@ -1,4 +1,5 @@
 import * as collectionsProxy from 'wailsjs/go/api/CollectionsProxy'
+import * as databasesProxy from 'wailsjs/go/api/DatabasesProxy'
 import { EventsOn } from 'wailsjs/runtime/runtime'
 
 interface FieldInfo {
@@ -74,6 +75,14 @@ export async function getCollectionNames(
   dbName: string,
 ): Promise<string[]> {
   const result = await collectionsProxy.GetCollections(serverId, dbName)
+  if (result.isSuccess && result.data) {
+    return result.data
+  }
+  return []
+}
+
+export async function getDatabaseNames(serverId: string): Promise<string[]> {
+  const result = await databasesProxy.GetDatabases(serverId)
   if (result.isSuccess && result.data) {
     return result.data
   }
