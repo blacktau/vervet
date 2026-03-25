@@ -55,7 +55,7 @@ export function useMonacoEditor(options: MonacoEditorOptions) {
     })
 
     if (options.queryId && options.language === 'javascript') {
-      completionDisposable = registerMongoCompletions(options.queryId)
+      completionDisposable = registerMongoCompletions(options.queryId, editor.value)
     }
   }
 

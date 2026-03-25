@@ -227,6 +227,13 @@ onMounted(async () => {
       run: () => { saveFileAs() },
     })
 
+    editor.value.addAction({
+      id: 'vervet.runQuery',
+      label: 'Run Query',
+      keybindings: [monaco.KeyCode.F5],
+      run: () => { runQuery() },
+    })
+
     editor.value.onDidChangeModelContent(() => {
       const currentContent = editor.value?.getValue() ?? ''
       queryStore.setCurrentContent(props.queryId, currentContent)

@@ -9,6 +9,7 @@ export type CompletionContextType =
   | 'KEYWORD'
   | 'UPDATE_OPERATOR'
   | 'AGG_EXPRESSION'
+  | 'USE_DATABASE'
 
 export interface CompletionContext {
   type: CompletionContextType
@@ -19,6 +20,15 @@ export interface CompletionContext {
 }
 
 export function analyzeContext(textBeforeCursor: string): CompletionContext {
+  // use <database> — check before trimming so trailing space is preserved
+  const useMatch = textBeforeCursor.match(/(?:^|\n)\s*use\s+(\w*)$/)
+  if (useMatch) {
+    return {
+      type: 'USE_DATABASE',
+      prefix: useMatch[1] || '',
+    }
+  }
+
   const trimmed = textBeforeCursor.trimEnd()
 
   // db.getCollection('| or db.getCollection("| → COLLECTION_NAME_STRING

@@ -119,7 +119,7 @@ export const useQueryStore = defineStore('query', {
       }
     },
 
-    async executeQuery(queryId: string, query: string) {
+    async executeQuery(queryId: string, rawQuery: string) {
       const tabStore = useTabStore()
       const serverId = tabStore.currentTabId
       if (!serverId) {
@@ -128,6 +128,32 @@ export const useQueryStore = defineStore('query', {
 
       const state = this.getQueryState(queryId)
       const timestamp = new Date().toLocaleTimeString()
+
+      // Handle "use <database>" command — extract it and switch database
+      let query = rawQuery
+      const useMatch = query.match(/(?:^|\n)\s*use\s+(\S+)\s*(?:\n|$)/)
+      if (useMatch) {
+        const dbName = useMatch[1]!
+        state.selectedDatabase = dbName
+        state.messages += `${timestamp} [INFO] ${i18nGlobal.t('query.messages.switchedDatabase', { name: dbName })}\n`
+
+        // Remove the use line and run any remaining query
+        const remaining = query.replace(/(?:^|\n)\s*use\s+\S+\s*(?:\n|$)/, '\n').trim()
+        if (!remaining || /^\s*(\/\/.*\s*)*$/.test(remaining)) {
+          return
+        }
+        query = remaining
+      }
+
+      // Skip if query is empty or only comments
+      const stripped = query
+        .split('\n')
+        .filter((line) => !/^\s*(\/\/|$)/.test(line))
+        .join('')
+        .trim()
+      if (!stripped) {
+        return
+      }
 
       if (!state.selectedDatabase) {
         const msg = i18nGlobal.t('errors.no_database_selected')

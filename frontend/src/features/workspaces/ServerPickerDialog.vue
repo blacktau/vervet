@@ -105,6 +105,9 @@ async function loadDatabases(serverId: string) {
     const result = await databasesProxy.GetDatabases(serverId)
     if (result.isSuccess) {
       databases.value = result.data
+      if (!selectedDatabase.value && result.data.includes('admin')) {
+        selectedDatabase.value = 'admin'
+      }
     } else {
       notifier.error(result.errorDetail || result.errorCode)
     }
@@ -134,6 +137,15 @@ function onConfirm() {
   const serverId = selectedServerId.value
   const database = selectedDatabase.value
   const filePath = dialogData.value.filePath
+
+  // Ensure a server tab exists (same as connecting from the server tree)
+  const connection = browserStore.connections.find((c) => c.serverID === serverId)
+  tabStore.upsertTab({
+    serverId,
+    title: connection?.name || '',
+    forceSwitch: true,
+    blank: false,
+  })
 
   const queryId = tabStore.openQuery(serverId, database)
   if (queryId) {
