@@ -1,6 +1,6 @@
 {
   "name": "vervet",
-  "version": "2026.03.2",
+  "version": "2026.03.3",
   "description": "A desktop Mongo DB tool",
   "productName": "Vervet",
   "author": "Sean Garrett <sean@blacktau.com>",
