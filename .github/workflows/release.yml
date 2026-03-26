@@ -301,3 +301,19 @@ jobs:
           draft: true
           generate_release_notes: true
           files: artifacts/*
+
+      - name: Upload RPM to COPR
+        run: |
+          sudo apt-get install -y python3-pip
+          pip install copr-cli
+
+          mkdir -p ~/.config
+          cat > ~/.config/copr <<'COPR_EOF'
+          [copr-cli]
+          login = ${{ secrets.COPR_LOGIN }}
+          username = ${{ secrets.COPR_USERNAME }}
+          token = ${{ secrets.COPR_TOKEN }}
+          copr_url = https://copr.fedorainfracloud.org
+          COPR_EOF
+
+          copr-cli build blacktau/vervet artifacts/Vervet-linux-amd64.rpm
