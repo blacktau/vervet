@@ -7,7 +7,7 @@ require (
 	github.com/dop251/goja v0.0.0-20260305124333-6a7976c22267
 	github.com/flopp/go-findfont v0.1.0
 	github.com/stretchr/testify v1.11.1
-	github.com/wailsapp/wails/v2 v2.10.2
+	github.com/wailsapp/wails/v2 v2.12.0
 	go.mongodb.org/mongo-driver/v2 v2.5.0
 	golang.org/x/image v0.18.0
 	golang.org/x/oauth2 v0.36.0
@@ -16,6 +16,7 @@ require (
 
 require (
 	al.essio.dev/pkg/shellescape v1.6.0 // indirect
+	git.sr.ht/~jackmordaunt/go-toast/v2 v2.0.3 // indirect
 	github.com/danieljoos/wincred v1.2.3 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dlclark/regexp2 v1.11.4 // indirect
