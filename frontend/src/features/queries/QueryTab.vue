@@ -16,7 +16,7 @@ import {
 } from '@heroicons/vue/24/outline'
 import ListTreeIcon from '@/features/icon/ListTreeIcon.vue'
 import { useSettingsStore } from '@/features/settings/settingsStore'
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, computed, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { CollectionContext } from '@/features/results-document-tree/useDocumentContextMenu'
 import * as monaco from 'monaco-editor'
@@ -244,6 +244,18 @@ onMounted(async () => {
     })
   }
 })
+
+watch(
+  [() => tabStore.pendingFocusQueryId, editor],
+  async ([queryId, editorInstance]) => {
+    if (queryId === props.queryId && editorInstance) {
+      tabStore.pendingFocusQueryId = null
+      await nextTick()
+      editorInstance.focus()
+    }
+  },
+  { immediate: true },
+)
 </script>
 
 <template>

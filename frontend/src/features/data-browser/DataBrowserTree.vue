@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { h, watch } from 'vue'
+import { h, ref, watch } from 'vue'
 import { NEllipsis, NIcon } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import CollectionIcon from '@/features/icon/CollectionIcon.vue'
@@ -14,6 +14,10 @@ import { useNotifier } from '@/utils/dialog.ts'
 import * as collectionsProxy from 'wailsjs/go/api/CollectionsProxy'
 import * as databasesProxy from 'wailsjs/go/api/DatabasesProxy'
 
+const props = defineProps<{
+  filterPattern?: string
+}>()
+
 const tabStore = useTabStore()
 const browserStore = useDataBrowserStore()
 const contextMenu = useDataTreeContextMenu()
@@ -21,6 +25,44 @@ const dialogStore = useDialogStore()
 const dialog = useDialog()
 const notifier = useNotifier()
 const { t } = useI18n()
+
+const selectedKeys = ref<string[]>([])
+
+const openQueryForNode = (node: DataTreeNode) => {
+  const nodeKey = node.key as string
+  const parts = nodeKey.split(':')
+
+  if (node.type === DataNodeType.Database) {
+    const serverId = parts[0]
+    const dbName = parts[1]
+    if (serverId && dbName) {
+      tabStore.openQuery(serverId, dbName)
+    }
+  }
+
+  if (node.type === DataNodeType.Collection || node.type === DataNodeType.View) {
+    const serverId = parts[0]
+    const dbName = parts[1]
+    const name = parts[3]
+    if (serverId && dbName && name) {
+      const queryText = `db.getCollection('${name}').find({}).limit(42)`
+      tabStore.openQuery(serverId, dbName, queryText, name)
+    }
+  }
+}
+
+const toggleExpandKey = (key: string) => {
+  const keys = [...browserStore.currentExpandedKeys]
+  const idx = keys.indexOf(key)
+  if (idx === -1) {
+    keys.push(key)
+  } else {
+    keys.splice(idx, 1)
+  }
+  browserStore.handleExpand(keys)
+}
+
+defineExpose({ selectedKeys, openQueryForNode, toggleExpandKey })
 
 const renderPrefix = ({ option }: { option: DataTreeNode }) => {
   if (option.type === DataNodeType.Database) {
@@ -65,26 +107,7 @@ function handleContextMenuSelect(key: string) {
   }
 
   if (key === 'openQuery') {
-    const nodeKey = node.key as string
-    const parts = nodeKey.split(':')
-
-    if (node.type === DataNodeType.Database) {
-      const serverId = parts[0]
-      const dbName = parts[1]
-      if (serverId && dbName) {
-        tabStore.openQuery(serverId, dbName)
-      }
-    }
-
-    if (node.type === DataNodeType.Collection || node.type === DataNodeType.View) {
-      const serverId = parts[0]
-      const dbName = parts[1]
-      const name = parts[3]
-      if (serverId && dbName && name) {
-        const queryText = `db.getCollection('${name}').find({}).limit(42)`
-        tabStore.openQuery(serverId, dbName, queryText, name)
-      }
-    }
+    openQueryForNode(node)
   }
 
   if (key === 'viewIndexes') {
@@ -221,6 +244,9 @@ const renderLabel = ({ option }: { option: DataTreeNode }) => {
 
 const nodeProps = ({ option }: { option: DataTreeNode }) => {
   return {
+    onDblclick() {
+      openQueryForNode(option)
+    },
     onContextmenu(e: MouseEvent) {
       e.preventDefault()
       contextMenu.openMenu(option as DataTreeNode, e)
@@ -245,12 +271,16 @@ watch(
       :data="browserStore.currentTreeData"
       :expanded-keys="browserStore.currentExpandedKeys"
       :node-props="nodeProps"
+      :pattern="props.filterPattern || undefined"
       :render-label="renderLabel"
       :render-prefix="renderPrefix"
+      :selected-keys="selectedKeys"
+      :show-irrelevant-nodes="!props.filterPattern ? true : false"
       block-line
       block-node
       virtual-scroll
-      @update:expanded-keys="browserStore.handleExpand">
+      @update:expanded-keys="browserStore.handleExpand"
+      @update:selected-keys="(keys: string[]) => (selectedKeys = keys)">
       <template #empty>
         <n-empty :description="$t('dataBrowser.tree.empty')" />
       </template>

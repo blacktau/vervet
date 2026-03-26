@@ -12,6 +12,7 @@ interface TabStoreState {
   asideWidth: number
   tabItems: ServerTabItem[]
   activeTabIndex: number
+  pendingFocusQueryId: string | null
 }
 
 type TabStoreGetters = {
@@ -71,6 +72,7 @@ export const useTabStore = defineStore('tabs', {
     asideWidth: 300,
     tabItems: [],
     activeTabIndex: 0,
+    pendingFocusQueryId: null,
   }),
   getters: {
     tabs(state: TabStoreState) {
@@ -256,6 +258,7 @@ export const useTabStore = defineStore('tabs', {
       tab.queries.push(queryItem)
       tab.activeInnerTabId = queryItem.id
       this._setActivatedIndex(tabIndex, true)
+      this.pendingFocusQueryId = queryItem.id
       return queryItem.id
     },
 
