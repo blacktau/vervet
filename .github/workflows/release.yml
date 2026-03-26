@@ -158,11 +158,11 @@ jobs:
           chmod +x AppDir/AppRun
 
           # Resize icon to 512x512 (linuxdeploy rejects >512)
-          convert build/appicon.png -resize 512x512 build/appicon-512.png
+          convert build/appicon.png -resize 512x512 build/Vervet-512.png
 
           # Copy icon to hicolor directory
           mkdir -p AppDir/usr/share/icons/hicolor/512x512/apps
-          cp build/appicon-512.png AppDir/usr/share/icons/hicolor/512x512/apps/vervet.png
+          cp build/Vervet-512.png AppDir/usr/share/icons/hicolor/512x512/apps/Vervet.png
 
           # Copy binary
           mkdir -p AppDir/usr/bin
@@ -174,7 +174,7 @@ jobs:
             --plugin gtk \
             -e build/bin/Vervet \
             -d build/linux/Vervet.desktop \
-            -i build/appicon-512.png
+            -i build/Vervet-512.png
 
           # Rename output (linuxdeploy names it based on the desktop file)
           mv Vervet-x86_64.AppImage "Vervet-linux-amd64.AppImage"
@@ -199,6 +199,29 @@ jobs:
 
           dpkg-deb --build -Zxz "$DEB_DIR"
           mv "${DEB_DIR}.deb" "Vervet-linux-amd64.deb"
+
+      # ── Package: Linux .rpm ──
+      - name: Package rpm
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get install -y ruby ruby-dev rpm
+          sudo gem install fpm --no-document
+
+          fpm -s dir -t rpm \
+            -n vervet \
+            -v "${{ steps.version.outputs.version }}" \
+            --architecture x86_64 \
+            --description "A desktop MongoDB explorer" \
+            --maintainer "Sean Garrett <sean@blacktau.com>" \
+            --url "https://github.com/blacktau/vervet" \
+            --license MIT \
+            --depends webkit2gtk4.0 \
+            --depends gtk3 \
+            build/bin/Vervet=/usr/bin/Vervet \
+            build/linux/Vervet.desktop=/usr/share/applications/Vervet.desktop \
+            build/appicon.png=/usr/share/icons/hicolor/512x512/apps/vervet.png
+
+          mv vervet-*.rpm "Vervet-linux-amd64.rpm"
 
       # ── Package: macOS DMG ──
       - name: Package DMG
@@ -242,6 +265,14 @@ jobs:
         with:
           name: Vervet-linux-amd64.deb
           path: Vervet-linux-amd64.deb
+          if-no-files-found: error
+
+      - name: Upload Linux rpm
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: Vervet-linux-amd64.rpm
+          path: Vervet-linux-amd64.rpm
           if-no-files-found: error
 
       - name: Upload macOS DMG
