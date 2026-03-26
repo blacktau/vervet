@@ -147,6 +147,7 @@ export default {
     tree: {
       empty: 'Connect to a server to view its contents',
     },
+    filter: 'Filter',
     contextMenu: {
       addDatabase: 'Add Database...',
       serverStatus: 'Server Status',

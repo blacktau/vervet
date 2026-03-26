@@ -221,6 +221,8 @@ const expandKey = (key: string) => {
     expandedKeys.value.splice(idx, 1)
   }
 }
+
+defineExpose({ connectToServer, selectedKeys, expandKey })
 </script>
 
 <template>
@@ -234,7 +236,8 @@ const expandKey = (key: string) => {
       :draggable="true"
       :expanded-keys="expandedKeys"
       :node-props="nodeProps"
-      :pattern="props.filterPattern"
+      :pattern="props.filterPattern || undefined"
+      :show-irrelevant-nodes="!props.filterPattern ? true : false"
       :render-label="renderLabel"
       :render-prefix="renderPrefix"
       :render-suffix="renderSuffix"
