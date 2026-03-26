@@ -157,9 +157,12 @@ jobs:
           wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/AppRun-x86_64 -O AppDir/AppRun
           chmod +x AppDir/AppRun
 
+          # Resize icon to 512x512 (linuxdeploy rejects >512)
+          convert build/appicon.png -resize 512x512 build/appicon-512.png
+
           # Copy icon to hicolor directory
           mkdir -p AppDir/usr/share/icons/hicolor/512x512/apps
-          cp build/appicon.png AppDir/usr/share/icons/hicolor/512x512/apps/vervet.png
+          cp build/appicon-512.png AppDir/usr/share/icons/hicolor/512x512/apps/vervet.png
 
           # Copy binary
           mkdir -p AppDir/usr/bin
@@ -171,7 +174,7 @@ jobs:
             --plugin gtk \
             -e build/bin/Vervet \
             -d build/linux/Vervet.desktop \
-            -i build/appicon.png
+            -i build/appicon-512.png
 
           # Rename output (linuxdeploy names it based on the desktop file)
           mv Vervet-x86_64.AppImage "Vervet-linux-amd64.AppImage"
@@ -204,7 +207,6 @@ jobs:
           create-dmg \
             --volname "Vervet" \
             --no-internet-enable \
-            --no-code-sign \
             --app-drop-link 480 180 \
             "Vervet-macos-${{ matrix.arch }}.dmg" \
             "build/bin/"
