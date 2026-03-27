@@ -208,16 +208,16 @@ jobs:
 
           VERSION="${{ steps.version.outputs.version }}"
 
-          # Create tarball with binary, desktop file, and icon
-          mkdir -p "Vervet-linux-amd64"
-          cp build/bin/Vervet "Vervet-linux-amd64/"
-          cp build/linux/Vervet.desktop "Vervet-linux-amd64/"
-          cp build/appicon.png "Vervet-linux-amd64/vervet.png"
-          tar czf "Vervet-linux-amd64.tar.gz" "Vervet-linux-amd64/"
+          # Create tarball with directory name matching spec (name-version)
+          mkdir -p "vervet-$VERSION"
+          cp build/bin/Vervet "vervet-$VERSION/"
+          cp build/linux/Vervet.desktop "vervet-$VERSION/"
+          cp build/appicon.png "vervet-$VERSION/vervet.png"
+          tar czf "vervet-$VERSION.tar.gz" "vervet-$VERSION/"
 
           # Set up rpmbuild tree
           mkdir -p ~/rpmbuild/{SOURCES,SPECS,SRPMS,RPMS}
-          cp "Vervet-linux-amd64.tar.gz" ~/rpmbuild/SOURCES/
+          cp "vervet-$VERSION.tar.gz" ~/rpmbuild/SOURCES/
           sed "s/VERSION_PLACEHOLDER/$VERSION/" build/linux/vervet.spec > ~/rpmbuild/SPECS/vervet.spec
 
           # Build binary and source RPM

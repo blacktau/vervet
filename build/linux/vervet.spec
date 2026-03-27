@@ -4,7 +4,7 @@ Release:        1%{?dist}
 Summary:        A desktop MongoDB explorer
 License:        MIT
 URL:            https://github.com/blacktau/vervet
-Source0:        https://github.com/blacktau/vervet/releases/download/v%{version}/Vervet-linux-amd64.tar.gz
+Source0:        %{name}-%{version}.tar.gz
 
 BuildArch:      x86_64
 Requires:       webkit2gtk4.0
@@ -18,9 +18,7 @@ Requires:       gtk3
 Vervet is a desktop MongoDB explorer built with Go and Vue 3.
 
 %prep
-%setup -c -T
-cp %{SOURCE0} .
-tar xzf Vervet-linux-amd64.tar.gz
+%setup -q
 
 %install
 install -D -m 755 Vervet %{buildroot}%{_bindir}/Vervet
