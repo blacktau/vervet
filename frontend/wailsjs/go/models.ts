@@ -1,9 +1,9 @@
 export namespace api {
 	
 	export enum OperatingSystem {
-	    WINDOWS = "windows",
 	    LINUX = "linux",
 	    OSX = "darwin",
+	    WINDOWS = "windows",
 	}
 	export interface EmptyResult {
 	    isSuccess: boolean;
