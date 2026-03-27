@@ -85,4 +85,4 @@ Pre-built binaries are available on the [Releases](https://github.com/blacktau/v
 
 ## License
 
-[GPL-3.0](LICENSE)
+[GPL-3.0](LICENSE.md)
