@@ -6,7 +6,6 @@ import App from './app/App.vue'
 import { createPinia } from 'pinia'
 import { loadEnvironment } from './init/environment'
 import { initMonaco } from './init/monaco'
-import { initCharts } from './init/charts'
 import { initDiscreteApi } from './init/discrete'
 import { useNotifier } from '@/utils/dialog'
 import { i18n } from '@/i18n'
@@ -42,7 +41,6 @@ async function initApp() {
 
   await loadEnvironment()
   initMonaco()
-  initCharts()
   initClipboardWorkaround()
 
   await initDiscreteApi()
