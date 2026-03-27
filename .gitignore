@@ -28,12 +28,5 @@ go.work.sum
 .idea
 
 build/bin
-/settings.db
-
-*.md
-.memelord
-config
+frontend/dist
 test-results
-.playwright-mcp
-.superpowers
-.mcp.json
