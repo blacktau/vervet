@@ -55,26 +55,33 @@ jobs:
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
 
       - name: Install Wails CLI
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@${{ env.WAILS_VERSION }}
+        env:
+          WAILS_VER: ${{ env.WAILS_VERSION }}
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@"$WAILS_VER"
 
       # ── Determine version ──
       - name: Determine version
         id: version
         shell: bash
+        env:
+          GH_REF: ${{ github.ref }}
+          GH_REF_NAME: ${{ github.ref_name }}
+          INPUT_VERSION: ${{ github.event.inputs.version }}
         run: |
-          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
-            version="${{ github.ref_name }}"
-            version="${version#v}"
+          if [[ "$GH_REF" == refs/tags/v* ]]; then
+            version="${GH_REF_NAME#v}"
           else
-            version="${{ github.event.inputs.version || 'dev' }}"
+            version="${INPUT_VERSION:-dev}"
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "Version: $version"
 
       - name: Stamp version into wails.json
         shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          jq '.info.productVersion = "${{ steps.version.outputs.version }}"' wails.json > tmp.json
+          jq --arg v "$VERSION" '.info.productVersion = $v' wails.json > tmp.json
           mv tmp.json wails.json
 
       # ── Linux dependencies ──
@@ -98,33 +105,46 @@ jobs:
       - name: Build (Windows)
         if: runner.os == 'Windows'
         shell: bash
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           export PATH="/c/Program Files (x86)/NSIS:$PATH"
-          wails build -nsis -webview2 embed -platform ${{ matrix.platform }} \
-            -ldflags "-X main.version=v${{ steps.version.outputs.version }}"
+          wails build -nsis -webview2 embed -platform "$PLATFORM" \
+            -ldflags "-X main.version=v$VERSION"
 
       - name: Build (Linux)
         if: runner.os == 'Linux'
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          wails build -platform ${{ matrix.platform }} \
-            -ldflags "-X main.version=v${{ steps.version.outputs.version }}"
+          wails build -platform "$PLATFORM" \
+            -ldflags "-X main.version=v$VERSION"
 
       - name: Build (macOS)
         if: runner.os == 'macOS'
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          wails build -platform ${{ matrix.platform }} \
-            -ldflags "-X main.version=v${{ steps.version.outputs.version }}"
+          wails build -platform "$PLATFORM" \
+            -ldflags "-X main.version=v$VERSION"
 
       # ── Package: Windows ──
       - name: Package Windows portable zip
         if: runner.os == 'Windows'
         shell: pwsh
-        run: Compress-Archive "build/bin/Vervet.exe" "Vervet-windows-${{ matrix.arch }}-portable.zip"
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: Compress-Archive "build/bin/Vervet.exe" "Vervet-windows-$env:ARCH-portable.zip"
 
       - name: Rename Windows installer
         if: runner.os == 'Windows'
         shell: bash
-        run: mv "build/bin/Vervet-${{ matrix.arch }}-installer.exe" "Vervet-windows-${{ matrix.arch }}-installer.exe"
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: mv "build/bin/Vervet-${ARCH}-installer.exe" "Vervet-windows-${ARCH}-installer.exe"
 
       # ── Package: Linux AppImage ──
       - name: Package AppImage
@@ -133,11 +153,11 @@ jobs:
           APPIMAGE_EXTRACT_AND_RUN: "1"
           DEPLOY_GTK_VERSION: "3"
         run: |
-          # Download linuxdeploy and GTK plugin
+          # Download linuxdeploy and GTK plugin (pinned to specific commits)
           wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/1-alpha-20240109-1/linuxdeploy-x86_64.AppImage -O linuxdeploy
           chmod +x linuxdeploy
 
-          wget -q https://raw.githubusercontent.com/tauri-apps/linuxdeploy-plugin-gtk/master/linuxdeploy-plugin-gtk.sh
+          wget -q https://raw.githubusercontent.com/tauri-apps/linuxdeploy-plugin-gtk/b5eb8d05b4c0ed40107fe2158c5d8527f94568ef/linuxdeploy-plugin-gtk.sh
           chmod +x linuxdeploy-plugin-gtk.sh
 
           # Workaround: add WEBKIT_DISABLE_COMPOSITING_MODE to GTK plugin
@@ -182,15 +202,17 @@ jobs:
       # ── Package: Linux .deb ──
       - name: Package deb
         if: runner.os == 'Linux'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          DEB_DIR="vervet_${{ steps.version.outputs.version }}_amd64"
+          DEB_DIR="vervet_${VERSION}_amd64"
           mkdir -p "$DEB_DIR/DEBIAN"
           mkdir -p "$DEB_DIR/usr/bin"
           mkdir -p "$DEB_DIR/usr/share/applications"
           mkdir -p "$DEB_DIR/usr/share/icons/hicolor/512x512/apps"
 
           # Control file with version substituted
-          sed "s/VERSION_PLACEHOLDER/${{ steps.version.outputs.version }}/" build/linux/control > "$DEB_DIR/DEBIAN/control"
+          sed "s/VERSION_PLACEHOLDER/$VERSION/" build/linux/control > "$DEB_DIR/DEBIAN/control"
 
           # Binary, desktop file, icon
           cp build/bin/Vervet "$DEB_DIR/usr/bin/Vervet"
@@ -203,10 +225,10 @@ jobs:
       # ── Package: Linux .rpm ──
       - name: Package rpm
         if: runner.os == 'Linux'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           sudo apt-get install -y rpm
-
-          VERSION="${{ steps.version.outputs.version }}"
 
           # Create tarball with directory name matching spec (name-version)
           mkdir -p "vervet-$VERSION"
@@ -229,12 +251,14 @@ jobs:
       # ── Package: macOS DMG ──
       - name: Package DMG
         if: runner.os == 'macOS'
+        env:
+          ARCH: ${{ matrix.arch }}
         run: |
           create-dmg \
             --volname "Vervet" \
             --no-internet-enable \
             --app-drop-link 480 180 \
-            "Vervet-macos-${{ matrix.arch }}.dmg" \
+            "Vervet-macos-${ARCH}.dmg" \
             "build/bin/"
 
       # ── Upload ──
@@ -298,6 +322,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
+    environment: release
 
     steps:
       - name: Download all artifacts
@@ -314,6 +339,10 @@ jobs:
           files: artifacts/*
 
       - name: Upload RPM to COPR
+        env:
+          COPR_LOGIN: ${{ secrets.COPR_LOGIN }}
+          COPR_USERNAME: ${{ secrets.COPR_USERNAME }}
+          COPR_TOKEN: ${{ secrets.COPR_TOKEN }}
         run: |
           sudo apt-get install -y python3-pip
           pip install copr-cli
@@ -321,9 +350,9 @@ jobs:
           mkdir -p ~/.config
           cat > ~/.config/copr <<COPR_EOF
           [copr-cli]
-          login = ${{ secrets.COPR_LOGIN }}
-          username = ${{ secrets.COPR_USERNAME }}
-          token = ${{ secrets.COPR_TOKEN }}
+          login = ${COPR_LOGIN}
+          username = ${COPR_USERNAME}
+          token = ${COPR_TOKEN}
           copr_url = https://copr.fedorainfracloud.org
           COPR_EOF
           sed -i 's/^[[:space:]]*//' ~/.config/copr
