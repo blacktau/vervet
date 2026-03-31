@@ -71,6 +71,20 @@ func (m *MockServersProvider) GetConnectionConfig(serverID string) (models.Conne
 	return models.ConnectionConfig{URI: "mongodb://localhost", AuthMethod: models.AuthPassword}, nil
 }
 
+func (m *MockServersProvider) ExportServers(serverIDs []string, includeSensitiveData bool) ([]byte, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return []byte(`{"version":1,"servers":[]}`), nil
+}
+
+func (m *MockServersProvider) ImportServers(data []byte) ([]models.RegisteredServer, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return []models.RegisteredServer{}, nil
+}
+
 func TestServersProxy_GetServers(t *testing.T) {
 	t.Run("successful get servers", func(t *testing.T) {
 		provider := &MockServersProvider{
