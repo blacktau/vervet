@@ -1,6 +1,7 @@
 import { markRaw, nextTick, reactive, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
+  ArrowUpTrayIcon,
   Cog8ToothIcon,
   DocumentDuplicateIcon,
   FolderPlusIcon,
@@ -25,6 +26,8 @@ export const MenuKeys = {
   ServerClone: 'server_clone',
   ServerConnect: 'server_connect',
   ServerDelete: 'server_delete',
+  ServerExport: 'server_export',
+  GroupExport: 'group_export',
 } as const
 
 type ContextMenuEntry = {
@@ -75,6 +78,11 @@ export function useServerTreeContextMenu(
           label: 'serverPane.serverTree.renameGroup',
           icon: PencilSquareIcon,
         },
+        {
+          key: MenuKeys.GroupExport,
+          label: 'serverPane.exportFolderMenuItem',
+          icon: ArrowUpTrayIcon,
+        },
         { type: 'divider', key: 'd1', label: '' },
         {
           key: MenuKeys.GroupDelete,
@@ -94,6 +102,11 @@ export function useServerTreeContextMenu(
         key: MenuKeys.ServerClone,
         label: 'serverPane.serverTree.cloneServer',
         icon: DocumentDuplicateIcon,
+      },
+      {
+        key: MenuKeys.ServerExport,
+        label: 'serverPane.exportServerMenuItem',
+        icon: ArrowUpTrayIcon,
       },
       { type: 'divider', key: 'd1' },
       {
@@ -221,6 +234,10 @@ export function useServerTreeContextMenu(
         break
       case MenuKeys.GroupDelete:
         deleteGroup(serverId)
+        break
+      case MenuKeys.ServerExport:
+      case MenuKeys.GroupExport:
+        dialogStore.showNewDialog(DialogType.Export, { serverIDs: [serverId] })
         break
       default:
         console.warn(`missing context menu option handling for key '${key}'`)
