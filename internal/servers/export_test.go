@@ -180,6 +180,49 @@ func TestExportServers_GroupExpandsDescendants(t *testing.T) {
 	assert.NotContains(t, names, "Unrelated Server")
 }
 
+func TestExportImport_RoundTrip(t *testing.T) {
+	// Set up a service with existing servers
+	store := &mockServerStore{
+		servers: []models.RegisteredServer{
+			{ID: "g1", Name: "Production", IsGroup: true},
+			{ID: "s1", Name: "Primary", ParentID: "g1", Colour: "#FF0000"},
+			{ID: "s2", Name: "Standalone"},
+		},
+	}
+	connStore := &mockConnStoreWithConfigs{
+		MockConnectionStringsStore: MockConnectionStringsStore{uris: make(map[string]string)},
+		configs: map[string]models.ConnectionConfig{
+			"s1": {URI: "mongodb+srv://cluster.example.com", AuthMethod: models.AuthPassword},
+			"s2": {URI: "mongodb://localhost:27017", AuthMethod: models.AuthNone},
+		},
+	}
+	exportSvc := newTestServerService(store, connStore)
+
+	// Export all
+	data, err := exportSvc.ExportServers([]string{"g1", "s2"}, false)
+	require.NoError(t, err)
+
+	// Import into a fresh service
+	importStore := &mockServerStore{servers: []models.RegisteredServer{}}
+	importConnStore := &MockConnectionStringsStore{uris: make(map[string]string)}
+	importSvc := newTestServerService(importStore, importConnStore)
+
+	imported, err := importSvc.ImportServers(data)
+	require.NoError(t, err)
+	assert.Len(t, imported, 3) // group + 2 servers
+
+	// Verify structure is preserved
+	byName := make(map[string]*models.RegisteredServer)
+	for i := range imported {
+		byName[imported[i].Name] = &imported[i]
+	}
+
+	assert.True(t, byName["Production"].IsGroup)
+	assert.Equal(t, byName["Production"].ID, byName["Primary"].ParentID)
+	assert.Equal(t, "#FF0000", byName["Primary"].Colour)
+	assert.Empty(t, byName["Standalone"].ParentID)
+}
+
 func TestExportServers_NoColourOmitted(t *testing.T) {
 	store := &mockServerStore{
 		servers: []models.RegisteredServer{
