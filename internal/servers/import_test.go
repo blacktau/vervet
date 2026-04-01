@@ -255,3 +255,99 @@ func TestImportServers_StoresConnectionConfig(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, "mongodb://localhost:27017", storedURI)
 }
+
+func TestImportServers_SkipDuplicateServer(t *testing.T) {
+	mockStore := &mockServerStore{
+		servers: []models.RegisteredServer{
+			{ID: "existing-1", Name: "My Server", ParentID: ""},
+		},
+	}
+	mockCS := &MockConnectionStringsStore{uris: map[string]string{
+		"existing-1": "mongodb://host:27017",
+	}}
+	svc := newTestServerService(mockStore, mockCS)
+
+	data, _ := json.Marshal(exportFile{
+		Version: 1,
+		Servers: []exportServerEntry{
+			{
+				Name:             "My Server",
+				ConnectionConfig: &exportConnectionConfig{URI: "mongodb://host:27017", AuthMethod: "none"},
+			},
+		},
+	})
+
+	created, err := svc.ImportServers(data)
+	require.NoError(t, err)
+	assert.Len(t, created, 0) // duplicate skipped
+}
+
+func TestImportServers_SkipDuplicateGroup(t *testing.T) {
+	mockStore := &mockServerStore{
+		servers: []models.RegisteredServer{
+			{ID: "existing-g1", Name: "Production", IsGroup: true},
+		},
+	}
+	mockCS := &MockConnectionStringsStore{uris: make(map[string]string)}
+	svc := newTestServerService(mockStore, mockCS)
+
+	data, _ := json.Marshal(exportFile{
+		Version: 1,
+		Servers: []exportServerEntry{
+			{Name: "Production", IsGroup: true},
+		},
+	})
+
+	created, err := svc.ImportServers(data)
+	require.NoError(t, err)
+	assert.Len(t, created, 0) // duplicate skipped
+}
+
+func TestImportServers_DuplicateGroupChildrenLinkToExisting(t *testing.T) {
+	mockStore := &mockServerStore{
+		servers: []models.RegisteredServer{
+			{ID: "existing-g1", Name: "Production", IsGroup: true},
+		},
+	}
+	mockCS := &MockConnectionStringsStore{uris: make(map[string]string)}
+	svc := newTestServerService(mockStore, mockCS)
+
+	data, _ := json.Marshal(exportFile{
+		Version: 1,
+		Servers: []exportServerEntry{
+			{Name: "Production", IsGroup: true},
+			{Name: "New Server", Parent: "Production", ConnectionConfig: &exportConnectionConfig{URI: "mongodb://host:27017"}},
+		},
+	})
+
+	created, err := svc.ImportServers(data)
+	require.NoError(t, err)
+	assert.Len(t, created, 1) // only the server, not the duplicate group
+	assert.Equal(t, "existing-g1", created[0].ParentID) // linked to existing group
+}
+
+func TestImportServers_DifferentURINotDuplicate(t *testing.T) {
+	mockStore := &mockServerStore{
+		servers: []models.RegisteredServer{
+			{ID: "existing-1", Name: "My Server", ParentID: ""},
+		},
+	}
+	mockCS := &MockConnectionStringsStore{uris: map[string]string{
+		"existing-1": "mongodb://host-a:27017",
+	}}
+	svc := newTestServerService(mockStore, mockCS)
+
+	data, _ := json.Marshal(exportFile{
+		Version: 1,
+		Servers: []exportServerEntry{
+			{
+				Name:             "My Server",
+				ConnectionConfig: &exportConnectionConfig{URI: "mongodb://host-b:27017", AuthMethod: "none"},
+			},
+		},
+	})
+
+	created, err := svc.ImportServers(data)
+	require.NoError(t, err)
+	assert.Len(t, created, 1) // different URI, not a duplicate
+}

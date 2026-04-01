@@ -140,19 +140,8 @@ const onFilterKeydown = (e: KeyboardEvent) => {
         :stroke-width="3.5"
         size="20"
         t-tooltip="serverPane.addGroup"
-        @click="dialogStore.openNewGroupDialog()" />
-      <n-dropdown
-        trigger="click"
-        :options="menuOptions"
-        @select="handleMenuSelect">
-        <icon-button
-          :button-class="['nav-pane-func-btn']"
-          :icon="EllipsisHorizontalIcon"
-          :stroke-width="3.5"
-          size="20"
-          t-tooltip="serverPane.exportServersMenu" />
-      </n-dropdown>
-      <n-divider vertical />
+        @click="dialogStore.openNewGroupDialog()"
+        style="margin-right: 6px" />
       <n-input
         v-model:value="filterPattern"
         :autofocus="false"
@@ -163,6 +152,18 @@ const onFilterKeydown = (e: KeyboardEvent) => {
           <n-icon :component="FunnelIcon" size="20" />
         </template>
       </n-input>
+      <n-dropdown
+        trigger="click"
+        :options="menuOptions"
+        @select="handleMenuSelect">
+        <n-button text :focusable="false" class="nav-pane-func-btn">
+          <template #icon>
+            <n-icon :size="20">
+              <EllipsisHorizontalIcon :stroke-width="3.5" />
+            </n-icon>
+          </template>
+        </n-button>
+      </n-dropdown>
     </div>
     <export-dialog :on-export="handleExport" />
   </div>

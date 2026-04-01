@@ -39,17 +39,35 @@ func (sm *ServerService) ImportServers(data []byte) ([]models.RegisteredServer, 
 	// Map of group path -> ID for resolving parent references.
 	groupPaths := make(map[string]string)
 
+	// Index existing groups and servers for duplicate detection.
+	// Register existing groups in groupPaths so parent resolution finds them.
+	existingGroupPaths := buildExistingGroupPaths(servers)
+	for path, id := range existingGroupPaths {
+		groupPaths[path] = id
+	}
+
+	existingServerURIs := sm.buildExistingServerKeys(servers)
+
 	var created []models.RegisteredServer
 
 	for _, entry := range file.Servers {
-		newID := uuid.New().String()
-
 		parentID := ""
 		if entry.Parent != "" {
 			parentID = resolveParentPath(entry.Parent, groupPaths, &servers, &created)
 		}
 
 		if entry.IsGroup {
+			path := entry.Name
+			if entry.Parent != "" {
+				path = entry.Parent + "/" + entry.Name
+			}
+
+			// Skip duplicate groups (same name and parent path).
+			if _, exists := groupPaths[path]; exists {
+				continue
+			}
+
+			newID := uuid.New().String()
 			srv := models.RegisteredServer{
 				ID:       newID,
 				Name:     entry.Name,
@@ -59,12 +77,6 @@ func (sm *ServerService) ImportServers(data []byte) ([]models.RegisteredServer, 
 			}
 			servers = append(servers, srv)
 			created = append(created, srv)
-
-			// Register this group's path for future lookups.
-			path := entry.Name
-			if entry.Parent != "" {
-				path = entry.Parent + "/" + entry.Name
-			}
 			groupPaths[path] = newID
 		} else {
 			cfg := models.ConnectionConfig{}
@@ -91,8 +103,16 @@ func (sm *ServerService) ImportServers(data []byte) ([]models.RegisteredServer, 
 					isCluster = len(cs.Hosts) > 1
 					isSrv = cs.Scheme == connstring.SchemeMongoDBSRV
 				}
+
+				// Skip duplicate servers (same name, parent, and URI).
+				serverKey := parentID + "\x00" + entry.Name + "\x00" + cfg.URI
+				if existingServerURIs[serverKey] {
+					continue
+				}
+				existingServerURIs[serverKey] = true
 			}
 
+			newID := uuid.New().String()
 			srv := models.RegisteredServer{
 				ID:        newID,
 				Name:      entry.Name,
@@ -154,6 +174,41 @@ func resolveParentPath(path string, groupPaths map[string]string, servers *[]mod
 	}
 
 	return parentID
+}
+
+// buildExistingGroupPaths builds a map of path -> ID for all existing groups.
+func buildExistingGroupPaths(servers []models.RegisteredServer) map[string]string {
+	paths := make(map[string]string)
+	for _, srv := range servers {
+		if !srv.IsGroup {
+			continue
+		}
+		path := buildParentPath(srv.ParentID, servers)
+		if path == "" {
+			path = srv.Name
+		} else {
+			path = path + "/" + srv.Name
+		}
+		paths[path] = srv.ID
+	}
+	return paths
+}
+
+// buildExistingServerKeys builds a set of "parentID\x00name\x00uri" keys for existing servers.
+func (sm *ServerService) buildExistingServerKeys(servers []models.RegisteredServer) map[string]bool {
+	keys := make(map[string]bool)
+	for _, srv := range servers {
+		if srv.IsGroup {
+			continue
+		}
+		cfg, err := sm.connectionStrings.GetConnectionConfig(srv.ID)
+		if err != nil {
+			continue
+		}
+		key := srv.ParentID + "\x00" + srv.Name + "\x00" + cfg.URI
+		keys[key] = true
+	}
+	return keys
 }
 
 // deriveAuthMethod returns the auth method from the export config. If not specified,
