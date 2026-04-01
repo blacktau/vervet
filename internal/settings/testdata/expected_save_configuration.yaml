@@ -22,3 +22,5 @@ terminal:
       font:
            size: 14
       cursorStyle: "block"
+workspaces:
+      fileExtensions: []
