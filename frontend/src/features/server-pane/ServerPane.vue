@@ -1,21 +1,58 @@
 <script setup lang="ts">
 import { useThemeVars } from 'naive-ui'
-import { useDialogStore } from '@/stores/dialog.ts'
+import { DialogType, useDialogStore } from '@/stores/dialog.ts'
 import { computed, ref, watch } from 'vue'
 import IconButton from '@/features/common/IconButton.vue'
 import ServerTree from '@/features/server-pane/ServerTree.vue'
+import ExportDialog from '@/features/server-pane/ExportDialog.vue'
 import { useServerStore, type RegisteredServerNode } from '@/features/server-pane/serverStore.ts'
+import { useNotifier } from '@/utils/dialog'
 import {
+  EllipsisHorizontalIcon,
   FunnelIcon,
   PlusIcon,
   FolderPlusIcon
 } from '@heroicons/vue/24/outline'
+import { useI18n } from 'vue-i18n'
 
+const { t } = useI18n()
 const themeVars = useThemeVars()
 const dialogStore = useDialogStore()
 const serverStore = useServerStore()
+const notifier = useNotifier()
 const filterPattern = ref('')
 const serverTreeRef = ref<InstanceType<typeof ServerTree>>()
+
+const menuOptions = computed(() => [
+  {
+    key: 'import',
+    label: t('serverPane.importServersMenuItem'),
+  },
+  {
+    key: 'export',
+    label: t('serverPane.exportServersMenuItem'),
+  },
+])
+
+async function handleMenuSelect(key: string) {
+  if (key === 'import') {
+    const result = await serverStore.importServers()
+    if (!result.success) {
+      notifier.error(result.msg)
+    }
+  } else if (key === 'export') {
+    dialogStore.showNewDialog(DialogType.Export, { serverIDs: null })
+  }
+}
+
+async function handleExport(includeSensitiveData: boolean) {
+  const exportData = dialogStore.dialogs[DialogType.Export]?.data as { serverIDs: string[] | null } | undefined
+  const serverIDs = exportData?.serverIDs ?? serverStore.serverTree.map((s) => s.id)
+  const result = await serverStore.exportServers(serverIDs, includeSensitiveData)
+  if (!result.success) {
+    notifier.error(result.msg)
+  }
+}
 
 const collectMatchingNodes = (nodes: RegisteredServerNode[], pattern: string): RegisteredServerNode[] => {
   const lowerPattern = pattern.toLowerCase()
@@ -103,8 +140,8 @@ const onFilterKeydown = (e: KeyboardEvent) => {
         :stroke-width="3.5"
         size="20"
         t-tooltip="serverPane.addGroup"
-        @click="dialogStore.openNewGroupDialog()" />
-      <n-divider vertical />
+        @click="dialogStore.openNewGroupDialog()"
+        style="margin-right: 6px" />
       <n-input
         v-model:value="filterPattern"
         :autofocus="false"
@@ -115,7 +152,20 @@ const onFilterKeydown = (e: KeyboardEvent) => {
           <n-icon :component="FunnelIcon" size="20" />
         </template>
       </n-input>
+      <n-dropdown
+        trigger="click"
+        :options="menuOptions"
+        @select="handleMenuSelect">
+        <n-button text :focusable="false" class="nav-pane-func-btn">
+          <template #icon>
+            <n-icon :size="20">
+              <EllipsisHorizontalIcon :stroke-width="3.5" />
+            </n-icon>
+          </template>
+        </n-button>
+      </n-dropdown>
     </div>
+    <export-dialog :on-export="handleExport" />
   </div>
 </template>
 

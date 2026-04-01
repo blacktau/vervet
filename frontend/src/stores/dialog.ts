@@ -23,6 +23,7 @@ export const enum DialogType {
   CreateIndex = 'createIndex',
   RenameCollection = 'renameCollection',
   ServerPicker = 'serverPicker',
+  Export = 'export',
 }
 
 export type ServerDialogData = {
@@ -65,6 +66,10 @@ export const useDialogStore = defineStore('dialog', {
         type: DialogMode.New,
       } as DialogState,
       [DialogType.ServerPicker]: {
+        visible: false,
+        type: DialogMode.New,
+      } as DialogState,
+      [DialogType.Export]: {
         visible: false,
         type: DialogMode.New,
       } as DialogState,

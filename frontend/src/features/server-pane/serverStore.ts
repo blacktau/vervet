@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import * as serversProxy from 'wailsjs/go/api/ServersProxy'
+import * as filesProxy from 'wailsjs/go/api/FilesProxy'
 import { type models } from 'wailsjs/go/models.ts'
 import { isEmpty } from 'lodash'
 import { useNotifier } from '@/utils/dialog.ts'
@@ -193,6 +194,53 @@ export const useServerStore = defineStore('server', {
       const result = await serversProxy.UpdateGroup(groupId, newName, parentId || '')
       if (!result.isSuccess) {
         return { success: false, msg: i18nGlobal.t(`errors.${result.errorCode}`) }
+      }
+
+      await this.refreshServers(true)
+      return { success: true }
+    },
+    async exportServers(serverIDs: string[], includeSensitiveData: boolean) {
+      const exportResult = await serversProxy.ExportServers(serverIDs, includeSensitiveData)
+      if (!exportResult.isSuccess) {
+        return { success: false, msg: i18nGlobal.t(`errors.${exportResult.errorCode}`) }
+      }
+
+      const title = i18nGlobal.t('serverPane.exportServers')
+      const defaultName = 'servers.json'
+      const filters = [{ displayName: 'JSON', pattern: '*.json' }]
+
+      const pathResult = await filesProxy.SaveFile(title, defaultName, filters)
+      if (!pathResult.isSuccess || !pathResult.data) {
+        return { success: true } // User cancelled — not an error
+      }
+
+      const writeResult = await filesProxy.WriteFile(pathResult.data, exportResult.data)
+      if (!writeResult.isSuccess) {
+        return { success: false, msg: writeResult.errorDetail || writeResult.errorCode }
+      }
+
+      return { success: true }
+    },
+    async importServers() {
+      const title = i18nGlobal.t('serverPane.importServers')
+      const filters = [
+        { displayName: 'JSON', pattern: '*.json' },
+        { displayName: 'All Files', pattern: '*.*' },
+      ]
+
+      const pathResult = await filesProxy.SelectFile(title, filters)
+      if (!pathResult.isSuccess || !pathResult.data) {
+        return { success: true } // User cancelled
+      }
+
+      const readResult = await filesProxy.ReadFile(pathResult.data)
+      if (!readResult.isSuccess) {
+        return { success: false, msg: readResult.errorDetail || readResult.errorCode }
+      }
+
+      const importResult = await serversProxy.ImportServers(readResult.data)
+      if (!importResult.isSuccess) {
+        return { success: false, msg: importResult.errorDetail || importResult.errorCode }
       }
 
       await this.refreshServers(true)

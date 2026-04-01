@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vervet.app/schemas/server-export.v1.json",
+  "title": "Vervet Server Export",
+  "description": "Export format for Vervet MongoDB server and folder lists",
+  "type": "object",
+  "required": ["version", "servers"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Format version"
+    },
+    "servers": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/serverEntry"
+      }
+    }
+  },
+  "$defs": {
+    "serverEntry": {
+      "type": "object",
+      "required": ["name"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Display name"
+        },
+        "parent": {
+          "type": "string",
+          "description": "Slash-delimited path of ancestor group names. Omit for root-level."
+        },
+        "colour": {
+          "type": "string",
+          "description": "Hex colour string. Omit for no colour."
+        },
+        "isGroup": {
+          "type": "boolean",
+          "default": false,
+          "description": "True for folders, false for servers"
+        },
+        "connectionConfig": {
+          "$ref": "#/$defs/connectionConfig"
+        }
+      }
+    },
+    "connectionConfig": {
+      "type": "object",
+      "required": ["uri"],
+      "additionalProperties": false,
+      "properties": {
+        "uri": {
+          "type": "string",
+          "minLength": 1,
+          "description": "MongoDB connection URI"
+        },
+        "authMethod": {
+          "type": "string",
+          "enum": ["none", "password", "x509", "oidc", "aws"],
+          "description": "Authentication method. If omitted, derived from URI."
+        },
+        "oidcConfig": {
+          "$ref": "#/$defs/oidcConfig"
+        }
+      }
+    },
+    "oidcConfig": {
+      "type": "object",
+      "required": ["providerUrl", "clientId"],
+      "additionalProperties": false,
+      "properties": {
+        "providerUrl": {
+          "type": "string"
+        },
+        "clientId": {
+          "type": "string"
+        },
+        "scopes": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "workloadIdentity": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

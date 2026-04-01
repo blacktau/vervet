@@ -17,6 +17,8 @@ type ServersProvider interface {
 	AddServerWithConfig(parentID, name, colour string, cfg models.ConnectionConfig) error
 	UpdateServerWithConfig(serverID, name, parentID, colour string, cfg models.ConnectionConfig) error
 	GetConnectionConfig(serverID string) (models.ConnectionConfig, error)
+	ExportServers(serverIDs []string, includeSensitiveData bool) ([]byte, error)
+	ImportServers(data []byte) ([]models.RegisteredServer, error)
 }
 
 // ServersProxy exposes the ServerService to the UI
@@ -131,4 +133,20 @@ func (sp *ServersProxy) GetURI(id string) Result[string] {
 	}
 
 	return SuccessResult(uri)
+}
+
+func (sp *ServersProxy) ExportServers(serverIDs []string, includeSensitiveData bool) Result[string] {
+	data, err := sp.sm.ExportServers(serverIDs, includeSensitiveData)
+	if err != nil {
+		return FailResult[string](err)
+	}
+	return SuccessResult(string(data))
+}
+
+func (sp *ServersProxy) ImportServers(jsonData string) Result[[]models.RegisteredServer] {
+	imported, err := sp.sm.ImportServers([]byte(jsonData))
+	if err != nil {
+		return FailResult[[]models.RegisteredServer](err)
+	}
+	return SuccessResult(imported)
 }

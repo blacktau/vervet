@@ -6,6 +6,10 @@ export function CreateGroup(arg1, arg2) {
   return window['go']['api']['ServersProxy']['CreateGroup'](arg1, arg2);
 }
 
+export function ExportServers(arg1, arg2) {
+  return window['go']['api']['ServersProxy']['ExportServers'](arg1, arg2);
+}
+
 export function GetConnectionConfig(arg1) {
   return window['go']['api']['ServersProxy']['GetConnectionConfig'](arg1);
 }
@@ -20,6 +24,10 @@ export function GetServers() {
 
 export function GetURI(arg1) {
   return window['go']['api']['ServersProxy']['GetURI'](arg1);
+}
+
+export function ImportServers(arg1) {
+  return window['go']['api']['ServersProxy']['ImportServers'](arg1);
 }
 
 export function RemoveNode(arg1) {

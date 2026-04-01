@@ -4,7 +4,7 @@ go 1.25.8
 
 require (
 	github.com/coreos/go-oidc/v3 v3.17.0
-	github.com/dop251/goja v0.0.0-20260305124333-6a7976c22267
+	github.com/dop251/goja v0.0.0-20260311135729-065cd970411c
 	github.com/flopp/go-findfont v0.1.0
 	github.com/stretchr/testify v1.11.1
 	github.com/wailsapp/wails/v2 v2.12.0
@@ -15,7 +15,6 @@ require (
 )
 
 require (
-	al.essio.dev/pkg/shellescape v1.6.0 // indirect
 	git.sr.ht/~jackmordaunt/go-toast/v2 v2.0.3 // indirect
 	github.com/danieljoos/wincred v1.2.3 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
@@ -41,7 +40,7 @@ require (
 require (
 	github.com/bep/debounce v1.2.1 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
-	github.com/godbus/dbus/v5 v5.2.0 // indirect
+	github.com/godbus/dbus/v5 v5.2.2 // indirect
 	github.com/google/uuid v1.6.0
 	github.com/jchv/go-winloader v0.0.0-20250406163304-c1995be93bd1 // indirect
 	github.com/labstack/echo/v4 v4.14.0 // indirect
@@ -61,8 +60,8 @@ require (
 	github.com/valyala/fasttemplate v1.2.2 // indirect
 	github.com/wailsapp/go-webview2 v1.0.23 // indirect
 	github.com/wailsapp/mimetype v1.4.1 // indirect
-	github.com/zalando/go-keyring v0.2.6
-	go.mongodb.org/mongo-driver v1.17.6
+	github.com/zalando/go-keyring v0.2.8
+	go.mongodb.org/mongo-driver v1.17.9
 	golang.org/x/crypto v0.46.0 // indirect
 	golang.org/x/net v0.48.0 // indirect
 	golang.org/x/sys v0.39.0 // indirect
