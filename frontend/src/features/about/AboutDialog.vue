@@ -36,7 +36,7 @@ const onOpenSource = () => {
         <n-text class="about-link" @click="onOpenSource">{{ $t('dialog.about.source') }}</n-text>
       </n-space>
       <div :style="{ color: themeVars.textColor3 }" class="about-copyright">
-        Copyright © 2025 Sean Garrett All rights reserved
+        Copyright © 2026 Sean Garrett All rights reserved
       </div>
     </n-space>
   </n-modal>

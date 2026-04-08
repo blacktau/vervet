@@ -90,7 +90,7 @@ export const useSettingsStore = defineStore('settings', {
       return state.fontList.filter((x) => x.isFixedWidth)
     },
     uiFont(state: SettingsStore) {
-      return fontToStyle(state.general.font, 'monaco')
+      return fontToStyle(state.general.font)
     },
     terminalCursorOptions() {
       return [
