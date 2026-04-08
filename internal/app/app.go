@@ -53,7 +53,7 @@ type App struct {
 }
 
 // NewApp creates a new App application struct
-func NewApp(log *slog.Logger) *App {
+func NewApp(log *slog.Logger, version string) *App {
 	connectionStringsStore := connectionStrings.NewStore(log)
 	serverStore, err := servers.NewServerStore(log)
 	if err != nil {
@@ -99,7 +99,7 @@ func NewApp(log *slog.Logger) *App {
 		CollectionsProxy:   api.NewCollectionsProxy(collectionsService),
 		ShellProxy:         api.NewShellProxy(queryExecutor),
 		SystemProxy:        api.NewSystemProxy(systemService),
-		SettingsProxy:      api.NewSettingsProxy(settingsService, fontService),
+		SettingsProxy:      api.NewSettingsProxy(settingsService, fontService, version),
 		FilesProxy:         api.NewFilesProxy(filesService),
 		WorkspacesProxy:    api.NewWorkspacesProxy(workspaceService, settingsService),
 	}

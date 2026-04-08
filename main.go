@@ -36,7 +36,7 @@ func main() {
 	}))
 	log := logging.NewLogger(slogger)
 
-	application := app.NewApp(slogger)
+	application := app.NewApp(slogger, version)
 
 	log.Info(fmt.Sprintf("--debug-ui: %v", *debugUI))
 
@@ -53,7 +53,7 @@ func main() {
 		MaxHeight:         4608,
 		DisableResize:     false,
 		Fullscreen:        false,
-		Frameless:         false,
+		Frameless:         true,
 		StartHidden:       false,
 		HideWindowOnClose: false,
 		BackgroundColour:  &options.RGBA{R: 255, G: 255, B: 255, A: 255},

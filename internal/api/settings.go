@@ -19,12 +19,14 @@ type SettingsProvider interface {
 type SettingsProxy struct {
 	settings SettingsProvider
 	fp       FontProvider
+	version  string
 }
 
-func NewSettingsProxy(settings SettingsProvider, fp FontProvider) *SettingsProxy {
+func NewSettingsProxy(settings SettingsProvider, fp FontProvider, version string) *SettingsProxy {
 	return &SettingsProxy{
 		settings: settings,
 		fp:       fp,
+		version:  version,
 	}
 }
 
@@ -78,5 +80,5 @@ func (sp *SettingsProxy) SaveWindowState(state models.WindowState) EmptyResult {
 }
 
 func (sp *SettingsProxy) GetAppVersion() Result[string] {
-	return SuccessResult("0.0.1")
+	return SuccessResult(sp.version)
 }

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"path"
 	"path/filepath"
 	"vervet/internal/logging"
 )
@@ -27,7 +26,7 @@ func NewStore(filename string, log *slog.Logger) (Store, error) {
 		return nil, err
 	}
 	return &cfgStore{
-		ConfigPath: path.Join(configDir, filename),
+		ConfigPath: filepath.Join(configDir, filename),
 		log:        log.With(slog.String(logging.SourceKey, "ConfigurationStore")),
 	}, nil
 }

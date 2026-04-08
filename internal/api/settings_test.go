@@ -72,7 +72,7 @@ func TestSettingsProxy_GetSettings(t *testing.T) {
 			},
 		}
 		fontProvider := &MockFontProvider{}
-		proxy := NewSettingsProxy(provider, fontProvider)
+		proxy := NewSettingsProxy(provider, fontProvider, "")
 
 		result := proxy.GetSettings()
 
@@ -85,7 +85,7 @@ func TestSettingsProxy_GetSettings(t *testing.T) {
 			err: assert.AnError,
 		}
 		fontProvider := &MockFontProvider{}
-		proxy := NewSettingsProxy(provider, fontProvider)
+		proxy := NewSettingsProxy(provider, fontProvider, "")
 
 		result := proxy.GetSettings()
 
@@ -98,7 +98,7 @@ func TestSettingsProxy_SetSettings(t *testing.T) {
 	t.Run("successful set settings", func(t *testing.T) {
 		provider := &MockSettingsProvider{}
 		fontProvider := &MockFontProvider{}
-		proxy := NewSettingsProxy(provider, fontProvider)
+		proxy := NewSettingsProxy(provider, fontProvider, "")
 
 		result := proxy.SetSettings(models.Settings{
 			General: models.GeneralSettings{Theme: "light"},
@@ -112,7 +112,7 @@ func TestSettingsProxy_SetSettings(t *testing.T) {
 			err: assert.AnError,
 		}
 		fontProvider := &MockFontProvider{}
-		proxy := NewSettingsProxy(provider, fontProvider)
+		proxy := NewSettingsProxy(provider, fontProvider, "")
 
 		result := proxy.SetSettings(models.Settings{})
 
@@ -129,7 +129,7 @@ func TestSettingsProxy_ResetSettings(t *testing.T) {
 			},
 		}
 		fontProvider := &MockFontProvider{}
-		proxy := NewSettingsProxy(provider, fontProvider)
+		proxy := NewSettingsProxy(provider, fontProvider, "")
 
 		result := proxy.ResetSettings()
 
@@ -142,7 +142,7 @@ func TestSettingsProxy_ResetSettings(t *testing.T) {
 			err: assert.AnError,
 		}
 		fontProvider := &MockFontProvider{}
-		proxy := NewSettingsProxy(provider, fontProvider)
+		proxy := NewSettingsProxy(provider, fontProvider, "")
 
 		result := proxy.ResetSettings()
 
@@ -160,7 +160,7 @@ func TestSettingsProxy_GetAvailableFonts(t *testing.T) {
 				{Family: "Courier"},
 			},
 		}
-		proxy := NewSettingsProxy(provider, fontProvider)
+		proxy := NewSettingsProxy(provider, fontProvider, "")
 
 		result := proxy.GetAvailableFonts()
 
@@ -177,7 +177,7 @@ func TestSettingsProxy_GetWindowState(t *testing.T) {
 			},
 		}
 		fontProvider := &MockFontProvider{}
-		proxy := NewSettingsProxy(provider, fontProvider)
+		proxy := NewSettingsProxy(provider, fontProvider, "")
 
 		result := proxy.GetWindowState()
 
@@ -190,7 +190,7 @@ func TestSettingsProxy_GetWindowState(t *testing.T) {
 			err: assert.AnError,
 		}
 		fontProvider := &MockFontProvider{}
-		proxy := NewSettingsProxy(provider, fontProvider)
+		proxy := NewSettingsProxy(provider, fontProvider, "")
 
 		result := proxy.GetWindowState()
 
@@ -202,7 +202,7 @@ func TestSettingsProxy_SaveWindowState(t *testing.T) {
 	t.Run("successful save window state", func(t *testing.T) {
 		provider := &MockSettingsProvider{}
 		fontProvider := &MockFontProvider{}
-		proxy := NewSettingsProxy(provider, fontProvider)
+		proxy := NewSettingsProxy(provider, fontProvider, "")
 
 		result := proxy.SaveWindowState(models.WindowState{
 			X: 100, Y: 100, Width: 1024, Height: 768,
@@ -216,7 +216,7 @@ func TestSettingsProxy_SaveWindowState(t *testing.T) {
 			err: assert.AnError,
 		}
 		fontProvider := &MockFontProvider{}
-		proxy := NewSettingsProxy(provider, fontProvider)
+		proxy := NewSettingsProxy(provider, fontProvider, "")
 
 		result := proxy.SaveWindowState(models.WindowState{})
 
@@ -229,11 +229,11 @@ func TestSettingsProxy_GetAppVersion(t *testing.T) {
 	t.Run("get app version", func(t *testing.T) {
 		provider := &MockSettingsProvider{}
 		fontProvider := &MockFontProvider{}
-		proxy := NewSettingsProxy(provider, fontProvider)
+		proxy := NewSettingsProxy(provider, fontProvider, "2026.04.2")
 
 		result := proxy.GetAppVersion()
 
 		assert.True(t, result.IsSuccess)
-		assert.NotEmpty(t, result.Data)
+		assert.Equal(t, "2026.04.2", result.Data)
 	})
 }
