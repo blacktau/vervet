@@ -178,6 +178,9 @@ func (a *App) saveWindowState() {
 
 // Shutdown is called at application termination
 func (a *App) Shutdown(ctx context.Context) {
+	// Cancel any in-flight OIDC browser logins (releases the callback listener)
+	a.tokenManager.Shutdown()
+
 	// Cancel any in-flight queries
 	a.queryExecutor.CloseAll()
 
