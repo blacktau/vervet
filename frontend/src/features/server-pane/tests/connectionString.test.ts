@@ -159,7 +159,8 @@ function runScenario(scenario: Scenario) {
 
     for(let i = 0; i < ScenarioKeys.length; i++) {
       let found = false
-      const scenarioKey = ScenarioKeys[i]!.toLowerCase()
+      const originalKey = ScenarioKeys[i]!
+      const scenarioKey = originalKey.toLowerCase()
 
       if (scenarioKey === 'authmechanismproperties') {
         // skip this here to be done below
@@ -172,7 +173,7 @@ function runScenario(scenario: Scenario) {
             expect(
               result.data!.options![ResultKeys[j]!],
               `option "${scenarioKey}" doesn't match expected value`,
-            ).toBe(scenario!.options[scenarioKey])
+            ).toBe(scenario!.options[originalKey])
             break
           }
       }
