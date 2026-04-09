@@ -232,6 +232,21 @@ watch(
   },
 )
 
+const onPasteConnectionString = (e: ClipboardEvent) => {
+  const pasted = e.clipboardData?.getData('text/plain') ?? ''
+  if (!pasted) {
+    return
+  }
+  e.preventDefault()
+
+  const input = e.target as HTMLInputElement
+  const start = input.selectionStart ?? 0
+  const end = input.selectionEnd ?? generalForm.value.connectionString.length
+  const current = generalForm.value.connectionString
+
+  generalForm.value.connectionString = current.slice(0, start) + pasted + current.slice(end)
+}
+
 function stripAuthMechanism(uri: string): string {
   return uri
     .replace(/[?&]authMechanism=[^&]*/gi, '')
@@ -335,7 +350,8 @@ const onTestConnection = async () => {
                 required>
                 <n-input
                   v-model:value="generalForm.connectionString"
-                  :placeholder="$t('serverPane.dialogs.server.connectionStringTip')" />
+                  :placeholder="$t('serverPane.dialogs.server.connectionStringTip')"
+                  @paste="onPasteConnectionString" />
               </n-form-item-gi>
               <n-form-item-gi
                 :label="$t('serverPane.dialogs.server.authMethod')"
