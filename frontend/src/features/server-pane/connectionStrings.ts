@@ -151,7 +151,10 @@ const parseAndValidateUri = (uri: string): ParseResult<UriData> => {
   }
 
   const [hostAndDatabase, query] = chopFirst(schemeLess, '?')
-  let [host, database] = chopAtLast(hostAndDatabase!, '/')
+  const trimmedHostAndDatabase = hostAndDatabase!.endsWith('/')
+    ? hostAndDatabase!.slice(0, -1)
+    : hostAndDatabase!
+  let [host, database] = chopAtLast(trimmedHostAndDatabase, '/')
 
   let collection: string | undefined = undefined
 

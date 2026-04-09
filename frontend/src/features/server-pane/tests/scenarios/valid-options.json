@@ -58,6 +58,49 @@
           "ENVIRONMENT": "azure"
         }
       }
+    },
+    {
+      "description": "SRV URI with database and trailing slash before options",
+      "uri": "mongodb+srv://cluster.example.com/myDatabase/?tls=true&authSource=$external",
+      "valid": true,
+      "warning": false,
+      "hosts": [
+        {
+          "type": "hostname",
+          "host": "cluster.example.com",
+          "port": null
+        }
+      ],
+      "auth": {
+        "username": null,
+        "password": null,
+        "db": "myDatabase"
+      },
+      "options": {
+        "tls": true,
+        "authSource": "$external"
+      }
+    },
+    {
+      "description": "Standard URI with database and trailing slash before options",
+      "uri": "mongodb://localhost:27017/myDatabase/?tls=true",
+      "valid": true,
+      "warning": false,
+      "hosts": [
+        {
+          "type": "hostname",
+          "host": "localhost",
+          "port": 27017
+        }
+      ],
+      "auth": {
+        "username": null,
+        "password": null,
+        "db": "myDatabase"
+      },
+      "options": {
+        "tls": true
+      }
     }
   ]
 }
