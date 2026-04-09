@@ -39,7 +39,28 @@ type BrowserFlowResult struct {
 	ExpiresAt    time.Time
 }
 
+// activeCallbackServer tracks an in-flight OIDC callback HTTP server so it
+// can be shut down from outside the browserLogin goroutine.
+type activeCallbackServer struct {
+	server   *http.Server
+	listener net.Listener
+}
+
+// closeBrowserServer shuts down any in-flight OIDC callback server, releasing
+// the listener port so a new attempt can bind to it.
+func (tm *TokenManager) closeBrowserServer() {
+	tm.browserMu.Lock()
+	defer tm.browserMu.Unlock()
+	if tm.activeServer != nil {
+		tm.activeServer.server.Close()
+		tm.activeServer = nil
+	}
+}
+
 func (tm *TokenManager) browserLogin(ctx context.Context, providerURL, clientID string, scopes []string) (*BrowserFlowResult, error) {
+	// Close any leftover listener from a previous failed attempt.
+	tm.closeBrowserServer()
+
 	provider, err := gooidc.NewProvider(ctx, providerURL)
 	if err != nil {
 		return nil, fmt.Errorf("OIDC discovery failed for %s: %w", providerURL, err)
@@ -110,6 +131,12 @@ func (tm *TokenManager) browserLogin(ctx context.Context, providerURL, clientID 
 	})
 
 	server := &http.Server{Handler: mux}
+
+	// Track the active server so it can be closed externally.
+	tm.browserMu.Lock()
+	tm.activeServer = &activeCallbackServer{server: server, listener: listener}
+	tm.browserMu.Unlock()
+
 	go server.Serve(listener)
 
 	authURL := oauth2Cfg.AuthCodeURL(state,
@@ -122,7 +149,7 @@ func (tm *TokenManager) browserLogin(ctx context.Context, providerURL, clientID 
 	}
 
 	timeout := time.After(5 * time.Minute)
-	defer server.Close()
+	defer tm.closeBrowserServer()
 
 	select {
 	case result := <-resultCh:
@@ -130,7 +157,7 @@ func (tm *TokenManager) browserLogin(ctx context.Context, providerURL, clientID 
 	case err := <-errCh:
 		return nil, err
 	case <-timeout:
-		return nil, fmt.Errorf("authentication timed out after 2 minutes")
+		return nil, fmt.Errorf("authentication timed out after 5 minutes")
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}

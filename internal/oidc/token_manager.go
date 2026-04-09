@@ -28,6 +28,10 @@ type TokenManager struct {
 	mu          sync.RWMutex
 	cache       map[string]*CachedToken
 	openBrowser func(url string)
+
+	// browserMu protects activeServer — the in-flight OIDC callback HTTP server.
+	browserMu    sync.Mutex
+	activeServer *activeCallbackServer
 }
 
 func NewTokenManager(log *slog.Logger, store connectionStrings.Store) *TokenManager {
@@ -69,6 +73,12 @@ func (tm *TokenManager) CleanupServer(serverID string) {
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
 	delete(tm.cache, serverID)
+}
+
+// Shutdown cancels any in-flight browser login and releases its listener.
+// Call this on application exit.
+func (tm *TokenManager) Shutdown() {
+	tm.closeBrowserServer()
 }
 
 // HumanCallback returns the OIDCHumanCallback for the given server.
