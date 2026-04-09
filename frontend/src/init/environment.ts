@@ -14,3 +14,7 @@ export function isMacOS() {
 export function isWindows() {
   return os === 'windows'
 }
+
+export function isLinux() {
+  return os === 'linux'
+}

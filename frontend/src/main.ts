@@ -4,7 +4,7 @@ import relativeTime from 'dayjs/plugin/relativeTime'
 import { createApp, nextTick } from 'vue'
 import App from './app/App.vue'
 import { createPinia } from 'pinia'
-import { loadEnvironment } from './init/environment'
+import { isLinux, loadEnvironment } from './init/environment'
 import { initMonaco } from './init/monaco'
 import { initDiscreteApi } from './init/discrete'
 import { useNotifier } from '@/utils/dialog'
@@ -41,7 +41,9 @@ async function initApp() {
 
   await loadEnvironment()
   initMonaco()
-  initClipboardWorkaround()
+  if (isLinux()) {
+    initClipboardWorkaround()
+  }
 
   await initDiscreteApi()
   app.config.errorHandler = (err) => {
