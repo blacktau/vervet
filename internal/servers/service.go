@@ -41,6 +41,9 @@ func (sm *ServerService) Init(ctx context.Context) {
 }
 
 func (sm *ServerService) GetServers() ([]models.RegisteredServer, error) {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+
 	sm.log.Debug("Getting All models.RegisteredServers")
 	registeredServers, err := sm.store.LoadServers()
 	if err != nil {
@@ -51,6 +54,9 @@ func (sm *ServerService) GetServers() ([]models.RegisteredServer, error) {
 }
 
 func (sm *ServerService) GetServer(id string) (*models.RegisteredServer, error) {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+
 	log := sm.log.With(slog.String("serverID", id))
 	log.Debug("Getting Server Configuration for Server")
 	registeredServers, err := sm.store.LoadServers()
