@@ -6,11 +6,14 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
+	"time"
 	"vervet/internal/logging"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 )
+
+const operationTimeout = 30 * time.Second
 
 // ClientProvider provides access to active MongoDB connections
 type ClientProvider interface {
@@ -43,7 +46,10 @@ func (s *DatabasesService) GetDatabases(serverID string) ([]string, error) {
 		return nil, err
 	}
 
-	names, err := client.ListDatabaseNames(s.ctx, bson.D{})
+	ctx, cancel := context.WithTimeout(s.ctx, operationTimeout)
+	defer cancel()
+
+	names, err := client.ListDatabaseNames(ctx, bson.D{})
 	if err != nil {
 		s.log.Error("Failed to list databases", slog.String("serverID", serverID), slog.Any("error", err))
 		return nil, err
@@ -64,8 +70,11 @@ func (s *DatabasesService) GetDatabaseStatistics(serverID, dbName string) (map[s
 		return nil, err
 	}
 
+	ctx, cancel := context.WithTimeout(s.ctx, operationTimeout)
+	defer cancel()
+
 	var result bson.M
-	err = client.Database(dbName).RunCommand(s.ctx, bson.D{
+	err = client.Database(dbName).RunCommand(ctx, bson.D{
 		{Key: "dbStats", Value: 1},
 	}).Decode(&result)
 	if err != nil {
@@ -85,7 +94,10 @@ func (s *DatabasesService) DropDatabase(serverID, dbName string) error {
 		return err
 	}
 
-	err = client.Database(dbName).Drop(s.ctx)
+	ctx, cancel := context.WithTimeout(s.ctx, operationTimeout)
+	defer cancel()
+
+	err = client.Database(dbName).Drop(ctx)
 	if err != nil {
 		s.log.Error("Failed to drop database",
 			slog.String("serverID", serverID),
