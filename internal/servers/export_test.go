@@ -254,6 +254,45 @@ func TestExportServers_NoColourOmitted(t *testing.T) {
 	assert.False(t, hasColour, "expected 'colour' key to be omitted from JSON when empty")
 }
 
+func TestExportImport_RoundTripWithSlashInName(t *testing.T) {
+	store := &mockServerStore{
+		servers: []models.RegisteredServer{
+			{ID: "g1", Name: "Dev/Test", IsGroup: true},
+			{ID: "s1", Name: "Primary", ParentID: "g1", Colour: "#FF0000"},
+		},
+	}
+	connStore := &mockConnStoreWithConfigs{
+		MockConnectionStringsStore: MockConnectionStringsStore{uris: make(map[string]string)},
+		configs: map[string]models.ConnectionConfig{
+			"s1": {URI: "mongodb://localhost:27017", AuthMethod: models.AuthNone},
+		},
+	}
+	exportSvc := newTestServerService(store, connStore)
+
+	data, err := exportSvc.ExportServers([]string{"g1", "s1"}, true)
+	require.NoError(t, err)
+
+	importStore := &mockServerStore{servers: []models.RegisteredServer{}}
+	importConnStore := &MockConnectionStringsStore{uris: make(map[string]string)}
+	importSvc := newTestServerService(importStore, importConnStore)
+
+	importResult, err := importSvc.ImportServers(data)
+	require.NoError(t, err)
+	assert.Len(t, importResult.Created, 2)
+
+	byName := make(map[string]*models.RegisteredServer)
+	for i := range importResult.Created {
+		byName[importResult.Created[i].Name] = &importResult.Created[i]
+	}
+
+	group := byName["Dev/Test"]
+	server := byName["Primary"]
+	require.NotNil(t, group, "group 'Dev/Test' should exist with original name")
+	require.NotNil(t, server)
+	assert.True(t, group.IsGroup)
+	assert.Equal(t, group.ID, server.ParentID)
+}
+
 func TestBuildParentPath_EscapesSlashInName(t *testing.T) {
 	servers := []models.RegisteredServer{
 		{ID: "g1", Name: "Dev/Test", IsGroup: true},

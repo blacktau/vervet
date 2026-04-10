@@ -351,3 +351,74 @@ func TestImportServers_DifferentURINotDuplicate(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, result.Created, 1) // different URI, not a duplicate
 }
+
+func TestImportServers_SlashInGroupName(t *testing.T) {
+	mockStore := &mockServerStore{servers: nil}
+	mockCS := &MockConnectionStringsStore{uris: make(map[string]string)}
+	svc := newTestServerService(mockStore, mockCS)
+
+	data, _ := json.Marshal(exportFile{
+		Version: 1,
+		Servers: []exportServerEntry{
+			{Name: "Dev/Test", IsGroup: true},
+			{
+				Name:   "My Server",
+				Parent: `Dev\/Test`,
+				ConnectionConfig: &exportConnectionConfig{
+					URI:        "mongodb://localhost:27017",
+					AuthMethod: "none",
+				},
+			},
+		},
+	})
+
+	result, err := svc.ImportServers(data)
+
+	require.NoError(t, err)
+	assert.Len(t, result.Created, 2)
+
+	byName := make(map[string]*models.RegisteredServer)
+	for i := range result.Created {
+		byName[result.Created[i].Name] = &result.Created[i]
+	}
+	group := byName["Dev/Test"]
+	server := byName["My Server"]
+	require.NotNil(t, group)
+	require.NotNil(t, server)
+	assert.True(t, group.IsGroup)
+	assert.Equal(t, group.ID, server.ParentID)
+}
+
+func TestImportServers_BackslashInGroupName(t *testing.T) {
+	mockStore := &mockServerStore{servers: nil}
+	mockCS := &MockConnectionStringsStore{uris: make(map[string]string)}
+	svc := newTestServerService(mockStore, mockCS)
+
+	data, _ := json.Marshal(exportFile{
+		Version: 1,
+		Servers: []exportServerEntry{
+			{Name: `Path\Group`, IsGroup: true},
+			{
+				Name:   "My Server",
+				Parent: `Path\\Group`,
+				ConnectionConfig: &exportConnectionConfig{
+					URI:        "mongodb://localhost:27017",
+					AuthMethod: "none",
+				},
+			},
+		},
+	})
+
+	result, err := svc.ImportServers(data)
+
+	require.NoError(t, err)
+	assert.Len(t, result.Created, 2)
+
+	byName := make(map[string]*models.RegisteredServer)
+	for i := range result.Created {
+		byName[result.Created[i].Name] = &result.Created[i]
+	}
+	require.NotNil(t, byName[`Path\Group`])
+	require.NotNil(t, byName["My Server"])
+	assert.Equal(t, byName[`Path\Group`].ID, byName["My Server"].ParentID)
+}

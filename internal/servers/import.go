@@ -63,9 +63,10 @@ func (sm *ServerService) ImportServers(data []byte) (*ImportResult, error) {
 		}
 
 		if entry.IsGroup {
-			path := entry.Name
+			escapedName := escapePathSegment(entry.Name)
+			path := escapedName
 			if entry.Parent != "" {
-				path = entry.Parent + "/" + entry.Name
+				path = rebuildEscapedPath(entry.Parent) + "/" + escapedName
 			}
 
 			// Skip duplicate groups (same name and parent path).
@@ -146,18 +147,61 @@ func (sm *ServerService) ImportServers(data []byte) (*ImportResult, error) {
 	return &ImportResult{Created: created}, nil
 }
 
-// resolveParentPath takes a slash-delimited path (e.g. "Infra/Databases") and returns
-// the ID of the deepest group, creating any missing intermediate groups as needed.
+// splitEscapedPath splits a parent path on unescaped `/` delimiters.
+// `\/` is a literal `/` in a name, `\\` is a literal `\`.
+func splitEscapedPath(path string) []string {
+	var parts []string
+	var current strings.Builder
+	i := 0
+	for i < len(path) {
+		if path[i] == '\\' && i+1 < len(path) {
+			// Escaped character — consume both bytes literally
+			current.WriteByte(path[i])
+			current.WriteByte(path[i+1])
+			i += 2
+		} else if path[i] == '/' {
+			parts = append(parts, unescapePathSegment(current.String()))
+			current.Reset()
+			i++
+		} else {
+			current.WriteByte(path[i])
+			i++
+		}
+	}
+	parts = append(parts, unescapePathSegment(current.String()))
+	return parts
+}
+
+// unescapePathSegment reverses escapePathSegment: `\/` → `/`, `\\` → `\`.
+func unescapePathSegment(s string) string {
+	s = strings.ReplaceAll(s, `\/`, `/`)
+	s = strings.ReplaceAll(s, `\\`, `\`)
+	return s
+}
+
+// rebuildEscapedPath splits and re-escapes a parent path to normalise it for map lookups.
+func rebuildEscapedPath(path string) string {
+	parts := splitEscapedPath(path)
+	escaped := make([]string, len(parts))
+	for i, p := range parts {
+		escaped[i] = escapePathSegment(p)
+	}
+	return strings.Join(escaped, "/")
+}
+
+// resolveParentPath takes an escaped slash-delimited path (e.g. "Infra/Databases" or "Dev\/Test")
+// and returns the ID of the deepest group, creating any missing intermediate groups as needed.
 func resolveParentPath(path string, groupPaths map[string]string, servers *[]models.RegisteredServer, created *[]models.RegisteredServer) string {
-	parts := strings.Split(path, "/")
+	parts := splitEscapedPath(path)
 	currentPath := ""
 	parentID := ""
 
 	for _, part := range parts {
+		escapedPart := escapePathSegment(part)
 		if currentPath == "" {
-			currentPath = part
+			currentPath = escapedPart
 		} else {
-			currentPath = currentPath + "/" + part
+			currentPath = currentPath + "/" + escapedPart
 		}
 
 		if id, ok := groupPaths[currentPath]; ok {
@@ -182,7 +226,8 @@ func resolveParentPath(path string, groupPaths map[string]string, servers *[]mod
 	return parentID
 }
 
-// buildExistingGroupPaths builds a map of path -> ID for all existing groups.
+// buildExistingGroupPaths builds a map of escaped-path -> ID for all existing groups.
+// buildParentPath already returns escaped paths, so we only need to escape the group name itself.
 func buildExistingGroupPaths(servers []models.RegisteredServer) map[string]string {
 	paths := make(map[string]string)
 	for _, srv := range servers {
@@ -190,10 +235,11 @@ func buildExistingGroupPaths(servers []models.RegisteredServer) map[string]strin
 			continue
 		}
 		path := buildParentPath(srv.ParentID, servers)
+		escapedName := escapePathSegment(srv.Name)
 		if path == "" {
-			path = srv.Name
+			path = escapedName
 		} else {
-			path = path + "/" + srv.Name
+			path = path + "/" + escapedName
 		}
 		paths[path] = srv.ID
 	}
