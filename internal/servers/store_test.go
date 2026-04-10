@@ -66,13 +66,14 @@ func TestLoadServers(t *testing.T) {
 		assert.Nil(t, servers)
 	})
 
-	t.Run("unmarshal error falls back to empty list", func(t *testing.T) {
+	t.Run("unmarshal error falls back to empty list with error", func(t *testing.T) {
 		mockCfgStore := &MockConfigurationStore{
 			data: []byte(`invalid yaml: [[[`),
 		}
 		store := &store{cfgStore: mockCfgStore, log: slog.Default()}
 		servers, err := store.LoadServers()
-		assert.NoError(t, err)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "corrupted")
 		assert.NotNil(t, servers)
 		assert.Len(t, servers, 0)
 	})

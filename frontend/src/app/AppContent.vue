@@ -41,6 +41,15 @@ runtime.EventsOn('oidc-reauth-required', (serverID: string) => {
   })
 })
 
+runtime.EventsOn('config-parse-error', (detail: string) => {
+  notification.warning({
+    title: i18n.t('errorTitles.configParseError'),
+    content: i18n.t('errors.configParseError'),
+    meta: detail,
+    duration: 15000,
+  })
+})
+
 const data = reactive({
   navMenuWidth: 50,
   toolbarHeight: 38,

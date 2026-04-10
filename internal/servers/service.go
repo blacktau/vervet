@@ -12,8 +12,11 @@ import (
 	"vervet/internal/oidc"
 
 	"github.com/google/uuid"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"go.mongodb.org/mongo-driver/v2/x/mongo/driver/connstring"
 )
+
+const ConfigParseErrorEvent = "config-parse-error"
 
 type ServerService struct {
 	ctx               context.Context
@@ -48,6 +51,12 @@ func (sm *ServerService) GetServers() ([]models.RegisteredServer, error) {
 	registeredServers, err := sm.store.LoadServers()
 	if err != nil {
 		sm.log.Error("error getting models.RegisteredServers", slog.Any("error", err))
+		if registeredServers != nil {
+			// Store returned fallback data (e.g. empty list on parse error)
+			// — emit a warning event so the frontend can alert the user
+			runtime.EventsEmit(sm.ctx, ConfigParseErrorEvent, err.Error())
+			return registeredServers, nil
+		}
 		return nil, fmt.Errorf("error getting models.RegisteredServers: %w", err)
 	}
 	return registeredServers, nil

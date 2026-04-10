@@ -523,9 +523,11 @@ export default {
     query_cancelled: 'Query cancelled',
     operation_not_supported: 'Operation not supported by the current query engine',
     unknown_error: 'An unexpected error occurred',
+    configParseError: 'Your server configuration file could not be read. Your server list may appear empty until the file is repaired or new servers are added.',
   },
   errorTitles: {
     loadServers: 'Failed to load servers',
+    configParseError: 'Server Configuration Error',
     loadServerDetails: 'Failed to load server details',
     connect: 'Failed to connect to server',
     disconnect: 'Failed to disconnect from server',
