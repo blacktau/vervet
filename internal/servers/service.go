@@ -12,8 +12,11 @@ import (
 	"vervet/internal/oidc"
 
 	"github.com/google/uuid"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"go.mongodb.org/mongo-driver/v2/x/mongo/driver/connstring"
 )
+
+const ConfigParseErrorEvent = "config-parse-error"
 
 type ServerService struct {
 	ctx               context.Context
@@ -41,16 +44,28 @@ func (sm *ServerService) Init(ctx context.Context) {
 }
 
 func (sm *ServerService) GetServers() ([]models.RegisteredServer, error) {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+
 	sm.log.Debug("Getting All models.RegisteredServers")
 	registeredServers, err := sm.store.LoadServers()
 	if err != nil {
 		sm.log.Error("error getting models.RegisteredServers", slog.Any("error", err))
+		if registeredServers != nil {
+			// Store returned fallback data (e.g. empty list on parse error)
+			// — emit a warning event so the frontend can alert the user
+			runtime.EventsEmit(sm.ctx, ConfigParseErrorEvent, err.Error())
+			return registeredServers, nil
+		}
 		return nil, fmt.Errorf("error getting models.RegisteredServers: %w", err)
 	}
 	return registeredServers, nil
 }
 
 func (sm *ServerService) GetServer(id string) (*models.RegisteredServer, error) {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+
 	log := sm.log.With(slog.String("serverID", id))
 	log.Debug("Getting Server Configuration for Server")
 	registeredServers, err := sm.store.LoadServers()
@@ -148,6 +163,12 @@ func (sm *ServerService) UpdateServer(serverID, name, uri, parentID, colour stri
 		return fmt.Errorf("failed to find registered server with ID %s", serverID)
 	}
 
+	err = sm.connectionStrings.StoreRegisteredServerURI(serverID, uri)
+	if err != nil {
+		log.Error("Failed to securely store registeredServer URI", slog.Any("error", err))
+		return fmt.Errorf("failed to securely store registeredServer URI: %w", err)
+	}
+
 	server.Name = name
 	server.ParentID = parentID
 	server.Colour = colour
@@ -156,12 +177,6 @@ func (sm *ServerService) UpdateServer(serverID, name, uri, parentID, colour stri
 	if err != nil {
 		log.Error("Failed to save registered server metadata", slog.Any("error", err))
 		return fmt.Errorf("failed to save registered server metadata: %w", err)
-	}
-
-	err = sm.connectionStrings.StoreRegisteredServerURI(serverID, uri)
-	if err != nil {
-		log.Error("Failed to securely store registeredServer URI", slog.Any("error", err))
-		return fmt.Errorf("failed to securely store registeredServer URI: %w", err)
 	}
 
 	return nil
@@ -244,6 +259,12 @@ func (sm *ServerService) UpdateServerWithConfig(serverID, name, parentID, colour
 		return fmt.Errorf("failed to find registered server with ID %s", serverID)
 	}
 
+	err = sm.connectionStrings.StoreConnectionConfig(serverID, cfg)
+	if err != nil {
+		log.Error("Failed to securely store connection config", slog.Any("error", err))
+		return fmt.Errorf("failed to securely store connection config: %w", err)
+	}
+
 	server.Name = name
 	server.ParentID = parentID
 	server.Colour = colour
@@ -252,12 +273,6 @@ func (sm *ServerService) UpdateServerWithConfig(serverID, name, parentID, colour
 	if err != nil {
 		log.Error("Failed to save registered server metadata", slog.Any("error", err))
 		return fmt.Errorf("failed to save registered server metadata: %w", err)
-	}
-
-	err = sm.connectionStrings.StoreConnectionConfig(serverID, cfg)
-	if err != nil {
-		log.Error("Failed to securely store connection config", slog.Any("error", err))
-		return fmt.Errorf("failed to securely store connection config: %w", err)
 	}
 
 	return nil

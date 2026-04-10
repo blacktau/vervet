@@ -246,6 +246,28 @@ func TestRemoveNode(t *testing.T) {
 	})
 }
 
+func TestUpdateServer_KeyringFailureDoesNotPersistMetadata(t *testing.T) {
+	t.Run("metadata unchanged when keyring store fails", func(t *testing.T) {
+		mockStore := &mockServerStore{
+			servers: []models.RegisteredServer{
+				{ID: "1", Name: "Original Name"},
+			},
+		}
+		mockCSStore := &MockConnectionStringsStore{
+			uris: map[string]string{"1": "mongodb://localhost"},
+			err:  errors.New("keyring locked"),
+		}
+		sm := newTestServerService(mockStore, mockCSStore)
+
+		err := sm.UpdateServer("1", "New Name", "mongodb://newhost", "", "")
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "keyring locked")
+		// Metadata should NOT have been updated since keyring failed
+		assert.Equal(t, "Original Name", mockStore.servers[0].Name)
+	})
+}
+
 func TestGetURI(t *testing.T) {
 	t.Run("successful get uri", func(t *testing.T) {
 		mockCSStore := &MockConnectionStringsStore{

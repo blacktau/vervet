@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
+	"time"
 	"vervet/internal/logging"
 	"vervet/internal/models"
 	"vervet/internal/queryengine"
@@ -13,6 +14,8 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 )
+
+const operationTimeout = 30 * time.Second
 
 // ClientProvider provides access to active MongoDB connections
 type ClientProvider interface {
@@ -47,8 +50,11 @@ func (s *CollectionsService) GetServerStatistics(serverID string) (map[string]an
 		return nil, err
 	}
 
+	ctx, cancel := context.WithTimeout(s.ctx, operationTimeout)
+	defer cancel()
+
 	var result bson.M
-	err = client.Database("admin").RunCommand(s.ctx, bson.D{
+	err = client.Database("admin").RunCommand(ctx, bson.D{
 		{Key: "serverStatus", Value: 1},
 	}).Decode(&result)
 	if err != nil {
@@ -70,8 +76,11 @@ func (s *CollectionsService) GetStatistics(serverID, dbName, collectionName stri
 		return nil, err
 	}
 
+	ctx, cancel := context.WithTimeout(s.ctx, operationTimeout)
+	defer cancel()
+
 	var result bson.M
-	err = client.Database(dbName).RunCommand(s.ctx, bson.D{
+	err = client.Database(dbName).RunCommand(ctx, bson.D{
 		{Key: "collStats", Value: collectionName},
 	}).Decode(&result)
 	if err != nil {
@@ -91,8 +100,11 @@ func (s *CollectionsService) GetCollections(serverID, dbName string) ([]string, 
 		return nil, err
 	}
 
+	ctx, cancel := context.WithTimeout(s.ctx, operationTimeout)
+	defer cancel()
+
 	db := client.Database(dbName)
-	names, err := db.ListCollectionNames(s.ctx, bson.D{})
+	names, err := db.ListCollectionNames(ctx, bson.D{})
 	if err != nil {
 		return nil, err
 	}
@@ -110,9 +122,12 @@ func (s *CollectionsService) GetViews(serverID, dbName string) ([]string, error)
 		return nil, err
 	}
 
+	ctx, cancel := context.WithTimeout(s.ctx, operationTimeout)
+	defer cancel()
+
 	db := client.Database(dbName)
 	filter := bson.D{{Key: "type", Value: "view"}}
-	names, err := db.ListCollectionNames(s.ctx, filter)
+	names, err := db.ListCollectionNames(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -131,7 +146,10 @@ func (s *CollectionsService) CreateCollection(serverID, dbName, collectionName s
 		return err
 	}
 
-	err = client.Database(dbName).CreateCollection(s.ctx, collectionName)
+	ctx, cancel := context.WithTimeout(s.ctx, operationTimeout)
+	defer cancel()
+
+	err = client.Database(dbName).CreateCollection(ctx, collectionName)
 	if err != nil {
 		s.log.Error("Failed to create collection",
 			slog.String("serverID", serverID),
@@ -153,7 +171,11 @@ func (s *CollectionsService) GetCollectionSchema(serverID, dbName, collName stri
 	if err != nil {
 		return models.CollectionSchema{}, err
 	}
-	return queryengine.SampleSchema(s.ctx, client, dbName, collName)
+
+	ctx, cancel := context.WithTimeout(s.ctx, operationTimeout)
+	defer cancel()
+
+	return queryengine.SampleSchema(ctx, client, dbName, collName)
 }
 
 func (s *CollectionsService) RenameCollection(serverID, dbName, oldName, newName string) error {
@@ -175,12 +197,15 @@ func (s *CollectionsService) RenameCollection(serverID, dbName, oldName, newName
 		return err
 	}
 
+	ctx, cancel := context.WithTimeout(s.ctx, operationTimeout)
+	defer cancel()
+
 	// MongoDB renames via the admin command: renameCollection
 	cmd := bson.D{
 		{Key: "renameCollection", Value: dbName + "." + oldName},
 		{Key: "to", Value: dbName + "." + newName},
 	}
-	err = client.Database("admin").RunCommand(s.ctx, cmd).Err()
+	err = client.Database("admin").RunCommand(ctx, cmd).Err()
 	if err != nil {
 		s.log.Error("Failed to rename collection",
 			slog.String("serverID", serverID),
@@ -210,7 +235,10 @@ func (s *CollectionsService) DropCollection(serverID, dbName, collectionName str
 		return err
 	}
 
-	err = client.Database(dbName).Collection(collectionName).Drop(s.ctx)
+	ctx, cancel := context.WithTimeout(s.ctx, operationTimeout)
+	defer cancel()
+
+	err = client.Database(dbName).Collection(collectionName).Drop(ctx)
 	if err != nil {
 		s.log.Error("Failed to drop collection",
 			slog.String("serverID", serverID),
