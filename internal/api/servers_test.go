@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"vervet/internal/models"
+	"vervet/internal/servers"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -78,11 +79,11 @@ func (m *MockServersProvider) ExportServers(serverIDs []string, includeSensitive
 	return []byte(`{"version":1,"servers":[]}`), nil
 }
 
-func (m *MockServersProvider) ImportServers(data []byte) ([]models.RegisteredServer, error) {
+func (m *MockServersProvider) ImportServers(data []byte) (*servers.ImportResult, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
-	return []models.RegisteredServer{}, nil
+	return &servers.ImportResult{Created: []models.RegisteredServer{}}, nil
 }
 
 func TestServersProxy_GetServers(t *testing.T) {
