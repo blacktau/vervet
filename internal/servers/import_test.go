@@ -28,14 +28,14 @@ func TestImportServers_BasicImport(t *testing.T) {
 		},
 	})
 
-	created, err := svc.ImportServers(data)
+	result, err := svc.ImportServers(data)
 
 	require.NoError(t, err)
-	assert.Len(t, created, 1)
-	assert.Equal(t, "My Server", created[0].Name)
-	assert.Equal(t, "#ff0000", created[0].Colour)
-	assert.NotEmpty(t, created[0].ID)
-	assert.False(t, created[0].IsGroup)
+	assert.Len(t, result.Created, 1)
+	assert.Equal(t, "My Server", result.Created[0].Name)
+	assert.Equal(t, "#ff0000", result.Created[0].Colour)
+	assert.NotEmpty(t, result.Created[0].ID)
+	assert.False(t, result.Created[0].IsGroup)
 }
 
 func TestImportServers_GroupHierarchy(t *testing.T) {
@@ -61,13 +61,13 @@ func TestImportServers_GroupHierarchy(t *testing.T) {
 		},
 	})
 
-	created, err := svc.ImportServers(data)
+	result, err := svc.ImportServers(data)
 
 	require.NoError(t, err)
-	assert.Len(t, created, 2)
+	assert.Len(t, result.Created, 2)
 
-	group := created[0]
-	server := created[1]
+	group := result.Created[0]
+	server := result.Created[1]
 	assert.True(t, group.IsGroup)
 	assert.Equal(t, "Infra", group.Name)
 	assert.Equal(t, group.ID, server.ParentID)
@@ -92,15 +92,15 @@ func TestImportServers_AutoCreateMissingGroups(t *testing.T) {
 		},
 	})
 
-	created, err := svc.ImportServers(data)
+	result, err := svc.ImportServers(data)
 
 	require.NoError(t, err)
-	assert.Len(t, created, 3) // Infra, Databases, My Server
+	assert.Len(t, result.Created, 3) // Infra, Databases, My Server
 
 	// Find the groups and server
 	byName := make(map[string]*models.RegisteredServer)
-	for i := range created {
-		byName[created[i].Name] = &created[i]
+	for i := range result.Created {
+		byName[result.Created[i].Name] = &result.Created[i]
 	}
 	infra := byName["Infra"]
 	databases := byName["Databases"]
@@ -185,10 +185,10 @@ func TestImportServers_DeriveAuthMethod(t *testing.T) {
 		},
 	})
 
-	created, err := svc.ImportServers(data)
+	result, err := svc.ImportServers(data)
 
 	require.NoError(t, err)
-	assert.Len(t, created, 1)
+	assert.Len(t, result.Created, 1)
 	// The connection config should have been stored - verify via the mock
 	assert.Len(t, mockCS.uris, 1)
 }
@@ -219,12 +219,12 @@ func TestImportServers_NoColourVariants(t *testing.T) {
 		},
 	})
 
-	created, err := svc.ImportServers(data)
+	result, err := svc.ImportServers(data)
 
 	require.NoError(t, err)
-	assert.Len(t, created, 2)
-	assert.Equal(t, "", created[0].Colour)
-	assert.Equal(t, "", created[1].Colour)
+	assert.Len(t, result.Created, 2)
+	assert.Equal(t, "", result.Created[0].Colour)
+	assert.Equal(t, "", result.Created[1].Colour)
 }
 
 func TestImportServers_StoresConnectionConfig(t *testing.T) {
@@ -245,13 +245,13 @@ func TestImportServers_StoresConnectionConfig(t *testing.T) {
 		},
 	})
 
-	created, err := svc.ImportServers(data)
+	result, err := svc.ImportServers(data)
 
 	require.NoError(t, err)
-	assert.Len(t, created, 1)
+	assert.Len(t, result.Created, 1)
 
 	// Verify the connection config was stored in the keyring mock
-	storedURI, ok := mockCS.uris[created[0].ID]
+	storedURI, ok := mockCS.uris[result.Created[0].ID]
 	assert.True(t, ok)
 	assert.Equal(t, "mongodb://localhost:27017", storedURI)
 }
@@ -277,9 +277,9 @@ func TestImportServers_SkipDuplicateServer(t *testing.T) {
 		},
 	})
 
-	created, err := svc.ImportServers(data)
+	result, err := svc.ImportServers(data)
 	require.NoError(t, err)
-	assert.Len(t, created, 0) // duplicate skipped
+	assert.Len(t, result.Created, 0) // duplicate skipped
 }
 
 func TestImportServers_SkipDuplicateGroup(t *testing.T) {
@@ -298,9 +298,9 @@ func TestImportServers_SkipDuplicateGroup(t *testing.T) {
 		},
 	})
 
-	created, err := svc.ImportServers(data)
+	result, err := svc.ImportServers(data)
 	require.NoError(t, err)
-	assert.Len(t, created, 0) // duplicate skipped
+	assert.Len(t, result.Created, 0) // duplicate skipped
 }
 
 func TestImportServers_DuplicateGroupChildrenLinkToExisting(t *testing.T) {
@@ -320,10 +320,10 @@ func TestImportServers_DuplicateGroupChildrenLinkToExisting(t *testing.T) {
 		},
 	})
 
-	created, err := svc.ImportServers(data)
+	result, err := svc.ImportServers(data)
 	require.NoError(t, err)
-	assert.Len(t, created, 1) // only the server, not the duplicate group
-	assert.Equal(t, "existing-g1", created[0].ParentID) // linked to existing group
+	assert.Len(t, result.Created, 1) // only the server, not the duplicate group
+	assert.Equal(t, "existing-g1", result.Created[0].ParentID) // linked to existing group
 }
 
 func TestImportServers_DifferentURINotDuplicate(t *testing.T) {
@@ -347,7 +347,7 @@ func TestImportServers_DifferentURINotDuplicate(t *testing.T) {
 		},
 	})
 
-	created, err := svc.ImportServers(data)
+	result, err := svc.ImportServers(data)
 	require.NoError(t, err)
-	assert.Len(t, created, 1) // different URI, not a duplicate
+	assert.Len(t, result.Created, 1) // different URI, not a duplicate
 }

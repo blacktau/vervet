@@ -10,9 +10,15 @@ import (
 	"go.mongodb.org/mongo-driver/v2/x/mongo/driver/connstring"
 )
 
+// ImportResult holds the outcome of an import operation.
+type ImportResult struct {
+	Created  []models.RegisteredServer `json:"created"`
+	Warnings []string                  `json:"warnings"`
+}
+
 // ImportServers parses a JSON export file and creates all servers and groups,
-// storing connection configs in the keyring. It returns the list of created RegisteredServers.
-func (sm *ServerService) ImportServers(data []byte) ([]models.RegisteredServer, error) {
+// storing connection configs in the keyring. It returns an ImportResult with the list of created RegisteredServers.
+func (sm *ServerService) ImportServers(data []byte) (*ImportResult, error) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
@@ -137,7 +143,7 @@ func (sm *ServerService) ImportServers(data []byte) ([]models.RegisteredServer, 
 		return nil, fmt.Errorf("failed to save servers: %w", err)
 	}
 
-	return created, nil
+	return &ImportResult{Created: created}, nil
 }
 
 // resolveParentPath takes a slash-delimited path (e.g. "Infra/Databases") and returns

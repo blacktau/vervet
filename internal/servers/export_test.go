@@ -207,14 +207,14 @@ func TestExportImport_RoundTrip(t *testing.T) {
 	importConnStore := &MockConnectionStringsStore{uris: make(map[string]string)}
 	importSvc := newTestServerService(importStore, importConnStore)
 
-	imported, err := importSvc.ImportServers(data)
+	importResult, err := importSvc.ImportServers(data)
 	require.NoError(t, err)
-	assert.Len(t, imported, 3) // group + 2 servers
+	assert.Len(t, importResult.Created, 3) // group + 2 servers
 
 	// Verify structure is preserved
 	byName := make(map[string]*models.RegisteredServer)
-	for i := range imported {
-		byName[imported[i].Name] = &imported[i]
+	for i := range importResult.Created {
+		byName[importResult.Created[i].Name] = &importResult.Created[i]
 	}
 
 	assert.True(t, byName["Production"].IsGroup)
