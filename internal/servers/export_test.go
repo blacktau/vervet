@@ -253,3 +253,21 @@ func TestExportServers_NoColourOmitted(t *testing.T) {
 	_, hasColour := serverMap["colour"]
 	assert.False(t, hasColour, "expected 'colour' key to be omitted from JSON when empty")
 }
+
+func TestBuildParentPath_EscapesSlashInName(t *testing.T) {
+	servers := []models.RegisteredServer{
+		{ID: "g1", Name: "Dev/Test", IsGroup: true},
+		{ID: "g2", Name: "Sub\\Group", IsGroup: true, ParentID: "g1"},
+	}
+	path := buildParentPath("g2", servers)
+	assert.Equal(t, `Dev\/Test/Sub\\Group`, path)
+}
+
+func TestBuildParentPath_NoEscapingNeeded(t *testing.T) {
+	servers := []models.RegisteredServer{
+		{ID: "g1", Name: "Production", IsGroup: true},
+		{ID: "g2", Name: "US-East", IsGroup: true, ParentID: "g1"},
+	}
+	path := buildParentPath("g2", servers)
+	assert.Equal(t, "Production/US-East", path)
+}

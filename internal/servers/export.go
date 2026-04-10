@@ -119,6 +119,14 @@ func stripCredentials(uri string) string {
 	return parsed.String()
 }
 
+// escapePathSegment escapes `/` and `\` in a group name so it can be safely
+// embedded in a `/`-delimited parent path. Escape `\` first to avoid double-escaping.
+func escapePathSegment(name string) string {
+	name = strings.ReplaceAll(name, `\`, `\\`)
+	name = strings.ReplaceAll(name, `/`, `\/`)
+	return name
+}
+
 // buildParentPath walks up the parent chain and returns a slash-delimited path of ancestor names.
 func buildParentPath(parentID string, servers []models.RegisteredServer) string {
 	if parentID == "" {
@@ -132,7 +140,7 @@ func buildParentPath(parentID string, servers []models.RegisteredServer) string 
 		if srv == nil {
 			break
 		}
-		parts = append(parts, srv.Name)
+		parts = append(parts, escapePathSegment(srv.Name))
 		current = srv.ParentID
 	}
 
