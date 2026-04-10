@@ -375,4 +375,107 @@ describe('analyzeContext', () => {
     expect(ctx.collection).toBe('orders')
     expect(ctx.prefix).toBe('$')
   })
+
+  // db.getCollection('name') syntax
+  describe('getCollection syntax', () => {
+    it('returns METHOD_NAME after db.getCollection("users").', () => {
+      const ctx = analyzeContext("db.getCollection('users').")
+      expect(ctx.type).toBe('METHOD_NAME')
+      expect(ctx.collection).toBe('users')
+    })
+
+    it('returns METHOD_NAME with partial prefix', () => {
+      const ctx = analyzeContext("db.getCollection('users').fi")
+      expect(ctx.type).toBe('METHOD_NAME')
+      expect(ctx.collection).toBe('users')
+      expect(ctx.prefix).toBe('fi')
+    })
+
+    it('returns FIELD_NAME inside find filter', () => {
+      const ctx = analyzeContext("db.getCollection('users').find({ ")
+      expect(ctx.type).toBe('FIELD_NAME')
+      expect(ctx.collection).toBe('users')
+    })
+
+    it('returns FIELD_NAME with partial prefix', () => {
+      const ctx = analyzeContext("db.getCollection('users').find({ na")
+      expect(ctx.type).toBe('FIELD_NAME')
+      expect(ctx.collection).toBe('users')
+      expect(ctx.prefix).toBe('na')
+    })
+
+    it('returns FIELD_NAME with quoted field', () => {
+      const ctx = analyzeContext("db.getCollection('users').find({ \"addr")
+      expect(ctx.type).toBe('FIELD_NAME')
+      expect(ctx.collection).toBe('users')
+      expect(ctx.prefix).toBe('addr')
+      expect(ctx.insideQuotes).toBe(true)
+    })
+
+    it('returns QUERY_OPERATOR after field:', () => {
+      const ctx = analyzeContext("db.getCollection('users').find({ name: ")
+      expect(ctx.type).toBe('QUERY_OPERATOR')
+    })
+
+    it('returns QUERY_OPERATOR inside nested operator object', () => {
+      const ctx = analyzeContext("db.getCollection('users').find({ age: { $gt")
+      expect(ctx.type).toBe('QUERY_OPERATOR')
+      expect(ctx.prefix).toBe('$gt')
+    })
+
+    it('returns UPDATE_OPERATOR for updateOne', () => {
+      const ctx = analyzeContext(
+        "db.getCollection('users').updateOne({ \"name\": \"joe\" }, { $",
+      )
+      expect(ctx.type).toBe('UPDATE_OPERATOR')
+      expect(ctx.collection).toBe('users')
+      expect(ctx.prefix).toBe('$')
+    })
+
+    it('returns AGG_STAGE inside aggregate', () => {
+      const ctx = analyzeContext("db.getCollection('orders').aggregate([ ")
+      expect(ctx.type).toBe('AGG_STAGE')
+      expect(ctx.collection).toBe('orders')
+    })
+
+    it('returns AGG_EXPRESSION inside $group value', () => {
+      const ctx = analyzeContext(
+        "db.getCollection('orders').aggregate([{ $group: { total: { $su",
+      )
+      expect(ctx.type).toBe('AGG_EXPRESSION')
+      expect(ctx.collection).toBe('orders')
+      expect(ctx.prefix).toBe('$su')
+    })
+
+    it('returns CURSOR_METHOD after find().', () => {
+      const ctx = analyzeContext("db.getCollection('users').find({}).")
+      expect(ctx.type).toBe('CURSOR_METHOD')
+      expect(ctx.prefix).toBe('')
+    })
+
+    it('works with double quotes', () => {
+      const ctx = analyzeContext('db.getCollection("users").find({ ')
+      expect(ctx.type).toBe('FIELD_NAME')
+      expect(ctx.collection).toBe('users')
+    })
+
+    it('works with collection names containing hyphens', () => {
+      const ctx = analyzeContext("db.getCollection('my-collection').find({ ")
+      expect(ctx.type).toBe('FIELD_NAME')
+      expect(ctx.collection).toBe('my-collection')
+    })
+
+    it('works with collection names containing dots', () => {
+      const ctx = analyzeContext("db.getCollection('system.users').find({ ")
+      expect(ctx.type).toBe('FIELD_NAME')
+      expect(ctx.collection).toBe('system.users')
+    })
+
+    it('returns FIELD_NAME after comma in filter', () => {
+      const ctx = analyzeContext("db.getCollection('users').find({ name: \"x\", ag")
+      expect(ctx.type).toBe('FIELD_NAME')
+      expect(ctx.collection).toBe('users')
+      expect(ctx.prefix).toBe('ag')
+    })
+  })
 })

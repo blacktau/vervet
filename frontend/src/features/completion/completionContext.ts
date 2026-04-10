@@ -20,6 +20,29 @@ export interface CompletionContext {
 }
 
 export function analyzeContext(textBeforeCursor: string): CompletionContext {
+  // Normalise db.getCollection('name') → db.__gc__ so all regexes below work
+  // unchanged, then restore the real collection name in the result.
+  const gcPlaceholder = '__gc__'
+  let realCollectionName: string | undefined
+  const gcMatch = textBeforeCursor.match(/db\.getCollection\(\s*['"]([^'"]*)['"]\s*\)/)
+  if (gcMatch) {
+    realCollectionName = gcMatch[1]
+    textBeforeCursor = textBeforeCursor.replace(
+      /db\.getCollection\(\s*['"][^'"]*['"]\s*\)/,
+      `db.${gcPlaceholder}`,
+    )
+  }
+
+  const ctx = analyzeContextCore(textBeforeCursor)
+
+  if (realCollectionName != null && ctx.collection === gcPlaceholder) {
+    ctx.collection = realCollectionName
+  }
+
+  return ctx
+}
+
+function analyzeContextCore(textBeforeCursor: string): CompletionContext {
   // use <database> — check before trimming so trailing space is preserved
   const useMatch = textBeforeCursor.match(/(?:^|\n)\s*use\s+(\w*)$/)
   if (useMatch) {
