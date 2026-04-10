@@ -303,7 +303,12 @@ export const useDataBrowserStore = defineStore('browser', {
     },
 
     async disconnectAll() {
-      await connectionsProxy.DisconnectAll()
+      const result = await connectionsProxy.DisconnectAll()
+      if (!result.isSuccess) {
+        const notifier = useNotifier()
+        notifier.warning(i18nGlobal.t('errorTitles.disconnect'), { detail: result.errorDetail })
+      }
+      // Always clean up frontend state
       this.connections = []
       this.serverTreeStates = {}
       const tabStore = useTabStore()
@@ -312,7 +317,12 @@ export const useDataBrowserStore = defineStore('browser', {
     async disconnect(serverId: string) {
       const server = this.connections.find((x) => x.serverID === serverId)
       if (server != null) {
-        await connectionsProxy.Disconnect(serverId)
+        const result = await connectionsProxy.Disconnect(serverId)
+        if (!result.isSuccess) {
+          const notifier = useNotifier()
+          notifier.warning(i18nGlobal.t('errorTitles.disconnect'), { detail: result.errorDetail })
+        }
+        // Always clean up frontend state — backend registry also always cleans up
         this.connections = this.connections.filter((x) => x.serverID !== serverId)
         delete this.serverTreeStates[serverId]
         const tabStore = useTabStore()
@@ -451,7 +461,12 @@ export const useDataBrowserStore = defineStore('browser', {
     async connect(serverId: string, reload: boolean = false) {
       if (this.isConnected(serverId)) {
         if (!reload) {
-          await connectionsProxy.Disconnect(serverId)
+          await this.disconnect(serverId)
+          return {
+            success: true,
+            serverId: serverId,
+            name: '',
+          }
         }
         return {
           success: true,

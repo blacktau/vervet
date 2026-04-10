@@ -528,6 +528,7 @@ export default {
     loadServers: 'Failed to load servers',
     loadServerDetails: 'Failed to load server details',
     connect: 'Failed to connect to server',
+    disconnect: 'Failed to disconnect from server',
     listDatabases: 'Failed to load databases',
     listCollections: 'Failed to load collections',
     listViews: 'Failed to load views',
