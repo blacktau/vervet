@@ -47,8 +47,8 @@ func (s *store) LoadServers() ([]models.RegisteredServer, error) {
 	}
 
 	if err = yaml.Unmarshal(b, &registeredServers); err != nil {
-		s.log.Error("error parsing registered servers", slog.Any("error", err))
-		return nil, fmt.Errorf("error parsing registered servers: %v", err)
+		s.log.Error("error parsing registered servers, returning empty list", slog.Any("error", err))
+		return make([]models.RegisteredServer, 0), fmt.Errorf("server configuration file is corrupted and could not be read — your server list may be empty until the file is repaired: %w", err)
 	}
 
 	return registeredServers, nil
