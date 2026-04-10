@@ -2,6 +2,7 @@ package servers
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"vervet/internal/models"
 
@@ -161,11 +162,11 @@ func TestImportServers_MissingName(t *testing.T) {
 		},
 	})
 
-	_, err := svc.ImportServers(data)
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "index 0")
-	assert.Contains(t, err.Error(), "name")
+	result, err := svc.ImportServers(data)
+	require.NoError(t, err)
+	assert.Len(t, result.Created, 1)
+	assert.Equal(t, "Unnamed-0", result.Created[0].Name)
+	assert.Len(t, result.Warnings, 1)
 }
 
 func TestImportServers_DeriveAuthMethod(t *testing.T) {
@@ -421,4 +422,79 @@ func TestImportServers_BackslashInGroupName(t *testing.T) {
 	require.NotNil(t, byName[`Path\Group`])
 	require.NotNil(t, byName["My Server"])
 	assert.Equal(t, byName[`Path\Group`].ID, byName["My Server"].ParentID)
+}
+
+func TestImportServers_SanitisesWhitespace(t *testing.T) {
+	mockStore := &mockServerStore{servers: nil}
+	mockCS := &MockConnectionStringsStore{uris: make(map[string]string)}
+	svc := newTestServerService(mockStore, mockCS)
+
+	data, _ := json.Marshal(exportFile{
+		Version: 1,
+		Servers: []exportServerEntry{
+			{
+				Name: "  My Server  ",
+				ConnectionConfig: &exportConnectionConfig{
+					URI: "mongodb://localhost:27017", AuthMethod: "none",
+				},
+			},
+		},
+	})
+
+	result, err := svc.ImportServers(data)
+	require.NoError(t, err)
+	assert.Len(t, result.Created, 1)
+	assert.Equal(t, "My Server", result.Created[0].Name)
+	assert.Len(t, result.Warnings, 1)
+	assert.Contains(t, result.Warnings[0], "trimmed")
+}
+
+func TestImportServers_TruncatesLongName(t *testing.T) {
+	mockStore := &mockServerStore{servers: nil}
+	mockCS := &MockConnectionStringsStore{uris: make(map[string]string)}
+	svc := newTestServerService(mockStore, mockCS)
+
+	longName := strings.Repeat("a", 200)
+	data, _ := json.Marshal(exportFile{
+		Version: 1,
+		Servers: []exportServerEntry{
+			{
+				Name: longName,
+				ConnectionConfig: &exportConnectionConfig{
+					URI: "mongodb://localhost:27017", AuthMethod: "none",
+				},
+			},
+		},
+	})
+
+	result, err := svc.ImportServers(data)
+	require.NoError(t, err)
+	assert.Len(t, result.Created, 1)
+	assert.Len(t, result.Created[0].Name, 128)
+	assert.Len(t, result.Warnings, 1)
+	assert.Contains(t, result.Warnings[0], "truncated")
+}
+
+func TestImportServers_EmptyNameFallback(t *testing.T) {
+	mockStore := &mockServerStore{servers: nil}
+	mockCS := &MockConnectionStringsStore{uris: make(map[string]string)}
+	svc := newTestServerService(mockStore, mockCS)
+
+	data, _ := json.Marshal(exportFile{
+		Version: 1,
+		Servers: []exportServerEntry{
+			{
+				Name: "   ",
+				ConnectionConfig: &exportConnectionConfig{
+					URI: "mongodb://localhost:27017", AuthMethod: "none",
+				},
+			},
+		},
+	})
+
+	result, err := svc.ImportServers(data)
+	require.NoError(t, err)
+	assert.Len(t, result.Created, 1)
+	assert.Equal(t, "Unnamed-0", result.Created[0].Name)
+	assert.Len(t, result.Warnings, 1)
 }

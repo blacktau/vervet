@@ -16,6 +16,35 @@ type ImportResult struct {
 	Warnings []string                  `json:"warnings"`
 }
 
+const maxNameLength = 128
+
+// sanitiseName cleans an entry name: trims whitespace, truncates to maxNameLength,
+// and falls back to "Unnamed-{index}" if empty. Returns the sanitised name and
+// any warning messages produced.
+func sanitiseName(name string, index int) (string, []string) {
+	var warnings []string
+	original := name
+
+	trimmed := strings.TrimSpace(name)
+	trimWarning := trimmed != original
+
+	name = trimmed
+
+	if len(name) > maxNameLength {
+		name = name[:maxNameLength]
+		warnings = append(warnings, fmt.Sprintf("entry at index %d: name truncated to %d characters", index, maxNameLength))
+	}
+
+	if name == "" {
+		name = fmt.Sprintf("Unnamed-%d", index)
+		warnings = append(warnings, fmt.Sprintf("entry at index %d: name was empty, using %q", index, name))
+	} else if trimWarning {
+		warnings = append(warnings, fmt.Sprintf("entry at index %d: name trimmed from %q", index, original))
+	}
+
+	return name, warnings
+}
+
 // ImportServers parses a JSON export file and creates all servers and groups,
 // storing connection configs in the keyring. It returns an ImportResult with the list of created RegisteredServers.
 func (sm *ServerService) ImportServers(data []byte) (*ImportResult, error) {
@@ -29,12 +58,6 @@ func (sm *ServerService) ImportServers(data []byte) (*ImportResult, error) {
 
 	if file.Version != 1 {
 		return nil, fmt.Errorf("unsupported export format version: %d", file.Version)
-	}
-
-	for i, entry := range file.Servers {
-		if strings.TrimSpace(entry.Name) == "" {
-			return nil, fmt.Errorf("server at index %d has an empty name", i)
-		}
 	}
 
 	servers, err := sm.store.LoadServers()
@@ -55,8 +78,13 @@ func (sm *ServerService) ImportServers(data []byte) (*ImportResult, error) {
 	existingServerURIs := sm.buildExistingServerKeys(servers)
 
 	var created []models.RegisteredServer
+	var warnings []string
 
-	for _, entry := range file.Servers {
+	for i, entry := range file.Servers {
+		sanitised, nameWarnings := sanitiseName(entry.Name, i)
+		warnings = append(warnings, nameWarnings...)
+		entry.Name = sanitised
+
 		parentID := ""
 		if entry.Parent != "" {
 			parentID = resolveParentPath(entry.Parent, groupPaths, &servers, &created)
@@ -144,7 +172,7 @@ func (sm *ServerService) ImportServers(data []byte) (*ImportResult, error) {
 		return nil, fmt.Errorf("failed to save servers: %w", err)
 	}
 
-	return &ImportResult{Created: created}, nil
+	return &ImportResult{Created: created, Warnings: warnings}, nil
 }
 
 // splitEscapedPath splits a parent path on unescaped `/` delimiters.
