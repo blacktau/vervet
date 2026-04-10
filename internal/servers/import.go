@@ -98,7 +98,16 @@ func (sm *ServerService) ImportServers(data []byte) (*ImportResult, error) {
 			}
 
 			// Skip duplicate groups (same name and parent path).
-			if _, exists := groupPaths[path]; exists {
+			if existingID, exists := groupPaths[path]; exists {
+				// Backfill colour if the auto-created group has none
+				if entry.Colour != "" {
+					for j := range servers {
+						if servers[j].ID == existingID && servers[j].Colour == "" {
+							servers[j].Colour = entry.Colour
+							break
+						}
+					}
+				}
 				continue
 			}
 
@@ -114,38 +123,39 @@ func (sm *ServerService) ImportServers(data []byte) (*ImportResult, error) {
 			created = append(created, srv)
 			groupPaths[path] = newID
 		} else {
-			cfg := models.ConnectionConfig{}
-			var isCluster, isSrv bool
-
-			if entry.ConnectionConfig != nil {
-				authMethod := deriveAuthMethod(entry.ConnectionConfig)
-				cfg = models.ConnectionConfig{
-					URI:        entry.ConnectionConfig.URI,
-					AuthMethod: authMethod,
-				}
-
-				if entry.ConnectionConfig.OIDCConfig != nil {
-					cfg.OIDCConfig = &models.OIDCConfig{
-						ProviderURL:      entry.ConnectionConfig.OIDCConfig.ProviderURL,
-						ClientID:         entry.ConnectionConfig.OIDCConfig.ClientID,
-						Scopes:           entry.ConnectionConfig.OIDCConfig.Scopes,
-						WorkloadIdentity: entry.ConnectionConfig.OIDCConfig.WorkloadIdentity,
-					}
-				}
-
-				cs, parseErr := connstring.Parse(entry.ConnectionConfig.URI)
-				if parseErr == nil {
-					isCluster = len(cs.Hosts) > 1
-					isSrv = cs.Scheme == connstring.SchemeMongoDBSRV
-				}
-
-				// Skip duplicate servers (same name, parent, and URI).
-				serverKey := parentID + "\x00" + entry.Name + "\x00" + cfg.URI
-				if existingServerURIs[serverKey] {
-					continue
-				}
-				existingServerURIs[serverKey] = true
+			if entry.ConnectionConfig == nil {
+				warnings = append(warnings, fmt.Sprintf("skipped %q: no connection configuration", entry.Name))
+				continue
 			}
+
+			authMethod := deriveAuthMethod(entry.ConnectionConfig)
+			cfg := models.ConnectionConfig{
+				URI:        entry.ConnectionConfig.URI,
+				AuthMethod: authMethod,
+			}
+
+			if entry.ConnectionConfig.OIDCConfig != nil {
+				cfg.OIDCConfig = &models.OIDCConfig{
+					ProviderURL:      entry.ConnectionConfig.OIDCConfig.ProviderURL,
+					ClientID:         entry.ConnectionConfig.OIDCConfig.ClientID,
+					Scopes:           entry.ConnectionConfig.OIDCConfig.Scopes,
+					WorkloadIdentity: entry.ConnectionConfig.OIDCConfig.WorkloadIdentity,
+				}
+			}
+
+			var isCluster, isSrv bool
+			cs, parseErr := connstring.Parse(entry.ConnectionConfig.URI)
+			if parseErr == nil {
+				isCluster = len(cs.Hosts) > 1
+				isSrv = cs.Scheme == connstring.SchemeMongoDBSRV
+			}
+
+			// Skip duplicate servers (same name, parent, and URI).
+			serverKey := parentID + "\x00" + entry.Name + "\x00" + cfg.URI
+			if existingServerURIs[serverKey] {
+				continue
+			}
+			existingServerURIs[serverKey] = true
 
 			newID := uuid.New().String()
 			srv := models.RegisteredServer{
@@ -157,14 +167,14 @@ func (sm *ServerService) ImportServers(data []byte) (*ImportResult, error) {
 				IsCluster: isCluster,
 				IsSrv:     isSrv,
 			}
+
+			if err := sm.connectionStrings.StoreConnectionConfig(newID, cfg); err != nil {
+				warnings = append(warnings, fmt.Sprintf("skipped %q: failed to store credentials — %v", entry.Name, err))
+				continue
+			}
+
 			servers = append(servers, srv)
 			created = append(created, srv)
-
-			if entry.ConnectionConfig != nil {
-				if err := sm.connectionStrings.StoreConnectionConfig(newID, cfg); err != nil {
-					return nil, fmt.Errorf("failed to store connection config for %q: %w", entry.Name, err)
-				}
-			}
 		}
 	}
 

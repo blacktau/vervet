@@ -498,3 +498,102 @@ func TestImportServers_EmptyNameFallback(t *testing.T) {
 	assert.Equal(t, "Unnamed-0", result.Created[0].Name)
 	assert.Len(t, result.Warnings, 1)
 }
+
+func TestImportServers_SkipsMissingConnectionConfig(t *testing.T) {
+	mockStore := &mockServerStore{servers: nil}
+	mockCS := &MockConnectionStringsStore{uris: make(map[string]string)}
+	svc := newTestServerService(mockStore, mockCS)
+
+	data, _ := json.Marshal(exportFile{
+		Version: 1,
+		Servers: []exportServerEntry{
+			{Name: "No Config Server"},
+			{
+				Name: "Has Config",
+				ConnectionConfig: &exportConnectionConfig{
+					URI: "mongodb://localhost:27017", AuthMethod: "none",
+				},
+			},
+		},
+	})
+
+	result, err := svc.ImportServers(data)
+	require.NoError(t, err)
+	assert.Len(t, result.Created, 1)
+	assert.Equal(t, "Has Config", result.Created[0].Name)
+	assert.Len(t, result.Warnings, 1)
+	assert.Contains(t, result.Warnings[0], "No Config Server")
+	assert.Contains(t, result.Warnings[0], "no connection configuration")
+}
+
+func TestImportServers_ContinuesAfterKeyringFailure(t *testing.T) {
+	mockStore := &mockServerStore{servers: nil}
+	innerCS := &MockConnectionStringsStore{uris: make(map[string]string)}
+	countingMock := &countingConnectionStringsStore{
+		inner:      innerCS,
+		failAtCall: 0, // fail the first StoreConnectionConfig call
+	}
+	svc := newTestServerService(mockStore, countingMock)
+
+	data, _ := json.Marshal(exportFile{
+		Version: 1,
+		Servers: []exportServerEntry{
+			{
+				Name: "Server A",
+				ConnectionConfig: &exportConnectionConfig{
+					URI: "mongodb://a:27017", AuthMethod: "none",
+				},
+			},
+			{
+				Name: "Server B",
+				ConnectionConfig: &exportConnectionConfig{
+					URI: "mongodb://b:27017", AuthMethod: "none",
+				},
+			},
+		},
+	})
+
+	result, err := svc.ImportServers(data)
+	require.NoError(t, err)
+	assert.Len(t, result.Created, 1)
+	assert.Equal(t, "Server B", result.Created[0].Name)
+	assert.Len(t, result.Warnings, 1)
+	assert.Contains(t, result.Warnings[0], "Server A")
+	assert.Contains(t, result.Warnings[0], "failed to store credentials")
+}
+
+func TestImportServers_OutOfOrderGroupGetsColour(t *testing.T) {
+	mockStore := &mockServerStore{servers: nil}
+	mockCS := &MockConnectionStringsStore{uris: make(map[string]string)}
+	svc := newTestServerService(mockStore, mockCS)
+
+	// Server references "Infra" before the group entry appears
+	data, _ := json.Marshal(exportFile{
+		Version: 1,
+		Servers: []exportServerEntry{
+			{
+				Name:   "My Server",
+				Parent: "Infra",
+				ConnectionConfig: &exportConnectionConfig{
+					URI: "mongodb://localhost:27017", AuthMethod: "none",
+				},
+			},
+			{Name: "Infra", IsGroup: true, Colour: "#00ff00"},
+		},
+	})
+
+	result, err := svc.ImportServers(data)
+	require.NoError(t, err)
+
+	// Find the Infra group in the saved servers
+	var infraGroup *models.RegisteredServer
+	for i := range mockStore.servers {
+		if mockStore.servers[i].Name == "Infra" && mockStore.servers[i].IsGroup {
+			infraGroup = &mockStore.servers[i]
+			break
+		}
+	}
+	require.NotNil(t, infraGroup)
+	assert.Equal(t, "#00ff00", infraGroup.Colour, "auto-created group should get colour from explicit entry")
+	assert.Len(t, result.Created, 2)
+}
