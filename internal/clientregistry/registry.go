@@ -238,6 +238,11 @@ func (r *ClientRegistry) DisconnectAll() error {
 
 	var lastErr error
 	for id, rc := range r.clients {
+		if rc.client == nil {
+			r.log.Warn("Client was nil; removed from registry without disconnecting",
+				slog.String("serverID", id))
+			continue
+		}
 		if err := rc.client.Disconnect(r.ctx); err != nil {
 			r.log.Error("Error disconnecting",
 				slog.String("serverID", id), slog.Any("error", err))

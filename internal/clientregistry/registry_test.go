@@ -57,7 +57,7 @@ func TestClientRegistry_Disconnect(t *testing.T) {
 
 		assert.True(t, reg.IsConnected("test-server"))
 
-		// Disconnect will error (nil client), but should still clean up
+		// Disconnect handles nil client gracefully and should still clean up
 		_ = reg.Disconnect("test-server")
 
 		assert.False(t, reg.IsConnected("test-server"))
