@@ -175,12 +175,17 @@ func (cm *ConnectionManager) TestConnectionWithConfig(ctx context.Context, cfg m
 
 func (cm *ConnectionManager) Disconnect(serverID string) error {
 	err := cm.registry.Disconnect(serverID)
+
+	// Always emit the event: the registry removes the client from its map
+	// even when the underlying driver disconnect fails, so the frontend
+	// must know the connection is gone.
+	runtime.EventsEmit(cm.ctx, DisconnectedEvent, serverID)
+
 	if err != nil {
 		cm.log.Error("Error disconnecting", slog.String("serverID", serverID), slog.Any("error", err))
 		return err
 	}
 
-	runtime.EventsEmit(cm.ctx, DisconnectedEvent, serverID)
 	cm.log.Info("Disconnected from mongo server", slog.String("serverID", serverID))
 	return nil
 }
