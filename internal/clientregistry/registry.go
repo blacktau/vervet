@@ -211,13 +211,23 @@ func (r *ClientRegistry) Disconnect(serverID string) error {
 		return fmt.Errorf("no active connection for server %s", serverID)
 	}
 
+	// Always remove the client from the map, even if Disconnect() fails.
+	// A broken client reference is worse than a missing one — the user
+	// must be able to reconnect.
+	delete(r.clients, serverID)
+
+	if rc.client == nil {
+		r.log.Warn("Client was nil; removed from registry without disconnecting",
+			slog.String("serverID", serverID))
+		return nil
+	}
+
 	if err := rc.client.Disconnect(r.ctx); err != nil {
-		r.log.Error("Error disconnecting",
+		r.log.Error("Error disconnecting (client removed from registry anyway)",
 			slog.String("serverID", serverID), slog.Any("error", err))
 		return fmt.Errorf("error during disconnect: %w", err)
 	}
 
-	delete(r.clients, serverID)
 	r.log.Info("Disconnected client", slog.String("serverID", serverID))
 	return nil
 }
