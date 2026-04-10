@@ -597,3 +597,53 @@ func TestImportServers_OutOfOrderGroupGetsColour(t *testing.T) {
 	assert.Equal(t, "#00ff00", infraGroup.Colour, "auto-created group should get colour from explicit entry")
 	assert.Len(t, result.Created, 2)
 }
+
+func TestImportServers_FullIntegration(t *testing.T) {
+	mockStore := &mockServerStore{servers: nil}
+	innerCS := &MockConnectionStringsStore{uris: make(map[string]string)}
+	// Fail the first StoreConnectionConfig call (the long-named server)
+	mockCS := &countingConnectionStringsStore{
+		inner:      innerCS,
+		failAtCall: 0,
+	}
+	svc := newTestServerService(mockStore, mockCS)
+
+	longName := strings.Repeat("x", 200)
+	data, _ := json.Marshal(exportFile{
+		Version: 1,
+		Servers: []exportServerEntry{
+			{Name: "  Production  ", IsGroup: true, Colour: "#ff0000"},
+			{
+				Name:   longName,
+				Parent: "Production",
+				ConnectionConfig: &exportConnectionConfig{
+					URI: "mongodb://a:27017", AuthMethod: "none",
+				},
+			},
+			{
+				Name:   "Server B",
+				Parent: "Production",
+				ConnectionConfig: &exportConnectionConfig{
+					URI: "mongodb://b:27017", AuthMethod: "none",
+				},
+			},
+			{Name: "No Config Server"},
+		},
+	})
+
+	result, err := svc.ImportServers(data)
+	require.NoError(t, err)
+
+	// Production group + Server B should be created (longName fails keyring, No Config skipped)
+	assert.Len(t, result.Created, 2)
+
+	names := make([]string, len(result.Created))
+	for i, c := range result.Created {
+		names[i] = c.Name
+	}
+	assert.Contains(t, names, "Production")  // trimmed
+	assert.Contains(t, names, "Server B")    // succeeded
+
+	// Warnings: trim, truncate+keyring fail, no config
+	assert.GreaterOrEqual(t, len(result.Warnings), 3)
+}
