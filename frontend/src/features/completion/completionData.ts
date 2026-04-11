@@ -330,4 +330,49 @@ export const dbMethods = [
     detail: '(name) - Returns a collection object',
     snippet: "getCollection('$1')$0",
   },
+  {
+    label: 'getCollectionNames',
+    detail: '(filter?) - List collection names in the database',
+    snippet: 'getCollectionNames()$0',
+  },
+  {
+    label: 'getCollectionInfos',
+    detail: '(filter?) - List collection info objects',
+    snippet: 'getCollectionInfos()$0',
+  },
+  {
+    label: 'createCollection',
+    detail: '(name) - Create a new collection',
+    snippet: "createCollection('$1')$0",
+  },
+  {
+    label: 'dropDatabase',
+    detail: '() - Drop the current database',
+    snippet: 'dropDatabase()$0',
+  },
+  {
+    label: 'stats',
+    detail: '() - Database statistics',
+    snippet: 'stats()$0',
+  },
+  {
+    label: 'version',
+    detail: '() - MongoDB server version',
+    snippet: 'version()$0',
+  },
+  {
+    label: 'getSiblingDB',
+    detail: '(name) - Switch to another database',
+    snippet: "getSiblingDB('$1')$0",
+  },
+  {
+    label: 'getMongo',
+    detail: '() - Returns the connection object',
+    snippet: 'getMongo()$0',
+  },
+  {
+    label: 'aggregate',
+    detail: '(pipeline) - Run a database-level aggregation',
+    snippet: 'aggregate([$1])$0',
+  },
 ]

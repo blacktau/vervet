@@ -172,6 +172,50 @@ func TestDatabaseProxy_RunCommand_PanicsWithoutArgs(t *testing.T) {
 	assert.Error(t, err, "runCommand without args should error")
 }
 
+func TestDatabaseProxy_CoreMethods_AreFunctions(t *testing.T) {
+	rt, _ := setupRuntime(t)
+	methods := []string{
+		"getCollectionNames", "getCollectionInfos", "createCollection",
+		"dropDatabase", "stats", "version", "getSiblingDB", "getMongo", "aggregate",
+	}
+	for _, m := range methods {
+		val, err := rt.RunString(`typeof db.` + m)
+		require.NoError(t, err, "method %s", m)
+		assert.Equal(t, "function", val.Export(), "db.%s should be a function", m)
+	}
+}
+
+func TestDatabaseProxy_GetSiblingDB_ReturnsDifferentDb(t *testing.T) {
+	rt, _ := setupRuntime(t)
+	val, err := rt.RunString(`db.getSiblingDB("other").getName()`)
+	require.NoError(t, err)
+	assert.Equal(t, "other", val.Export())
+}
+
+func TestDatabaseProxy_GetMongo_HasGetDB(t *testing.T) {
+	rt, _ := setupRuntime(t)
+	val, err := rt.RunString(`db.getMongo().getDB("another").getName()`)
+	require.NoError(t, err)
+	assert.Equal(t, "another", val.Export())
+}
+
+func TestDatabaseProxy_CoreMethods_PanicWithoutClient(t *testing.T) {
+	rt, _ := setupRuntime(t)
+	methods := []string{
+		`db.getCollectionNames()`,
+		`db.getCollectionInfos()`,
+		`db.createCollection("test")`,
+		`db.dropDatabase()`,
+		`db.stats()`,
+		`db.version()`,
+		`db.aggregate([])`,
+	}
+	for _, m := range methods {
+		_, err := rt.RunString(m)
+		assert.Error(t, err, "%s with nil client should error", m)
+	}
+}
+
 func TestMultiStatement_VariableThenCursor(t *testing.T) {
 	rt, _ := setupRuntime(t)
 	val, err := rt.RunString(`const filter = { status: "active" }; db.users.find(filter)`)
