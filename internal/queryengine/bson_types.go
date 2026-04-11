@@ -26,6 +26,10 @@ func registerBSONTypes(rt *goja.Runtime) error {
 		"MinKey":        bsonMinKey(rt),
 		"MaxKey":        bsonMaxKey(rt),
 		"BinData":       bsonBinData(rt),
+		"Int32":         bsonNumberInt(rt),
+		"Long":          bsonNumberLong(rt),
+		"Double":        bsonDouble(rt),
+		"Decimal128":    bsonNumberDecimal(rt),
 	}
 
 	for name, fn := range types {
@@ -98,6 +102,34 @@ func bsonNumberInt(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 				}
 			default:
 				n = int32(arg.ToInteger())
+			}
+		}
+		return wrapBSONValue(rt, n)
+	}
+}
+
+// bsonDouble returns a function that creates a float64 wrapped in a Goja object.
+// Usage: Double(1.5) or Double("1.5"). Without arguments returns 0.0.
+func bsonDouble(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(call goja.FunctionCall) goja.Value {
+		var n float64
+		if len(call.Arguments) == 0 {
+			n = 0
+		} else {
+			arg := call.Arguments[0]
+			exported := arg.Export()
+			switch v := exported.(type) {
+			case int64:
+				n = float64(v)
+			case float64:
+				n = v
+			case string:
+				_, err := fmt.Sscanf(v, "%f", &n)
+				if err != nil {
+					panic(rt.NewGoError(fmt.Errorf("Double: cannot parse %q as number", v)))
+				}
+			default:
+				n = arg.ToFloat()
 			}
 		}
 		return wrapBSONValue(rt, n)
@@ -193,11 +225,48 @@ func bsonUUID(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 }
 
 // bsonTimestamp returns a function that creates a primitive.Timestamp.
-// Usage: Timestamp(t, i) where t is seconds since epoch and i is an increment.
+// Supports three forms:
+//   - Timestamp(t, i)          — positional: seconds since epoch + increment
+//   - Timestamp({t: <int>, i: <int>}) — object form (mongosh style), both fields optional
+//   - Timestamp()              — defaults to t=current time, i=1
 func bsonTimestamp(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(call goja.FunctionCall) goja.Value {
+		if len(call.Arguments) == 0 || goja.IsUndefined(call.Arguments[0]) {
+			return wrapBSONValue(rt, primitive.Timestamp{
+				T: uint32(time.Now().Unix()),
+				I: 1,
+			})
+		}
+
+		// Check if first argument is an object (mongosh object form)
+		first := call.Arguments[0]
+		if obj, ok := first.Export().(map[string]any); ok {
+			t := uint32(0)
+			i := uint32(1)
+			if v, exists := obj["t"]; exists {
+				switch n := v.(type) {
+				case int64:
+					t = uint32(n)
+				case float64:
+					t = uint32(n)
+				}
+			} else {
+				t = uint32(time.Now().Unix())
+			}
+			if v, exists := obj["i"]; exists {
+				switch n := v.(type) {
+				case int64:
+					i = uint32(n)
+				case float64:
+					i = uint32(n)
+				}
+			}
+			return wrapBSONValue(rt, primitive.Timestamp{T: t, I: i})
+		}
+
+		// Positional form: Timestamp(t, i)
 		if len(call.Arguments) < 2 {
-			panic(rt.NewGoError(fmt.Errorf("Timestamp requires two arguments: (seconds, increment)")))
+			panic(rt.NewGoError(fmt.Errorf("Timestamp requires two arguments: (seconds, increment) or an object {t, i}")))
 		}
 		t := uint32(call.Arguments[0].ToInteger())
 		i := uint32(call.Arguments[1].ToInteger())

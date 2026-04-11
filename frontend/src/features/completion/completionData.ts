@@ -74,6 +74,11 @@ export const mongoMethods = [
     snippet: 'createIndex({$1})$0',
   },
   {
+    label: 'createIndexes',
+    detail: '(specs) - creates multiple indexes for the collection',
+    snippet: 'createIndexes([$1])$0',
+  },
+  {
     label: 'dropIndex',
     detail: '(name) - deletes an index from the collection',
     snippet: 'dropIndex($1)$0',
