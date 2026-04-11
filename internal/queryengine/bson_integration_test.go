@@ -28,6 +28,11 @@ var (
 func TestMain(m *testing.M) {
 	ctx := context.Background()
 
+	// Disable the Ryuk reaper container — it fails under rootless Podman
+	// because it needs Docker-socket-level access. Cleanup is handled by
+	// defer calls in tests and the TerminateContainer below.
+	os.Setenv("TESTCONTAINERS_RYUK_DISABLED", "true")
+
 	mongoContainer, err := mongodb.Run(ctx, "mongo:7")
 	if err != nil {
 		log.Fatalf("failed to start MongoDB container: %v", err)

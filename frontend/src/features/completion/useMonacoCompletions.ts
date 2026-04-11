@@ -7,6 +7,7 @@ import {
   aggStages,
   updateOperators,
   aggExpressions,
+  dbMethods,
 } from './completionData'
 import { getCollectionSchema, getCollectionNames, getDatabaseNames } from './useSchemaCache'
 import { useTabStore } from '@/features/tabs/tabs'
@@ -162,11 +163,23 @@ async function getSuggestions(
 
   switch (ctx.type) {
     case 'COLLECTION_NAME': {
+      // db-level methods (runCommand, adminCommand, getName, getCollection)
+      const dbMethodItems: monaco.languages.CompletionItem[] = dbMethods
+        .filter((m) => m.label.startsWith(ctx.prefix))
+        .map((m) => ({
+          label: m.label,
+          kind: monaco.languages.CompletionItemKind.Method,
+          detail: m.detail,
+          insertText: m.snippet,
+          insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+          range,
+        }))
+
       if (!serverId || !dbName) {
-        return []
+        return dbMethodItems
       }
       const names = await getCollectionNames(serverId, dbName)
-      return names
+      const collectionItems = names
         .filter((n) => n.startsWith(ctx.prefix))
         .map((name) => ({
           label: name,
@@ -174,6 +187,7 @@ async function getSuggestions(
           insertText: name,
           range,
         }))
+      return [...dbMethodItems, ...collectionItems]
     }
 
     case 'COLLECTION_NAME_STRING': {

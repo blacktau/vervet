@@ -146,6 +146,32 @@ func TestPrint_CapturesOutput(t *testing.T) {
 	assert.Equal(t, "hello", printed[0])
 }
 
+func TestDatabaseProxy_RunCommand_IsFunction(t *testing.T) {
+	rt, _ := setupRuntime(t)
+	val, err := rt.RunString(`typeof db.runCommand`)
+	require.NoError(t, err)
+	assert.Equal(t, "function", val.Export())
+}
+
+func TestDatabaseProxy_AdminCommand_IsFunction(t *testing.T) {
+	rt, _ := setupRuntime(t)
+	val, err := rt.RunString(`typeof db.adminCommand`)
+	require.NoError(t, err)
+	assert.Equal(t, "function", val.Export())
+}
+
+func TestDatabaseProxy_RunCommand_PanicsWithoutClient(t *testing.T) {
+	rt, _ := setupRuntime(t)
+	_, err := rt.RunString(`db.runCommand({ ping: 1 })`)
+	assert.Error(t, err, "runCommand with nil client should error")
+}
+
+func TestDatabaseProxy_RunCommand_PanicsWithoutArgs(t *testing.T) {
+	rt, _ := setupRuntime(t)
+	_, err := rt.RunString(`db.runCommand()`)
+	assert.Error(t, err, "runCommand without args should error")
+}
+
 func TestMultiStatement_VariableThenCursor(t *testing.T) {
 	rt, _ := setupRuntime(t)
 	val, err := rt.RunString(`const filter = { status: "active" }; db.users.find(filter)`)
