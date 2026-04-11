@@ -8,6 +8,7 @@ import {
   updateOperators,
   aggExpressions,
   dbMethods,
+  ejsonMethods,
 } from './completionData'
 import { getCollectionSchema, getCollectionNames, getDatabaseNames } from './useSchemaCache'
 import { useTabStore } from '@/features/tabs/tabs'
@@ -266,6 +267,18 @@ async function getSuggestions(
         }))
     }
 
+    case 'EJSON_METHOD':
+      return ejsonMethods
+        .filter((m) => m.label.startsWith(ctx.prefix))
+        .map((m) => ({
+          label: m.label,
+          kind: monaco.languages.CompletionItemKind.Method,
+          detail: m.detail,
+          insertText: m.snippet,
+          insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+          range,
+        }))
+
     case 'KEYWORD': {
       const keywords: monaco.languages.CompletionItem[] = [
         {
@@ -280,6 +293,13 @@ async function getSuggestions(
           kind: monaco.languages.CompletionItemKind.Keyword,
           detail: 'Switch database',
           insertText: 'use',
+          range,
+        },
+        {
+          label: 'EJSON',
+          kind: monaco.languages.CompletionItemKind.Variable,
+          detail: 'Extended JSON utilities',
+          insertText: 'EJSON',
           range,
         },
       ]

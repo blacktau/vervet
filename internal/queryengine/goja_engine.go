@@ -29,6 +29,10 @@ func (e *GojaEngine) ExecuteQuery(ctx context.Context, uri, dbName, query string
 		return models.QueryResult{}, err
 	}
 
+	if err := registerEJSON(rt); err != nil {
+		return models.QueryResult{}, err
+	}
+
 	db := newDatabaseProxy(ec)
 	if err := rt.Set("db", db); err != nil {
 		return models.QueryResult{}, fmt.Errorf("failed to set db global: %w", err)

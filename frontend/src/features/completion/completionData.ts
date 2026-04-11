@@ -309,6 +309,29 @@ export const updateOperators = [
   { label: '$bit', detail: 'Performs bitwise AND, OR and XOR updates of integer values' },
 ]
 
+export const ejsonMethods = [
+  {
+    label: 'stringify',
+    detail: '(value, replacer?, space?) - Convert to Extended JSON string',
+    snippet: 'stringify($1)$0',
+  },
+  {
+    label: 'parse',
+    detail: '(str) - Parse an Extended JSON string',
+    snippet: "parse('$1')$0",
+  },
+  {
+    label: 'serialize',
+    detail: '(value) - Convert to Extended JSON object representation',
+    snippet: 'serialize($1)$0',
+  },
+  {
+    label: 'deserialize',
+    detail: '(value) - Convert Extended JSON object to BSON types',
+    snippet: 'deserialize($1)$0',
+  },
+]
+
 export const dbMethods = [
   {
     label: 'runCommand',

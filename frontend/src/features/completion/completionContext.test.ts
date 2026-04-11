@@ -478,4 +478,30 @@ describe('analyzeContext', () => {
       expect(ctx.prefix).toBe('ag')
     })
   })
+
+  describe('EJSON completions', () => {
+    it('returns EJSON_METHOD after EJSON.', () => {
+      const ctx = analyzeContext('EJSON.')
+      expect(ctx.type).toBe('EJSON_METHOD')
+      expect(ctx.prefix).toBe('')
+    })
+
+    it('returns EJSON_METHOD with partial prefix', () => {
+      const ctx = analyzeContext('EJSON.str')
+      expect(ctx.type).toBe('EJSON_METHOD')
+      expect(ctx.prefix).toBe('str')
+    })
+
+    it('returns EJSON_METHOD for parse prefix', () => {
+      const ctx = analyzeContext('EJSON.pa')
+      expect(ctx.type).toBe('EJSON_METHOD')
+      expect(ctx.prefix).toBe('pa')
+    })
+
+    it('returns KEYWORD for standalone EJSON prefix', () => {
+      const ctx = analyzeContext('EJ')
+      expect(ctx.type).toBe('KEYWORD')
+      expect(ctx.prefix).toBe('EJ')
+    })
+  })
 })
