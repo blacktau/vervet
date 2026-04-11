@@ -95,6 +95,30 @@ func TestISODate_Invalid_Panics(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestNumberInt_WithInt_ReturnsInt32(t *testing.T) {
+	rt := setupRuntimeWithBSON(t)
+	val, err := rt.RunString(`NumberInt(42)`)
+	require.NoError(t, err)
+	bsonVal := extractBSONValue(t, val)
+	assert.Equal(t, int32(42), bsonVal)
+}
+
+func TestNumberInt_WithString_ParsesInt(t *testing.T) {
+	rt := setupRuntimeWithBSON(t)
+	val, err := rt.RunString(`NumberInt("123")`)
+	require.NoError(t, err)
+	bsonVal := extractBSONValue(t, val)
+	assert.Equal(t, int32(123), bsonVal)
+}
+
+func TestNumberInt_NoArgs_ReturnsZero(t *testing.T) {
+	rt := setupRuntimeWithBSON(t)
+	val, err := rt.RunString(`NumberInt()`)
+	require.NoError(t, err)
+	bsonVal := extractBSONValue(t, val)
+	assert.Equal(t, int32(0), bsonVal)
+}
+
 func TestNumberLong_WithInt_ReturnsInt64(t *testing.T) {
 	rt := setupRuntimeWithBSON(t)
 	val, err := rt.RunString(`NumberLong(42)`)
@@ -145,10 +169,23 @@ func TestUUID_Valid_ReturnsBinary(t *testing.T) {
 	assert.Len(t, bin.Data, 16)
 }
 
-func TestUUID_NoArgs_Panics(t *testing.T) {
+func TestUUID_NoArgs_GeneratesRandomUUID(t *testing.T) {
 	rt := setupRuntimeWithBSON(t)
-	_, err := rt.RunString(`UUID()`)
-	assert.Error(t, err)
+	val, err := rt.RunString(`UUID()`)
+	require.NoError(t, err)
+	bsonVal := extractBSONValue(t, val)
+	bin, ok := bsonVal.(primitive.Binary)
+	require.True(t, ok)
+	assert.Equal(t, byte(0x04), bin.Subtype)
+	assert.Len(t, bin.Data, 16)
+
+	// Calling UUID() again should produce a different value
+	val2, err := rt.RunString(`UUID()`)
+	require.NoError(t, err)
+	bsonVal2 := extractBSONValue(t, val2)
+	bin2, ok := bsonVal2.(primitive.Binary)
+	require.True(t, ok)
+	assert.NotEqual(t, bin.Data, bin2.Data)
 }
 
 func TestTimestamp_Valid_ReturnsTimestamp(t *testing.T) {
@@ -201,6 +238,28 @@ func TestBinData_TooFewArgs_Panics(t *testing.T) {
 	rt := setupRuntimeWithBSON(t)
 	_, err := rt.RunString(`BinData(0)`)
 	assert.Error(t, err)
+}
+
+// Test that regex values survive exportValue + convertToBson roundtrip
+func TestConvertToBson_UnwrapsRegex(t *testing.T) {
+	rt := goja.New()
+	val, err := rt.RunString(`({ name: /foo/i })`)
+	require.NoError(t, err)
+
+	exported := exportValue(val)
+	doc := convertToBson(exported)
+
+	bsonDoc, ok := doc.(bson.D)
+	require.True(t, ok, "expected bson.D, got %T", doc)
+
+	for _, elem := range bsonDoc {
+		if elem.Key == "name" {
+			regex, ok := elem.Value.(primitive.Regex)
+			require.True(t, ok, "expected primitive.Regex, got %T", elem.Value)
+			assert.Equal(t, "foo", regex.Pattern)
+			assert.Equal(t, "i", regex.Options)
+		}
+	}
 }
 
 // Test that BSON values survive convertToBson roundtrip

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/dop251/goja"
+	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -17,6 +18,7 @@ func registerBSONTypes(rt *goja.Runtime) error {
 	types := map[string]func(goja.FunctionCall) goja.Value{
 		"ObjectId":      bsonObjectId(rt),
 		"ISODate":       bsonISODate(rt),
+		"NumberInt":     bsonNumberInt(rt),
 		"NumberLong":    bsonNumberLong(rt),
 		"NumberDecimal": bsonNumberDecimal(rt),
 		"UUID":          bsonUUID(rt),
@@ -71,6 +73,34 @@ func bsonISODate(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 			}
 		}
 		return wrapBSONValue(rt, primitive.NewDateTimeFromTime(t))
+	}
+}
+
+// bsonNumberInt returns a function that creates an int32 wrapped in a Goja object.
+// Usage: NumberInt(123) or NumberInt("123"). Without arguments returns 0.
+func bsonNumberInt(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(call goja.FunctionCall) goja.Value {
+		var n int32
+		if len(call.Arguments) == 0 {
+			n = 0
+		} else {
+			arg := call.Arguments[0]
+			exported := arg.Export()
+			switch v := exported.(type) {
+			case int64:
+				n = int32(v)
+			case float64:
+				n = int32(v)
+			case string:
+				_, err := fmt.Sscanf(v, "%d", &n)
+				if err != nil {
+					panic(rt.NewGoError(fmt.Errorf("NumberInt: cannot parse %q as integer", v)))
+				}
+			default:
+				n = int32(arg.ToInteger())
+			}
+		}
+		return wrapBSONValue(rt, n)
 	}
 }
 
@@ -136,11 +166,12 @@ func bsonNumberDecimal(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 }
 
 // bsonUUID returns a function that creates a primitive.Binary with subtype 4.
-// Usage: UUID("550e8400-e29b-41d4-a716-446655440000").
+// Usage: UUID() for a random UUID, or UUID("550e8400-e29b-41d4-a716-446655440000") for a specific one.
 func bsonUUID(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(call goja.FunctionCall) goja.Value {
 		if len(call.Arguments) == 0 {
-			panic(rt.NewGoError(fmt.Errorf("UUID requires a string argument")))
+			id := uuid.New()
+			return wrapBSONValue(rt, primitive.Binary{Subtype: 0x04, Data: id[:]})
 		}
 		str := call.Arguments[0].String()
 		// Strip hyphens from UUID string
