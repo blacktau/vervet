@@ -10,6 +10,7 @@ export type CompletionContextType =
   | 'UPDATE_OPERATOR'
   | 'AGG_EXPRESSION'
   | 'USE_DATABASE'
+  | 'EJSON_METHOD'
 
 export interface CompletionContext {
   type: CompletionContextType
@@ -145,6 +146,15 @@ function analyzeContextCore(textBeforeCursor: string): CompletionContext {
       collection: insideBracesMatch[1],
       prefix: insideBracesMatch[2] || '',
       insideQuotes: false,
+    }
+  }
+
+  // EJSON.| → EJSON_METHOD
+  const ejsonMatch = trimmed.match(/EJSON\.(\w*)$/)
+  if (ejsonMatch) {
+    return {
+      type: 'EJSON_METHOD',
+      prefix: ejsonMatch[1] || '',
     }
   }
 
