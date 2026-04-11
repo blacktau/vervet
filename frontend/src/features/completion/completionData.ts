@@ -308,3 +308,26 @@ export const updateOperators = [
   // bitwise
   { label: '$bit', detail: 'Performs bitwise AND, OR and XOR updates of integer values' },
 ]
+
+export const dbMethods = [
+  {
+    label: 'runCommand',
+    detail: '(command) - Run a database command',
+    snippet: 'runCommand({$1})$0',
+  },
+  {
+    label: 'adminCommand',
+    detail: '(command) - Run an admin database command',
+    snippet: 'adminCommand({$1})$0',
+  },
+  {
+    label: 'getName',
+    detail: '() - Returns the current database name',
+    snippet: 'getName()$0',
+  },
+  {
+    label: 'getCollection',
+    detail: '(name) - Returns a collection object',
+    snippet: "getCollection('$1')$0",
+  },
+]
