@@ -445,6 +445,7 @@ export default {
       },
     },
     importServers: 'Import Servers...',
+    importWarningsTitle: 'Import Warnings',
     exportServers: 'Export Servers...',
     exportServersMenu: 'Export/Import',
     importServersMenuItem: 'Import Servers...',

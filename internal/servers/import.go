@@ -10,9 +10,44 @@ import (
 	"go.mongodb.org/mongo-driver/v2/x/mongo/driver/connstring"
 )
 
+// ImportResult holds the outcome of an import operation.
+type ImportResult struct {
+	Created  []models.RegisteredServer `json:"created"`
+	Warnings []string                  `json:"warnings"`
+}
+
+const maxNameLength = 128
+
+// sanitiseName cleans an entry name: trims whitespace, truncates to maxNameLength,
+// and falls back to "Unnamed-{index}" if empty. Returns the sanitised name and
+// any warning messages produced.
+func sanitiseName(name string, index int) (string, []string) {
+	var warnings []string
+	original := name
+
+	trimmed := strings.TrimSpace(name)
+	trimWarning := trimmed != original
+
+	name = trimmed
+
+	if len(name) > maxNameLength {
+		name = name[:maxNameLength]
+		warnings = append(warnings, fmt.Sprintf("entry at index %d: name truncated to %d characters", index, maxNameLength))
+	}
+
+	if name == "" {
+		name = fmt.Sprintf("Unnamed-%d", index)
+		warnings = append(warnings, fmt.Sprintf("entry at index %d: name was empty, using %q", index, name))
+	} else if trimWarning {
+		warnings = append(warnings, fmt.Sprintf("entry at index %d: name trimmed from %q", index, original))
+	}
+
+	return name, warnings
+}
+
 // ImportServers parses a JSON export file and creates all servers and groups,
-// storing connection configs in the keyring. It returns the list of created RegisteredServers.
-func (sm *ServerService) ImportServers(data []byte) ([]models.RegisteredServer, error) {
+// storing connection configs in the keyring. It returns an ImportResult with the list of created RegisteredServers.
+func (sm *ServerService) ImportServers(data []byte) (*ImportResult, error) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
@@ -23,12 +58,6 @@ func (sm *ServerService) ImportServers(data []byte) ([]models.RegisteredServer, 
 
 	if file.Version != 1 {
 		return nil, fmt.Errorf("unsupported export format version: %d", file.Version)
-	}
-
-	for i, entry := range file.Servers {
-		if strings.TrimSpace(entry.Name) == "" {
-			return nil, fmt.Errorf("server at index %d has an empty name", i)
-		}
 	}
 
 	servers, err := sm.store.LoadServers()
@@ -49,21 +78,36 @@ func (sm *ServerService) ImportServers(data []byte) ([]models.RegisteredServer, 
 	existingServerURIs := sm.buildExistingServerKeys(servers)
 
 	var created []models.RegisteredServer
+	var warnings []string
 
-	for _, entry := range file.Servers {
+	for i, entry := range file.Servers {
+		sanitised, nameWarnings := sanitiseName(entry.Name, i)
+		warnings = append(warnings, nameWarnings...)
+		entry.Name = sanitised
+
 		parentID := ""
 		if entry.Parent != "" {
 			parentID = resolveParentPath(entry.Parent, groupPaths, &servers, &created)
 		}
 
 		if entry.IsGroup {
-			path := entry.Name
+			escapedName := escapePathSegment(entry.Name)
+			path := escapedName
 			if entry.Parent != "" {
-				path = entry.Parent + "/" + entry.Name
+				path = rebuildEscapedPath(entry.Parent) + "/" + escapedName
 			}
 
 			// Skip duplicate groups (same name and parent path).
-			if _, exists := groupPaths[path]; exists {
+			if existingID, exists := groupPaths[path]; exists {
+				// Backfill colour if the auto-created group has none
+				if entry.Colour != "" {
+					for j := range servers {
+						if servers[j].ID == existingID && servers[j].Colour == "" {
+							servers[j].Colour = entry.Colour
+							break
+						}
+					}
+				}
 				continue
 			}
 
@@ -79,38 +123,39 @@ func (sm *ServerService) ImportServers(data []byte) ([]models.RegisteredServer, 
 			created = append(created, srv)
 			groupPaths[path] = newID
 		} else {
-			cfg := models.ConnectionConfig{}
-			var isCluster, isSrv bool
-
-			if entry.ConnectionConfig != nil {
-				authMethod := deriveAuthMethod(entry.ConnectionConfig)
-				cfg = models.ConnectionConfig{
-					URI:        entry.ConnectionConfig.URI,
-					AuthMethod: authMethod,
-				}
-
-				if entry.ConnectionConfig.OIDCConfig != nil {
-					cfg.OIDCConfig = &models.OIDCConfig{
-						ProviderURL:      entry.ConnectionConfig.OIDCConfig.ProviderURL,
-						ClientID:         entry.ConnectionConfig.OIDCConfig.ClientID,
-						Scopes:           entry.ConnectionConfig.OIDCConfig.Scopes,
-						WorkloadIdentity: entry.ConnectionConfig.OIDCConfig.WorkloadIdentity,
-					}
-				}
-
-				cs, parseErr := connstring.Parse(entry.ConnectionConfig.URI)
-				if parseErr == nil {
-					isCluster = len(cs.Hosts) > 1
-					isSrv = cs.Scheme == connstring.SchemeMongoDBSRV
-				}
-
-				// Skip duplicate servers (same name, parent, and URI).
-				serverKey := parentID + "\x00" + entry.Name + "\x00" + cfg.URI
-				if existingServerURIs[serverKey] {
-					continue
-				}
-				existingServerURIs[serverKey] = true
+			if entry.ConnectionConfig == nil {
+				warnings = append(warnings, fmt.Sprintf("skipped %q: no connection configuration", entry.Name))
+				continue
 			}
+
+			authMethod := deriveAuthMethod(entry.ConnectionConfig)
+			cfg := models.ConnectionConfig{
+				URI:        entry.ConnectionConfig.URI,
+				AuthMethod: authMethod,
+			}
+
+			if entry.ConnectionConfig.OIDCConfig != nil {
+				cfg.OIDCConfig = &models.OIDCConfig{
+					ProviderURL:      entry.ConnectionConfig.OIDCConfig.ProviderURL,
+					ClientID:         entry.ConnectionConfig.OIDCConfig.ClientID,
+					Scopes:           entry.ConnectionConfig.OIDCConfig.Scopes,
+					WorkloadIdentity: entry.ConnectionConfig.OIDCConfig.WorkloadIdentity,
+				}
+			}
+
+			var isCluster, isSrv bool
+			cs, parseErr := connstring.Parse(entry.ConnectionConfig.URI)
+			if parseErr == nil {
+				isCluster = len(cs.Hosts) > 1
+				isSrv = cs.Scheme == connstring.SchemeMongoDBSRV
+			}
+
+			// Skip duplicate servers (same name, parent, and URI).
+			serverKey := parentID + "\x00" + entry.Name + "\x00" + cfg.URI
+			if existingServerURIs[serverKey] {
+				continue
+			}
+			existingServerURIs[serverKey] = true
 
 			newID := uuid.New().String()
 			srv := models.RegisteredServer{
@@ -122,14 +167,14 @@ func (sm *ServerService) ImportServers(data []byte) ([]models.RegisteredServer, 
 				IsCluster: isCluster,
 				IsSrv:     isSrv,
 			}
+
+			if err := sm.connectionStrings.StoreConnectionConfig(newID, cfg); err != nil {
+				warnings = append(warnings, fmt.Sprintf("skipped %q: failed to store credentials — %v", entry.Name, err))
+				continue
+			}
+
 			servers = append(servers, srv)
 			created = append(created, srv)
-
-			if entry.ConnectionConfig != nil {
-				if err := sm.connectionStrings.StoreConnectionConfig(newID, cfg); err != nil {
-					return nil, fmt.Errorf("failed to store connection config for %q: %w", entry.Name, err)
-				}
-			}
 		}
 	}
 
@@ -137,21 +182,64 @@ func (sm *ServerService) ImportServers(data []byte) ([]models.RegisteredServer, 
 		return nil, fmt.Errorf("failed to save servers: %w", err)
 	}
 
-	return created, nil
+	return &ImportResult{Created: created, Warnings: warnings}, nil
 }
 
-// resolveParentPath takes a slash-delimited path (e.g. "Infra/Databases") and returns
-// the ID of the deepest group, creating any missing intermediate groups as needed.
+// splitEscapedPath splits a parent path on unescaped `/` delimiters.
+// `\/` is a literal `/` in a name, `\\` is a literal `\`.
+func splitEscapedPath(path string) []string {
+	var parts []string
+	var current strings.Builder
+	i := 0
+	for i < len(path) {
+		if path[i] == '\\' && i+1 < len(path) {
+			// Escaped character — consume both bytes literally
+			current.WriteByte(path[i])
+			current.WriteByte(path[i+1])
+			i += 2
+		} else if path[i] == '/' {
+			parts = append(parts, unescapePathSegment(current.String()))
+			current.Reset()
+			i++
+		} else {
+			current.WriteByte(path[i])
+			i++
+		}
+	}
+	parts = append(parts, unescapePathSegment(current.String()))
+	return parts
+}
+
+// unescapePathSegment reverses escapePathSegment: `\/` → `/`, `\\` → `\`.
+func unescapePathSegment(s string) string {
+	s = strings.ReplaceAll(s, `\/`, `/`)
+	s = strings.ReplaceAll(s, `\\`, `\`)
+	return s
+}
+
+// rebuildEscapedPath splits and re-escapes a parent path to normalise it for map lookups.
+func rebuildEscapedPath(path string) string {
+	parts := splitEscapedPath(path)
+	escaped := make([]string, len(parts))
+	for i, p := range parts {
+		escaped[i] = escapePathSegment(p)
+	}
+	return strings.Join(escaped, "/")
+}
+
+// resolveParentPath takes an escaped slash-delimited path (e.g. "Infra/Databases" or "Dev\/Test")
+// and returns the ID of the deepest group, creating any missing intermediate groups as needed.
 func resolveParentPath(path string, groupPaths map[string]string, servers *[]models.RegisteredServer, created *[]models.RegisteredServer) string {
-	parts := strings.Split(path, "/")
+	parts := splitEscapedPath(path)
 	currentPath := ""
 	parentID := ""
 
 	for _, part := range parts {
+		escapedPart := escapePathSegment(part)
 		if currentPath == "" {
-			currentPath = part
+			currentPath = escapedPart
 		} else {
-			currentPath = currentPath + "/" + part
+			currentPath = currentPath + "/" + escapedPart
 		}
 
 		if id, ok := groupPaths[currentPath]; ok {
@@ -176,7 +264,8 @@ func resolveParentPath(path string, groupPaths map[string]string, servers *[]mod
 	return parentID
 }
 
-// buildExistingGroupPaths builds a map of path -> ID for all existing groups.
+// buildExistingGroupPaths builds a map of escaped-path -> ID for all existing groups.
+// buildParentPath already returns escaped paths, so we only need to escape the group name itself.
 func buildExistingGroupPaths(servers []models.RegisteredServer) map[string]string {
 	paths := make(map[string]string)
 	for _, srv := range servers {
@@ -184,10 +273,11 @@ func buildExistingGroupPaths(servers []models.RegisteredServer) map[string]strin
 			continue
 		}
 		path := buildParentPath(srv.ParentID, servers)
+		escapedName := escapePathSegment(srv.Name)
 		if path == "" {
-			path = srv.Name
+			path = escapedName
 		} else {
-			path = path + "/" + srv.Name
+			path = path + "/" + escapedName
 		}
 		paths[path] = srv.ID
 	}

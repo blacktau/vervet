@@ -268,6 +268,42 @@ func TestUpdateServer_KeyringFailureDoesNotPersistMetadata(t *testing.T) {
 	})
 }
 
+// countingConnectionStringsStore fails StoreConnectionConfig at a specific call index.
+type countingConnectionStringsStore struct {
+	inner      connectionStrings.Store
+	failAtCall int
+	callCount  int
+}
+
+func (m *countingConnectionStringsStore) StoreConnectionConfig(id string, cfg models.ConnectionConfig) error {
+	idx := m.callCount
+	m.callCount++
+	if idx == m.failAtCall {
+		return errors.New("simulated keyring failure")
+	}
+	return m.inner.StoreConnectionConfig(id, cfg)
+}
+
+func (m *countingConnectionStringsStore) StoreRegisteredServerURI(id, uri string) error {
+	return m.inner.StoreRegisteredServerURI(id, uri)
+}
+
+func (m *countingConnectionStringsStore) GetRegisteredServerURI(id string) (string, error) {
+	return m.inner.GetRegisteredServerURI(id)
+}
+
+func (m *countingConnectionStringsStore) DeleteRegisteredServerURI(id string) error {
+	return m.inner.DeleteRegisteredServerURI(id)
+}
+
+func (m *countingConnectionStringsStore) GetConnectionConfig(id string) (models.ConnectionConfig, error) {
+	return m.inner.GetConnectionConfig(id)
+}
+
+func (m *countingConnectionStringsStore) UpdateRefreshToken(id string, refreshToken string) error {
+	return m.inner.UpdateRefreshToken(id, refreshToken)
+}
+
 func TestGetURI(t *testing.T) {
 	t.Run("successful get uri", func(t *testing.T) {
 		mockCSStore := &MockConnectionStringsStore{

@@ -244,6 +244,15 @@ export const useServerStore = defineStore('server', {
       }
 
       await this.refreshServers(true)
+
+      const warnings = importResult.data?.warnings || []
+      if (warnings.length > 0) {
+        const notifier = useNotifier()
+        notifier.warning(warnings.join('\n'), {
+          title: i18nGlobal.t('serverPane.importWarningsTitle'),
+        })
+      }
+
       return { success: true }
     },
     async deleteGroup(groupId: string) {

@@ -58,12 +58,29 @@ func (s *cfgStore) Read() ([]byte, error) {
 }
 
 func (s *cfgStore) Save(data []byte) error {
-	if err := os.WriteFile(s.ConfigPath, data, 0600); err != nil {
+	f, err := os.Create(s.ConfigPath)
+	if err != nil {
 		if s.log != nil {
-			s.log.Error("Error saving configuration", slog.Any("error", err))
+			s.log.Error("Error creating configuration file for save", slog.Any("error", err))
 		}
 		return fmt.Errorf("error saving configuration: %w", err)
 	}
+	defer f.Close()
+
+	if _, err := f.Write(data); err != nil {
+		if s.log != nil {
+			s.log.Error("Error writing configuration", slog.Any("error", err))
+		}
+		return fmt.Errorf("error saving configuration: %w", err)
+	}
+
+	if err := f.Sync(); err != nil {
+		if s.log != nil {
+			s.log.Error("Error syncing configuration to disk", slog.Any("error", err))
+		}
+		return fmt.Errorf("error saving configuration: %w", err)
+	}
+
 	return nil
 }
 
