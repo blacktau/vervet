@@ -199,6 +199,39 @@ func TestTimestamp_Valid_ReturnsTimestamp(t *testing.T) {
 	assert.Equal(t, uint32(1), ts.I)
 }
 
+func TestTimestamp_NoArgs_ReturnsCurrentTime(t *testing.T) {
+	rt := setupRuntimeWithBSON(t)
+	val, err := rt.RunString(`Timestamp()`)
+	require.NoError(t, err)
+	bsonVal := extractBSONValue(t, val)
+	ts, ok := bsonVal.(primitive.Timestamp)
+	require.True(t, ok)
+	assert.True(t, ts.T > 0, "expected non-zero timestamp")
+	assert.Equal(t, uint32(1), ts.I)
+}
+
+func TestTimestamp_ObjectForm_ReturnsTimestamp(t *testing.T) {
+	rt := setupRuntimeWithBSON(t)
+	val, err := rt.RunString(`Timestamp({t: 1700000000, i: 5})`)
+	require.NoError(t, err)
+	bsonVal := extractBSONValue(t, val)
+	ts, ok := bsonVal.(primitive.Timestamp)
+	require.True(t, ok)
+	assert.Equal(t, uint32(1700000000), ts.T)
+	assert.Equal(t, uint32(5), ts.I)
+}
+
+func TestTimestamp_ObjectForm_DefaultI(t *testing.T) {
+	rt := setupRuntimeWithBSON(t)
+	val, err := rt.RunString(`Timestamp({t: 1700000000})`)
+	require.NoError(t, err)
+	bsonVal := extractBSONValue(t, val)
+	ts, ok := bsonVal.(primitive.Timestamp)
+	require.True(t, ok)
+	assert.Equal(t, uint32(1700000000), ts.T)
+	assert.Equal(t, uint32(1), ts.I)
+}
+
 func TestTimestamp_TooFewArgs_Panics(t *testing.T) {
 	rt := setupRuntimeWithBSON(t)
 	_, err := rt.RunString(`Timestamp(1)`)
@@ -260,6 +293,71 @@ func TestConvertToBson_UnwrapsRegex(t *testing.T) {
 			assert.Equal(t, "i", regex.Options)
 		}
 	}
+}
+
+// --- Type alias tests ---
+
+func TestLong_IsAliasForNumberLong(t *testing.T) {
+	rt := setupRuntimeWithBSON(t)
+	val, err := rt.RunString(`Long("42")`)
+	require.NoError(t, err)
+	bsonVal := extractBSONValue(t, val)
+	assert.Equal(t, int64(42), bsonVal)
+}
+
+func TestInt32_IsAliasForNumberInt(t *testing.T) {
+	rt := setupRuntimeWithBSON(t)
+	val, err := rt.RunString(`Int32(7)`)
+	require.NoError(t, err)
+	bsonVal := extractBSONValue(t, val)
+	assert.Equal(t, int32(7), bsonVal)
+}
+
+func TestDecimal128_IsAliasForNumberDecimal(t *testing.T) {
+	rt := setupRuntimeWithBSON(t)
+	val, err := rt.RunString(`Decimal128("99.99")`)
+	require.NoError(t, err)
+	bsonVal := extractBSONValue(t, val)
+	_, ok := bsonVal.(primitive.Decimal128)
+	assert.True(t, ok, "expected primitive.Decimal128, got %T", bsonVal)
+}
+
+func TestDouble_WithNumber_ReturnsFloat64(t *testing.T) {
+	rt := setupRuntimeWithBSON(t)
+	val, err := rt.RunString(`Double(1.5)`)
+	require.NoError(t, err)
+	bsonVal := extractBSONValue(t, val)
+	assert.Equal(t, float64(1.5), bsonVal)
+}
+
+func TestDouble_WithInt_ReturnsFloat64(t *testing.T) {
+	rt := setupRuntimeWithBSON(t)
+	val, err := rt.RunString(`Double(1)`)
+	require.NoError(t, err)
+	bsonVal := extractBSONValue(t, val)
+	assert.Equal(t, float64(1), bsonVal)
+}
+
+func TestDouble_WithString_ParsesFloat(t *testing.T) {
+	rt := setupRuntimeWithBSON(t)
+	val, err := rt.RunString(`Double("3.14")`)
+	require.NoError(t, err)
+	bsonVal := extractBSONValue(t, val)
+	assert.InDelta(t, float64(3.14), bsonVal, 0.001)
+}
+
+func TestDouble_NoArgs_ReturnsZero(t *testing.T) {
+	rt := setupRuntimeWithBSON(t)
+	val, err := rt.RunString(`Double()`)
+	require.NoError(t, err)
+	bsonVal := extractBSONValue(t, val)
+	assert.Equal(t, float64(0), bsonVal)
+}
+
+func TestDouble_InvalidString_Panics(t *testing.T) {
+	rt := setupRuntimeWithBSON(t)
+	_, err := rt.RunString(`Double("not-a-number")`)
+	assert.Error(t, err)
 }
 
 // Test that BSON values survive convertToBson roundtrip
