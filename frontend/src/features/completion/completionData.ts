@@ -453,4 +453,101 @@ export const dbMethods = [
     detail: '(pipeline) - Run a database-level aggregation',
     snippet: 'aggregate([$1])$0',
   },
+  // User management
+  {
+    label: 'createUser',
+    detail: '(user) - Create a new user',
+    snippet: 'createUser({$1})$0',
+  },
+  {
+    label: 'dropUser',
+    detail: '(username) - Drop a user',
+    snippet: "dropUser('$1')$0",
+  },
+  {
+    label: 'getUser',
+    detail: '(username) - Get a user by name',
+    snippet: "getUser('$1')$0",
+  },
+  {
+    label: 'getUsers',
+    detail: '() - List all users in the database',
+    snippet: 'getUsers()$0',
+  },
+  {
+    label: 'updateUser',
+    detail: '(username, update) - Update a user',
+    snippet: "updateUser('$1', {$2})$0",
+  },
+  {
+    label: 'changeUserPassword',
+    detail: '(username, password) - Change a user password',
+    snippet: "changeUserPassword('$1', '$2')$0",
+  },
+  {
+    label: 'grantRolesToUser',
+    detail: '(username, roles) - Grant roles to a user',
+    snippet: "grantRolesToUser('$1', [$2])$0",
+  },
+  {
+    label: 'revokeRolesFromUser',
+    detail: '(username, roles) - Revoke roles from a user',
+    snippet: "revokeRolesFromUser('$1', [$2])$0",
+  },
+  {
+    label: 'dropAllUsers',
+    detail: '() - Drop all users in the database',
+    snippet: 'dropAllUsers()$0',
+  },
+  // Role management
+  {
+    label: 'createRole',
+    detail: '(role) - Create a new role',
+    snippet: 'createRole({$1})$0',
+  },
+  {
+    label: 'dropRole',
+    detail: '(rolename) - Drop a role',
+    snippet: "dropRole('$1')$0",
+  },
+  {
+    label: 'getRole',
+    detail: '(rolename) - Get a role by name',
+    snippet: "getRole('$1')$0",
+  },
+  {
+    label: 'getRoles',
+    detail: '() - List all roles in the database',
+    snippet: 'getRoles()$0',
+  },
+  {
+    label: 'updateRole',
+    detail: '(rolename, update) - Update a role',
+    snippet: "updateRole('$1', {$2})$0",
+  },
+  {
+    label: 'grantPrivilegesToRole',
+    detail: '(rolename, privileges) - Grant privileges to a role',
+    snippet: "grantPrivilegesToRole('$1', [$2])$0",
+  },
+  {
+    label: 'revokePrivilegesFromRole',
+    detail: '(rolename, privileges) - Revoke privileges from a role',
+    snippet: "revokePrivilegesFromRole('$1', [$2])$0",
+  },
+  {
+    label: 'grantRolesToRole',
+    detail: '(rolename, roles) - Grant roles to a role',
+    snippet: "grantRolesToRole('$1', [$2])$0",
+  },
+  {
+    label: 'revokeRolesFromRole',
+    detail: '(rolename, roles) - Revoke roles from a role',
+    snippet: "revokeRolesFromRole('$1', [$2])$0",
+  },
+  {
+    label: 'dropAllRoles',
+    detail: '() - Drop all roles in the database',
+    snippet: 'dropAllRoles()$0',
+  },
 ]
