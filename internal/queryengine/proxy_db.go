@@ -28,9 +28,19 @@ var dbMethodNames = map[string]bool{
 	"getUsers":             true,
 	"updateUser":           true,
 	"changeUserPassword":   true,
-	"grantRolesToUser":     true,
-	"revokeRolesFromUser":  true,
-	"dropAllUsers":         true,
+	"grantRolesToUser":         true,
+	"revokeRolesFromUser":      true,
+	"dropAllUsers":             true,
+	"createRole":               true,
+	"dropRole":                 true,
+	"getRole":                  true,
+	"getRoles":                 true,
+	"updateRole":               true,
+	"grantPrivilegesToRole":    true,
+	"revokePrivilegesFromRole": true,
+	"grantRolesToRole":         true,
+	"revokeRolesFromRole":      true,
+	"dropAllRoles":             true,
 }
 
 // newDatabaseProxy creates a Goja Proxy object that intercepts property access.
@@ -86,6 +96,26 @@ func newDatabaseProxy(ec *execContext) goja.Value {
 				return ec.rt.ToValue(dbRevokeRolesFromUser(ec))
 			case "dropAllUsers":
 				return ec.rt.ToValue(dbDropAllUsers(ec))
+			case "createRole":
+				return ec.rt.ToValue(dbCreateRole(ec))
+			case "dropRole":
+				return ec.rt.ToValue(dbDropRole(ec))
+			case "getRole":
+				return ec.rt.ToValue(dbGetRole(ec))
+			case "getRoles":
+				return ec.rt.ToValue(dbGetRoles(ec))
+			case "updateRole":
+				return ec.rt.ToValue(dbUpdateRole(ec))
+			case "grantPrivilegesToRole":
+				return ec.rt.ToValue(dbGrantPrivilegesToRole(ec))
+			case "revokePrivilegesFromRole":
+				return ec.rt.ToValue(dbRevokePrivilegesFromRole(ec))
+			case "grantRolesToRole":
+				return ec.rt.ToValue(dbGrantRolesToRole(ec))
+			case "revokeRolesFromRole":
+				return ec.rt.ToValue(dbRevokeRolesFromRole(ec))
+			case "dropAllRoles":
+				return ec.rt.ToValue(dbDropAllRoles(ec))
 			}
 			return newCollectionProxy(ec, property)
 		},
