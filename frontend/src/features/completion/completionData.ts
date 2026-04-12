@@ -98,6 +98,61 @@ export const mongoMethods = [
     detail: '(operations) - executes multiple write operations',
     snippet: 'bulkWrite([$1])$0',
   },
+  {
+    label: 'stats',
+    detail: '(scale?) - returns statistics about the collection',
+    snippet: 'stats()$0',
+  },
+  {
+    label: 'isCapped',
+    detail: '() - returns true if the collection is a capped collection',
+    snippet: 'isCapped()$0',
+  },
+  {
+    label: 'dataSize',
+    detail: '() - returns the uncompressed size of the collection in bytes',
+    snippet: 'dataSize()$0',
+  },
+  {
+    label: 'storageSize',
+    detail: '() - returns the allocated storage size of the collection in bytes',
+    snippet: 'storageSize()$0',
+  },
+  {
+    label: 'totalIndexSize',
+    detail: '() - returns the total size of all indexes on the collection in bytes',
+    snippet: 'totalIndexSize()$0',
+  },
+  {
+    label: 'totalSize',
+    detail: '() - returns the total storage size of the collection and its indexes in bytes',
+    snippet: 'totalSize()$0',
+  },
+  {
+    label: 'getIndexes',
+    detail: '() - lists the indexes on the collection (alias for listIndexes)',
+    snippet: 'getIndexes()$0',
+  },
+  {
+    label: 'count',
+    detail: '(filter?) - counts matching documents (legacy; prefer countDocuments)',
+    snippet: 'count({$1})$0',
+  },
+  {
+    label: 'renameCollection',
+    detail: '(newName, dropTarget?) - renames the collection',
+    snippet: 'renameCollection("$1")$0',
+  },
+  {
+    label: 'validate',
+    detail: '(full?) - validates the collection',
+    snippet: 'validate()$0',
+  },
+  {
+    label: 'findAndModify',
+    detail: '(spec) - finds and modifies a document (legacy; prefer findOneAnd*)',
+    snippet: 'findAndModify({$1})$0',
+  },
 ]
 
 export const queryOperators = [
