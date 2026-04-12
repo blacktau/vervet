@@ -87,6 +87,50 @@ func TestCollectionProxy_Find_CursorChainingUpdatesState(t *testing.T) {
 	assert.Equal(t, int64(5), cursor.skip)
 }
 
+func TestCollectionProxy_Find_CursorOptionMethodsExist(t *testing.T) {
+	rt, _ := setupRuntime(t)
+	val, err := rt.RunString(`
+		const cursor = db.users.find({});
+		typeof cursor.hint === 'function' &&
+		typeof cursor.maxTimeMS === 'function' &&
+		typeof cursor.batchSize === 'function' &&
+		typeof cursor.collation === 'function' &&
+		typeof cursor.comment === 'function' &&
+		typeof cursor.explain === 'function'
+	`)
+	require.NoError(t, err)
+	assert.Equal(t, true, val.Export())
+}
+
+func TestCollectionProxy_Find_CursorOptionsChainingUpdatesState(t *testing.T) {
+	rt, _ := setupRuntime(t)
+	val, err := rt.RunString(`
+		db.users.find({})
+			.hint({ name: 1 })
+			.maxTimeMS(5000)
+			.batchSize(100)
+			.collation({ locale: 'en', strength: 2 })
+			.comment('my-query')
+	`)
+	require.NoError(t, err)
+	cursor := extractLazyCursor(val)
+	require.NotNil(t, cursor)
+	assert.Equal(t, map[string]any{"name": int64(1)}, cursor.hint)
+	assert.Equal(t, int64(5000), cursor.maxTimeMS)
+	assert.Equal(t, int32(100), cursor.batchSize)
+	assert.Equal(t, "en", cursor.collation["locale"])
+	assert.Equal(t, "my-query", cursor.comment)
+}
+
+func TestCollectionProxy_Find_HintAcceptsString(t *testing.T) {
+	rt, _ := setupRuntime(t)
+	val, err := rt.RunString(`db.users.find({}).hint('name_1')`)
+	require.NoError(t, err)
+	cursor := extractLazyCursor(val)
+	require.NotNil(t, cursor)
+	assert.Equal(t, "name_1", cursor.hint)
+}
+
 func TestCollectionProxy_FindOne_ReturnsCursorWithFindOneFlag(t *testing.T) {
 	rt, _ := setupRuntime(t)
 	val, err := rt.RunString(`db.users.findOne({ name: "alice" })`)

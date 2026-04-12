@@ -10,4 +10,9 @@ type CapturedOp struct {
 	Limit      int64
 	Skip       int64
 	Sort       any
+	Hint       any
+	MaxTimeMS  int64
+	BatchSize  int32
+	Collation  map[string]any
+	Comment    string
 }
