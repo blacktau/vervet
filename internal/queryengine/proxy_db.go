@@ -9,19 +9,28 @@ import (
 // dbMethodNames lists all intercepted db-level method names so the proxy
 // can distinguish them from collection name access.
 var dbMethodNames = map[string]bool{
-	"getName":            true,
-	"getCollection":      true,
-	"runCommand":         true,
-	"adminCommand":       true,
-	"getCollectionNames": true,
-	"getCollectionInfos": true,
-	"createCollection":   true,
-	"dropDatabase":       true,
-	"stats":              true,
-	"version":            true,
-	"getSiblingDB":       true,
-	"getMongo":           true,
-	"aggregate":          true,
+	"getName":              true,
+	"getCollection":        true,
+	"runCommand":           true,
+	"adminCommand":         true,
+	"getCollectionNames":   true,
+	"getCollectionInfos":   true,
+	"createCollection":     true,
+	"dropDatabase":         true,
+	"stats":                true,
+	"version":              true,
+	"getSiblingDB":         true,
+	"getMongo":             true,
+	"aggregate":            true,
+	"createUser":           true,
+	"dropUser":             true,
+	"getUser":              true,
+	"getUsers":             true,
+	"updateUser":           true,
+	"changeUserPassword":   true,
+	"grantRolesToUser":     true,
+	"revokeRolesFromUser":  true,
+	"dropAllUsers":         true,
 }
 
 // newDatabaseProxy creates a Goja Proxy object that intercepts property access.
@@ -59,6 +68,24 @@ func newDatabaseProxy(ec *execContext) goja.Value {
 				return ec.rt.ToValue(dbGetMongo(ec))
 			case "aggregate":
 				return ec.rt.ToValue(dbAggregate(ec))
+			case "createUser":
+				return ec.rt.ToValue(dbCreateUser(ec))
+			case "dropUser":
+				return ec.rt.ToValue(dbDropUser(ec))
+			case "getUser":
+				return ec.rt.ToValue(dbGetUser(ec))
+			case "getUsers":
+				return ec.rt.ToValue(dbGetUsers(ec))
+			case "updateUser":
+				return ec.rt.ToValue(dbUpdateUser(ec))
+			case "changeUserPassword":
+				return ec.rt.ToValue(dbChangeUserPassword(ec))
+			case "grantRolesToUser":
+				return ec.rt.ToValue(dbGrantRolesToUser(ec))
+			case "revokeRolesFromUser":
+				return ec.rt.ToValue(dbRevokeRolesFromUser(ec))
+			case "dropAllUsers":
+				return ec.rt.ToValue(dbDropAllUsers(ec))
 			}
 			return newCollectionProxy(ec, property)
 		},
