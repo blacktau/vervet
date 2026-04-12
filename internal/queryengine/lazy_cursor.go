@@ -23,6 +23,11 @@ type lazyCursor struct {
 	results    []any
 	index      int // for hasNext/next iteration
 	isFindOne  bool
+	hint       any
+	maxTimeMS  int64
+	batchSize  int32
+	collation  map[string]any
+	comment    string
 }
 
 func (c *lazyCursor) setLimit(n int64) error {
@@ -63,6 +68,11 @@ func (c *lazyCursor) execute() (models.QueryResult, error) {
 		Limit:      c.limit,
 		Skip:       c.skip,
 		Sort:       c.sort,
+		Hint:       c.hint,
+		MaxTimeMS:  c.maxTimeMS,
+		BatchSize:  c.batchSize,
+		Collation:  c.collation,
+		Comment:    c.comment,
 	}
 
 	if c.isFindOne {
@@ -78,6 +88,27 @@ func (c *lazyCursor) execute() (models.QueryResult, error) {
 	c.results = result.Documents
 	c.resolved = true
 	return result, nil
+}
+
+// explain runs an explain command for this cursor's find/findOne query.
+func (c *lazyCursor) explain(verbosity string) (models.QueryResult, error) {
+	op := CapturedOp{
+		Collection: c.collection,
+		Method:     "explainFind",
+		Args:       []any{c.filter, c.projection, verbosity},
+		Limit:      c.limit,
+		Skip:       c.skip,
+		Sort:       c.sort,
+		Hint:       c.hint,
+		MaxTimeMS:  c.maxTimeMS,
+		BatchSize:  c.batchSize,
+		Collation:  c.collation,
+		Comment:    c.comment,
+	}
+	if c.isFindOne {
+		op.Limit = 1
+	}
+	return dispatch(c.ec.ctx, c.ec.client, c.ec.dbName, op)
 }
 
 // toGojaObject wraps this lazyCursor as a Goja object with chainable and
@@ -110,6 +141,54 @@ func (c *lazyCursor) toGojaObject() goja.Value {
 				panic(rt.NewGoError(err))
 			}
 		}
+		return obj
+	})
+
+	_ = obj.Set("hint", func(call goja.FunctionCall) goja.Value {
+		if c.resolved {
+			panic(rt.NewGoError(fmt.Errorf("cursor already executed — cannot set hint")))
+		}
+		if len(call.Arguments) > 0 {
+			c.hint = call.Arguments[0].Export()
+		}
+		return obj
+	})
+
+	_ = obj.Set("maxTimeMS", func(n int64) goja.Value {
+		if c.resolved {
+			panic(rt.NewGoError(fmt.Errorf("cursor already executed — cannot set maxTimeMS")))
+		}
+		c.maxTimeMS = n
+		return obj
+	})
+
+	_ = obj.Set("batchSize", func(n int32) goja.Value {
+		if c.resolved {
+			panic(rt.NewGoError(fmt.Errorf("cursor already executed — cannot set batchSize")))
+		}
+		c.batchSize = n
+		return obj
+	})
+
+	_ = obj.Set("collation", func(call goja.FunctionCall) goja.Value {
+		if c.resolved {
+			panic(rt.NewGoError(fmt.Errorf("cursor already executed — cannot set collation")))
+		}
+		if len(call.Arguments) > 0 {
+			spec, ok := call.Arguments[0].Export().(map[string]any)
+			if !ok {
+				panic(rt.NewGoError(fmt.Errorf("collation argument must be an object")))
+			}
+			c.collation = spec
+		}
+		return obj
+	})
+
+	_ = obj.Set("comment", func(s string) goja.Value {
+		if c.resolved {
+			panic(rt.NewGoError(fmt.Errorf("cursor already executed — cannot set comment")))
+		}
+		c.comment = s
 		return obj
 	})
 
@@ -205,6 +284,20 @@ func (c *lazyCursor) toGojaObject() goja.Value {
 		doc := c.results[c.index]
 		c.index++
 		return rt.ToValue(doc)
+	})
+
+	_ = obj.Set("explain", func(call goja.FunctionCall) goja.Value {
+		verbosity := "queryPlanner"
+		if len(call.Arguments) > 0 {
+			if s, ok := call.Arguments[0].Export().(string); ok && s != "" {
+				verbosity = s
+			}
+		}
+		result, err := c.explain(verbosity)
+		if err != nil {
+			panic(rt.NewGoError(err))
+		}
+		return toGojaValue(rt, result)
 	})
 
 	// No-op

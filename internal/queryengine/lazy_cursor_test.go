@@ -51,3 +51,12 @@ func TestLazyCursor_SetSortAfterResolve_Errors(t *testing.T) {
 	err := c.setSort(map[string]any{"name": int64(1)})
 	assert.Error(t, err)
 }
+
+func TestLazyCursor_CursorOptionsFieldsDefaults(t *testing.T) {
+	c := &lazyCursor{}
+	assert.Nil(t, c.hint)
+	assert.Equal(t, int64(0), c.maxTimeMS)
+	assert.Equal(t, int32(0), c.batchSize)
+	assert.Nil(t, c.collation)
+	assert.Equal(t, "", c.comment)
+}
