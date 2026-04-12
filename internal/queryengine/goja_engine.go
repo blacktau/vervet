@@ -79,6 +79,8 @@ func (e *GojaEngine) ExecuteQuery(ctx context.Context, uri, dbName, query string
 		raw := val.Export()
 		if raw != nil {
 			result = models.QueryResult{RawOutput: fmt.Sprintf("%v", raw)}
+		} else if val != nil && !goja.IsUndefined(val) && goja.IsNull(val) {
+			result = models.QueryResult{RawOutput: "null"}
 		}
 		return
 	}()
