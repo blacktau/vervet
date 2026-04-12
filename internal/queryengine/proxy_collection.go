@@ -75,5 +75,7 @@ func newCollectionProxy(ec *execContext, collName string) goja.Value {
 		})
 	}
 
+	setCollectionInfoMethods(obj, ec, collName)
+
 	return obj
 }
