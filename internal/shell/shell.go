@@ -102,7 +102,7 @@ func Execute(ctx context.Context, uri string, query string, cfg Config) (models.
 		}
 		errMsg := stderr.String() + stdout.String()
 		if len(errMsg) > 0 {
-			return models.QueryResult{}, fmt.Errorf("%s", errMsg)
+			return models.QueryResult{}, fmt.Errorf("%s", remapError(errMsg, query))
 		}
 		return models.QueryResult{}, fmt.Errorf("mongosh exited with: %w", err)
 	}
