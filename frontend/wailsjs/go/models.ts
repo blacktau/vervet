@@ -134,6 +134,12 @@ export namespace api {
 	    errorCode?: string;
 	    errorDetail?: string;
 	}
+	export interface Result_vervet_internal_servers_ImportResult_ {
+	    isSuccess: boolean;
+	    data: servers.ImportResult;
+	    errorCode?: string;
+	    errorDetail?: string;
+	}
 
 }
 
@@ -276,6 +282,15 @@ export namespace models {
 	export interface WorkspaceData {
 	    activeWorkspaceId: string;
 	    workspaces: Workspace[];
+	}
+
+}
+
+export namespace servers {
+	
+	export interface ImportResult {
+	    created: models.RegisteredServer[];
+	    warnings: string[];
 	}
 
 }
