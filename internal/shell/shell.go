@@ -33,20 +33,11 @@ func CheckMongosh() bool {
 // string output for non-serializable results.
 //
 // The query is placed inside an IIFE with "return" prepended to the last
-// statement, so the last expression's value is captured and serialized.
+// top-level statement, so its value is captured and serialized. The start of
+// the last statement is found by scanning the source while tracking bracket
+// depth, strings, and comments — so multi-line expressions are handled.
 func wrapQuery(query string) string {
-	lines := strings.Split(strings.TrimSpace(query), "\n")
-	if len(lines) > 0 {
-		lastLine := strings.TrimSpace(lines[len(lines)-1])
-		// Only prepend return if the last line doesn't already have one
-		// and isn't a control structure or declaration
-		if !strings.HasPrefix(lastLine, "return ") &&
-			!strings.HasPrefix(lastLine, "//") &&
-			!strings.HasPrefix(lastLine, "}") {
-			lines[len(lines)-1] = "return " + lines[len(lines)-1]
-		}
-	}
-	body := strings.Join(lines, "\n")
+	body := prependReturnToLastStatement(strings.TrimSpace(query))
 
 	return fmt.Sprintf(`
 const __result = (() => { %s })();
@@ -111,7 +102,7 @@ func Execute(ctx context.Context, uri string, query string, cfg Config) (models.
 		}
 		errMsg := stderr.String() + stdout.String()
 		if len(errMsg) > 0 {
-			return models.QueryResult{}, fmt.Errorf("%s", errMsg)
+			return models.QueryResult{}, fmt.Errorf("%s", remapError(errMsg, query))
 		}
 		return models.QueryResult{}, fmt.Errorf("mongosh exited with: %w", err)
 	}
