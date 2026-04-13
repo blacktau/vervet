@@ -248,6 +248,58 @@ describe('analyzeContext', () => {
     expect(ctx.prefix).toBe('')
   })
 
+  // Chained cursor methods with field-keyed args (issue #146)
+  it('returns FIELD_NAME inside chained sort({', () => {
+    const ctx = analyzeContext('db.users.find({}).sort({ ')
+    expect(ctx.type).toBe('FIELD_NAME')
+    expect(ctx.collection).toBe('users')
+    expect(ctx.prefix).toBe('')
+  })
+
+  it('returns FIELD_NAME inside chained sort({ with prefix', () => {
+    const ctx = analyzeContext('db.users.find({}).sort({ na')
+    expect(ctx.type).toBe('FIELD_NAME')
+    expect(ctx.collection).toBe('users')
+    expect(ctx.prefix).toBe('na')
+  })
+
+  it('returns FIELD_NAME inside chained sort({ with quoted prefix', () => {
+    const ctx = analyzeContext('db.users.find({}).sort({ "addr')
+    expect(ctx.type).toBe('FIELD_NAME')
+    expect(ctx.collection).toBe('users')
+    expect(ctx.prefix).toBe('addr')
+    expect(ctx.insideQuotes).toBe(true)
+  })
+
+  it('returns FIELD_NAME inside sort after multi-chain', () => {
+    const ctx = analyzeContext('db.users.find({}).limit(10).sort({ ')
+    expect(ctx.type).toBe('FIELD_NAME')
+    expect(ctx.collection).toBe('users')
+  })
+
+  it('returns QUERY_OPERATOR after field colon in chained sort', () => {
+    const ctx = analyzeContext('db.users.find({}).sort({ "bathrooms": ')
+    expect(ctx.type).toBe('QUERY_OPERATOR')
+  })
+
+  it('returns QUERY_OPERATOR in nested operator object in chained sort', () => {
+    const ctx = analyzeContext('db.users.find({}).sort({ age: { $')
+    expect(ctx.type).toBe('QUERY_OPERATOR')
+    expect(ctx.prefix).toBe('$')
+  })
+
+  it('returns QUERY_OPERATOR after colon in chained sort via getCollection', () => {
+    const ctx = analyzeContext("db.getCollection('listingsAndReviews').find({}).sort({ \"bathrooms\": ")
+    expect(ctx.type).toBe('QUERY_OPERATOR')
+  })
+
+  it('returns FIELD_NAME inside sort via getCollection', () => {
+    const ctx = analyzeContext("db.getCollection('users').find({}).sort({ na")
+    expect(ctx.type).toBe('FIELD_NAME')
+    expect(ctx.collection).toBe('users')
+    expect(ctx.prefix).toBe('na')
+  })
+
   it('returns UPDATE_OPERATOR for updateOne update doc with prefix start', () => {
     const ctx = analyzeContext('db.users.updateOne({ "name": "joe" }, { $')
     expect(ctx.type).toBe('UPDATE_OPERATOR')
