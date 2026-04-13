@@ -24,3 +24,5 @@ terminal:
       cursorStyle: "block"
 workspaces:
       fileExtensions: []
+updates:
+      frequency: "daily"

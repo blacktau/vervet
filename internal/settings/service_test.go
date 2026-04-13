@@ -130,6 +130,17 @@ func Test_SettingsService_DefaultQueryEngine(t *testing.T) {
 	})
 }
 
+func Test_DefaultSettings_UpdatesFrequency_IsDaily(t *testing.T) {
+	m := newTestService(nil, nil)
+	c, err := m.GetSettings()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Updates.Frequency != "daily" {
+		t.Errorf("expected default updates frequency 'daily', got '%s'", c.Updates.Frequency)
+	}
+}
+
 func Test_SettingsService_RestoreSettings(t *testing.T) {
 	t.Run("restores default configuration", func(t *testing.T) {
 		store := &storeStub{
@@ -204,6 +215,9 @@ func expectedSettings() models.Settings {
 				Size: settings.DefaultFontSize,
 			},
 			CursorStyle: "block",
+		},
+		Updates: models.UpdatesSettings{
+			Frequency: "daily",
 		},
 	}
 }

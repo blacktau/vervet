@@ -12,10 +12,17 @@ type Settings struct {
 	Editor     EditorSettings     `json:"editor" yaml:"editor"`
 	Terminal   TerminalSettings   `json:"terminal" yaml:"terminal"`
 	Workspaces WorkspacesSettings `json:"workspaces" yaml:"workspaces"`
+	Updates    UpdatesSettings    `json:"updates" yaml:"updates"`
 }
 
 type WorkspacesSettings struct {
 	FileExtensions []string `json:"fileExtensions" yaml:"fileExtensions"`
+}
+
+type UpdatesSettings struct {
+	Frequency        string `json:"frequency" yaml:"frequency"`
+	LastCheckedAt    string `json:"lastCheckedAt" yaml:"lastCheckedAt,omitempty"`
+	DismissedVersion string `json:"dismissedVersion" yaml:"dismissedVersion,omitempty"`
 }
 
 type WindowSettings struct {
