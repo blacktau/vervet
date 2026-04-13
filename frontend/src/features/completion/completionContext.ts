@@ -93,7 +93,9 @@ function analyzeContextCore(textBeforeCursor: string): CompletionContext {
   }
 
   // db.collection.method({ field: { $op| }) → QUERY_OPERATOR (inside nested operator object)
-  const nestedOpMatch = trimmed.match(/db\.(\w+)\.\w+\([^)]*(?:\b\w+|"[^"]*")\s*:\s*\{\s*(\$\w*)?$/)
+  const nestedOpMatch = trimmed.match(
+    /db\.(\w+)(?:\.\w+\([^()]*\))*\.\w+\([^)]*(?:\b\w+|"[^"]*")\s*:\s*\{\s*(\$\w*)?$/,
+  )
   if (nestedOpMatch) {
     return {
       type: 'QUERY_OPERATOR',
@@ -104,7 +106,9 @@ function analyzeContextCore(textBeforeCursor: string): CompletionContext {
 
   // db.collection.method({ field: | }) → QUERY_OPERATOR
   // Also matches quoted field keys: { "field.name": | }
-  const fieldValueMatch = trimmed.match(/db\.(\w+)\.\w+\(\s*\{[^}]*(?:\b\w+|"[^"]*")\s*:\s*$/)
+  const fieldValueMatch = trimmed.match(
+    /db\.(\w+)(?:\.\w+\([^()]*\))*\.\w+\(\s*\{[^}]*(?:\b\w+|"[^"]*")\s*:\s*$/,
+  )
   if (fieldValueMatch) {
     return {
       type: 'QUERY_OPERATOR',
@@ -128,7 +132,7 @@ function analyzeContextCore(textBeforeCursor: string): CompletionContext {
   // Inside braces for field name position: { "partial| or { partial|
   // Matches both quoted and unquoted field name positions
   const quotedFieldMatch = trimmed.match(
-    /db\.(\w+)\.\w+\([^)]*\{\s*(?:[\w."':$\s,]*,\s*)?"([^"]*)$/,
+    /db\.(\w+)(?:\.\w+\([^()]*\))*\.\w+\([^)]*\{\s*(?:[\w."':$\s,]*,\s*)?"([^"]*)$/,
   )
   if (quotedFieldMatch) {
     return {
@@ -139,7 +143,9 @@ function analyzeContextCore(textBeforeCursor: string): CompletionContext {
     }
   }
 
-  const insideBracesMatch = trimmed.match(/db\.(\w+)\.\w+\([^)]*\{\s*(?:[\w."':$\s,]*,\s*)?(\w*)$/)
+  const insideBracesMatch = trimmed.match(
+    /db\.(\w+)(?:\.\w+\([^()]*\))*\.\w+\([^)]*\{\s*(?:[\w."':$\s,]*,\s*)?(\w*)$/,
+  )
   if (insideBracesMatch) {
     return {
       type: 'FIELD_NAME',
