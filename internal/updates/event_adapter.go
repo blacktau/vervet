@@ -14,6 +14,10 @@ func NewWailsEmitter(ctx context.Context) *WailsEmitter {
 	return &WailsEmitter{ctx: ctx}
 }
 
+func (e *WailsEmitter) SetContext(ctx context.Context) {
+	e.ctx = ctx
+}
+
 func (e *WailsEmitter) EmitEvent(name string, data any) {
 	wailsRuntime.EventsEmit(e.ctx, name, data)
 }
