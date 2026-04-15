@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { CheckNow, DismissUpdate, OpenReleasePage } from 'wailsjs/go/api/UpdatesProxy'
 import { EventsOn, EventsOff } from 'wailsjs/runtime/runtime'
+import { useSettingsStore } from '@/features/settings/settingsStore'
 
 export interface UpdateInfo {
   available: boolean
@@ -47,6 +48,7 @@ export const useUpdateStore = defineStore('updates', () => {
       applyEvent(result.data as UpdateInfo)
     } finally {
       checking.value = false
+      await useSettingsStore().loadSettings()
     }
   }
 
