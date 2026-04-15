@@ -260,6 +260,37 @@ func TestDatabaseProxy_CoreMethods_PanicWithoutClient(t *testing.T) {
 	}
 }
 
+func TestExportedToResult_Slice_PreservesAsDocuments(t *testing.T) {
+	raw := []any{
+		map[string]any{"values": []any{
+			map[string]any{"$numberLong": "7151"},
+			map[string]any{"$numberLong": "11788"},
+		}},
+	}
+	result := exportedToResult(raw)
+	assert.Empty(t, result.RawOutput)
+	require.Len(t, result.Documents, 1)
+	doc, ok := result.Documents[0].(map[string]any)
+	require.True(t, ok)
+	values, ok := doc["values"].([]any)
+	require.True(t, ok)
+	assert.Len(t, values, 2)
+}
+
+func TestExportedToResult_Map_WrapsAsSingleDocument(t *testing.T) {
+	raw := map[string]any{"foo": "bar"}
+	result := exportedToResult(raw)
+	assert.Empty(t, result.RawOutput)
+	require.Len(t, result.Documents, 1)
+	assert.Equal(t, raw, result.Documents[0])
+}
+
+func TestExportedToResult_Scalar_FallsBackToRawOutput(t *testing.T) {
+	result := exportedToResult(int64(42))
+	assert.Empty(t, result.Documents)
+	assert.Equal(t, "42", result.RawOutput)
+}
+
 func TestMultiStatement_VariableThenCursor(t *testing.T) {
 	rt, _ := setupRuntime(t)
 	val, err := rt.RunString(`const filter = { status: "active" }; db.users.find(filter)`)

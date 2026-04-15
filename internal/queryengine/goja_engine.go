@@ -78,7 +78,7 @@ func (e *GojaEngine) ExecuteQuery(ctx context.Context, uri, dbName, query string
 
 		raw := val.Export()
 		if raw != nil {
-			result = models.QueryResult{RawOutput: fmt.Sprintf("%v", raw)}
+			result = exportedToResult(raw)
 		} else if val != nil && !goja.IsUndefined(val) && goja.IsNull(val) {
 			result = models.QueryResult{RawOutput: "null"}
 		}
@@ -86,4 +86,22 @@ func (e *GojaEngine) ExecuteQuery(ctx context.Context, uri, dbName, query string
 	}()
 
 	return result, err
+}
+
+// exportedToResult converts a value exported from the Goja runtime back into a
+// QueryResult. Structured values (arrays/objects) are preserved as Documents so
+// the frontend can render them as a tree/table; scalars fall back to RawOutput.
+func exportedToResult(raw any) models.QueryResult {
+	switch v := raw.(type) {
+	case []any:
+		docs := make([]any, len(v))
+		copy(docs, v)
+		return models.QueryResult{Documents: docs}
+	case map[string]any:
+		return models.QueryResult{Documents: []any{v}}
+	case string:
+		return models.QueryResult{RawOutput: v}
+	default:
+		return models.QueryResult{RawOutput: fmt.Sprintf("%v", raw)}
+	}
 }
