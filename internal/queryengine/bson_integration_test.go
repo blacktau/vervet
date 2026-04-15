@@ -236,6 +236,47 @@ func TestIntegration_Regex_FindMatchesCorrectly(t *testing.T) {
 	assert.Len(t, result.Documents, 2, "expected 2 documents matching /alice/i")
 }
 
+// --- Issue #148: distinct on int64 field must preserve EJSON structure ---
+
+func TestIntegration_Issue148_DistinctLongs(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	db := dbName(t)
+	defer testClient.Database(db).Drop(ctx)
+
+	engine := NewGojaEngine(testClient)
+
+	setup := `db.test.insertMany([
+		{ AField: 1, LongId: NumberLong("7151") },
+		{ AField: 1, LongId: NumberLong("11788") },
+		{ AField: 1, LongId: NumberLong("7151") },
+		{ AField: 2, LongId: NumberLong("99999") },
+	])`
+	_, err := engine.ExecuteQuery(ctx, testURI, db, setup)
+	require.NoError(t, err)
+
+	result, err := engine.ExecuteQuery(ctx, testURI, db, `db.getCollection("test").distinct("LongId", { AField: 1 })`)
+	require.NoError(t, err)
+
+	assert.Empty(t, result.RawOutput, "distinct result must not be stringified into RawOutput")
+	require.Len(t, result.Documents, 1)
+
+	doc, ok := result.Documents[0].(map[string]any)
+	require.True(t, ok, "expected map document, got %T", result.Documents[0])
+
+	values, ok := doc["values"].([]any)
+	require.True(t, ok, "expected values slice, got %T", doc["values"])
+	assert.Len(t, values, 2)
+
+	for _, v := range values {
+		m, ok := v.(map[string]any)
+		require.True(t, ok, "expected EJSON map for long, got %T", v)
+		_, hasLong := m["$numberLong"]
+		assert.True(t, hasLong, "expected $numberLong key, got %v", m)
+	}
+}
+
 func TestIntegration_Regex_NestedInOperator(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
