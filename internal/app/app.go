@@ -20,6 +20,7 @@ import (
 	"vervet/internal/servers"
 	"vervet/internal/settings"
 	"vervet/internal/system"
+	"vervet/internal/updates"
 
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -38,6 +39,7 @@ type App struct {
 	SettingsProxy    *api.SettingsProxy
 	FilesProxy       *api.FilesProxy
 	WorkspacesProxy  *api.WorkspacesProxy
+	UpdatesProxy     *api.UpdatesProxy
 
 	serverService      *servers.ServerService
 	registry           *clientregistry.ClientRegistry
@@ -50,6 +52,10 @@ type App struct {
 	settingsService    settings.Service
 	systemService      *system.Service
 	filesService       *files.Service
+	updatesService     *updates.Service
+	updatesEmitter     *updates.WailsEmitter
+	updatesOpener      *updates.BrowserOpener
+	appVersion         string
 }
 
 // NewApp creates a new App application struct
@@ -68,6 +74,13 @@ func NewApp(log *slog.Logger, version string) *App {
 	indexService := indexes.NewIndexService(log, registry)
 	collectionsService := collections.NewCollectionsService(log, registry)
 	settingsService := settings.NewService(log)
+	updatesEmitter := updates.NewWailsEmitter(nil)
+	updatesOpener := updates.NewBrowserOpener(nil)
+	updatesService := updates.NewService(log, updates.Config{
+		CurrentVersion: version,
+		Settings:       updates.NewSettingsAdapter(settingsService),
+		Emitter:        updatesEmitter,
+	})
 	queryExecutor := queryexecutor.NewQueryExecutor(log, registry, connectionStringsStore, settingsService)
 	systemService := system.NewSystemService(log)
 	fontService := system.NewFontService(log)
@@ -102,6 +115,11 @@ func NewApp(log *slog.Logger, version string) *App {
 		SettingsProxy:      api.NewSettingsProxy(settingsService, fontService, version),
 		FilesProxy:         api.NewFilesProxy(filesService),
 		WorkspacesProxy:    api.NewWorkspacesProxy(workspaceService, settingsService),
+		UpdatesProxy:       api.NewUpdatesProxy(updatesService, updatesOpener),
+		appVersion:         version,
+		updatesService:     updatesService,
+		updatesEmitter:     updatesEmitter,
+		updatesOpener:      updatesOpener,
 	}
 }
 
@@ -137,6 +155,16 @@ func (a *App) Startup(ctx context.Context) {
 
 	a.filesService.Init(ctx)
 	a.WorkspacesProxy.Init(ctx)
+
+	a.updatesEmitter.SetContext(ctx)
+	a.updatesOpener.SetContext(ctx)
+	a.UpdatesProxy.Init(ctx)
+
+	go func() {
+		if err := a.updatesService.CheckIfDue(ctx); err != nil {
+			a.log.Warn("update check failed", slog.Any("error", err))
+		}
+	}()
 }
 
 // DomReady is called after front-end resources have been loaded

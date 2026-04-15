@@ -85,6 +85,14 @@ jobs:
           jq --arg v "$VERSION" '.info.productVersion = $v' wails.json > tmp.json
           mv tmp.json wails.json
 
+      - name: Stamp version into frontend/package.json
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          jq --arg v "$VERSION" '.version = $v' frontend/package.json > tmp.json
+          mv tmp.json frontend/package.json
+
       # ── Linux dependencies ──
       - name: Install Linux dependencies
         if: runner.os == 'Linux'

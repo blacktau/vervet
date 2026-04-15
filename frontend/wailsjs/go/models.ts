@@ -140,6 +140,12 @@ export namespace api {
 	    errorCode?: string;
 	    errorDetail?: string;
 	}
+	export interface Result_vervet_internal_updates_UpdateInfo_ {
+	    isSuccess: boolean;
+	    data: updates.UpdateInfo;
+	    errorCode?: string;
+	    errorDetail?: string;
+	}
 
 }
 
@@ -244,6 +250,11 @@ export namespace models {
 	    isCluster: boolean;
 	    isSrv: boolean;
 	}
+	export interface UpdatesSettings {
+	    frequency: string;
+	    lastCheckedAt: string;
+	    dismissedVersion: string;
+	}
 	export interface WorkspacesSettings {
 	    fileExtensions: string[];
 	}
@@ -265,7 +276,9 @@ export namespace models {
 	    editor: EditorSettings;
 	    terminal: TerminalSettings;
 	    workspaces: WorkspacesSettings;
+	    updates: UpdatesSettings;
 	}
+	
 	
 	
 	export interface WindowState {
@@ -291,6 +304,17 @@ export namespace servers {
 	export interface ImportResult {
 	    created: models.RegisteredServer[];
 	    warnings: string[];
+	}
+
+}
+
+export namespace updates {
+	
+	export interface UpdateInfo {
+	    available: boolean;
+	    version: string;
+	    url: string;
+	    releaseNotes: string;
 	}
 
 }

@@ -1,6 +1,6 @@
 <script lang="ts" setup>
-import { useThemeVars } from 'naive-ui'
-import { computed, onMounted, reactive, ref } from 'vue'
+import { NButton, useThemeVars } from 'naive-ui'
+import { computed, h, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { NavType, useTabStore } from '@/features/tabs/tabs.ts'
 import { useSettingsStore } from '@/features/settings/settingsStore.ts'
 import { useServerStore } from '@/features/server-pane/serverStore.ts'
@@ -18,6 +18,7 @@ import UnconnectedContent from '@/features/unconnected-content/UnconnectedConten
 import TitleBar from '@/app/TitleBar.vue'
 import UnifiedContentPane from '@/features/tabs/UnifiedContentPane.vue'
 import WorkspacePane from '@/features/workspaces/WorkspacePane.vue'
+import { useUpdateStore } from '@/features/updates/updateStore'
 
 const themeVars = useThemeVars()
 const props = defineProps<{
@@ -30,6 +31,7 @@ const tabStore = useTabStore()
 const serverStore = useServerStore()
 const dataBrowserStore = useDataBrowserStore()
 const settingsStore = useSettingsStore()
+const updateStore = useUpdateStore()
 
 runtime.EventsOn('oidc-reauth-required', (serverID: string) => {
   const server = serverStore.findServerById(serverID)
@@ -121,7 +123,46 @@ onMounted(async () => {
   onToggleFullscreen(fullscreen)
   const maximized = await runtime.WindowIsMinimised()
   onToggleMaximize(maximized)
+  updateStore.subscribe()
 })
+
+onBeforeUnmount(() => {
+  updateStore.unsubscribe()
+})
+
+watch(
+  () => updateStore.available,
+  (isAvailable, wasAvailable) => {
+    if (!isAvailable || wasAvailable) {
+      return
+    }
+    notification.info({
+      title: i18n.t('settings.updates.available', { version: updateStore.version }),
+      duration: 0,
+      meta: '',
+      action: () =>
+        h('div', { style: 'display: flex; gap: 8px;' }, [
+          h(
+            NButton,
+            {
+              text: true,
+              type: 'primary',
+              onClick: () => updateStore.openReleasePage(),
+            },
+            { default: () => i18n.t('settings.updates.viewRelease') },
+          ),
+          h(
+            NButton,
+            {
+              text: true,
+              onClick: () => updateStore.dismiss(),
+            },
+            { default: () => i18n.t('settings.updates.dismiss') },
+          ),
+        ]),
+    })
+  },
+)
 </script>
 
 <template>

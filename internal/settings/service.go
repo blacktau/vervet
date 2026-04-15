@@ -300,5 +300,8 @@ func defaultSettings() models.Settings {
 			},
 			CursorStyle: "block",
 		},
+		Updates: models.UpdatesSettings{
+			Frequency: "daily",
+		},
 	}
 }

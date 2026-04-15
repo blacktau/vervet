@@ -25,7 +25,7 @@ var assets embed.FS
 //go:embed build/appicon.png
 var icon []byte
 
-var version string
+var version = "dev"
 
 func main() {
 	debugUI := flag.Bool("debug-ui", false, "enable ui inspector")
@@ -78,7 +78,8 @@ func main() {
 			application.SystemProxy,
 			application.SettingsProxy,
 			application.FilesProxy,
-		application.WorkspacesProxy,
+			application.WorkspacesProxy,
+			application.UpdatesProxy,
 		},
 		EnumBind: []any{
 			api.AllOperatingSystems,

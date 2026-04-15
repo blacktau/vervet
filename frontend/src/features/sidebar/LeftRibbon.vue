@@ -5,6 +5,7 @@ import { computed } from 'vue'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 import { DialogType, useDialogStore } from '@/stores/dialog'
 import { useSettingsStore } from '@/features/settings/settingsStore.ts'
+import { useUpdateStore } from '@/features/updates/updateStore'
 import * as runtime from 'wailsjs/runtime'
 import IconButton from '@/features/common/IconButton.vue'
 import { extraTheme } from '@/utils/extraTheme'
@@ -24,6 +25,7 @@ const render = useRender()
 
 const dialogStore = useDialogStore()
 const settingsStore = useSettingsStore()
+const updateStore = useUpdateStore()
 const browserStore = useDataBrowserStore()
 
 const props = withDefaults(
@@ -150,7 +152,9 @@ const exThemeVars = computed(() => {
         "
         trigger="click"
         @select="onSelectSettingsMenu">
-        <icon-button :icon="Cog8ToothIcon" :size="iconSize" :stroke-width="3" />
+        <n-badge :dot="updateStore.available" :show="updateStore.available">
+          <icon-button :icon="Cog8ToothIcon" :size="iconSize" :stroke-width="3" />
+        </n-badge>
       </n-dropdown>
       <icon-button
         :icon="GithubIcon"
