@@ -6,6 +6,7 @@ import GeneralSettings from '@/features/settings/GeneralSettings.vue'
 import EditorSettings from '@/features/settings/EditorSettings.vue'
 import MessagesSettings from '@/features/settings/MessagesSettings.vue'
 import WorkspacesSettings from '@/features/settings/WorkspacesSettings.vue'
+import UpdateSettings from '@/features/updates/UpdateSettings.vue'
 
 const settingsStore = useSettingsStore()
 const dialogStore = useDialogStore()
@@ -85,6 +86,12 @@ const onClose = async () => {
           display-directive="show:lazy"
           name="workspaces">
           <workspaces-settings />
+        </n-tab-pane>
+        <n-tab-pane
+          :tab="$t('settings.updates.title')"
+          display-directive="show:lazy"
+          name="updates">
+          <update-settings />
         </n-tab-pane>
       </n-tabs>
     </n-spin>
