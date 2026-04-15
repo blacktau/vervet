@@ -67,8 +67,9 @@ const hasCheckedBefore = computed(() => {
         :options="frequencyOptions"
         style="max-width: 240px" />
     </n-form-item>
-    <n-form-item :label="$t('settings.updates.currentVersion', { version: currentVersion })">
-      <n-space vertical>
+    <n-form-item :show-label="false">
+      <n-space vertical :size="12">
+        <span>{{ $t('settings.updates.currentVersion', { version: currentVersion }) }}</span>
         <span>{{ $t('settings.updates.lastChecked', { time: lastCheckedLabel }) }}</span>
         <n-space>
           <n-button :loading="updates.checking" @click="updates.checkNow">
