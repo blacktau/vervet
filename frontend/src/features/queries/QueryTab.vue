@@ -16,6 +16,7 @@ import {
 } from '@heroicons/vue/24/outline'
 import ListTreeIcon from '@/features/icon/ListTreeIcon.vue'
 import { useSettingsStore } from '@/features/settings/settingsStore'
+import { isMacOS } from '@/init/environment'
 import { ref, onMounted, computed, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { CollectionContext } from '@/features/results-document-tree/useDocumentContextMenu'
@@ -38,8 +39,8 @@ const filenameBarStyle = computed(() => ({
 
 const messagesFontSize = computed(() => settingsStore.terminal.font.size || 13)
 
-const messagesFontKey = computed(() =>
-  `${settingsStore.terminal.font.family}-${settingsStore.terminal.font.size}`,
+const messagesFontKey = computed(
+  () => `${settingsStore.terminal.font.family}-${settingsStore.terminal.font.size}`,
 )
 
 const messagesLogStyle = computed(() => {
@@ -81,7 +82,27 @@ const resizeOffset = computed(() => {
   return queryContentRef.value?.getBoundingClientRect().top ?? 0
 })
 
+const modKey = isMacOS() ? 'Cmd' : 'Ctrl'
+
+const runButtonTooltip = computed(() => {
+  if (!queryState.value.selectedDatabase) {
+    return t('errors.no_database_selected')
+  }
+  if (queryStore.mongoshAvailable === false) {
+    return t('errors.shell_not_found')
+  }
+  return `${t('query.run')} (F5 / ${modKey}+Enter)`
+})
+
+const openFileTooltip = computed(() => `${t('query.openFile')} (${modKey}+O)`)
+const saveFileTooltip = computed(() => `${t('query.saveFile')} (${modKey}+S)`)
+const saveFileAsTooltip = computed(() => `${t('query.saveFileAs')} (${modKey}+Shift+S)`)
+
 const hasDocuments = computed(() => queryState.value.documents.length > 0)
+const limitTruncated = computed(() => {
+  const limit = queryState.value.activeLimit
+  return limit !== null && queryState.value.documents.length >= limit
+})
 const hasRawOutput = computed(() => queryState.value.rawOutput !== '')
 const hasExecuted = computed(() => queryState.value.messages.length > 0)
 const hasNoResults = computed(
@@ -193,7 +214,7 @@ watch(
     if (item) {
       item.filePath = newPath ?? undefined
     }
-  }
+  },
 )
 
 onMounted(async () => {
@@ -210,28 +231,36 @@ onMounted(async () => {
       id: 'vervet.openFile',
       label: 'Open File',
       keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyO],
-      run: () => { openFile() },
+      run: () => {
+        openFile()
+      },
     })
 
     editor.value.addAction({
       id: 'vervet.saveFile',
       label: 'Save File',
       keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS],
-      run: () => { saveFile() },
+      run: () => {
+        saveFile()
+      },
     })
 
     editor.value.addAction({
       id: 'vervet.saveFileAs',
       label: 'Save File As',
       keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyS],
-      run: () => { saveFileAs() },
+      run: () => {
+        saveFileAs()
+      },
     })
 
     editor.value.addAction({
       id: 'vervet.runQuery',
       label: 'Run Query',
-      keybindings: [monaco.KeyCode.F5],
-      run: () => { runQuery() },
+      keybindings: [monaco.KeyCode.F5, monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter],
+      run: () => {
+        runQuery()
+      },
     })
 
     editor.value.onDidChangeModelContent(() => {
@@ -263,20 +292,24 @@ watch(
     <div class="toolbar">
       <n-space align="center">
         <span class="database-label">
-          {{ t('query.database') }}: <strong>{{ queryState.selectedDatabase }}</strong>
+          {{ t('query.database') }}:
+          <strong>{{ queryState.selectedDatabase }}</strong>
         </span>
-        <n-button
-          v-if="!queryState.loading"
-          type="primary"
-          size="small"
-          :disabled="!queryState.selectedDatabase || queryStore.mongoshAvailable === false"
-          @click="runQuery"
-        >
-          <template #icon>
-            <n-icon :component="PlayIcon" />
+        <n-tooltip v-if="!queryState.loading" delay="800">
+          <template #trigger>
+            <n-button
+              type="primary"
+              size="small"
+              :disabled="!queryState.selectedDatabase || queryStore.mongoshAvailable === false"
+              @click="runQuery">
+              <template #icon>
+                <n-icon :component="PlayIcon" />
+              </template>
+              {{ t('query.run') }}
+            </n-button>
           </template>
-          {{ t('query.run') }}
-        </n-button>
+          {{ runButtonTooltip }}
+        </n-tooltip>
         <n-button v-else type="warning" size="small" @click="cancelQuery">
           <template #icon>
             <n-icon :component="StopIcon" />
@@ -293,7 +326,7 @@ watch(
               </template>
             </n-button>
           </template>
-          {{ t('query.openFile') }}
+          {{ openFileTooltip }}
         </n-tooltip>
         <n-tooltip>
           <template #trigger>
@@ -303,7 +336,7 @@ watch(
               </template>
             </n-button>
           </template>
-          {{ t('query.saveFile') }}
+          {{ saveFileTooltip }}
         </n-tooltip>
         <n-tooltip>
           <template #trigger>
@@ -313,14 +346,18 @@ watch(
               </template>
             </n-button>
           </template>
-          {{ t('query.saveFileAs') }}
+          {{ saveFileAsTooltip }}
         </n-tooltip>
       </n-space>
     </div>
     <div v-if="queryStore.mongoshAvailable === false" class="mongosh-warning">
-      {{ t('query.mongoshNotFound') }}
+      {{ t('errors.shell_not_found') }}
     </div>
-    <div v-if="queryState.filePath" class="filename-bar" :style="filenameBarStyle" :title="queryState.filePath">
+    <div
+      v-if="queryState.filePath"
+      class="filename-bar"
+      :style="filenameBarStyle"
+      :title="queryState.filePath">
       <span class="filename-text">{{ fileName }}</span>
       <span v-if="queryState.isDirty" class="dirty-indicator">&bull;</span>
     </div>
@@ -328,8 +365,7 @@ watch(
       <vertical-resizeable-wrapper
         v-model:size="editorHeight"
         :min-size="100"
-        :offset="resizeOffset"
-      >
+        :offset="resizeOffset">
         <div class="editor-pane">
           <div ref="editorContainer" class="monaco-container" />
         </div>
@@ -341,17 +377,18 @@ watch(
           size="small"
           :animated="false"
           :closable="false"
-          pane-style="display: flex; flex-direction: column; flex: 1; min-height: 0; padding-top: 0;"
-        >
+          pane-style="display: flex; flex-direction: column; flex: 1; min-height: 0; padding-top: 0;">
           <template #suffix>
-            <n-space v-if="hasDocuments && queryState.activeResultTab === 'results'" :size="4" style="margin-right: 8px">
+            <n-space
+              v-if="hasDocuments && queryState.activeResultTab === 'results'"
+              :size="4"
+              style="margin-right: 8px">
               <n-tooltip>
                 <template #trigger>
                   <n-button
                     size="small"
                     :type="queryState.resultView === 'table' ? 'primary' : 'default'"
-                    @click="setResultView('table')"
-                  >
+                    @click="setResultView('table')">
                     <template #icon>
                       <n-icon :component="ListTreeIcon" />
                     </template>
@@ -364,8 +401,7 @@ watch(
                   <n-button
                     size="small"
                     :type="queryState.resultView === 'json' ? 'primary' : 'default'"
-                    @click="setResultView('json')"
-                  >
+                    @click="setResultView('json')">
                     <template #icon>
                       <n-icon :component="CodeBracketIcon" />
                     </template>
@@ -374,14 +410,13 @@ watch(
                 {{ t('query.jsonView') }}
               </n-tooltip>
             </n-space>
-            <n-space v-if="queryState.activeResultTab === 'messages'" :size="4" style="margin-right: 8px">
+            <n-space
+              v-if="queryState.activeResultTab === 'messages'"
+              :size="4"
+              style="margin-right: 8px">
               <n-tooltip>
                 <template #trigger>
-                  <n-button
-                    size="small"
-                    :disabled="!queryState.messages"
-                    @click="clearMessages"
-                  >
+                  <n-button size="small" :disabled="!queryState.messages" @click="clearMessages">
                     <template #icon>
                       <n-icon :component="TrashIcon" />
                     </template>
@@ -407,6 +442,9 @@ watch(
               queryState.error
             }}</pre>
             <template v-else-if="hasDocuments">
+              <div v-if="limitTruncated" class="limit-hint">
+                {{ t('query.limitInEffect', { limit: queryState.activeLimit }) }}
+              </div>
               <div v-if="queryState.resultView === 'table'" class="structured-results">
                 <document-tree-table
                   :documents="queryState.documents"
@@ -431,8 +469,7 @@ watch(
               :font-size="messagesFontSize"
               :style="messagesLogStyle"
               language="vervet-log"
-              trim
-            />
+              trim />
           </n-tab-pane>
         </n-tabs>
       </div>
@@ -595,6 +632,15 @@ watch(
     user-select: text;
     cursor: text;
   }
+}
+
+.limit-hint {
+  flex-shrink: 0;
+  padding: 4px 8px;
+  font-size: 12px;
+  color: var(--n-text-color-3);
+  background-color: color-mix(in srgb, var(--n-warning-color) 12%, transparent);
+  border-bottom: 1px solid var(--n-border-color);
 }
 
 .structured-results {

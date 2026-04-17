@@ -333,6 +333,7 @@ export default {
     emptyState: 'Right-click a database or collection to open a query',
     noResults: 'No documents returned',
     documentCount: '{count} document(s)',
+    limitInEffect: 'Limit {limit} in effect — more documents may exist',
     key: 'Key',
     field: 'Field',
     value: 'Value',

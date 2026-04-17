@@ -1,11 +1,12 @@
 <script lang="ts" setup>
 import { computed, h, onBeforeUnmount, onMounted, reactive, ref, toRef, watch, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { DataTableColumns, DataTableRowKey } from 'naive-ui'
+import { type DataTableColumns, type DataTableRowKey, useDialog, useThemeVars } from 'naive-ui'
 import { buildTreeData } from './documentTreeUtils'
 import type { DocumentRow } from './types'
-import { typeColorMap } from '@/features/queries/typeColorMap'
+import { typeColorMapDark, typeColorMapLight } from '@/features/queries/typeColorMap'
 import { useDocumentContextMenu, type CollectionContext } from './useDocumentContextMenu'
+import { useSettingsStore } from '@/features/settings/settingsStore'
 import { useNotifier } from '@/utils/dialog'
 import { resolveRawValue } from './resolveRawValue'
 import { humanizeEjson, toJsExpression } from './humanizeEjson'
@@ -30,6 +31,16 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const themeVars = useThemeVars()
+const settingsStore = useSettingsStore()
+
+const typeColorMap = computed(() =>
+  settingsStore.isDark ? typeColorMapDark : typeColorMapLight,
+)
+
+const wrapperStyle = computed(() => ({
+  '--vervet-selection-bg': `color-mix(in srgb, ${themeVars.value.primaryColor} 24%, transparent)`,
+}))
 
 const treeData = computed(() => buildTreeData(props.documents))
 
@@ -38,7 +49,9 @@ const checkedKeys = ref<DataTableRowKey[]>([])
 
 // Context menu
 const collectionContextRef = toRef(props, 'collectionContext')
-const contextMenu = useDocumentContextMenu(collectionContextRef as Ref<CollectionContext | undefined>)
+const contextMenu = useDocumentContextMenu(
+  collectionContextRef as Ref<CollectionContext | undefined>,
+)
 const notifier = useNotifier()
 const dialog = useDialog()
 
@@ -53,7 +66,11 @@ const viewDocument = ref<unknown>(null)
 const editDocument = ref<unknown>(null)
 const editMode = ref<'edit' | 'insert'>('edit')
 
-function collectKeysToDepth(rows: DocumentRow[], depth: number, currentDepth: number = 0): string[] {
+function collectKeysToDepth(
+  rows: DocumentRow[],
+  depth: number,
+  currentDepth: number = 0,
+): string[] {
   if (currentDepth >= depth) {
     return []
   }
@@ -67,12 +84,16 @@ function collectKeysToDepth(rows: DocumentRow[], depth: number, currentDepth: nu
   return keys
 }
 
-watch(treeData, (data) => {
-  if (data.length > 0) {
-    const depth = props.defaultExpandDepth ?? 0
-    expandedKeys.value = collectKeysToDepth(data, depth)
-  }
-}, { immediate: true })
+watch(
+  treeData,
+  (data) => {
+    if (data.length > 0) {
+      const depth = props.defaultExpandDepth ?? 0
+      expandedKeys.value = collectKeysToDepth(data, depth)
+    }
+  },
+  { immediate: true },
+)
 
 const pagination = reactive({
   page: 1,
@@ -121,7 +142,7 @@ const columns = computed<DataTableColumns<DocumentRow>>(() => [
         'span',
         {
           style: {
-            color: typeColorMap[row.type] ?? 'var(--',
+            color: typeColorMap.value[row.type] ?? 'var(--n-td-text-color)',
             userSelect: 'text',
             cursor: 'text',
           },
@@ -193,7 +214,10 @@ function handleContextMenuSelect(key: string) {
         if (result.isSuccess) {
           emit('document-changed')
         } else {
-          notifier.error(t(`errors.${result.errorCode}`), { title: t('errorTitles.deleteDocument'), detail: result.errorDetail })
+          notifier.error(t(`errors.${result.errorCode}`), {
+            title: t('errorTitles.deleteDocument'),
+            detail: result.errorDetail,
+          })
         }
       },
     })
@@ -312,7 +336,7 @@ function rowClassName(row: DocumentRow): string {
 </script>
 
 <template>
-  <div ref="tableWrapper" class="table-wrapper" tabindex="-1">
+  <div ref="tableWrapper" class="table-wrapper" :style="wrapperStyle" tabindex="-1">
     <n-data-table
       :columns="columns"
       :data="treeData"
@@ -330,29 +354,29 @@ function rowClassName(row: DocumentRow): string {
       size="small"
       @update:expanded-row-keys="handleExpandedKeysUpdate"
       @update:checked-row-keys="handleCheckedKeysUpdate" />
-  <template v-if="enableContextMenu">
-    <DocumentContextMenu
-      :show="contextMenu.showMenu.value"
-      :x="contextMenu.menuX.value"
-      :y="contextMenu.menuY.value"
-      :options="contextMenu.menuOptions.value"
-      @select="handleContextMenuSelect"
-      @close="contextMenu.closeMenu" />
-    <DocumentViewDialog
-      v-model:show="showViewDialog"
-      :document="viewDocument"
-      :can-edit="!!collectionContext"
-      @edit="switchToEdit" />
-    <DocumentEditDialog
-      v-if="collectionContext"
-      v-model:show="showEditDialog"
-      :document="editDocument"
-      :mode="editMode"
-      :server-id="collectionContext.serverId"
-      :db-name="collectionContext.dbName"
-      :collection-name="collectionContext.collectionName"
-      @saved="handleDocumentSaved" />
-  </template>
+    <template v-if="enableContextMenu">
+      <DocumentContextMenu
+        :show="contextMenu.showMenu.value"
+        :x="contextMenu.menuX.value"
+        :y="contextMenu.menuY.value"
+        :options="contextMenu.menuOptions.value"
+        @select="handleContextMenuSelect"
+        @close="contextMenu.closeMenu" />
+      <DocumentViewDialog
+        v-model:show="showViewDialog"
+        :document="viewDocument"
+        :can-edit="!!collectionContext"
+        @edit="switchToEdit" />
+      <DocumentEditDialog
+        v-if="collectionContext"
+        v-model:show="showEditDialog"
+        :document="editDocument"
+        :mode="editMode"
+        :server-id="collectionContext.serverId"
+        :db-name="collectionContext.dbName"
+        :collection-name="collectionContext.collectionName"
+        @saved="handleDocumentSaved" />
+    </template>
   </div>
 </template>
 
@@ -366,7 +390,7 @@ function rowClassName(row: DocumentRow): string {
   background-color: var(--n-td-color-hover) !important;
 }
 :deep(.selected-row td) {
-  background-color: greenyellow !important;
+  background-color: var(--vervet-selection-bg) !important;
 }
 
 :deep(.n-data-table) {
