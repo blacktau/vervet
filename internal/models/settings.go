@@ -13,6 +13,7 @@ type Settings struct {
 	Terminal   TerminalSettings   `json:"terminal" yaml:"terminal"`
 	Workspaces WorkspacesSettings `json:"workspaces" yaml:"workspaces"`
 	Updates    UpdatesSettings    `json:"updates" yaml:"updates"`
+	Logging    LoggingSettings    `json:"logging" yaml:"logging"`
 }
 
 type WorkspacesSettings struct {
@@ -58,6 +59,14 @@ type EditorSettings struct {
 type TerminalSettings struct {
 	Font        FontSettings `json:"font" yaml:"font"`
 	CursorStyle string       `json:"cursorStyle" yaml:"cursorStyle,omitempty"`
+}
+
+type LoggingSettings struct {
+	Level          string `json:"level" yaml:"level,omitempty"`
+	ConsoleEnabled bool   `json:"consoleEnabled" yaml:"consoleEnabled"`
+	FileEnabled    bool   `json:"fileEnabled" yaml:"fileEnabled"`
+	MaxSizeMB      int    `json:"maxSizeMB" yaml:"maxSizeMB,omitempty"`
+	MaxBackups     int    `json:"maxBackups" yaml:"maxBackups,omitempty"`
 }
 
 type WindowState struct {
