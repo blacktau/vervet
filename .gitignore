@@ -32,3 +32,5 @@ frontend/dist
 test-results
 .worktrees
 .superpowers
+frontend/.opencode
+AGENTS.md

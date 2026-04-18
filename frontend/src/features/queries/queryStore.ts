@@ -47,6 +47,8 @@ export interface QueryState {
   isDirty: boolean
   savedContent: string | null
   currentContent: string
+  /** The limit() from the last executed query, when the result may be truncated */
+  activeLimit: number | null
   /** Lazily computed JSON — only populated when the JSON view is first accessed */
   _rawJsonCache: string | null
 }
@@ -75,8 +77,18 @@ function createQueryState(database: string): QueryState {
     isDirty: false,
     savedContent: null,
     currentContent: '',
+    activeLimit: null,
     _rawJsonCache: null,
   }
+}
+
+function parseLimit(query: string): number | null {
+  const match = query.match(/\.limit\s*\(\s*(\d+)\s*\)/)
+  if (!match) {
+    return null
+  }
+  const n = Number(match[1])
+  return Number.isFinite(n) && n > 0 ? n : null
 }
 
 export const useQueryStore = defineStore('query', {
@@ -179,16 +191,13 @@ export const useQueryStore = defineStore('query', {
       state.rawOutput = ''
       state.error = ''
       state.selectedDocIndex = 0
+      state.activeLimit = parseLimit(query)
       state.messages += `${timestamp} [INFO] ${i18nGlobal.t('query.messages.executing')}\n`
 
       const startTime = Date.now()
 
       try {
-        const result = await shellProxy.ExecuteQuery(
-          serverId,
-          state.selectedDatabase,
-          query,
-        )
+        const result = await shellProxy.ExecuteQuery(serverId, state.selectedDatabase, query)
 
         if (state.cancelled || state.executionId !== thisExecution) {
           return
@@ -273,14 +282,11 @@ export const useQueryStore = defineStore('query', {
     },
 
     async openFile(queryId: string): Promise<string | null> {
-      const result = await filesProxy.SelectFile(
-        i18nGlobal.t('query.openFileDialogTitle'),
-        [
-          { displayName: i18nGlobal.t('query.filterJavascript'), pattern: '*.js' },
-          { displayName: i18nGlobal.t('query.filterMongodb'), pattern: '*.mongodb' },
-          { displayName: i18nGlobal.t('query.filterAllFiles'), pattern: '*.*' },
-        ],
-      )
+      const result = await filesProxy.SelectFile(i18nGlobal.t('query.openFileDialogTitle'), [
+        { displayName: i18nGlobal.t('query.filterJavascript'), pattern: '*.js' },
+        { displayName: i18nGlobal.t('query.filterMongodb'), pattern: '*.mongodb' },
+        { displayName: i18nGlobal.t('query.filterAllFiles'), pattern: '*.*' },
+      ])
       if (!result.isSuccess || !result.data) {
         return null
       }

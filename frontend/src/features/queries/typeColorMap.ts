@@ -1,4 +1,4 @@
-export const typeColorMap: Record<string, string> = {
+export const typeColorMapDark: Record<string, string> = {
   string: '#ce9178',
   int32: '#b5cea8',
   double: '#b5cea8',
@@ -20,3 +20,27 @@ export const typeColorMap: Record<string, string> = {
   object: 'var(--n-td-text-color)',
   array: 'var(--n-td-text-color)',
 }
+
+export const typeColorMapLight: Record<string, string> = {
+  string: '#a31515',
+  int32: '#098658',
+  double: '#098658',
+  long: '#098658',
+  decimal128: '#098658',
+  boolean: '#0550ae',
+  null: '#6a6a6a',
+  objectId: '#795e26',
+  date: '#af00db',
+  binary: '#6a6a6a',
+  uuid: '#795e26',
+  uuidLegacy: '#795e26',
+  md5: '#6a6a6a',
+  regex: '#cc3333',
+  timestamp: '#098658',
+  minKey: '#6a6a6a',
+  maxKey: '#6a6a6a',
+  document: 'var(--n-td-text-color)',
+  object: 'var(--n-td-text-color)',
+  array: 'var(--n-td-text-color)',
+}
+
