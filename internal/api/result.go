@@ -1,6 +1,10 @@
 package api
 
-import "vervet/internal/errcodes"
+import (
+	"log/slog"
+
+	"vervet/internal/errcodes"
+)
 
 type Result[T any] struct {
 	IsSuccess   bool   `json:"isSuccess"`
@@ -39,4 +43,13 @@ func FailResult[T any](err error) Result[T] {
 		ErrorCode:   classified.Code,
 		ErrorDetail: classified.Detail,
 	}
+}
+
+// logFail logs an error from the proxy boundary at Error level.
+// Call this once per failed operation before returning FailResult/Fail.
+func logFail(log *slog.Logger, op string, err error) {
+	if log == nil {
+		return
+	}
+	log.Error(op+" failed", slog.Any("error", err))
 }
