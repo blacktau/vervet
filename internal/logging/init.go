@@ -2,7 +2,6 @@ package logging
 
 import (
 	"fmt"
-	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -82,10 +81,5 @@ func maxBackups(v int) int {
 	if v < 0 {
 		return 0
 	}
-	if v == 0 {
-		return 5
-	}
 	return v
 }
-
-var _ io.Writer = (*lumberjack.Logger)(nil)

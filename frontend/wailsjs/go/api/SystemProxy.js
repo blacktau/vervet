@@ -9,3 +9,7 @@ export function GetOs() {
 export function Log(arg1, arg2) {
   return window['go']['api']['SystemProxy']['Log'](arg1, arg2);
 }
+
+export function RevealLogsFolder() {
+  return window['go']['api']['SystemProxy']['RevealLogsFolder']();
+}

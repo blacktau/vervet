@@ -23,6 +23,7 @@ type Service interface {
 	RestoreSettings() (*models.Settings, error)
 	GetWindowState() (models.WindowState, error)
 	SaveWindowState(state models.WindowState) error
+	SetLevelChangeHandler(cb func(slog.Level))
 }
 
 const DefaultFontSize = 14
@@ -31,13 +32,15 @@ const DefaultWindowHeight = 768
 const DefaultAsideWidth = 300
 
 type settingsService struct {
-	store infrastructure.Store
-	log   *slog.Logger
-	ctx   context.Context
-	mutex sync.Mutex
+	store         infrastructure.Store
+	log           *slog.Logger
+	ctx           context.Context
+	mutex         sync.Mutex
+	isDev         bool
+	onLevelChange func(slog.Level)
 }
 
-func NewService(log *slog.Logger) *settingsService {
+func NewService(log *slog.Logger, isDev bool) *settingsService {
 	log = log.With(slog.String(logging.SourceKey, "SettingsService"))
 	store, err := infrastructure.NewStore("configuration.yaml", log)
 	if err != nil {
@@ -48,6 +51,7 @@ func NewService(log *slog.Logger) *settingsService {
 	return &settingsService{
 		store: store,
 		log:   log,
+		isDev: isDev,
 	}
 }
 
@@ -55,6 +59,12 @@ func (s *settingsService) Init(ctx context.Context) error {
 	s.log.Debug("Initializing Settings Service")
 	s.ctx = ctx
 	return nil
+}
+
+func (s *settingsService) SetLevelChangeHandler(cb func(slog.Level)) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	s.onLevelChange = cb
 }
 
 func (s *settingsService) GetSettings() (models.Settings, error) {
@@ -66,7 +76,7 @@ func (s *settingsService) GetSettings() (models.Settings, error) {
 	settings, err := s.getSettings()
 	if err != nil {
 		s.log.Error("error getting settings", slog.Any("error", err))
-		return defaultSettings(), fmt.Errorf("error getting settings: %v", err)
+		return s.defaultSettings(), fmt.Errorf("error getting settings: %v", err)
 	}
 
 	settings.Window.Width = max(settings.Window.Width, DefaultWindowWidth)
@@ -84,7 +94,14 @@ func (s *settingsService) SetSettings(settings *models.Settings) error {
 
 	s.log.Debug("Saving settings", slog.Any("settings", settings))
 
-	return s.saveSettings(settings)
+	prev, _ := s.getSettings()
+	if err := s.saveSettings(settings); err != nil {
+		return err
+	}
+	if s.onLevelChange != nil && prev.Logging.Level != settings.Logging.Level {
+		s.onLevelChange(logging.ParseLevel(settings.Logging.Level))
+	}
+	return nil
 }
 
 func (s *settingsService) RestoreSettings() (*models.Settings, error) {
@@ -93,7 +110,7 @@ func (s *settingsService) RestoreSettings() (*models.Settings, error) {
 
 	s.log.Info("Resetting configuration...")
 
-	settings := defaultSettings()
+	settings := s.defaultSettings()
 	err := s.saveSettings(&settings)
 	if err != nil {
 		s.log.Error("error resetting configuration", slog.Any("error", err))
@@ -185,7 +202,7 @@ func (s *settingsService) getScreenSize() (width, height int) {
 }
 
 func (s *settingsService) getSettings() (models.Settings, error) {
-	settings := defaultSettings()
+	settings := s.defaultSettings()
 	b, err := s.store.Read()
 	if err != nil && !os.IsNotExist(err) {
 		s.log.Error("error reading configuration", slog.Any("error", err))
@@ -193,15 +210,19 @@ func (s *settingsService) getSettings() (models.Settings, error) {
 	}
 
 	if len(b) <= 0 {
-		s.log.Info("No configuration found, using defaults.")
+		s.log.Info("No configuration found, persisting defaults.")
+		if saveErr := s.saveSettings(&settings); saveErr != nil {
+			s.log.Warn("failed to persist first-run defaults", slog.Any("error", saveErr))
+		}
 		return settings, nil
 	}
 
 	if err = yaml.Unmarshal(b, &settings); err != nil {
 		s.log.Error("error parsing configuration", slog.Any("error", err))
-		return defaultSettings(), fmt.Errorf("error parsing configuration: %v", err)
+		return s.defaultSettings(), fmt.Errorf("error parsing configuration: %v", err)
 	}
 
+	settings.Logging.Normalize()
 	return settings, nil
 }
 
@@ -273,7 +294,11 @@ func (s *settingsService) saveSettings(settings *models.Settings) error {
 	return nil
 }
 
-func defaultSettings() models.Settings {
+func (s *settingsService) defaultSettings() models.Settings {
+	return defaultSettingsForBuild(s.isDev)
+}
+
+func defaultSettingsForBuild(isDev bool) models.Settings {
 	return models.Settings{
 		Window: models.WindowSettings{
 			Width:      DefaultWindowWidth,
@@ -291,7 +316,7 @@ func defaultSettings() models.Settings {
 			Font: models.FontSettings{
 				Size: DefaultFontSize,
 			},
-			LineNumbers:  true,
+			LineNumbers: true,
 			QueryEngine: "builtin",
 		},
 		Terminal: models.TerminalSettings{
@@ -302,6 +327,13 @@ func defaultSettings() models.Settings {
 		},
 		Updates: models.UpdatesSettings{
 			Frequency: "daily",
+		},
+		Logging: models.LoggingSettings{
+			Level:          "info",
+			ConsoleEnabled: isDev,
+			FileEnabled:    true,
+			MaxSizeMB:      10,
+			MaxBackups:     5,
 		},
 	}
 }

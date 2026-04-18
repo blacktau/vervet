@@ -65,8 +65,27 @@ type LoggingSettings struct {
 	Level          string `json:"level" yaml:"level,omitempty"`
 	ConsoleEnabled bool   `json:"consoleEnabled" yaml:"consoleEnabled"`
 	FileEnabled    bool   `json:"fileEnabled" yaml:"fileEnabled"`
-	MaxSizeMB      int    `json:"maxSizeMB" yaml:"maxSizeMB,omitempty"`
-	MaxBackups     int    `json:"maxBackups" yaml:"maxBackups,omitempty"`
+	MaxSizeMB      int    `json:"maxSizeMB" yaml:"maxSizeMB"`
+	MaxBackups     int    `json:"maxBackups" yaml:"maxBackups"`
+}
+
+// Normalize clamps loaded values into safe ranges and coerces an unknown
+// Level to "info". Callers should invoke this after unmarshalling settings
+// from disk, so corrupt or hand-edited YAML cannot propagate into the runtime.
+func (s *LoggingSettings) Normalize() {
+	switch s.Level {
+	case "debug", "info", "warn", "warning", "error":
+	case "":
+		s.Level = "info"
+	default:
+		s.Level = "info"
+	}
+	if s.MaxSizeMB < 1 {
+		s.MaxSizeMB = 1
+	}
+	if s.MaxBackups < 0 {
+		s.MaxBackups = 0
+	}
 }
 
 type WindowState struct {

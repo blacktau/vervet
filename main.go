@@ -9,6 +9,7 @@ import (
 	"vervet/internal/api"
 	"vervet/internal/app"
 	"vervet/internal/logging"
+	"vervet/internal/settings"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/logger"
@@ -29,21 +30,39 @@ var version = "dev"
 
 func main() {
 	debugUI := flag.Bool("debug-ui", false, "enable ui inspector")
-	logLevel := &slog.LevelVar{}
-	logLevel.Set(slog.LevelDebug)
-	slogger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level: logLevel,
-	}))
+	flag.Parse()
+
+	isDev := version == "dev"
+
+	// Bootstrap logger before everything else
+	bootstrap := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
+
+	// Build settings service
+	settingsService := settings.NewService(bootstrap, isDev)
+	cfg, err := settingsService.GetSettings()
+	if err != nil {
+		bootstrap.Warn("failed to load settings; using defaults", slog.Any("error", err))
+	}
+
+	// Initialize logging
+	slogger, initErr := logging.Init(cfg.Logging, isDev)
+	if initErr != nil {
+		bootstrap.Warn("logging init had issues", slog.Any("error", initErr))
+	}
+	settingsService.SetLevelChangeHandler(logging.SetLevel)
+
+	// Create Wails logger adapter
 	log := logging.NewLogger(slogger)
 
-	application := app.NewApp(slogger, version)
+	// Build app with settings service
+	application := app.NewApp(slogger, settingsService, version)
 
 	log.Info(fmt.Sprintf("--debug-ui: %v", *debugUI))
 
 	windowWidth, windowHeight := application.GetInitialWindowSize()
 
 	// Create application with options
-	err := wails.Run(&options.App{
+	err = wails.Run(&options.App{
 		Title:             "Vervet",
 		Width:             windowWidth,
 		Height:            windowHeight,

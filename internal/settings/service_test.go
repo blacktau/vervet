@@ -207,7 +207,7 @@ func expectedSettings() models.Settings {
 			Font: models.FontSettings{
 				Size: settings.DefaultFontSize,
 			},
-			LineNumbers:  true,
+			LineNumbers: true,
 			QueryEngine: "builtin",
 		},
 		Terminal: models.TerminalSettings{
@@ -219,5 +219,62 @@ func expectedSettings() models.Settings {
 		Updates: models.UpdatesSettings{
 			Frequency: "daily",
 		},
+		Logging: models.LoggingSettings{
+			Level:          "info",
+			ConsoleEnabled: false,
+			FileEnabled:    true,
+			MaxSizeMB:      10,
+			MaxBackups:     5,
+		},
 	}
+}
+
+func Test_SettingsService_LoggingDefaults(t *testing.T) {
+	t.Run("dev defaults console=true", func(t *testing.T) {
+		m := settings.NewTestServiceWithBuild(&storeStub{}, nil, context.Background(), true, nil)
+		c, err := m.GetSettings()
+		if err != nil {
+			t.Fatal(err)
+		}
+		assert.Equal(t, "info", c.Logging.Level)
+		assert.True(t, c.Logging.ConsoleEnabled)
+		assert.True(t, c.Logging.FileEnabled)
+	})
+
+	t.Run("release defaults console=false", func(t *testing.T) {
+		m := settings.NewTestServiceWithBuild(&storeStub{}, nil, context.Background(), false, nil)
+		c, err := m.GetSettings()
+		if err != nil {
+			t.Fatal(err)
+		}
+		assert.False(t, c.Logging.ConsoleEnabled)
+		assert.True(t, c.Logging.FileEnabled)
+	})
+}
+
+func Test_SettingsService_OnLevelChange(t *testing.T) {
+	var got slog.Level
+	called := 0
+	cb := func(l slog.Level) { got = l; called++ }
+
+	store := &storeStub{}
+	m := settings.NewTestServiceWithBuild(store, nil, context.Background(), false, cb)
+
+	cfg, err := m.GetSettings()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Logging.Level = "debug"
+	if err := m.SetSettings(&cfg); err != nil {
+		t.Fatal(err)
+	}
+
+	assert.Equal(t, 1, called)
+	assert.Equal(t, slog.LevelDebug, got)
+
+	// No change — callback not re-fired
+	if err := m.SetSettings(&cfg); err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, 1, called)
 }
