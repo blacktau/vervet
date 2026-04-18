@@ -2,7 +2,6 @@ package servers
 
 import (
 	"errors"
-	"log/slog"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -60,7 +59,7 @@ func TestLoadServers(t *testing.T) {
 		mockCfgStore := &MockConfigurationStore{
 			err: errors.New("read error"),
 		}
-		store := &store{cfgStore: mockCfgStore, log: slog.Default()}
+		store := &store{cfgStore: mockCfgStore}
 		servers, err := store.LoadServers()
 		assert.Error(t, err)
 		assert.Nil(t, servers)
@@ -70,7 +69,7 @@ func TestLoadServers(t *testing.T) {
 		mockCfgStore := &MockConfigurationStore{
 			data: []byte(`invalid yaml: [[[`),
 		}
-		store := &store{cfgStore: mockCfgStore, log: slog.Default()}
+		store := &store{cfgStore: mockCfgStore}
 		servers, err := store.LoadServers()
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "corrupted")
@@ -82,7 +81,7 @@ func TestLoadServers(t *testing.T) {
 func TestSaveServers(t *testing.T) {
 	t.Run("successful save", func(t *testing.T) {
 		mockCfgStore := &MockConfigurationStore{}
-		store := &store{cfgStore: mockCfgStore, log: slog.Default()}
+		store := &store{cfgStore: mockCfgStore}
 		servers := []models.RegisteredServer{
 			{ID: "1", Name: "Server 1"},
 		}
@@ -95,7 +94,7 @@ func TestSaveServers(t *testing.T) {
 		mockCfgStore := &MockConfigurationStore{
 			err: errors.New("save error"),
 		}
-		store := &store{cfgStore: mockCfgStore, log: slog.Default()}
+		store := &store{cfgStore: mockCfgStore}
 		var servers []models.RegisteredServer
 		err := store.SaveServers(servers)
 		assert.Error(t, err)

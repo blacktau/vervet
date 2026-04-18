@@ -39,7 +39,6 @@ func NewService(log *slog.Logger, store ServerStore, connectionStrings connectio
 }
 
 func (sm *ServerService) Init(ctx context.Context) {
-	sm.log.Debug("Initializing Server Service")
 	sm.ctx = ctx
 }
 
@@ -47,10 +46,8 @@ func (sm *ServerService) GetServers() ([]models.RegisteredServer, error) {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
 
-	sm.log.Debug("Getting All models.RegisteredServers")
 	registeredServers, err := sm.store.LoadServers()
 	if err != nil {
-		sm.log.Error("error getting models.RegisteredServers", slog.Any("error", err))
 		if registeredServers != nil {
 			// Store returned fallback data (e.g. empty list on parse error)
 			// — emit a warning event so the frontend can alert the user
@@ -66,12 +63,8 @@ func (sm *ServerService) GetServer(id string) (*models.RegisteredServer, error) 
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
 
-	log := sm.log.With(slog.String("serverID", id))
-	log.Debug("Getting Server Configuration for Server")
 	registeredServers, err := sm.store.LoadServers()
-
 	if err != nil {
-		log.Error("error getting RegisteredServer", slog.Any("error", err))
 		return nil, fmt.Errorf("error getting models.RegisteredServers: %w", err)
 	}
 
@@ -89,12 +82,8 @@ func (sm *ServerService) AddServer(parentID, name, uri, colour string) error {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
-	log := sm.log.With(slog.String("parentID", parentID), slog.String("name", name))
-	log.Debug("Adding Server")
-
 	servers, err := sm.store.LoadServers()
 	if err != nil {
-		log.Error("Failed to load registered servers", slog.Any("error", err))
 		return fmt.Errorf("failed to load registered servers: %w", err)
 	}
 
@@ -107,7 +96,6 @@ func (sm *ServerService) AddServer(parentID, name, uri, colour string) error {
 
 	connString, err := connstring.Parse(uri)
 	if err != nil {
-		log.Error("Failed to parse connection string", slog.Any("error", err))
 		return fmt.Errorf("failed to parse connection string: %w", err)
 	}
 
@@ -126,14 +114,12 @@ func (sm *ServerService) AddServer(parentID, name, uri, colour string) error {
 
 	err = sm.connectionStrings.StoreRegisteredServerURI(newID, uri)
 	if err != nil {
-		log.Error("Failed to securely store registeredServer URI", slog.Any("error", err))
 		return fmt.Errorf("failed to securely store registeredServer URI: %w", err)
 	}
 
 	err = sm.store.SaveServers(servers)
 	if err != nil {
 		_ = sm.connectionStrings.DeleteRegisteredServerURI(newID)
-		log.Error("Failed to save registered server", slog.Any("error", err))
 		return fmt.Errorf("failed to save registered server: %w", err)
 	}
 	return nil
@@ -142,29 +128,19 @@ func (sm *ServerService) AddServer(parentID, name, uri, colour string) error {
 func (sm *ServerService) UpdateServer(serverID, name, uri, parentID, colour string) error {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
-	log := sm.log.With(
-		slog.String("serverID", serverID),
-		slog.String("name", name),
-		slog.String("parentID", parentID),
-		slog.String("colour", colour))
-
-	log.Debug("Updating Server")
 
 	servers, err := sm.store.LoadServers()
 	if err != nil {
-		log.Error("Failed to load registered servers", slog.Any("error", err))
 		return fmt.Errorf("failed to load registered servers: %w", err)
 	}
 
 	server, _ := findServer(serverID, servers)
 	if server == nil {
-		log.Error("Failed to find registered server")
 		return fmt.Errorf("failed to find registered server with ID %s", serverID)
 	}
 
 	err = sm.connectionStrings.StoreRegisteredServerURI(serverID, uri)
 	if err != nil {
-		log.Error("Failed to securely store registeredServer URI", slog.Any("error", err))
 		return fmt.Errorf("failed to securely store registeredServer URI: %w", err)
 	}
 
@@ -174,7 +150,6 @@ func (sm *ServerService) UpdateServer(serverID, name, uri, parentID, colour stri
 
 	err = sm.store.SaveServers(servers)
 	if err != nil {
-		log.Error("Failed to save registered server metadata", slog.Any("error", err))
 		return fmt.Errorf("failed to save registered server metadata: %w", err)
 	}
 
@@ -185,12 +160,8 @@ func (sm *ServerService) AddServerWithConfig(parentID, name, colour string, cfg 
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
-	log := sm.log.With(slog.String("parentID", parentID), slog.String("name", name))
-	log.Debug("Adding Server")
-
 	servers, err := sm.store.LoadServers()
 	if err != nil {
-		log.Error("Failed to load registered servers", slog.Any("error", err))
 		return fmt.Errorf("failed to load registered servers: %w", err)
 	}
 
@@ -203,7 +174,6 @@ func (sm *ServerService) AddServerWithConfig(parentID, name, colour string, cfg 
 
 	connString, err := connstring.Parse(cfg.URI)
 	if err != nil {
-		log.Error("Failed to parse connection string", slog.Any("error", err))
 		return fmt.Errorf("failed to parse connection string: %w", err)
 	}
 
@@ -222,14 +192,12 @@ func (sm *ServerService) AddServerWithConfig(parentID, name, colour string, cfg 
 
 	err = sm.connectionStrings.StoreConnectionConfig(newID, cfg)
 	if err != nil {
-		log.Error("Failed to securely store connection config", slog.Any("error", err))
 		return fmt.Errorf("failed to securely store connection config: %w", err)
 	}
 
 	err = sm.store.SaveServers(servers)
 	if err != nil {
 		_ = sm.connectionStrings.DeleteRegisteredServerURI(newID)
-		log.Error("Failed to save registered server", slog.Any("error", err))
 		return fmt.Errorf("failed to save registered server: %w", err)
 	}
 	return nil
@@ -238,29 +206,19 @@ func (sm *ServerService) AddServerWithConfig(parentID, name, colour string, cfg 
 func (sm *ServerService) UpdateServerWithConfig(serverID, name, parentID, colour string, cfg models.ConnectionConfig) error {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
-	log := sm.log.With(
-		slog.String("serverID", serverID),
-		slog.String("name", name),
-		slog.String("parentID", parentID),
-		slog.String("colour", colour))
-
-	log.Debug("Updating Server")
 
 	servers, err := sm.store.LoadServers()
 	if err != nil {
-		log.Error("Failed to load registered servers", slog.Any("error", err))
 		return fmt.Errorf("failed to load registered servers: %w", err)
 	}
 
 	server, _ := findServer(serverID, servers)
 	if server == nil {
-		log.Error("Failed to find registered server")
 		return fmt.Errorf("failed to find registered server with ID %s", serverID)
 	}
 
 	err = sm.connectionStrings.StoreConnectionConfig(serverID, cfg)
 	if err != nil {
-		log.Error("Failed to securely store connection config", slog.Any("error", err))
 		return fmt.Errorf("failed to securely store connection config: %w", err)
 	}
 
@@ -270,7 +228,6 @@ func (sm *ServerService) UpdateServerWithConfig(serverID, name, parentID, colour
 
 	err = sm.store.SaveServers(servers)
 	if err != nil {
-		log.Error("Failed to save registered server metadata", slog.Any("error", err))
 		return fmt.Errorf("failed to save registered server metadata: %w", err)
 	}
 
@@ -286,17 +243,13 @@ func (sm *ServerService) RemoveNode(id string) error {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
-	log := sm.log.With(slog.String("serverID", id))
-
 	servers, err := sm.store.LoadServers()
 	if err != nil {
-		log.Error("Failed to load registered servers", slog.Any("error", err))
 		return fmt.Errorf("failed to load registered servers: %w", err)
 	}
 
 	node, _ := findServer(id, servers)
 	if node == nil {
-		log.Error("Failed to find registered server with ID")
 		return fmt.Errorf("failed to find registered server with ID %s", id)
 	}
 
@@ -314,7 +267,6 @@ func (sm *ServerService) RemoveNode(id string) error {
 
 	err = sm.store.SaveServers(remaining)
 	if err != nil {
-		log.Error("Failed to delete node", slog.Any("error", err))
 		return fmt.Errorf("failed to delete node: %w", err)
 	}
 
@@ -322,7 +274,7 @@ func (sm *ServerService) RemoveNode(id string) error {
 		removed, _ := findServer(rid, servers)
 		if removed != nil && !removed.IsGroup {
 			if err := sm.connectionStrings.DeleteRegisteredServerURI(rid); err != nil {
-				log.Error("Failed to delete keyring entry for server", slog.String("serverID", rid), slog.Any("error", err))
+				sm.log.Warn("failed to delete keyring entry for removed server", slog.String("serverID", rid), slog.Any("error", err))
 			}
 			if sm.tokenManager != nil {
 				sm.tokenManager.CleanupServer(rid)
@@ -334,11 +286,8 @@ func (sm *ServerService) RemoveNode(id string) error {
 }
 
 func (sm *ServerService) GetURI(id string) (string, error) {
-	log := sm.log.With(slog.String("serverID", id))
-
 	uri, err := sm.connectionStrings.GetRegisteredServerURI(id)
 	if err != nil {
-		log.Error("Failed to get uri for registered server", slog.Any("error", err))
 		return "", fmt.Errorf("failed to get uri for registered server: %w", err)
 	}
 

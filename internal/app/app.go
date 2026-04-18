@@ -104,7 +104,7 @@ func NewApp(log *slog.Logger, settingsService settings.Service, version string) 
 		settingsService:    settingsService,
 		systemService:      systemService,
 		filesService:       filesService,
-		ServersProxy:       api.NewServersProxy(serverService),
+		ServersProxy:       api.NewServersProxy(log, serverService),
 		ConnectionsProxy:   api.NewConnectionsProxy(connectionManager),
 		DatabasesProxy:     api.NewDatabasesProxy(databasesService),
 		IndexesProxy:       api.NewIndexesProxy(indexService),

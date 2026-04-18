@@ -12,7 +12,6 @@ import (
 
 type store struct {
 	cfgStore infrastructure.Store
-	log      *slog.Logger
 }
 
 type ServerStore interface {
@@ -29,14 +28,12 @@ func NewServerStore(log *slog.Logger) (*store, error) {
 
 	return &store{
 		cfgStore: cfgStore,
-		log:      logger,
 	}, nil
 }
 
 func (s *store) LoadServers() ([]models.RegisteredServer, error) {
 	b, err := s.cfgStore.Read()
 	if err != nil {
-		s.log.Error("error loading registered servers", slog.Any("error", err))
 		return nil, fmt.Errorf("error loading registered servers: %w", err)
 	}
 
@@ -47,7 +44,6 @@ func (s *store) LoadServers() ([]models.RegisteredServer, error) {
 	}
 
 	if err = yaml.Unmarshal(b, &registeredServers); err != nil {
-		s.log.Error("error parsing registered servers, returning empty list", slog.Any("error", err))
 		return make([]models.RegisteredServer, 0), fmt.Errorf("server configuration file is corrupted and could not be read — your server list may be empty until the file is repaired: %w", err)
 	}
 
@@ -55,15 +51,12 @@ func (s *store) LoadServers() ([]models.RegisteredServer, error) {
 }
 
 func (s *store) SaveServers(registeredServers []models.RegisteredServer) error {
-	s.log.Debug("Saving Registered Servers")
 	b, err := yaml.Marshal(&registeredServers)
 	if err != nil {
-		s.log.Error("error marshalling registered servers", slog.Any("error", err))
 		return fmt.Errorf("error marshalling registered servers: %w", err)
 	}
 
 	if err = s.cfgStore.Save(b); err != nil {
-		s.log.Error("error saving registered servers", slog.Any("error", err))
 		return fmt.Errorf("error saving registered servers: %w", err)
 	}
 
