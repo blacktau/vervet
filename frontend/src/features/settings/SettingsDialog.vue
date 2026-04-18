@@ -6,6 +6,7 @@ import GeneralSettings from '@/features/settings/GeneralSettings.vue'
 import EditorSettings from '@/features/settings/EditorSettings.vue'
 import MessagesSettings from '@/features/settings/MessagesSettings.vue'
 import WorkspacesSettings from '@/features/settings/WorkspacesSettings.vue'
+import LoggingSettings from '@/features/settings/LoggingSettings.vue'
 import UpdateSettings from '@/features/updates/UpdateSettings.vue'
 
 const settingsStore = useSettingsStore()
@@ -24,6 +25,7 @@ const initSettings = async () => {
       general: settingsStore.general,
       editor: settingsStore.editor,
       terminal: settingsStore.terminal,
+      logging: settingsStore.logging,
     }
   } finally {
     loading.value = false
@@ -86,6 +88,12 @@ const onClose = async () => {
           display-directive="show:lazy"
           name="workspaces">
           <workspaces-settings />
+        </n-tab-pane>
+        <n-tab-pane
+          :tab="$t('settings.logging.name')"
+          display-directive="show:lazy"
+          name="logging">
+          <logging-settings :loading="loading" />
         </n-tab-pane>
         <n-tab-pane
           :tab="$t('settings.updates.title')"

@@ -26,3 +26,9 @@ workspaces:
   fileExtensions: []
 updates:
   frequency: daily
+logging:
+  level: info
+  consoleEnabled: false
+  fileEnabled: true
+  maxSizeMB: 10
+  maxBackups: 5

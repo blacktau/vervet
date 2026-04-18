@@ -45,6 +45,13 @@ export const useSettingsStore = defineStore('settings', {
       workspaces: {
         fileExtensions: ['.js', '.mongodb'] as string[],
       },
+      logging: {
+        level: 'info',
+        consoleEnabled: false,
+        fileEnabled: true,
+        maxSizeMB: 10,
+        maxBackups: 5,
+      },
       fontList: [],
     }) as unknown as SettingsStore,
   getters: {
@@ -108,6 +115,14 @@ export const useSettingsStore = defineStore('settings', {
         },
       ]
     },
+    logLevelOptions() {
+      return [
+        { value: 'debug', label: 'settings.logging.levels.debug' },
+        { value: 'info', label: 'settings.logging.levels.info' },
+        { value: 'warn', label: 'settings.logging.levels.warn' },
+        { value: 'error', label: 'settings.logging.levels.error' },
+      ]
+    },
     isDark(): boolean {
       const th = this.general.theme || 'auto'
       return th === 'dark' || (th === 'auto' && theme.value === 'dark')
@@ -148,6 +163,16 @@ export const useSettingsStore = defineStore('settings', {
       const fileExtensions = get(result.data, 'workspaces.fileExtensions')
       if (fileExtensions === undefined) {
         set(this, 'workspaces.fileExtensions', ['.js', '.mongodb'])
+      }
+      const logging = get(result.data, 'logging')
+      if (logging === undefined) {
+        set(this, 'logging', {
+          level: 'info',
+          consoleEnabled: false,
+          fileEnabled: true,
+          maxSizeMB: 10,
+          maxBackups: 5,
+        })
       }
 
       i18nGlobal.locale = this.currentLanguage

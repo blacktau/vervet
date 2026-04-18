@@ -11,7 +11,11 @@ type fakeSettingsService struct {
 }
 
 func (f *fakeSettingsService) GetSettings() (models.Settings, error) { return f.settings, nil }
-func (f *fakeSettingsService) SetSettings(s *models.Settings) error  { f.saved = s; f.settings = *s; return nil }
+func (f *fakeSettingsService) SetSettings(s *models.Settings) error {
+	f.saved = s
+	f.settings = *s
+	return nil
+}
 
 func TestSettingsAdapter_RoundTrip(t *testing.T) {
 	svc := &fakeSettingsService{settings: models.Settings{Updates: models.UpdatesSettings{Frequency: "weekly"}}}

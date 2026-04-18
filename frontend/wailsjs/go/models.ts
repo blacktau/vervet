@@ -234,6 +234,13 @@ export namespace models {
 	    usage: number;
 	}
 	
+	export interface LoggingSettings {
+	    level: string;
+	    consoleEnabled: boolean;
+	    fileEnabled: boolean;
+	    maxSizeMB: number;
+	    maxBackups: number;
+	}
 	
 	export interface QueryResult {
 	    documents: any[];
@@ -277,6 +284,7 @@ export namespace models {
 	    terminal: TerminalSettings;
 	    workspaces: WorkspacesSettings;
 	    updates: UpdatesSettings;
+	    logging: LoggingSettings;
 	}
 	
 	

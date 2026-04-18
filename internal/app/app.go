@@ -13,7 +13,6 @@ import (
 	"vervet/internal/databases"
 	"vervet/internal/files"
 	"vervet/internal/indexes"
-	"vervet/internal/workspaces"
 	"vervet/internal/models"
 	"vervet/internal/oidc"
 	"vervet/internal/queryexecutor"
@@ -21,6 +20,7 @@ import (
 	"vervet/internal/settings"
 	"vervet/internal/system"
 	"vervet/internal/updates"
+	"vervet/internal/workspaces"
 
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -59,7 +59,7 @@ type App struct {
 }
 
 // NewApp creates a new App application struct
-func NewApp(log *slog.Logger, version string) *App {
+func NewApp(log *slog.Logger, settingsService settings.Service, version string) *App {
 	connectionStringsStore := connectionStrings.NewStore(log)
 	serverStore, err := servers.NewServerStore(log)
 	if err != nil {
@@ -73,7 +73,6 @@ func NewApp(log *slog.Logger, version string) *App {
 	databasesService := databases.NewDatabasesService(log, registry)
 	indexService := indexes.NewIndexService(log, registry)
 	collectionsService := collections.NewCollectionsService(log, registry)
-	settingsService := settings.NewService(log)
 	updatesEmitter := updates.NewWailsEmitter(nil)
 	updatesOpener := updates.NewBrowserOpener(nil)
 	updatesService := updates.NewService(log, updates.Config{
@@ -154,6 +153,7 @@ func (a *App) Startup(ctx context.Context) {
 	}
 
 	a.filesService.Init(ctx)
+	a.systemService.Init(ctx)
 	a.WorkspacesProxy.Init(ctx)
 
 	a.updatesEmitter.SetContext(ctx)

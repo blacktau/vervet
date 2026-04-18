@@ -81,7 +81,6 @@ func (sm *ServerService) GetServer(id string) (*models.RegisteredServer, error) 
 		return server, nil
 	}
 
-
 	return nil, fmt.Errorf("server with ID %s not found", id)
 }
 

@@ -27,6 +27,7 @@ type SystemProxy struct {
 
 type SystemProvider interface {
 	Log(level string, message string)
+	RevealLogsFolder() error
 }
 
 func NewSystemProxy(ss SystemProvider) *SystemProxy {
@@ -56,4 +57,11 @@ func (sp *SystemProxy) GetOs() Result[OperatingSystem] {
 
 func (sp *SystemProxy) Log(level string, message string) {
 	sp.service.Log(level, message)
+}
+
+func (sp *SystemProxy) RevealLogsFolder() EmptyResult {
+	if err := sp.service.RevealLogsFolder(); err != nil {
+		return Fail(err)
+	}
+	return Success()
 }

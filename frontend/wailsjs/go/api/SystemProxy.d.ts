@@ -5,3 +5,5 @@ import {api} from '../models';
 export function GetOs():Promise<api.Result_vervet_internal_api_OperatingSystem_>;
 
 export function Log(arg1:string,arg2:string):Promise<void>;
+
+export function RevealLogsFolder():Promise<api.EmptyResult>;

@@ -32,7 +32,7 @@ type exportServerEntry struct {
 	Parent           string                  `json:"parent,omitempty"`
 	Colour           string                  `json:"colour,omitempty"`
 	IsGroup          bool                    `json:"isGroup,omitempty"`
-	ConnectionConfig *exportConnectionConfig  `json:"connectionConfig,omitempty"`
+	ConnectionConfig *exportConnectionConfig `json:"connectionConfig,omitempty"`
 }
 
 // ExportServers exports the given server IDs (expanding groups to include descendants)
