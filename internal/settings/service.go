@@ -45,7 +45,7 @@ func NewService(log *slog.Logger, isDev bool) *settingsService {
 	store, err := infrastructure.NewStore("configuration.yaml", log)
 	if err != nil {
 		log.Error("error accessing configuration", slog.Any("error", err))
-		panic(fmt.Errorf("error accessing configuration: %v", err))
+		panic(fmt.Errorf("error accessing configuration: %w", err))
 	}
 
 	return &settingsService{
@@ -76,7 +76,7 @@ func (s *settingsService) GetSettings() (models.Settings, error) {
 	settings, err := s.getSettings()
 	if err != nil {
 		s.log.Error("error getting settings", slog.Any("error", err))
-		return s.defaultSettings(), fmt.Errorf("error getting settings: %v", err)
+		return s.defaultSettings(), fmt.Errorf("error getting settings: %w", err)
 	}
 
 	settings.Window.Width = max(settings.Window.Width, DefaultWindowWidth)
@@ -114,7 +114,7 @@ func (s *settingsService) RestoreSettings() (*models.Settings, error) {
 	err := s.saveSettings(&settings)
 	if err != nil {
 		s.log.Error("error resetting configuration", slog.Any("error", err))
-		return nil, fmt.Errorf("error resetting configuration: %v", err)
+		return nil, fmt.Errorf("error resetting configuration: %w", err)
 	}
 
 	return &settings, nil
@@ -176,13 +176,13 @@ func (s *settingsService) update(values map[string]any) error {
 	settings, err := s.getSettings()
 	if err != nil {
 		log.Error("error getting configuration for update", slog.Any("error", err))
-		return fmt.Errorf("error getting configuration for update: %v", err)
+		return fmt.Errorf("error getting configuration for update: %w", err)
 	}
 
 	for path, v := range values {
 		if err = s.setSettings(&settings, path, v); err != nil {
 			log.Error("error updating configuration", slog.String("path", path), slog.Any("error", err))
-			return fmt.Errorf("error updating '%s' configuration: %v", path, err)
+			return fmt.Errorf("error updating '%s' configuration: %w", path, err)
 		}
 	}
 
@@ -206,7 +206,7 @@ func (s *settingsService) getSettings() (models.Settings, error) {
 	b, err := s.store.Read()
 	if err != nil && !os.IsNotExist(err) {
 		s.log.Error("error reading configuration", slog.Any("error", err))
-		return settings, fmt.Errorf("error reading configuration: %v", err)
+		return settings, fmt.Errorf("error reading configuration: %w", err)
 	}
 
 	if len(b) <= 0 {
@@ -219,7 +219,7 @@ func (s *settingsService) getSettings() (models.Settings, error) {
 
 	if err = yaml.Unmarshal(b, &settings); err != nil {
 		s.log.Error("error parsing configuration", slog.Any("error", err))
-		return s.defaultSettings(), fmt.Errorf("error parsing configuration: %v", err)
+		return s.defaultSettings(), fmt.Errorf("error parsing configuration: %w", err)
 	}
 
 	settings.Logging.Normalize()
@@ -283,12 +283,12 @@ func (s *settingsService) saveSettings(settings *models.Settings) error {
 	b, err := yaml.Marshal(settings)
 	if err != nil {
 		s.log.Error("error marshalling configuration", slog.Any("error", err))
-		return fmt.Errorf("error marshalling configuration: %v", err)
+		return fmt.Errorf("error marshalling configuration: %w", err)
 	}
 
 	if err = s.store.Save(b); err != nil {
 		s.log.Error("error saving configuration", slog.Any("error", err))
-		return fmt.Errorf("error saving configuration: %v", err)
+		return fmt.Errorf("error saving configuration: %w", err)
 	}
 
 	return nil

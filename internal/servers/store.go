@@ -24,7 +24,7 @@ func NewServerStore(log *slog.Logger) (*store, error) {
 	logger := log.With(slog.String(logging.SourceKey, "ServerStore"))
 	cfgStore, err := infrastructure.NewStore("connections.yaml", logger)
 	if err != nil {
-		return nil, fmt.Errorf("error loading configuration: %v", err)
+		return nil, fmt.Errorf("error loading configuration: %w", err)
 	}
 
 	return &store{
@@ -37,7 +37,7 @@ func (s *store) LoadServers() ([]models.RegisteredServer, error) {
 	b, err := s.cfgStore.Read()
 	if err != nil {
 		s.log.Error("error loading registered servers", slog.Any("error", err))
-		return nil, fmt.Errorf("error loading registered servers: %v", err)
+		return nil, fmt.Errorf("error loading registered servers: %w", err)
 	}
 
 	registeredServers := make([]models.RegisteredServer, 0)
@@ -59,12 +59,12 @@ func (s *store) SaveServers(registeredServers []models.RegisteredServer) error {
 	b, err := yaml.Marshal(&registeredServers)
 	if err != nil {
 		s.log.Error("error marshalling registered servers", slog.Any("error", err))
-		return fmt.Errorf("error marshalling registered servers: %v", err)
+		return fmt.Errorf("error marshalling registered servers: %w", err)
 	}
 
 	if err = s.cfgStore.Save(b); err != nil {
 		s.log.Error("error saving registered servers", slog.Any("error", err))
-		return fmt.Errorf("error saving registered servers: %v", err)
+		return fmt.Errorf("error saving registered servers: %w", err)
 	}
 
 	return nil
