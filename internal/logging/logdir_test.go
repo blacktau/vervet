@@ -2,7 +2,6 @@ package logging_test
 
 import (
 	"os"
-	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
@@ -34,5 +33,4 @@ func TestLogDir_CreatesDirectory(t *testing.T) {
 	if !strings.HasPrefix(dir, tmp) {
 		t.Fatalf("expected dir under %s, got %s", tmp, dir)
 	}
-	_ = filepath.Join
 }
