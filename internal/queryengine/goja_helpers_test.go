@@ -126,7 +126,7 @@ func TestExportValue_RegexInArray_Preserved(t *testing.T) {
 }
 
 func TestMongoRegexOptions_MapsJSFlags(t *testing.T) {
-	assert.Equal(t, "im", mongoRegexOptions("gi" + "m"))
+	assert.Equal(t, "im", mongoRegexOptions("gi"+"m"))
 	assert.Equal(t, "ims", mongoRegexOptions("gimsu"))
 	assert.Equal(t, "", mongoRegexOptions("guy"))
 	assert.Equal(t, "i", mongoRegexOptions("i"))

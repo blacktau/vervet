@@ -35,9 +35,9 @@ type indexStat struct {
 
 // IndexService handles CRUD operations for MongoDB collection indexes
 type IndexService struct {
-	ctx      context.Context
-	log      *slog.Logger
-	clients  ClientProvider
+	ctx     context.Context
+	log     *slog.Logger
+	clients ClientProvider
 }
 
 func NewIndexService(log *slog.Logger, clients ClientProvider) *IndexService {

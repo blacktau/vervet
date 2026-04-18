@@ -13,7 +13,7 @@ type mockStore struct {
 	data models.WorkspaceData
 }
 
-func (m *mockStore) Load() (models.WorkspaceData, error) { return m.data, nil }
+func (m *mockStore) Load() (models.WorkspaceData, error)  { return m.data, nil }
 func (m *mockStore) Save(data models.WorkspaceData) error { m.data = data; return nil }
 
 func newTestService() (*WorkspaceService, *mockStore) {

@@ -323,7 +323,7 @@ func TestImportServers_DuplicateGroupChildrenLinkToExisting(t *testing.T) {
 
 	result, err := svc.ImportServers(data)
 	require.NoError(t, err)
-	assert.Len(t, result.Created, 1) // only the server, not the duplicate group
+	assert.Len(t, result.Created, 1)                           // only the server, not the duplicate group
 	assert.Equal(t, "existing-g1", result.Created[0].ParentID) // linked to existing group
 }
 
@@ -641,8 +641,8 @@ func TestImportServers_FullIntegration(t *testing.T) {
 	for i, c := range result.Created {
 		names[i] = c.Name
 	}
-	assert.Contains(t, names, "Production")  // trimmed
-	assert.Contains(t, names, "Server B")    // succeeded
+	assert.Contains(t, names, "Production") // trimmed
+	assert.Contains(t, names, "Server B")   // succeeded
 
 	// Warnings: trim, truncate+keyring fail, no config
 	assert.GreaterOrEqual(t, len(result.Warnings), 3)
