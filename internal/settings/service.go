@@ -287,6 +287,9 @@ func defaultSettingsForBuild(isDev bool) models.Settings {
 			},
 			CursorStyle: "block",
 		},
+		Workspaces: models.WorkspacesSettings{
+			FileExtensions: []string{".js", ".mongodb"},
+		},
 		Updates: models.UpdatesSettings{
 			Frequency: "daily",
 		},
