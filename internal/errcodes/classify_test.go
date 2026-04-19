@@ -105,3 +105,15 @@ func TestClassifyError_MessageFallback_NotAuthorized(t *testing.T) {
 	result := errcodes.ClassifyError(err)
 	assert.Equal(t, errcodes.NotAuthorized, result.Code)
 }
+
+// timeoutError wraps a message and satisfies mongo.IsTimeout via Timeout() bool.
+type timeoutError struct{ msg string }
+
+func (e timeoutError) Error() string { return e.msg }
+func (e timeoutError) Timeout() bool { return true }
+
+func TestClassifyError_TimeoutError_WithServerSelection_IsConnectionFailed(t *testing.T) {
+	err := timeoutError{msg: "server selection error: server selection timeout, current topology: { Type: Unknown }"}
+	result := errcodes.ClassifyError(err)
+	assert.Equal(t, errcodes.ConnectionFailed, result.Code)
+}

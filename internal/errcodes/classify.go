@@ -17,17 +17,6 @@ func ClassifyError(err error) ClassifiedError {
 		return ClassifiedError{Code: UnknownError}
 	}
 
-	if errors.Is(err, context.DeadlineExceeded) {
-		if code := classifyByMessage(err.Error()); code != "" {
-			return ClassifiedError{Code: code, Detail: err.Error()}
-		}
-		return ClassifiedError{Code: QueryTimeout, Detail: err.Error()}
-	}
-
-	if errors.Is(err, context.Canceled) {
-		return ClassifiedError{Code: QueryCancelled, Detail: err.Error()}
-	}
-
 	if errors.Is(err, shell.ErrShellNotFound) {
 		return ClassifiedError{Code: ShellNotFound, Detail: err.Error()}
 	}
@@ -52,19 +41,30 @@ func ClassifyError(err error) ClassifiedError {
 		return ClassifiedError{Code: UnknownError, Detail: err.Error()}
 	}
 
+	// Message-based classification runs before the generic context /
+	// mongo.IsTimeout / mongo.IsNetworkError branches so that connection-
+	// specific patterns like "server selection timeout" win over the generic
+	// timeout mapping (mongo driver wraps context.DeadlineExceeded inside
+	// topology.ServerSelectionError, which would otherwise classify as
+	// QueryTimeout).
+	if code := classifyByMessage(err.Error()); code != "" {
+		return ClassifiedError{Code: code, Detail: err.Error()}
+	}
+
+	if errors.Is(err, context.DeadlineExceeded) {
+		return ClassifiedError{Code: QueryTimeout, Detail: err.Error()}
+	}
+
+	if errors.Is(err, context.Canceled) {
+		return ClassifiedError{Code: QueryCancelled, Detail: err.Error()}
+	}
+
 	if mongo.IsNetworkError(err) {
 		return ClassifiedError{Code: NetworkError, Detail: err.Error()}
 	}
 
 	if mongo.IsTimeout(err) {
 		return ClassifiedError{Code: QueryTimeout, Detail: err.Error()}
-	}
-
-	// Fallback: match on error message for cases where the mongo driver wraps
-	// errors in types we cannot inspect (e.g. topology.ServerSelectionError
-	// wrapping ErrServerSelectionTimeout with an auth failure in the description).
-	if code := classifyByMessage(err.Error()); code != "" {
-		return ClassifiedError{Code: code, Detail: err.Error()}
 	}
 
 	return ClassifiedError{Code: UnknownError, Detail: err.Error()}
