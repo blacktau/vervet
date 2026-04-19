@@ -3,6 +3,7 @@ package queryengine
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strings"
 	"vervet/internal/models"
 
@@ -91,6 +92,8 @@ func (e *GojaEngine) ExecuteQuery(ctx context.Context, uri, dbName, query string
 // exportedToResult converts a value exported from the Goja runtime back into a
 // QueryResult. Structured values (arrays/objects) are preserved as Documents so
 // the frontend can render them as a tree/table; scalars fall back to RawOutput.
+// The reflect fallback handles named map/slice types (e.g. bson.M) which Go's
+// type switch does not match against their unnamed underlying types.
 func exportedToResult(raw any) models.QueryResult {
 	switch v := raw.(type) {
 	case []any:
@@ -101,7 +104,26 @@ func exportedToResult(raw any) models.QueryResult {
 		return models.QueryResult{Documents: []any{v}}
 	case string:
 		return models.QueryResult{RawOutput: v}
-	default:
-		return models.QueryResult{RawOutput: fmt.Sprintf("%v", raw)}
 	}
+
+	rv := reflect.ValueOf(raw)
+	switch rv.Kind() {
+	case reflect.Map:
+		if rv.Type().Key().Kind() == reflect.String {
+			m := make(map[string]any, rv.Len())
+			iter := rv.MapRange()
+			for iter.Next() {
+				m[iter.Key().String()] = iter.Value().Interface()
+			}
+			return models.QueryResult{Documents: []any{m}}
+		}
+	case reflect.Slice, reflect.Array:
+		docs := make([]any, rv.Len())
+		for i := 0; i < rv.Len(); i++ {
+			docs[i] = rv.Index(i).Interface()
+		}
+		return models.QueryResult{Documents: docs}
+	}
+
+	return models.QueryResult{RawOutput: fmt.Sprintf("%v", raw)}
 }

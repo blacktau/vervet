@@ -7,6 +7,7 @@ import (
 	"github.com/dop251/goja"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.mongodb.org/mongo-driver/bson"
 )
 
 // setupRuntime creates a Goja runtime with a database proxy.
@@ -289,6 +290,24 @@ func TestExportedToResult_Scalar_FallsBackToRawOutput(t *testing.T) {
 	result := exportedToResult(int64(42))
 	assert.Empty(t, result.Documents)
 	assert.Equal(t, "42", result.RawOutput)
+}
+
+func TestExportedToResult_BsonM_RendersAsDocument(t *testing.T) {
+	raw := bson.M{"db": "sample", "collections": 1, "dataSize": 9.4e+07}
+	result := exportedToResult(raw)
+	assert.Empty(t, result.RawOutput)
+	require.Len(t, result.Documents, 1)
+	doc, ok := result.Documents[0].(map[string]any)
+	require.True(t, ok, "bson.M should be converted to map[string]any")
+	assert.Equal(t, "sample", doc["db"])
+	assert.Equal(t, 1, doc["collections"])
+}
+
+func TestExportedToResult_BsonA_RendersAsDocuments(t *testing.T) {
+	raw := bson.A{bson.M{"a": 1}, bson.M{"b": 2}}
+	result := exportedToResult(raw)
+	assert.Empty(t, result.RawOutput)
+	assert.Len(t, result.Documents, 2)
 }
 
 func TestMultiStatement_VariableThenCursor(t *testing.T) {
