@@ -44,8 +44,7 @@ func NewService(log *slog.Logger, isDev bool) *settingsService {
 	log = log.With(slog.String(logging.SourceKey, "SettingsService"))
 	store, err := infrastructure.NewStore("configuration.yaml", log)
 	if err != nil {
-		log.Error("error accessing configuration", slog.Any("error", err))
-		panic(fmt.Errorf("error accessing configuration: %v", err))
+		panic(fmt.Errorf("error accessing configuration: %w", err))
 	}
 
 	return &settingsService{
