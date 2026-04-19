@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 
 	"vervet/internal/models"
@@ -78,7 +77,7 @@ func (p *WorkspacesProxy) AddFolder(workspaceID string) Result[string] {
 		return FailResult[string](err)
 	}
 	if path == "" {
-		return FailResult[string](fmt.Errorf("no folder selected"))
+		return SuccessResult("")
 	}
 	if err := p.service.AddFolder(workspaceID, path); err != nil {
 		logFail(p.log, "AddFolder", err)
