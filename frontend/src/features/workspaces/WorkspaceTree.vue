@@ -238,6 +238,7 @@ function handleRename(node: TreeOption) {
         return
       }
 
+      queryStore.renameFilePath(oldPath, newPath)
       await workspaceStore.refreshTree()
     },
   })

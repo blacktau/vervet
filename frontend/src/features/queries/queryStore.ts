@@ -265,6 +265,14 @@ export const useQueryStore = defineStore('query', {
       state.filePath = filePath
     },
 
+    renameFilePath(oldPath: string, newPath: string) {
+      for (const state of Object.values(this.queries)) {
+        if (state.filePath === oldPath) {
+          state.filePath = newPath
+        }
+      }
+    },
+
     setSavedContent(queryId: string, content: string) {
       const state = this.getQueryState(queryId)
       state.savedContent = content
