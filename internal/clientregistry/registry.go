@@ -51,11 +51,11 @@ func (r *ClientRegistry) Init(ctx context.Context) {
 
 func (r *ClientRegistry) Connect(serverID, name, uri string) (*mongo.Client, error) {
 	r.mu.Lock()
-	defer r.mu.Unlock()
-
 	if _, ok := r.clients[serverID]; ok {
+		r.mu.Unlock()
 		return nil, fmt.Errorf("already connected to server %s", serverID)
 	}
+	r.mu.Unlock()
 
 	monitor := &event.CommandMonitor{
 		Succeeded: func(ctx context.Context, evt *event.CommandSucceededEvent) {
@@ -79,11 +79,18 @@ func (r *ClientRegistry) Connect(serverID, name, uri string) (*mongo.Client, err
 		return nil, fmt.Errorf("ping failed, connection invalid: %w", err)
 	}
 
+	r.mu.Lock()
+	if _, ok := r.clients[serverID]; ok {
+		r.mu.Unlock()
+		_ = client.Disconnect(r.ctx)
+		return nil, fmt.Errorf("already connected to server %s", serverID)
+	}
 	r.clients[serverID] = registeredClient{
 		client:   client,
 		serverID: serverID,
 		name:     name,
 	}
+	r.mu.Unlock()
 
 	r.log.Debug("Registered client",
 		slog.String("serverID", serverID), slog.String("name", name))
@@ -92,11 +99,11 @@ func (r *ClientRegistry) Connect(serverID, name, uri string) (*mongo.Client, err
 
 func (r *ClientRegistry) ConnectWithConfig(serverID, name string, cfg models.ConnectionConfig) (*mongo.Client, error) {
 	r.mu.Lock()
-	defer r.mu.Unlock()
-
 	if _, ok := r.clients[serverID]; ok {
+		r.mu.Unlock()
 		return nil, fmt.Errorf("already connected to server %s", serverID)
 	}
+	r.mu.Unlock()
 
 	monitor := &event.CommandMonitor{
 		Succeeded: func(ctx context.Context, evt *event.CommandSucceededEvent) {
@@ -132,6 +139,9 @@ func (r *ClientRegistry) ConnectWithConfig(serverID, name string, cfg models.Con
 
 	client, err := mongo.Connect(ctx, clientOptions)
 	if err != nil {
+		if cfg.AuthMethod == models.AuthOIDC {
+			r.tokenManager.CleanupServer(serverID)
+		}
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
@@ -143,11 +153,18 @@ func (r *ClientRegistry) ConnectWithConfig(serverID, name string, cfg models.Con
 		return nil, fmt.Errorf("ping failed, connection invalid: %w", err)
 	}
 
+	r.mu.Lock()
+	if _, ok := r.clients[serverID]; ok {
+		r.mu.Unlock()
+		_ = client.Disconnect(r.ctx)
+		return nil, fmt.Errorf("already connected to server %s", serverID)
+	}
 	r.clients[serverID] = registeredClient{
 		client:   client,
 		serverID: serverID,
 		name:     name,
 	}
+	r.mu.Unlock()
 
 	r.log.Debug("Registered client",
 		slog.String("serverID", serverID), slog.String("name", name))
