@@ -52,11 +52,6 @@ func (s *IndexService) Init(ctx context.Context) {
 }
 
 func (s *IndexService) GetIndexes(serverID, dbName, collectionName string) ([]models.Index, error) {
-	s.log.Debug("Getting indexes",
-		slog.String("serverID", serverID),
-		slog.String("dbName", dbName),
-		slog.String("collectionName", collectionName))
-
 	client, err := s.clients.GetClient(serverID)
 	if err != nil {
 		return nil, err
@@ -135,11 +130,6 @@ func (s *IndexService) GetIndexes(serverID, dbName, collectionName string) ([]mo
 }
 
 func (s *IndexService) CreateIndex(serverID, dbName, collectionName string, request models.CreateIndexRequest) error {
-	s.log.Debug("Creating index",
-		slog.String("serverID", serverID),
-		slog.String("dbName", dbName),
-		slog.String("collectionName", collectionName))
-
 	client, err := s.clients.GetClient(serverID)
 	if err != nil {
 		return err
@@ -150,27 +140,14 @@ func (s *IndexService) CreateIndex(serverID, dbName, collectionName string, requ
 	collection := client.Database(dbName).Collection(collectionName)
 	name, err := collection.Indexes().CreateOne(s.ctx, model)
 	if err != nil {
-		s.log.Error("Failed to create index",
-			slog.String("serverID", serverID),
-			slog.String("collectionName", collectionName),
-			slog.Any("error", err))
 		return fmt.Errorf("failed to create index: %w", err)
 	}
 
-	s.log.Info("Created index",
-		slog.String("serverID", serverID),
-		slog.String("collectionName", collectionName),
-		slog.String("indexName", name))
+	_ = name // suppress unused variable warning
 	return nil
 }
 
 func (s *IndexService) EditIndex(serverID, dbName, collectionName string, request models.EditIndexRequest) error {
-	s.log.Debug("Editing index",
-		slog.String("serverID", serverID),
-		slog.String("dbName", dbName),
-		slog.String("collectionName", collectionName),
-		slog.String("oldName", request.OldName))
-
 	client, err := s.clients.GetClient(serverID)
 	if err != nil {
 		return err
@@ -194,11 +171,7 @@ func (s *IndexService) EditIndex(serverID, dbName, collectionName string, reques
 		if err != nil {
 			// Attempt to restore the original index
 			if captureErr == nil && oldSpec != nil {
-				if _, restoreErr := collection.Indexes().CreateOne(s.ctx, *oldSpec); restoreErr != nil {
-					s.log.Error("Failed to restore original index after edit failure",
-						slog.String("indexName", request.OldName),
-						slog.Any("error", restoreErr))
-				}
+				_, _ = collection.Indexes().CreateOne(s.ctx, *oldSpec)
 			}
 			return fmt.Errorf("failed to create replacement index: %w", err)
 		}
@@ -211,28 +184,14 @@ func (s *IndexService) EditIndex(serverID, dbName, collectionName string, reques
 
 		_, err = collection.Indexes().DropOne(s.ctx, request.OldName)
 		if err != nil {
-			s.log.Error("Created new index but failed to drop old one",
-				slog.String("oldName", request.OldName),
-				slog.Any("error", err))
 			return fmt.Errorf("new index created but failed to drop old index %q: %w", request.OldName, err)
 		}
 	}
 
-	s.log.Info("Edited index",
-		slog.String("serverID", serverID),
-		slog.String("collectionName", collectionName),
-		slog.String("oldName", request.OldName),
-		slog.String("newName", request.Name))
 	return nil
 }
 
 func (s *IndexService) DropIndex(serverID, dbName, collectionName, indexName string) error {
-	s.log.Debug("Dropping index",
-		slog.String("serverID", serverID),
-		slog.String("dbName", dbName),
-		slog.String("collectionName", collectionName),
-		slog.String("indexName", indexName))
-
 	client, err := s.clients.GetClient(serverID)
 	if err != nil {
 		return err
@@ -241,18 +200,9 @@ func (s *IndexService) DropIndex(serverID, dbName, collectionName, indexName str
 	collection := client.Database(dbName).Collection(collectionName)
 	_, err = collection.Indexes().DropOne(s.ctx, indexName)
 	if err != nil {
-		s.log.Error("Failed to drop index",
-			slog.String("serverID", serverID),
-			slog.String("collectionName", collectionName),
-			slog.String("indexName", indexName),
-			slog.Any("error", err))
 		return fmt.Errorf("failed to drop index: %w", err)
 	}
 
-	s.log.Info("Dropped index",
-		slog.String("serverID", serverID),
-		slog.String("collectionName", collectionName),
-		slog.String("indexName", indexName))
 	return nil
 }
 

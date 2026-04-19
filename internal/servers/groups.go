@@ -2,7 +2,6 @@ package servers
 
 import (
 	"fmt"
-	"log/slog"
 	"vervet/internal/models"
 
 	"github.com/google/uuid"
@@ -12,15 +11,9 @@ import (
 func (sm *ServerService) CreateGroup(parentID, name string) error {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
-	log := sm.log.With(slog.String("parentID", parentID), slog.String("name", name))
-	log.Debug("Creating Server Group")
 
 	servers, err := sm.store.LoadServers()
 	if err != nil {
-		log.Error(
-			"Failed to create Server Group",
-			slog.Any("error", err))
-
 		return fmt.Errorf("failed to create Server Group: %w", err)
 	}
 
@@ -40,13 +33,8 @@ func (sm *ServerService) CreateGroup(parentID, name string) error {
 	servers = append(servers, newServer)
 	err = sm.store.SaveServers(servers)
 	if err != nil {
-		log.Error(
-			"Failed to save new registered server group",
-			slog.Any("error", err))
 		return fmt.Errorf("failed to save new registered server group: %w", err)
 	}
-
-	log.Debug("Successfully created Server Group")
 
 	return nil
 }
@@ -55,12 +43,8 @@ func (sm *ServerService) UpdateGroup(groupID, name, parentID string) error {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
-	log := sm.log.With(slog.String("groupID", groupID), slog.String("name", name), slog.String("parentID", parentID))
-	log.Debug("Updating group")
-
 	servers, err := sm.store.LoadServers()
 	if err != nil {
-		log.Error("Failed to update group", slog.Any("error", err))
 		return fmt.Errorf("failed to update group: %w", err)
 	}
 
@@ -71,7 +55,6 @@ func (sm *ServerService) UpdateGroup(groupID, name, parentID string) error {
 
 	group := findGroup(groupID, servers)
 	if group == nil {
-		log.Error("Failed to find group")
 		return fmt.Errorf("failed to find group for ID %s", groupID)
 	}
 
@@ -81,7 +64,6 @@ func (sm *ServerService) UpdateGroup(groupID, name, parentID string) error {
 	err = sm.store.SaveServers(servers)
 
 	if err != nil {
-		log.Error("Failed to update server group", slog.Any("error", err))
 		return fmt.Errorf("failed to update server group: %w", err)
 	}
 

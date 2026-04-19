@@ -107,6 +107,9 @@ function handleContextMenu(info: { event: MouseEvent; option: TreeOption }) {
     contextMenuOptions.value = [
       { label: t('workspaces.newFile'), key: 'newFile' },
       { label: t('workspaces.newFolder'), key: 'newFolder' },
+      { label: t('workspaces.renameFile'), key: 'rename' },
+      { type: 'divider', key: 'd1' },
+      { label: t('workspaces.deleteFile'), key: 'delete' },
     ]
   }
 
@@ -182,31 +185,39 @@ function handleNewFile(node: TreeOption) {
 
 function handleNewFolder(node: TreeOption) {
   const nameRef = ref('')
-  dialoger.show({
+  const submit = async () => {
+    const folderName = nameRef.value.trim()
+    if (!folderName) {
+      return
+    }
+
+    const dirPath = node.key as string
+    const result = await workspacesProxy.CreateFolder(dirPath, folderName)
+    if (!result.isSuccess) {
+      notifier.error(result.errorDetail || result.errorCode)
+      return
+    }
+
+    await workspaceStore.refreshTree()
+  }
+
+  const dialog = dialoger.show({
     title: t('workspaces.newFolder'),
     positiveText: t('common.create'),
     negativeText: t('common.cancel'),
     content: () => h(NInput, {
       value: nameRef.value,
       onUpdateValue: (v: string) => { nameRef.value = v },
+      onKeyup: (e: KeyboardEvent) => {
+        if (e.key === 'Enter' && nameRef.value.trim()) {
+          dialog.destroy()
+          void submit()
+        }
+      },
       placeholder: t('workspaces.folderName'),
       autofocus: true,
     }),
-    onPositiveClick: async () => {
-      const folderName = nameRef.value.trim()
-      if (!folderName) {
-        return
-      }
-
-      const dirPath = node.key as string
-      const result = await workspacesProxy.CreateFolder(dirPath, folderName)
-      if (!result.isSuccess) {
-        notifier.error(result.errorDetail || result.errorCode)
-        return
-      }
-
-      await workspaceStore.refreshTree()
-    },
+    onPositiveClick: submit,
   })
 }
 
@@ -238,6 +249,7 @@ function handleRename(node: TreeOption) {
         return
       }
 
+      queryStore.renameFilePath(oldPath, newPath)
       await workspaceStore.refreshTree()
     },
   })

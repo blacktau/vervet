@@ -51,19 +51,15 @@ func (r *ClientRegistry) Init(ctx context.Context) {
 
 func (r *ClientRegistry) Connect(serverID, name, uri string) (*mongo.Client, error) {
 	r.mu.Lock()
-	defer r.mu.Unlock()
-
 	if _, ok := r.clients[serverID]; ok {
+		r.mu.Unlock()
 		return nil, fmt.Errorf("already connected to server %s", serverID)
 	}
+	r.mu.Unlock()
 
 	monitor := &event.CommandMonitor{
 		Succeeded: func(ctx context.Context, evt *event.CommandSucceededEvent) {
-			if evt.CommandName == "hello" || evt.CommandName == "isMaster" {
-				r.log.Info("Connected to MongoDB",
-					slog.String("connectionID", evt.ConnectionID),
-					slog.Any("reply", evt.Reply))
-			}
+			// No logging for every hello/isMaster — too chatty
 		},
 	}
 
@@ -75,44 +71,43 @@ func (r *ClientRegistry) Connect(serverID, name, uri string) (*mongo.Client, err
 
 	client, err := mongo.Connect(ctx, clientOptions)
 	if err != nil {
-		r.log.Error("Failed to connect to MongoDB",
-			slog.String("serverID", serverID), slog.Any("error", err))
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
 	if err = client.Ping(ctx, nil); err != nil {
-		r.log.Error("Ping failed",
-			slog.String("serverID", serverID), slog.Any("error", err))
 		_ = client.Disconnect(r.ctx)
 		return nil, fmt.Errorf("ping failed, connection invalid: %w", err)
 	}
 
+	r.mu.Lock()
+	if _, ok := r.clients[serverID]; ok {
+		r.mu.Unlock()
+		_ = client.Disconnect(r.ctx)
+		return nil, fmt.Errorf("already connected to server %s", serverID)
+	}
 	r.clients[serverID] = registeredClient{
 		client:   client,
 		serverID: serverID,
 		name:     name,
 	}
+	r.mu.Unlock()
 
-	r.log.Info("Registered client",
+	r.log.Debug("Registered client",
 		slog.String("serverID", serverID), slog.String("name", name))
 	return client, nil
 }
 
 func (r *ClientRegistry) ConnectWithConfig(serverID, name string, cfg models.ConnectionConfig) (*mongo.Client, error) {
 	r.mu.Lock()
-	defer r.mu.Unlock()
-
 	if _, ok := r.clients[serverID]; ok {
+		r.mu.Unlock()
 		return nil, fmt.Errorf("already connected to server %s", serverID)
 	}
+	r.mu.Unlock()
 
 	monitor := &event.CommandMonitor{
 		Succeeded: func(ctx context.Context, evt *event.CommandSucceededEvent) {
-			if evt.CommandName == "hello" || evt.CommandName == "isMaster" {
-				r.log.Info("Connected to MongoDB",
-					slog.String("connectionID", evt.ConnectionID),
-					slog.Any("reply", evt.Reply))
-			}
+			// No logging for every hello/isMaster — too chatty
 		},
 	}
 
@@ -144,14 +139,13 @@ func (r *ClientRegistry) ConnectWithConfig(serverID, name string, cfg models.Con
 
 	client, err := mongo.Connect(ctx, clientOptions)
 	if err != nil {
-		r.log.Error("Failed to connect to MongoDB",
-			slog.String("serverID", serverID), slog.Any("error", err))
+		if cfg.AuthMethod == models.AuthOIDC {
+			r.tokenManager.CleanupServer(serverID)
+		}
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
 	if err = client.Ping(ctx, nil); err != nil {
-		r.log.Error("Ping failed",
-			slog.String("serverID", serverID), slog.Any("error", err))
 		_ = client.Disconnect(r.ctx)
 		if cfg.AuthMethod == models.AuthOIDC {
 			r.tokenManager.CleanupServer(serverID)
@@ -159,13 +153,20 @@ func (r *ClientRegistry) ConnectWithConfig(serverID, name string, cfg models.Con
 		return nil, fmt.Errorf("ping failed, connection invalid: %w", err)
 	}
 
+	r.mu.Lock()
+	if _, ok := r.clients[serverID]; ok {
+		r.mu.Unlock()
+		_ = client.Disconnect(r.ctx)
+		return nil, fmt.Errorf("already connected to server %s", serverID)
+	}
 	r.clients[serverID] = registeredClient{
 		client:   client,
 		serverID: serverID,
 		name:     name,
 	}
+	r.mu.Unlock()
 
-	r.log.Info("Registered client",
+	r.log.Debug("Registered client",
 		slog.String("serverID", serverID), slog.String("name", name))
 	return client, nil
 }
@@ -223,12 +224,10 @@ func (r *ClientRegistry) Disconnect(serverID string) error {
 	}
 
 	if err := rc.client.Disconnect(r.ctx); err != nil {
-		r.log.Error("Error disconnecting (client removed from registry anyway)",
-			slog.String("serverID", serverID), slog.Any("error", err))
 		return fmt.Errorf("error during disconnect: %w", err)
 	}
 
-	r.log.Info("Disconnected client", slog.String("serverID", serverID))
+	r.log.Debug("Disconnected client", slog.String("serverID", serverID))
 	return nil
 }
 
@@ -244,13 +243,11 @@ func (r *ClientRegistry) DisconnectAll() error {
 			continue
 		}
 		if err := rc.client.Disconnect(r.ctx); err != nil {
-			r.log.Error("Error disconnecting",
-				slog.String("serverID", id), slog.Any("error", err))
 			lastErr = err
 		}
 		delete(r.clients, id)
 	}
 
-	r.log.Info("Disconnected all clients")
+	r.log.Debug("Disconnected all clients")
 	return lastErr
 }

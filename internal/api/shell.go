@@ -1,15 +1,19 @@
 package api
 
 import (
+	"log/slog"
+
 	"vervet/internal/models"
 )
 
 type ShellProxy struct {
+	log      *slog.Logger
 	provider ShellProvider
 }
 
-func NewShellProxy(provider ShellProvider) *ShellProxy {
+func NewShellProxy(log *slog.Logger, provider ShellProvider) *ShellProxy {
 	return &ShellProxy{
+		log:      log,
 		provider: provider,
 	}
 }
@@ -17,6 +21,7 @@ func NewShellProxy(provider ShellProvider) *ShellProxy {
 func (sp *ShellProxy) ExecuteQuery(serverID string, dbName string, query string) Result[models.QueryResult] {
 	result, err := sp.provider.ExecuteQuery(serverID, dbName, query)
 	if err != nil {
+		logFail(sp.log, "ExecuteQuery", err)
 		return FailResult[models.QueryResult](err)
 	}
 

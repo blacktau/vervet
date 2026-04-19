@@ -44,8 +44,7 @@ func NewService(log *slog.Logger, isDev bool) *settingsService {
 	log = log.With(slog.String(logging.SourceKey, "SettingsService"))
 	store, err := infrastructure.NewStore("configuration.yaml", log)
 	if err != nil {
-		log.Error("error accessing configuration", slog.Any("error", err))
-		panic(fmt.Errorf("error accessing configuration: %v", err))
+		panic(fmt.Errorf("error accessing configuration: %w", err))
 	}
 
 	return &settingsService{
@@ -56,7 +55,6 @@ func NewService(log *slog.Logger, isDev bool) *settingsService {
 }
 
 func (s *settingsService) Init(ctx context.Context) error {
-	s.log.Debug("Initializing Settings Service")
 	s.ctx = ctx
 	return nil
 }
@@ -71,19 +69,14 @@ func (s *settingsService) GetSettings() (models.Settings, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	s.log.Info("Loading settings...")
-
 	settings, err := s.getSettings()
 	if err != nil {
-		s.log.Error("error getting settings", slog.Any("error", err))
-		return s.defaultSettings(), fmt.Errorf("error getting settings: %v", err)
+		return s.defaultSettings(), fmt.Errorf("error getting settings: %w", err)
 	}
 
 	settings.Window.Width = max(settings.Window.Width, DefaultWindowWidth)
 	settings.Window.Height = max(settings.Window.Height, DefaultWindowHeight)
 	settings.Window.AsideWidth = max(settings.Window.AsideWidth, DefaultAsideWidth)
-
-	s.log.Debug("Settings loaded", slog.Any("settings", settings))
 
 	return settings, nil
 }
@@ -91,8 +84,6 @@ func (s *settingsService) GetSettings() (models.Settings, error) {
 func (s *settingsService) SetSettings(settings *models.Settings) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-
-	s.log.Debug("Saving settings", slog.Any("settings", settings))
 
 	prev, _ := s.getSettings()
 	if err := s.saveSettings(settings); err != nil {
@@ -108,13 +99,10 @@ func (s *settingsService) RestoreSettings() (*models.Settings, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	s.log.Info("Resetting configuration...")
-
 	settings := s.defaultSettings()
 	err := s.saveSettings(&settings)
 	if err != nil {
-		s.log.Error("error resetting configuration", slog.Any("error", err))
-		return nil, fmt.Errorf("error resetting configuration: %v", err)
+		return nil, fmt.Errorf("error resetting configuration: %w", err)
 	}
 
 	return &settings, nil
@@ -124,10 +112,8 @@ func (s *settingsService) GetWindowState() (models.WindowState, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	s.log.Debug("Getting window state")
 	settings, err := s.getSettings()
 	if err != nil {
-		s.log.Error("failed to get configuration for window state", slog.Any("error", err))
 		return models.WindowState{}, fmt.Errorf("failed to get configuration for window state: %w", err)
 	}
 
@@ -144,11 +130,7 @@ func (s *settingsService) GetWindowState() (models.WindowState, error) {
 }
 
 func (s *settingsService) SaveWindowState(state models.WindowState) error {
-	log := s.log.With(slog.Any("windowState", state))
-	log.Info("Saving window state")
-
 	if state.Width <= 0 || state.Height <= 0 || state.X < 0 || state.Y < 0 {
-		s.log.Error("invalid window state", slog.Any("windowState", state))
 		return fmt.Errorf("invalid window state: %+v", state)
 	}
 
@@ -160,7 +142,6 @@ func (s *settingsService) SaveWindowState(state models.WindowState) error {
 	})
 
 	if err != nil {
-		log.Error("failed to save window state", slog.Any("error", err))
 		return fmt.Errorf("failed to save window state: %w", err)
 	}
 
@@ -171,18 +152,14 @@ func (s *settingsService) update(values map[string]any) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	log := s.log.With(slog.Any("values", values))
-
 	settings, err := s.getSettings()
 	if err != nil {
-		log.Error("error getting configuration for update", slog.Any("error", err))
-		return fmt.Errorf("error getting configuration for update: %v", err)
+		return fmt.Errorf("error getting configuration for update: %w", err)
 	}
 
 	for path, v := range values {
 		if err = s.setSettings(&settings, path, v); err != nil {
-			log.Error("error updating configuration", slog.String("path", path), slog.Any("error", err))
-			return fmt.Errorf("error updating '%s' configuration: %v", path, err)
+			return fmt.Errorf("error updating '%s' configuration: %w", path, err)
 		}
 	}
 
@@ -205,12 +182,10 @@ func (s *settingsService) getSettings() (models.Settings, error) {
 	settings := s.defaultSettings()
 	b, err := s.store.Read()
 	if err != nil && !os.IsNotExist(err) {
-		s.log.Error("error reading configuration", slog.Any("error", err))
-		return settings, fmt.Errorf("error reading configuration: %v", err)
+		return settings, fmt.Errorf("error reading configuration: %w", err)
 	}
 
 	if len(b) <= 0 {
-		s.log.Info("No configuration found, persisting defaults.")
 		if saveErr := s.saveSettings(&settings); saveErr != nil {
 			s.log.Warn("failed to persist first-run defaults", slog.Any("error", saveErr))
 		}
@@ -218,8 +193,7 @@ func (s *settingsService) getSettings() (models.Settings, error) {
 	}
 
 	if err = yaml.Unmarshal(b, &settings); err != nil {
-		s.log.Error("error parsing configuration", slog.Any("error", err))
-		return s.defaultSettings(), fmt.Errorf("error parsing configuration: %v", err)
+		return s.defaultSettings(), fmt.Errorf("error parsing configuration: %w", err)
 	}
 
 	settings.Logging.Normalize()
@@ -229,12 +203,7 @@ func (s *settingsService) getSettings() (models.Settings, error) {
 func (s *settingsService) setSettings(settings *models.Settings, key string, value any) error {
 	parts := strings.Split(key, ".")
 
-	log := s.log.With(slog.String("key", key), slog.Any("value", value))
-	log.Debug("Setting configuration value")
-
 	if len(parts) == 0 {
-
-		log.Error("invalid configuration key")
 		return fmt.Errorf("invalid configuration key: %s", key)
 	}
 
@@ -245,13 +214,11 @@ func (s *settingsService) setSettings(settings *models.Settings, key string, val
 		field := refValue.FieldByName(part)
 
 		if !field.IsValid() {
-			log.Error("invalid configuration key: field not found", slog.String("field", part))
 			return fmt.Errorf("invalid configuration key: %s (field %s not found)", key, part)
 		}
 
 		if idx == len(parts)-1 {
 			if !field.CanSet() {
-				log.Error("invalid configuration key: field is not settable", slog.String("field", part))
 				return fmt.Errorf("invalid configuration key: %s (field %s is not settable)", key, part)
 			}
 
@@ -261,7 +228,6 @@ func (s *settingsService) setSettings(settings *models.Settings, key string, val
 				return nil
 			}
 
-			log.Error("invalid configuration value: expected different type", slog.Any("expectedType", field.Type()))
 			return fmt.Errorf("invalid configuration value: %v (expected type %s)", value, field.Type())
 		}
 
@@ -270,25 +236,21 @@ func (s *settingsService) setSettings(settings *models.Settings, key string, val
 		} else if field.Kind() == reflect.Ptr && !field.IsNil() && field.Elem().Kind() == reflect.Struct {
 			refValue = field.Elem()
 		} else {
-			log.Error("invalid configuration path", slog.String("path", key))
 			return fmt.Errorf("invalid configuration path: %s", key)
 		}
 	}
 
-	log.Error("invalid configuration key")
 	return fmt.Errorf("invalid configuration key: %s", key)
 }
 
 func (s *settingsService) saveSettings(settings *models.Settings) error {
 	b, err := yaml.Marshal(settings)
 	if err != nil {
-		s.log.Error("error marshalling configuration", slog.Any("error", err))
-		return fmt.Errorf("error marshalling configuration: %v", err)
+		return fmt.Errorf("error marshalling configuration: %w", err)
 	}
 
 	if err = s.store.Save(b); err != nil {
-		s.log.Error("error saving configuration", slog.Any("error", err))
-		return fmt.Errorf("error saving configuration: %v", err)
+		return fmt.Errorf("error saving configuration: %w", err)
 	}
 
 	return nil
@@ -324,6 +286,9 @@ func defaultSettingsForBuild(isDev bool) models.Settings {
 				Size: DefaultFontSize,
 			},
 			CursorStyle: "block",
+		},
+		Workspaces: models.WorkspacesSettings{
+			FileExtensions: []string{".js", ".mongodb"},
 		},
 		Updates: models.UpdatesSettings{
 			Frequency: "daily",

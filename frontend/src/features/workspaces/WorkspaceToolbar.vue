@@ -79,7 +79,8 @@ function handleGearSelect(key: string) {
   }
 
   if (key === 'delete') {
-    dialoger.warning({
+    dialoger.show({
+      type: 'warning',
       title: t('workspaces.deleteWorkspace'),
       content: t('workspaces.deleteWorkspaceConfirm', { name: workspaceStore.activeWorkspace.name }),
       positiveText: t('common.delete'),

@@ -161,7 +161,7 @@ export const useSettingsStore = defineStore('settings', {
         set(result.data, 'editor.links', true)
       }
       const fileExtensions = get(result.data, 'workspaces.fileExtensions')
-      if (fileExtensions === undefined) {
+      if (fileExtensions == null) {
         set(this, 'workspaces.fileExtensions', ['.js', '.mongodb'])
       }
       const logging = get(result.data, 'logging')
@@ -195,6 +195,9 @@ export const useSettingsStore = defineStore('settings', {
       const result = await settingsProxy.ResetSettings()
       if (result.isSuccess) {
         this._applyConfiguration(result.data)
+        if (get(this, 'workspaces.fileExtensions') == null) {
+          set(this, 'workspaces.fileExtensions', ['.js', '.mongodb'])
+        }
         return true
       }
       return false

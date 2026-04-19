@@ -1,6 +1,7 @@
 package servers
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -52,7 +53,9 @@ func (sm *ServerService) ImportServers(data []byte) (*ImportResult, error) {
 	defer sm.mu.Unlock()
 
 	var file exportFile
-	if err := json.Unmarshal(data, &file); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&file); err != nil {
 		return nil, fmt.Errorf("invalid JSON: %w", err)
 	}
 

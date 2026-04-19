@@ -103,7 +103,7 @@ func (tm *TokenManager) HumanCallback(serverID string, cfg *models.OIDCConfig) o
 			if providerURL != "" && clientID != "" {
 				tok, refreshErr := tm.refreshToken(ctx, providerURL, clientID, storedCfg.RefreshToken)
 				if refreshErr == nil {
-					tm.log.Info("Refreshed OIDC token", slog.String("serverID", serverID))
+					tm.log.Debug("Refreshed OIDC token", slog.String("serverID", serverID))
 					tm.cacheToken(serverID, tok)
 					if tok.RefreshToken != "" {
 						_ = tm.store.UpdateRefreshToken(serverID, tok.RefreshToken)
@@ -129,7 +129,7 @@ func (tm *TokenManager) HumanCallback(serverID string, cfg *models.OIDCConfig) o
 
 		scopes := tm.resolveScopes(args.IDPInfo, cfg)
 
-		tm.log.Info("Starting OIDC browser login",
+		tm.log.Debug("Starting OIDC browser login",
 			slog.String("serverID", serverID),
 			slog.String("providerURL", providerURL),
 			slog.String("clientID", clientID),

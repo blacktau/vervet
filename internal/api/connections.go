@@ -2,10 +2,13 @@ package api
 
 import (
 	"context"
+	"log/slog"
+
 	"vervet/internal/models"
 )
 
 type ConnectionsProxy struct {
+	log      *slog.Logger
 	provider ConnectionsProvider
 }
 
@@ -25,8 +28,9 @@ type ShellProvider interface {
 	CloseAll()
 }
 
-func NewConnectionsProxy(provider ConnectionsProvider) *ConnectionsProxy {
+func NewConnectionsProxy(log *slog.Logger, provider ConnectionsProvider) *ConnectionsProxy {
 	return &ConnectionsProxy{
+		log:      log,
 		provider: provider,
 	}
 }
@@ -34,6 +38,7 @@ func NewConnectionsProxy(provider ConnectionsProvider) *ConnectionsProxy {
 func (cp *ConnectionsProxy) Connect(serverID string) Result[models.Connection] {
 	connection, err := cp.provider.Connect(serverID)
 	if err != nil {
+		logFail(cp.log, "Connect", err)
 		return FailResult[models.Connection](err)
 	}
 
@@ -43,6 +48,7 @@ func (cp *ConnectionsProxy) Connect(serverID string) Result[models.Connection] {
 func (cp *ConnectionsProxy) Disconnect(serverID string) EmptyResult {
 	err := cp.provider.Disconnect(serverID)
 	if err != nil {
+		logFail(cp.log, "Disconnect", err)
 		return Fail(err)
 	}
 
@@ -52,6 +58,7 @@ func (cp *ConnectionsProxy) Disconnect(serverID string) EmptyResult {
 func (cp *ConnectionsProxy) DisconnectAll() EmptyResult {
 	err := cp.provider.DisconnectAll()
 	if err != nil {
+		logFail(cp.log, "DisconnectAll", err)
 		return Fail(err)
 	}
 
@@ -65,6 +72,7 @@ func (cp *ConnectionsProxy) GetConnections() Result[[]models.Connection] {
 func (cp *ConnectionsProxy) TestConnection(uri string) EmptyResult {
 	_, err := cp.provider.TestConnection(uri)
 	if err != nil {
+		logFail(cp.log, "TestConnection", err)
 		return Fail(err)
 	}
 

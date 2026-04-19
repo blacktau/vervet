@@ -56,12 +56,9 @@ func (qe *QueryExecutor) Init(ctx context.Context) {
 // Only one query per server runs at a time; a new call cancels any in-flight query.
 // The engine (built-in goja or mongosh) is selected based on the user's settings.
 func (qe *QueryExecutor) ExecuteQuery(serverID, dbName, query string) (models.QueryResult, error) {
-	qe.log.Debug("Executing query", slog.String("serverID", serverID), slog.String("dbName", dbName))
-
 	// Cancel any in-flight query for this server
 	qe.mu.Lock()
 	if cancel, ok := qe.cancels[serverID]; ok {
-		qe.log.Debug("Cancelling previous in-flight query", slog.String("serverID", serverID))
 		cancel()
 	}
 	queryCtx, cancel := context.WithCancel(qe.ctx)
@@ -91,18 +88,15 @@ func (qe *QueryExecutor) executeWithGoja(ctx context.Context, serverID, dbName, 
 	engine := queryengine.NewGojaEngine(client)
 	result, err := engine.ExecuteQuery(ctx, "", dbName, query)
 	if err != nil {
-		qe.log.Error("Goja query failed", slog.String("serverID", serverID), slog.Any("error", err))
 		return models.QueryResult{}, err
 	}
 
-	qe.log.Debug("Query executed successfully (builtin)", slog.String("serverID", serverID))
 	return result, nil
 }
 
 func (qe *QueryExecutor) executeWithMongosh(ctx context.Context, serverID, dbName, query string) (models.QueryResult, error) {
 	cfg, err := qe.store.GetConnectionConfig(serverID)
 	if err != nil {
-		qe.log.Error("Failed to get connection config", slog.String("serverID", serverID), slog.Any("error", err))
 		return models.QueryResult{}, err
 	}
 
@@ -122,11 +116,9 @@ func (qe *QueryExecutor) executeWithMongosh(ctx context.Context, serverID, dbNam
 	}
 
 	if err != nil {
-		qe.log.Error("Query execution failed", slog.String("serverID", serverID), slog.Any("error", err))
 		return models.QueryResult{}, err
 	}
 
-	qe.log.Debug("Query executed successfully (mongosh)", slog.String("serverID", serverID))
 	return result, nil
 }
 
@@ -136,7 +128,7 @@ func (qe *QueryExecutor) CancelQuery(serverID string) {
 	defer qe.mu.Unlock()
 
 	if cancel, ok := qe.cancels[serverID]; ok {
-		qe.log.Info("Cancelling query", slog.String("serverID", serverID))
+		qe.log.Debug("Cancelling query", slog.String("serverID", serverID))
 		cancel()
 		delete(qe.cancels, serverID)
 	}

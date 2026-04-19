@@ -36,7 +36,6 @@ func (s *Service) SelectFile(title string, filters []api.FileFilter) (string, er
 		ShowHiddenFiles: true,
 	})
 	if err != nil {
-		s.log.Error("Failed to select file", slog.Any("error", err))
 		return "", fmt.Errorf("failed to select file: %w", err)
 	}
 
@@ -62,7 +61,6 @@ func (s *Service) SaveFile(title *string, name *string, filters []api.FileFilter
 		Filters:         runtimeFilters,
 	})
 	if err != nil {
-		s.log.Error("Failed to select save file", slog.Any("error", err))
 		return "", fmt.Errorf("failed to select save file: %w", err)
 	}
 

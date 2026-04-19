@@ -138,12 +138,12 @@ export const useWorkspaceStore = defineStore('workspaces', () => {
 
     const result = await workspacesProxy.AddFolder(activeWorkspaceId.value)
     if (!result.isSuccess) {
-      // Suppress error when user cancels the folder picker dialog
-      if (result.errorCode === 'no_folder_selected') {
-        return
-      }
       const notifier = useNotifier()
       notifier.error(result.errorDetail || result.errorCode)
+      return
+    }
+
+    if (!result.data) {
       return
     }
 

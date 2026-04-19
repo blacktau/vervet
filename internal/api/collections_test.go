@@ -84,7 +84,7 @@ func TestCollectionsProxy_GetCollections(t *testing.T) {
 		provider := &MockCollectionsProvider{
 			collections: []string{"coll1", "coll2"},
 		}
-		proxy := NewCollectionsProxy(provider)
+		proxy := NewCollectionsProxy(testLogger(), provider)
 		result := proxy.GetCollections("1", "db1")
 		assert.True(t, result.IsSuccess)
 		assert.Len(t, result.Data, 2)
@@ -94,7 +94,7 @@ func TestCollectionsProxy_GetCollections(t *testing.T) {
 		provider := &MockCollectionsProvider{
 			getCollectionsErr: errors.New("failed"),
 		}
-		proxy := NewCollectionsProxy(provider)
+		proxy := NewCollectionsProxy(testLogger(), provider)
 		result := proxy.GetCollections("1", "db1")
 		assert.False(t, result.IsSuccess)
 		assert.NotEmpty(t, result.ErrorCode)
@@ -106,7 +106,7 @@ func TestCollectionsProxy_GetViews(t *testing.T) {
 		provider := &MockCollectionsProvider{
 			views: []string{"view1"},
 		}
-		proxy := NewCollectionsProxy(provider)
+		proxy := NewCollectionsProxy(testLogger(), provider)
 		result := proxy.GetViews("1", "db1")
 		assert.True(t, result.IsSuccess)
 		assert.Len(t, result.Data, 1)
@@ -116,7 +116,7 @@ func TestCollectionsProxy_GetViews(t *testing.T) {
 		provider := &MockCollectionsProvider{
 			getViewsErr: errors.New("failed"),
 		}
-		proxy := NewCollectionsProxy(provider)
+		proxy := NewCollectionsProxy(testLogger(), provider)
 		result := proxy.GetViews("1", "db1")
 		assert.False(t, result.IsSuccess)
 		assert.NotEmpty(t, result.ErrorCode)
@@ -126,7 +126,7 @@ func TestCollectionsProxy_GetViews(t *testing.T) {
 func TestCollectionsProxy_CreateCollection(t *testing.T) {
 	t.Run("successful create", func(t *testing.T) {
 		provider := &MockCollectionsProvider{}
-		proxy := NewCollectionsProxy(provider)
+		proxy := NewCollectionsProxy(testLogger(), provider)
 		result := proxy.CreateCollection("1", "db1", "newcoll")
 		assert.True(t, result.IsSuccess)
 	})
@@ -135,7 +135,7 @@ func TestCollectionsProxy_CreateCollection(t *testing.T) {
 		provider := &MockCollectionsProvider{
 			createCollectionErr: errors.New("already exists"),
 		}
-		proxy := NewCollectionsProxy(provider)
+		proxy := NewCollectionsProxy(testLogger(), provider)
 		result := proxy.CreateCollection("1", "db1", "newcoll")
 		assert.False(t, result.IsSuccess)
 		assert.NotEmpty(t, result.ErrorCode)
@@ -145,7 +145,7 @@ func TestCollectionsProxy_CreateCollection(t *testing.T) {
 func TestCollectionsProxy_RenameCollection(t *testing.T) {
 	t.Run("successful rename", func(t *testing.T) {
 		provider := &MockCollectionsProvider{}
-		proxy := NewCollectionsProxy(provider)
+		proxy := NewCollectionsProxy(testLogger(), provider)
 		result := proxy.RenameCollection("1", "db1", "old", "new")
 		assert.True(t, result.IsSuccess)
 	})
@@ -154,7 +154,7 @@ func TestCollectionsProxy_RenameCollection(t *testing.T) {
 		provider := &MockCollectionsProvider{
 			renameCollectionErr: errors.New("target exists"),
 		}
-		proxy := NewCollectionsProxy(provider)
+		proxy := NewCollectionsProxy(testLogger(), provider)
 		result := proxy.RenameCollection("1", "db1", "old", "new")
 		assert.False(t, result.IsSuccess)
 		assert.NotEmpty(t, result.ErrorCode)
@@ -164,7 +164,7 @@ func TestCollectionsProxy_RenameCollection(t *testing.T) {
 func TestCollectionsProxy_DropCollection(t *testing.T) {
 	t.Run("successful drop", func(t *testing.T) {
 		provider := &MockCollectionsProvider{}
-		proxy := NewCollectionsProxy(provider)
+		proxy := NewCollectionsProxy(testLogger(), provider)
 		result := proxy.DropCollection("1", "db1", "coll1")
 		assert.True(t, result.IsSuccess)
 	})
@@ -173,7 +173,7 @@ func TestCollectionsProxy_DropCollection(t *testing.T) {
 		provider := &MockCollectionsProvider{
 			dropCollectionErr: errors.New("ns not found"),
 		}
-		proxy := NewCollectionsProxy(provider)
+		proxy := NewCollectionsProxy(testLogger(), provider)
 		result := proxy.DropCollection("1", "db1", "coll1")
 		assert.False(t, result.IsSuccess)
 		assert.NotEmpty(t, result.ErrorCode)
@@ -185,7 +185,7 @@ func TestCollectionsProxy_GetCollectionSchema(t *testing.T) {
 		provider := &MockCollectionsProvider{
 			schema: models.CollectionSchema{},
 		}
-		proxy := NewCollectionsProxy(provider)
+		proxy := NewCollectionsProxy(testLogger(), provider)
 		result := proxy.GetCollectionSchema("1", "db1", "coll1")
 		assert.True(t, result.IsSuccess)
 	})
@@ -194,7 +194,7 @@ func TestCollectionsProxy_GetCollectionSchema(t *testing.T) {
 		provider := &MockCollectionsProvider{
 			getSchemaErr: errors.New("failed"),
 		}
-		proxy := NewCollectionsProxy(provider)
+		proxy := NewCollectionsProxy(testLogger(), provider)
 		result := proxy.GetCollectionSchema("1", "db1", "coll1")
 		assert.False(t, result.IsSuccess)
 		assert.NotEmpty(t, result.ErrorCode)

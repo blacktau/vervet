@@ -47,7 +47,6 @@ func NewManager(log *slog.Logger, registry *clientregistry.ClientRegistry, store
 }
 
 func (cm *ConnectionManager) Init(ctx context.Context) error {
-	cm.log.Debug("Initializing Connection ConnectionManager")
 	cm.ctx = ctx
 	return nil
 }
@@ -55,8 +54,6 @@ func (cm *ConnectionManager) Init(ctx context.Context) error {
 // Connect establishes a connection to a MongoDB database using a securely stored URI.
 // This method is exposed to Wails.
 func (cm *ConnectionManager) Connect(serverID string) (models.Connection, error) {
-	cm.log.Debug("Connecting to Mongo Instance", slog.String("serverID", serverID))
-
 	if cm.registry.IsConnected(serverID) {
 		cm.log.Warn("already connected to Mongo Instance", slog.String("serverID", serverID))
 		return models.Connection{}, fmt.Errorf("already connected to this Mongo Instance")
@@ -64,23 +61,15 @@ func (cm *ConnectionManager) Connect(serverID string) (models.Connection, error)
 
 	server, err := cm.serverProvider.GetServer(serverID)
 	if err != nil {
-		cm.log.Error("Error retrieving server", slog.String("serverID", serverID))
 		return models.Connection{}, fmt.Errorf("error retrieving server: %w", err)
 	}
 
 	cfg, err := cm.store.GetConnectionConfig(serverID)
 	if err != nil {
-		cm.log.Error("Error retrieving connection config", slog.String("serverID", serverID))
 		return models.Connection{}, fmt.Errorf("error retrieving connection config: %w", err)
 	}
 
-	cm.log.Info("Connection config retrieved",
-		slog.String("serverID", serverID),
-		slog.String("authMethod", string(cfg.AuthMethod)),
-		slog.Bool("hasOIDCConfig", cfg.OIDCConfig != nil))
-
 	if cfg.AuthMethod == models.AuthOIDC {
-		cm.log.Info("Connecting with OIDC authentication", slog.String("serverID", serverID))
 		_, err = cm.registry.ConnectWithConfig(serverID, server.Name, cfg)
 	} else {
 		_, err = cm.registry.Connect(serverID, server.Name, cfg.URI)
@@ -90,7 +79,7 @@ func (cm *ConnectionManager) Connect(serverID string) (models.Connection, error)
 		return models.Connection{}, err
 	}
 
-	cm.log.Info("Successfully connected to MongoDB", slog.String("serverID", serverID))
+	cm.log.Debug("Successfully connected to MongoDB", slog.String("serverID", serverID))
 	runtime.EventsEmit(cm.ctx, ConnectedEvent, serverID)
 
 	return models.Connection{
@@ -106,37 +95,20 @@ func (cm *ConnectionManager) TestConnection(uri string) (bool, error) {
 
 	client, err := mongo.Connect(ctx, clientOptions)
 	if err != nil {
-		scrubbed := cleanConnectionString(uri)
-		cm.log.Error("Failed to connect to MongoDB:", slog.String("uri", scrubbed), slog.Any("error", err))
 		return false, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
 	if err = client.Ping(ctx, nil); err != nil {
-		err2 := client.Disconnect(cm.ctx)
-		scrubbed := cleanConnectionString(uri)
-		if err2 != nil {
-			cm.log.Error("Error disconnecting from mongo server", slog.String("uri", scrubbed), slog.Any("error", err2))
-		}
-		cm.log.Error("Ping failed:", slog.String("uri", scrubbed), slog.Any("error", err))
+		_ = client.Disconnect(cm.ctx)
 		return false, fmt.Errorf("failed to connection to database: %w", err)
 	}
 
 	if _, err = client.ListDatabases(ctx, bson.D{}, nil); err != nil {
-		scrubbed := cleanConnectionString(uri)
-		err2 := client.Disconnect(cm.ctx)
-		if err2 != nil {
-			cm.log.Error("Error disconnecting from mongo server", slog.String("uri", scrubbed), slog.Any("error", err2))
-		}
-
-		cm.log.Error("Failed to retrieve list of databases", slog.Any("error", err))
+		_ = client.Disconnect(cm.ctx)
 		return false, fmt.Errorf("failed to retrieve list of databases: %w", err)
 	}
 
-	err = client.Disconnect(ctx)
-	if err != nil {
-		scrubbed := cleanConnectionString(uri)
-		cm.log.Error("Error disconnecting from mongo server", slog.String("uri", scrubbed), slog.Any("error", err))
-	}
+	_ = client.Disconnect(ctx)
 
 	return true, nil
 }
@@ -152,23 +124,15 @@ func (cm *ConnectionManager) TestConnectionWithConfig(ctx context.Context, cfg m
 
 	client, err := mongo.Connect(connectCtx, clientOptions)
 	if err != nil {
-		scrubbed := cleanConnectionString(cfg.URI)
-		cm.log.Error("Failed to connect to MongoDB:", slog.String("uri", scrubbed), slog.Any("error", err))
 		return false, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
 	if err = client.Ping(connectCtx, nil); err != nil {
 		_ = client.Disconnect(ctx)
-		scrubbed := cleanConnectionString(cfg.URI)
-		cm.log.Error("Ping failed:", slog.String("uri", scrubbed), slog.Any("error", err))
 		return false, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
-	err = client.Disconnect(ctx)
-	if err != nil {
-		scrubbed := cleanConnectionString(cfg.URI)
-		cm.log.Error("Error disconnecting from mongo server", slog.String("uri", scrubbed), slog.Any("error", err))
-	}
+	_ = client.Disconnect(ctx)
 
 	return true, nil
 }
@@ -182,11 +146,10 @@ func (cm *ConnectionManager) Disconnect(serverID string) error {
 	runtime.EventsEmit(cm.ctx, DisconnectedEvent, serverID)
 
 	if err != nil {
-		cm.log.Error("Error disconnecting", slog.String("serverID", serverID), slog.Any("error", err))
 		return err
 	}
 
-	cm.log.Info("Disconnected from mongo server", slog.String("serverID", serverID))
+	cm.log.Debug("Disconnected from mongo server", slog.String("serverID", serverID))
 	return nil
 }
 
@@ -201,11 +164,10 @@ func (cm *ConnectionManager) DisconnectAll() error {
 	}
 
 	if err != nil {
-		cm.log.Error("Error when disconnecting all", slog.Any("error", err))
 		return err
 	}
 
-	cm.log.Info("Disconnected from all mongo servers")
+	cm.log.Debug("Disconnected from all mongo servers")
 	return nil
 }
 

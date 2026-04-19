@@ -39,10 +39,8 @@ func (s *DatabasesService) Init(ctx context.Context) {
 }
 
 func (s *DatabasesService) GetDatabases(serverID string) ([]string, error) {
-	s.log.Debug("Getting databases for mongo instance", slog.String("serverID", serverID))
 	client, err := s.clients.GetClient(serverID)
 	if err != nil {
-		s.log.Error("Failed to get client", slog.String("serverID", serverID), slog.Any("error", err))
 		return nil, err
 	}
 
@@ -51,20 +49,13 @@ func (s *DatabasesService) GetDatabases(serverID string) ([]string, error) {
 
 	names, err := client.ListDatabaseNames(ctx, bson.D{})
 	if err != nil {
-		s.log.Error("Failed to list databases", slog.String("serverID", serverID), slog.Any("error", err))
 		return nil, err
 	}
 	slices.Sort(names)
-	s.log.Debug("Got databases", slog.String("serverID", serverID), slog.Any("databases", names))
 	return names, nil
 }
 
 func (s *DatabasesService) GetDatabaseStatistics(serverID, dbName string) (map[string]any, error) {
-	s.log.Debug("Getting database statistics",
-		slog.String("serverID", serverID),
-		slog.String("dbName", dbName),
-	)
-
 	client, err := s.clients.GetClient(serverID)
 	if err != nil {
 		return nil, err
@@ -85,10 +76,6 @@ func (s *DatabasesService) GetDatabaseStatistics(serverID, dbName string) (map[s
 }
 
 func (s *DatabasesService) DropDatabase(serverID, dbName string) error {
-	s.log.Debug("Dropping database",
-		slog.String("serverID", serverID),
-		slog.String("dbName", dbName))
-
 	client, err := s.clients.GetClient(serverID)
 	if err != nil {
 		return err
@@ -99,15 +86,8 @@ func (s *DatabasesService) DropDatabase(serverID, dbName string) error {
 
 	err = client.Database(dbName).Drop(ctx)
 	if err != nil {
-		s.log.Error("Failed to drop database",
-			slog.String("serverID", serverID),
-			slog.String("dbName", dbName),
-			slog.Any("error", err))
 		return fmt.Errorf("failed to drop database: %w", err)
 	}
 
-	s.log.Info("Dropped database",
-		slog.String("serverID", serverID),
-		slog.String("dbName", dbName))
 	return nil
 }

@@ -23,7 +23,9 @@ terminal:
     size: 14
   cursorStyle: block
 workspaces:
-  fileExtensions: []
+  fileExtensions:
+    - .js
+    - .mongodb
 updates:
   frequency: daily
 logging:

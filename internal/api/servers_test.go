@@ -94,7 +94,7 @@ func TestServersProxy_GetServers(t *testing.T) {
 				{ID: "2", Name: "Server 2"},
 			},
 		}
-		proxy := NewServersProxy(provider)
+		proxy := NewServersProxy(testLogger(), provider)
 
 		result := proxy.GetServers()
 
@@ -106,7 +106,7 @@ func TestServersProxy_GetServers(t *testing.T) {
 		provider := &MockServersProvider{
 			err: errors.New("failed to get servers"),
 		}
-		proxy := NewServersProxy(provider)
+		proxy := NewServersProxy(testLogger(), provider)
 
 		result := proxy.GetServers()
 
@@ -120,7 +120,7 @@ func TestServersProxy_GetServer(t *testing.T) {
 		provider := &MockServersProvider{
 			server: &models.RegisteredServer{ID: "1", Name: "Server 1"},
 		}
-		proxy := NewServersProxy(provider)
+		proxy := NewServersProxy(testLogger(), provider)
 
 		result := proxy.GetServer("1")
 
@@ -132,7 +132,7 @@ func TestServersProxy_GetServer(t *testing.T) {
 		provider := &MockServersProvider{
 			server: nil,
 		}
-		proxy := NewServersProxy(provider)
+		proxy := NewServersProxy(testLogger(), provider)
 
 		result := proxy.GetServer("1")
 
@@ -145,7 +145,7 @@ func TestServersProxy_GetServer(t *testing.T) {
 		provider := &MockServersProvider{
 			err: errors.New("failed to get server"),
 		}
-		proxy := NewServersProxy(provider)
+		proxy := NewServersProxy(testLogger(), provider)
 
 		result := proxy.GetServer("1")
 
@@ -157,7 +157,7 @@ func TestServersProxy_GetServer(t *testing.T) {
 func TestServersProxy_CreateGroup(t *testing.T) {
 	t.Run("successful create group", func(t *testing.T) {
 		provider := &MockServersProvider{}
-		proxy := NewServersProxy(provider)
+		proxy := NewServersProxy(testLogger(), provider)
 
 		result := proxy.CreateGroup("parent", "New Group")
 
@@ -168,7 +168,7 @@ func TestServersProxy_CreateGroup(t *testing.T) {
 		provider := &MockServersProvider{
 			err: errors.New("failed to create group"),
 		}
-		proxy := NewServersProxy(provider)
+		proxy := NewServersProxy(testLogger(), provider)
 
 		result := proxy.CreateGroup("parent", "New Group")
 
@@ -180,7 +180,7 @@ func TestServersProxy_CreateGroup(t *testing.T) {
 func TestServersProxy_UpdateGroup(t *testing.T) {
 	t.Run("successful update group", func(t *testing.T) {
 		provider := &MockServersProvider{}
-		proxy := NewServersProxy(provider)
+		proxy := NewServersProxy(testLogger(), provider)
 
 		result := proxy.UpdateGroup("1", "Updated Group", "")
 
@@ -191,7 +191,7 @@ func TestServersProxy_UpdateGroup(t *testing.T) {
 		provider := &MockServersProvider{
 			err: errors.New("failed to update group"),
 		}
-		proxy := NewServersProxy(provider)
+		proxy := NewServersProxy(testLogger(), provider)
 
 		result := proxy.UpdateGroup("1", "Updated Group", "")
 
@@ -203,7 +203,7 @@ func TestServersProxy_UpdateGroup(t *testing.T) {
 func TestServersProxy_SaveServer(t *testing.T) {
 	t.Run("successful save server", func(t *testing.T) {
 		provider := &MockServersProvider{}
-		proxy := NewServersProxy(provider)
+		proxy := NewServersProxy(testLogger(), provider)
 
 		result := proxy.SaveServer("parent", "New Server", "mongodb://localhost", "")
 
@@ -214,7 +214,7 @@ func TestServersProxy_SaveServer(t *testing.T) {
 		provider := &MockServersProvider{
 			err: errors.New("failed to save server"),
 		}
-		proxy := NewServersProxy(provider)
+		proxy := NewServersProxy(testLogger(), provider)
 
 		result := proxy.SaveServer("parent", "New Server", "mongodb://localhost", "")
 
@@ -226,7 +226,7 @@ func TestServersProxy_SaveServer(t *testing.T) {
 func TestServersProxy_UpdateServer(t *testing.T) {
 	t.Run("successful update server", func(t *testing.T) {
 		provider := &MockServersProvider{}
-		proxy := NewServersProxy(provider)
+		proxy := NewServersProxy(testLogger(), provider)
 
 		result := proxy.UpdateServer("1", "Updated Server", "mongodb://localhost", "", "")
 
@@ -237,7 +237,7 @@ func TestServersProxy_UpdateServer(t *testing.T) {
 		provider := &MockServersProvider{
 			err: errors.New("failed to update server"),
 		}
-		proxy := NewServersProxy(provider)
+		proxy := NewServersProxy(testLogger(), provider)
 
 		result := proxy.UpdateServer("1", "Updated Server", "mongodb://localhost", "", "")
 
@@ -249,7 +249,7 @@ func TestServersProxy_UpdateServer(t *testing.T) {
 func TestServersProxy_RemoveNode(t *testing.T) {
 	t.Run("successful remove node", func(t *testing.T) {
 		provider := &MockServersProvider{}
-		proxy := NewServersProxy(provider)
+		proxy := NewServersProxy(testLogger(), provider)
 
 		result := proxy.RemoveNode("1")
 
@@ -260,7 +260,7 @@ func TestServersProxy_RemoveNode(t *testing.T) {
 		provider := &MockServersProvider{
 			err: errors.New("failed to remove node"),
 		}
-		proxy := NewServersProxy(provider)
+		proxy := NewServersProxy(testLogger(), provider)
 
 		result := proxy.RemoveNode("1")
 
@@ -272,7 +272,7 @@ func TestServersProxy_RemoveNode(t *testing.T) {
 func TestServersProxy_GetURI(t *testing.T) {
 	t.Run("successful get URI", func(t *testing.T) {
 		provider := &MockServersProvider{}
-		proxy := NewServersProxy(provider)
+		proxy := NewServersProxy(testLogger(), provider)
 
 		result := proxy.GetURI("1")
 
@@ -284,7 +284,7 @@ func TestServersProxy_GetURI(t *testing.T) {
 		provider := &MockServersProvider{
 			err: errors.New("failed to get URI"),
 		}
-		proxy := NewServersProxy(provider)
+		proxy := NewServersProxy(testLogger(), provider)
 
 		result := proxy.GetURI("1")
 

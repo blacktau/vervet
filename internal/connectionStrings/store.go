@@ -61,7 +61,6 @@ func (s *store) GetRegisteredServerURI(registeredServerID string) (string, error
 		return getErr
 	})
 	if err != nil {
-		s.log.Error("Failed to retrieve connection URI", slog.Any("error", err))
 		return "", fmt.Errorf("failed to retrieve connection URI: %w", err)
 	}
 
@@ -74,7 +73,6 @@ func (s *store) DeleteRegisteredServerURI(registeredServerID string) error {
 		return keyring.Delete(serviceName, key)
 	})
 	if err != nil {
-		s.log.Error("Failed to delete registeredServer URI", slog.Any("error", err))
 		return fmt.Errorf("failed to delete registeredServer URI: %w", err)
 	}
 	return nil

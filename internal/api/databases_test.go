@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"log/slog"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -34,11 +35,12 @@ func (m *MockDatabasesProvider) DropDatabase(serverID string, dbName string) err
 }
 
 func TestDatabasesProxy_GetDatabases(t *testing.T) {
+	log := slog.Default()
 	t.Run("successful get databases", func(t *testing.T) {
 		provider := &MockDatabasesProvider{
 			databases: []string{"db1", "db2"},
 		}
-		proxy := NewDatabasesProxy(provider)
+		proxy := NewDatabasesProxy(log, provider)
 
 		result := proxy.GetDatabases("1")
 
@@ -50,7 +52,7 @@ func TestDatabasesProxy_GetDatabases(t *testing.T) {
 		provider := &MockDatabasesProvider{
 			getDatabasesErr: errors.New("failed to get databases"),
 		}
-		proxy := NewDatabasesProxy(provider)
+		proxy := NewDatabasesProxy(log, provider)
 
 		result := proxy.GetDatabases("1")
 
@@ -60,11 +62,12 @@ func TestDatabasesProxy_GetDatabases(t *testing.T) {
 }
 
 func TestDatabasesProxy_GetDatabaseStatistics(t *testing.T) {
+	log := slog.Default()
 	t.Run("successful get database statistics", func(t *testing.T) {
 		provider := &MockDatabasesProvider{
 			dbStats: map[string]any{"db": "testdb", "collections": 3},
 		}
-		proxy := NewDatabasesProxy(provider)
+		proxy := NewDatabasesProxy(log, provider)
 
 		result := proxy.GetDatabaseStatistics("1", "testdb")
 
@@ -76,7 +79,7 @@ func TestDatabasesProxy_GetDatabaseStatistics(t *testing.T) {
 		provider := &MockDatabasesProvider{
 			getDatabaseStatsErr: errors.New("stats error"),
 		}
-		proxy := NewDatabasesProxy(provider)
+		proxy := NewDatabasesProxy(log, provider)
 
 		result := proxy.GetDatabaseStatistics("1", "testdb")
 
@@ -86,9 +89,10 @@ func TestDatabasesProxy_GetDatabaseStatistics(t *testing.T) {
 }
 
 func TestDatabasesProxy_DropDatabase(t *testing.T) {
+	log := slog.Default()
 	t.Run("successful drop database", func(t *testing.T) {
 		provider := &MockDatabasesProvider{}
-		proxy := NewDatabasesProxy(provider)
+		proxy := NewDatabasesProxy(log, provider)
 
 		result := proxy.DropDatabase("1", "testdb")
 
@@ -100,7 +104,7 @@ func TestDatabasesProxy_DropDatabase(t *testing.T) {
 		provider := &MockDatabasesProvider{
 			dropDatabaseErr: errors.New("drop failed"),
 		}
-		proxy := NewDatabasesProxy(provider)
+		proxy := NewDatabasesProxy(log, provider)
 
 		result := proxy.DropDatabase("1", "testdb")
 

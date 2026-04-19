@@ -295,7 +295,7 @@ watch(
           {{ t('query.database') }}:
           <strong>{{ queryState.selectedDatabase }}</strong>
         </span>
-        <n-tooltip v-if="!queryState.loading" delay="800">
+        <n-tooltip v-if="!queryState.loading" :delay="800">
           <template #trigger>
             <n-button
               type="primary"
