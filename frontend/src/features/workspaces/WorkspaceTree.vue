@@ -107,6 +107,8 @@ function handleContextMenu(info: { event: MouseEvent; option: TreeOption }) {
     contextMenuOptions.value = [
       { label: t('workspaces.newFile'), key: 'newFile' },
       { label: t('workspaces.newFolder'), key: 'newFolder' },
+      { type: 'divider', key: 'd1' },
+      { label: t('workspaces.deleteFile'), key: 'delete' },
     ]
   }
 
