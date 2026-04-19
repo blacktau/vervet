@@ -1,6 +1,8 @@
 package api
 
 import (
+	"log/slog"
+
 	"vervet/internal/models"
 )
 
@@ -17,13 +19,15 @@ type SettingsProvider interface {
 }
 
 type SettingsProxy struct {
+	log      *slog.Logger
 	settings SettingsProvider
 	fp       FontProvider
 	version  string
 }
 
-func NewSettingsProxy(settings SettingsProvider, fp FontProvider, version string) *SettingsProxy {
+func NewSettingsProxy(log *slog.Logger, settings SettingsProvider, fp FontProvider, version string) *SettingsProxy {
 	return &SettingsProxy{
+		log:      log,
 		settings: settings,
 		fp:       fp,
 		version:  version,
@@ -33,6 +37,7 @@ func NewSettingsProxy(settings SettingsProvider, fp FontProvider, version string
 func (sp *SettingsProxy) GetSettings() Result[models.Settings] {
 	cfg, err := sp.settings.GetSettings()
 	if err != nil {
+		logFail(sp.log, "GetSettings", err)
 		return FailResult[models.Settings](err)
 	}
 	return SuccessResult(cfg)
@@ -41,6 +46,7 @@ func (sp *SettingsProxy) GetSettings() Result[models.Settings] {
 func (sp *SettingsProxy) SetSettings(cfg models.Settings) EmptyResult {
 	err := sp.settings.SetSettings(&cfg)
 	if err != nil {
+		logFail(sp.log, "SetSettings", err)
 		return Fail(err)
 	}
 	return Success()
@@ -49,6 +55,7 @@ func (sp *SettingsProxy) SetSettings(cfg models.Settings) EmptyResult {
 func (sp *SettingsProxy) ResetSettings() Result[*models.Settings] {
 	cfg, err := sp.settings.RestoreSettings()
 	if err != nil {
+		logFail(sp.log, "ResetSettings", err)
 		return FailResult[*models.Settings](err)
 	}
 
@@ -63,6 +70,7 @@ func (sp *SettingsProxy) GetAvailableFonts() Result[[]models.Font] {
 func (sp *SettingsProxy) GetWindowState() Result[models.WindowState] {
 	state, err := sp.settings.GetWindowState()
 	if err != nil {
+		logFail(sp.log, "GetWindowState", err)
 		return FailResult[models.WindowState](err)
 	}
 
@@ -73,6 +81,7 @@ func (sp *SettingsProxy) SaveWindowState(state models.WindowState) EmptyResult {
 	err := sp.settings.SaveWindowState(state)
 
 	if err != nil {
+		logFail(sp.log, "SaveWindowState", err)
 		return Fail(err)
 	}
 

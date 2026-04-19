@@ -1,6 +1,7 @@
 package api
 
 import (
+	"log/slog"
 	"runtime"
 )
 
@@ -22,6 +23,7 @@ var AllOperatingSystems = []struct {
 }
 
 type SystemProxy struct {
+	log     *slog.Logger
 	service SystemProvider
 }
 
@@ -30,8 +32,9 @@ type SystemProvider interface {
 	RevealLogsFolder() error
 }
 
-func NewSystemProxy(ss SystemProvider) *SystemProxy {
+func NewSystemProxy(log *slog.Logger, ss SystemProvider) *SystemProxy {
 	return &SystemProxy{
+		log:     log,
 		service: ss,
 	}
 }
@@ -61,6 +64,7 @@ func (sp *SystemProxy) Log(level string, message string) {
 
 func (sp *SystemProxy) RevealLogsFolder() EmptyResult {
 	if err := sp.service.RevealLogsFolder(); err != nil {
+		logFail(sp.log, "RevealLogsFolder", err)
 		return Fail(err)
 	}
 	return Success()

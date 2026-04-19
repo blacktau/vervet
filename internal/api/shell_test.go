@@ -35,7 +35,7 @@ func TestShellProxy_ExecuteQuery(t *testing.T) {
 		provider := &MockShellProvider{
 			queryResult: models.QueryResult{RawOutput: "ok"},
 		}
-		proxy := NewShellProxy(provider)
+		proxy := NewShellProxy(testLogger(), provider)
 		result := proxy.ExecuteQuery("1", "db1", "db.coll.find()")
 		assert.True(t, result.IsSuccess)
 		assert.Equal(t, "ok", result.Data.RawOutput)
@@ -45,7 +45,7 @@ func TestShellProxy_ExecuteQuery(t *testing.T) {
 		provider := &MockShellProvider{
 			executeErr: errors.New("query failed"),
 		}
-		proxy := NewShellProxy(provider)
+		proxy := NewShellProxy(testLogger(), provider)
 		result := proxy.ExecuteQuery("1", "db1", "db.coll.find()")
 		assert.False(t, result.IsSuccess)
 		assert.NotEmpty(t, result.ErrorCode)
@@ -55,7 +55,7 @@ func TestShellProxy_ExecuteQuery(t *testing.T) {
 func TestShellProxy_CancelQuery(t *testing.T) {
 	t.Run("cancel query", func(t *testing.T) {
 		provider := &MockShellProvider{}
-		proxy := NewShellProxy(provider)
+		proxy := NewShellProxy(testLogger(), provider)
 		result := proxy.CancelQuery("1")
 		assert.True(t, result.IsSuccess)
 	})
@@ -64,7 +64,7 @@ func TestShellProxy_CancelQuery(t *testing.T) {
 func TestShellProxy_CheckMongosh(t *testing.T) {
 	t.Run("mongosh available", func(t *testing.T) {
 		provider := &MockShellProvider{mongoshAvail: true}
-		proxy := NewShellProxy(provider)
+		proxy := NewShellProxy(testLogger(), provider)
 		result := proxy.CheckMongosh()
 		assert.True(t, result.IsSuccess)
 		assert.True(t, result.Data)
@@ -72,7 +72,7 @@ func TestShellProxy_CheckMongosh(t *testing.T) {
 
 	t.Run("mongosh not available", func(t *testing.T) {
 		provider := &MockShellProvider{mongoshAvail: false}
-		proxy := NewShellProxy(provider)
+		proxy := NewShellProxy(testLogger(), provider)
 		result := proxy.CheckMongosh()
 		assert.True(t, result.IsSuccess)
 		assert.False(t, result.Data)

@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"slices"
 	"time"
-	"vervet/internal/logging"
+
 	"vervet/internal/models"
 	"vervet/internal/queryengine"
 
@@ -24,14 +24,14 @@ type ClientProvider interface {
 
 // CollectionsService handles operations on MongoDB collections
 type CollectionsService struct {
-	ctx     context.Context
 	log     *slog.Logger
+	ctx     context.Context
 	clients ClientProvider
 }
 
 func NewCollectionsService(log *slog.Logger, clients ClientProvider) *CollectionsService {
 	return &CollectionsService{
-		log:     log.With(slog.String(logging.SourceKey, "CollectionsService")),
+		log:     log,
 		clients: clients,
 	}
 }
@@ -41,10 +41,6 @@ func (s *CollectionsService) Init(ctx context.Context) {
 }
 
 func (s *CollectionsService) GetServerStatistics(serverID string) (map[string]any, error) {
-	s.log.Debug("Getting server statistics",
-		slog.String("serverID", serverID),
-	)
-
 	client, err := s.clients.GetClient(serverID)
 	if err != nil {
 		return nil, err
@@ -65,12 +61,6 @@ func (s *CollectionsService) GetServerStatistics(serverID string) (map[string]an
 }
 
 func (s *CollectionsService) GetStatistics(serverID, dbName, collectionName string) (map[string]any, error) {
-	s.log.Debug("Getting collection statistics",
-		slog.String("serverID", serverID),
-		slog.String("dbName", dbName),
-		slog.String("collectionName", collectionName),
-	)
-
 	client, err := s.clients.GetClient(serverID)
 	if err != nil {
 		return nil, err
@@ -91,10 +81,6 @@ func (s *CollectionsService) GetStatistics(serverID, dbName, collectionName stri
 }
 
 func (s *CollectionsService) GetCollections(serverID, dbName string) ([]string, error) {
-	s.log.Debug("Getting collections",
-		slog.String("serverID", serverID),
-		slog.String("dbName", dbName))
-
 	client, err := s.clients.GetClient(serverID)
 	if err != nil {
 		return nil, err
@@ -113,10 +99,6 @@ func (s *CollectionsService) GetCollections(serverID, dbName string) ([]string, 
 }
 
 func (s *CollectionsService) GetViews(serverID, dbName string) ([]string, error) {
-	s.log.Debug("Getting views",
-		slog.String("serverID", serverID),
-		slog.String("dbName", dbName))
-
 	client, err := s.clients.GetClient(serverID)
 	if err != nil {
 		return nil, err
@@ -136,11 +118,6 @@ func (s *CollectionsService) GetViews(serverID, dbName string) ([]string, error)
 }
 
 func (s *CollectionsService) CreateCollection(serverID, dbName, collectionName string) error {
-	s.log.Debug("Creating collection",
-		slog.String("serverID", serverID),
-		slog.String("dbName", dbName),
-		slog.String("collectionName", collectionName))
-
 	client, err := s.clients.GetClient(serverID)
 	if err != nil {
 		return err
@@ -151,18 +128,9 @@ func (s *CollectionsService) CreateCollection(serverID, dbName, collectionName s
 
 	err = client.Database(dbName).CreateCollection(ctx, collectionName)
 	if err != nil {
-		s.log.Error("Failed to create collection",
-			slog.String("serverID", serverID),
-			slog.String("dbName", dbName),
-			slog.String("collectionName", collectionName),
-			slog.Any("error", err))
 		return fmt.Errorf("failed to create collection: %w", err)
 	}
 
-	s.log.Info("Created collection",
-		slog.String("serverID", serverID),
-		slog.String("dbName", dbName),
-		slog.String("collectionName", collectionName))
 	return nil
 }
 
@@ -186,12 +154,6 @@ func (s *CollectionsService) RenameCollection(serverID, dbName, oldName, newName
 		return fmt.Errorf("new name must differ from old name")
 	}
 
-	s.log.Debug("Renaming collection",
-		slog.String("serverID", serverID),
-		slog.String("dbName", dbName),
-		slog.String("oldName", oldName),
-		slog.String("newName", newName))
-
 	client, err := s.clients.GetClient(serverID)
 	if err != nil {
 		return err
@@ -207,29 +169,13 @@ func (s *CollectionsService) RenameCollection(serverID, dbName, oldName, newName
 	}
 	err = client.Database("admin").RunCommand(ctx, cmd).Err()
 	if err != nil {
-		s.log.Error("Failed to rename collection",
-			slog.String("serverID", serverID),
-			slog.String("dbName", dbName),
-			slog.String("oldName", oldName),
-			slog.String("newName", newName),
-			slog.Any("error", err))
 		return fmt.Errorf("failed to rename collection: %w", err)
 	}
 
-	s.log.Info("Renamed collection",
-		slog.String("serverID", serverID),
-		slog.String("dbName", dbName),
-		slog.String("oldName", oldName),
-		slog.String("newName", newName))
 	return nil
 }
 
 func (s *CollectionsService) DropCollection(serverID, dbName, collectionName string) error {
-	s.log.Debug("Dropping collection",
-		slog.String("serverID", serverID),
-		slog.String("dbName", dbName),
-		slog.String("collectionName", collectionName))
-
 	client, err := s.clients.GetClient(serverID)
 	if err != nil {
 		return err
@@ -240,17 +186,8 @@ func (s *CollectionsService) DropCollection(serverID, dbName, collectionName str
 
 	err = client.Database(dbName).Collection(collectionName).Drop(ctx)
 	if err != nil {
-		s.log.Error("Failed to drop collection",
-			slog.String("serverID", serverID),
-			slog.String("dbName", dbName),
-			slog.String("collectionName", collectionName),
-			slog.Any("error", err))
 		return fmt.Errorf("failed to drop collection: %w", err)
 	}
 
-	s.log.Info("Dropped collection",
-		slog.String("serverID", serverID),
-		slog.String("dbName", dbName),
-		slog.String("collectionName", collectionName))
 	return nil
 }

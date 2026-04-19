@@ -33,14 +33,8 @@ func NewStore(filename string, log *slog.Logger) (Store, error) {
 
 func (s *cfgStore) Read() ([]byte, error) {
 	if _, err := os.Stat(s.ConfigPath); os.IsNotExist(err) {
-		if s.log != nil {
-			s.log.Info("Configuration file does not exist yet. Creating it.")
-		}
 		err := os.WriteFile(s.ConfigPath, []byte{}, 0600)
 		if err != nil {
-			if s.log != nil {
-				s.log.Error("Error creating configuration file", slog.Any("error", err))
-			}
 			return []byte{}, err
 		}
 	} else if err != nil {
@@ -49,9 +43,6 @@ func (s *cfgStore) Read() ([]byte, error) {
 
 	d, err := os.ReadFile(s.ConfigPath)
 	if err != nil {
-		if s.log != nil {
-			s.log.Error("Error reading configuration", slog.Any("error", err))
-		}
 		return nil, fmt.Errorf("failed to read configuration from %s: %w", s.ConfigPath, err)
 	}
 	return d, nil
@@ -60,24 +51,15 @@ func (s *cfgStore) Read() ([]byte, error) {
 func (s *cfgStore) Save(data []byte) error {
 	f, err := os.Create(s.ConfigPath)
 	if err != nil {
-		if s.log != nil {
-			s.log.Error("Error creating configuration file for save", slog.Any("error", err))
-		}
 		return fmt.Errorf("error saving configuration: %w", err)
 	}
 	defer f.Close()
 
 	if _, err := f.Write(data); err != nil {
-		if s.log != nil {
-			s.log.Error("Error writing configuration", slog.Any("error", err))
-		}
 		return fmt.Errorf("error saving configuration: %w", err)
 	}
 
 	if err := f.Sync(); err != nil {
-		if s.log != nil {
-			s.log.Error("Error syncing configuration to disk", slog.Any("error", err))
-		}
 		return fmt.Errorf("error saving configuration: %w", err)
 	}
 

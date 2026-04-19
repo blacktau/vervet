@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"log/slog"
 	"testing"
 
 	"vervet/internal/models"
@@ -37,6 +38,7 @@ func (m *MockIndexesProvider) DropIndex(serverID string, dbName string, collecti
 }
 
 func TestIndexesProxy_GetIndexes(t *testing.T) {
+	log := slog.New(slog.Default().Handler())
 	t.Run("successful get indexes", func(t *testing.T) {
 		provider := &MockIndexesProvider{
 			indexes: []models.Index{
@@ -44,7 +46,7 @@ func TestIndexesProxy_GetIndexes(t *testing.T) {
 				{Name: "name_1", Keys: []models.IndexKeyField{{Field: "name", Direction: 1}}},
 			},
 		}
-		proxy := NewIndexesProxy(provider)
+		proxy := NewIndexesProxy(log, provider)
 		result := proxy.GetIndexes("1", "db1", "coll1")
 		assert.True(t, result.IsSuccess)
 		assert.Len(t, result.Data, 2)
@@ -55,7 +57,7 @@ func TestIndexesProxy_GetIndexes(t *testing.T) {
 		provider := &MockIndexesProvider{
 			getIndexesErr: errors.New("failed to get indexes"),
 		}
-		proxy := NewIndexesProxy(provider)
+		proxy := NewIndexesProxy(log, provider)
 		result := proxy.GetIndexes("1", "db1", "coll1")
 		assert.False(t, result.IsSuccess)
 		assert.NotEmpty(t, result.ErrorCode)
@@ -63,9 +65,10 @@ func TestIndexesProxy_GetIndexes(t *testing.T) {
 }
 
 func TestIndexesProxy_CreateIndex(t *testing.T) {
+	log := slog.New(slog.Default().Handler())
 	t.Run("successful create index", func(t *testing.T) {
 		provider := &MockIndexesProvider{}
-		proxy := NewIndexesProxy(provider)
+		proxy := NewIndexesProxy(log, provider)
 		result := proxy.CreateIndex("1", "db1", "coll1", models.CreateIndexRequest{
 			Keys:   []models.IndexKeyField{{Field: "email", Direction: 1}},
 			Unique: true,
@@ -78,7 +81,7 @@ func TestIndexesProxy_CreateIndex(t *testing.T) {
 		provider := &MockIndexesProvider{
 			createIndexErr: errors.New("duplicate key"),
 		}
-		proxy := NewIndexesProxy(provider)
+		proxy := NewIndexesProxy(log, provider)
 		result := proxy.CreateIndex("1", "db1", "coll1", models.CreateIndexRequest{
 			Keys: []models.IndexKeyField{{Field: "email", Direction: 1}},
 		})
@@ -88,9 +91,10 @@ func TestIndexesProxy_CreateIndex(t *testing.T) {
 }
 
 func TestIndexesProxy_EditIndex(t *testing.T) {
+	log := slog.New(slog.Default().Handler())
 	t.Run("successful edit index", func(t *testing.T) {
 		provider := &MockIndexesProvider{}
-		proxy := NewIndexesProxy(provider)
+		proxy := NewIndexesProxy(log, provider)
 		result := proxy.EditIndex("1", "db1", "coll1", models.EditIndexRequest{
 			OldName: "name_1",
 			Keys:    []models.IndexKeyField{{Field: "name", Direction: -1}},
@@ -103,7 +107,7 @@ func TestIndexesProxy_EditIndex(t *testing.T) {
 		provider := &MockIndexesProvider{
 			editIndexErr: errors.New("edit failed"),
 		}
-		proxy := NewIndexesProxy(provider)
+		proxy := NewIndexesProxy(log, provider)
 		result := proxy.EditIndex("1", "db1", "coll1", models.EditIndexRequest{
 			OldName: "name_1",
 			Keys:    []models.IndexKeyField{{Field: "name", Direction: -1}},
@@ -114,9 +118,10 @@ func TestIndexesProxy_EditIndex(t *testing.T) {
 }
 
 func TestIndexesProxy_DropIndex(t *testing.T) {
+	log := slog.New(slog.Default().Handler())
 	t.Run("successful drop index", func(t *testing.T) {
 		provider := &MockIndexesProvider{}
-		proxy := NewIndexesProxy(provider)
+		proxy := NewIndexesProxy(log, provider)
 		result := proxy.DropIndex("1", "db1", "coll1", "name_1")
 		assert.True(t, result.IsSuccess)
 		assert.Empty(t, result.ErrorCode)
@@ -126,7 +131,7 @@ func TestIndexesProxy_DropIndex(t *testing.T) {
 		provider := &MockIndexesProvider{
 			dropIndexErr: errors.New("index not found"),
 		}
-		proxy := NewIndexesProxy(provider)
+		proxy := NewIndexesProxy(log, provider)
 		result := proxy.DropIndex("1", "db1", "coll1", "name_1")
 		assert.False(t, result.IsSuccess)
 		assert.NotEmpty(t, result.ErrorCode)
