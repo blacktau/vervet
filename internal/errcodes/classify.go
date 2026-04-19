@@ -18,6 +18,9 @@ func ClassifyError(err error) ClassifiedError {
 	}
 
 	if errors.Is(err, context.DeadlineExceeded) {
+		if code := classifyByMessage(err.Error()); code != "" {
+			return ClassifiedError{Code: code, Detail: err.Error()}
+		}
 		return ClassifiedError{Code: QueryTimeout, Detail: err.Error()}
 	}
 

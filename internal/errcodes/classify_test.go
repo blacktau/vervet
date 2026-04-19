@@ -29,6 +29,12 @@ func TestClassifyError_WrappedTimeout(t *testing.T) {
 	assert.Equal(t, errcodes.QueryTimeout, result.Code)
 }
 
+func TestClassifyError_DeadlineExceeded_WithServerSelection_IsConnectionFailed(t *testing.T) {
+	wrapped := fmt.Errorf("connect failed: server selection error: server selection timeout, current topology: ...: %w", context.DeadlineExceeded)
+	result := errcodes.ClassifyError(wrapped)
+	assert.Equal(t, errcodes.ConnectionFailed, result.Code)
+}
+
 func TestClassifyError_MongoCommandError_Auth(t *testing.T) {
 	err := mongo.CommandError{Code: 18, Message: "Authentication failed"}
 	result := errcodes.ClassifyError(err)
