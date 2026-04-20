@@ -11,6 +11,11 @@ import { useTabStore } from '@/features/tabs/tabs.ts'
 import DataTreeContextMenu from '@/features/data-browser/DataTreeContextMenu.vue'
 import { useDialogStore } from '@/stores/dialog.ts'
 import { useNotifier } from '@/utils/dialog.ts'
+import {
+  readCollectionImpact,
+  readDbImpact,
+  shouldEscalateCollectionDrop,
+} from '@/features/data-browser/statsImpact.ts'
 import * as collectionsProxy from 'wailsjs/go/api/CollectionsProxy'
 import * as databasesProxy from 'wailsjs/go/api/DatabasesProxy'
 
@@ -82,7 +87,7 @@ const renderPrefix = ({ option }: { option: DataTreeNode }) => {
   return null
 }
 
-function handleContextMenuSelect(key: string) {
+async function handleContextMenuSelect(key: string) {
   const node = contextMenu.selectedNode.value
   if (!node) return
 
@@ -174,15 +179,22 @@ function handleContextMenuSelect(key: string) {
       const serverId = parts[0]
       const dbName = parts[1]
       if (serverId && dbName) {
-        dialog.warning({
-          title: t('common.warning'),
-          content: t('dataBrowser.dialogs.dropDatabase.message', { name: dbName }),
-          positiveText: t('common.confirm'),
-          negativeText: t('common.cancel'),
-          onPositiveClick: async () => {
+        const statsResult = await databasesProxy.GetDatabaseStatistics(serverId, dbName)
+        const impact =
+          statsResult.isSuccess && statsResult.data
+            ? readDbImpact(statsResult.data as Record<string, unknown>)
+            : {}
+        dialogStore.openDestructiveConfirmDialog({
+          kind: 'database',
+          name: dbName,
+          impact,
+          onConfirm: async () => {
             const result = await databasesProxy.DropDatabase(serverId, dbName)
             if (!result.isSuccess) {
-              notifier.error(t(`errors.${result.errorCode}`), { title: t('errorTitles.dropDatabase'), detail: result.errorDetail })
+              notifier.error(t(`errors.${result.errorCode}`), {
+                title: t('errorTitles.dropDatabase'),
+                detail: result.errorDetail,
+              })
               return
             }
             await browserStore.refreshServerDatabases(serverId)
@@ -219,20 +231,48 @@ function handleContextMenuSelect(key: string) {
       const dbName = parts[1]
       const collectionName = parts[3]
       if (serverId && dbName && collectionName) {
-        dialog.warning({
-          title: t('common.warning'),
-          content: t('dataBrowser.dialogs.dropCollection.message', { name: collectionName }),
-          positiveText: t('common.confirm'),
-          negativeText: t('common.cancel'),
-          onPositiveClick: async () => {
-            const result = await collectionsProxy.DropCollection(serverId, dbName, collectionName)
-            if (!result.isSuccess) {
-              notifier.error(t(`errors.${result.errorCode}`), { title: t('errorTitles.dropCollection'), detail: result.errorDetail })
-              return
-            }
-            await browserStore.refreshDatabaseCollections(serverId, dbName)
-          },
-        })
+        const isView = node.type === DataNodeType.View
+        let impact: { documentCount?: number } = {}
+        let statsFetchFailed = false
+        if (!isView) {
+          const statsResult = await collectionsProxy.GetStatistics(serverId, dbName, collectionName)
+          if (statsResult.isSuccess && statsResult.data) {
+            impact = readCollectionImpact(statsResult.data as Record<string, unknown>)
+          } else {
+            statsFetchFailed = true
+          }
+        }
+        const documentCount = statsFetchFailed ? undefined : impact.documentCount
+        const escalate = shouldEscalateCollectionDrop({ isView, documentCount })
+
+        const doDrop = async () => {
+          const result = await collectionsProxy.DropCollection(serverId, dbName, collectionName)
+          if (!result.isSuccess) {
+            notifier.error(t(`errors.${result.errorCode}`), {
+              title: t('errorTitles.dropCollection'),
+              detail: result.errorDetail,
+            })
+            return
+          }
+          await browserStore.refreshDatabaseCollections(serverId, dbName)
+        }
+
+        if (escalate) {
+          dialogStore.openDestructiveConfirmDialog({
+            kind: 'collection',
+            name: collectionName,
+            impact,
+            onConfirm: doDrop,
+          })
+        } else {
+          dialog.warning({
+            title: t('common.warning'),
+            content: t('dataBrowser.dialogs.dropCollection.message', { name: collectionName }),
+            positiveText: t('common.confirm'),
+            negativeText: t('common.cancel'),
+            onPositiveClick: doDrop,
+          })
+        }
       }
     }
   }
