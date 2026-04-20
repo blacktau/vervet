@@ -7,10 +7,8 @@ import {
   useDialogStore,
   type DestructiveConfirmData,
 } from '@/stores/dialog.ts'
-import { useNotifier } from '@/utils/dialog.ts'
 
 const dialogStore = useDialogStore()
-const notifier = useNotifier()
 const { t } = useI18n()
 
 const formRef = ref<FormInst | null>(null)
@@ -111,15 +109,9 @@ async function onConfirm() {
   }
 
   loading.value = true
-  try {
-    await data.value.onConfirm()
-  } catch (e) {
-    const err = e as Error
-    notifier.error(err.message)
-  } finally {
-    loading.value = false
-    dialogStore.closeDestructiveConfirmDialog()
-  }
+  await data.value.onConfirm()
+  loading.value = false
+  dialogStore.closeDestructiveConfirmDialog()
   return false
 }
 
