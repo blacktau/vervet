@@ -24,11 +24,24 @@ export const enum DialogType {
   RenameCollection = 'renameCollection',
   ServerPicker = 'serverPicker',
   Export = 'export',
+  DestructiveConfirm = 'destructiveConfirm',
 }
 
 export type ServerDialogData = {
   serverId: string
   mode: 'edit' | 'clone'
+}
+
+export type DestructiveConfirmKind = 'database' | 'collection'
+
+export type DestructiveConfirmData = {
+  kind: DestructiveConfirmKind
+  name: string
+  impact: {
+    collectionCount?: number
+    documentCount?: number
+  }
+  onConfirm: () => Promise<void>
 }
 
 export const useDialogStore = defineStore('dialog', {
@@ -70,6 +83,10 @@ export const useDialogStore = defineStore('dialog', {
         type: DialogMode.New,
       } as DialogState,
       [DialogType.Export]: {
+        visible: false,
+        type: DialogMode.New,
+      } as DialogState,
+      [DialogType.DestructiveConfirm]: {
         visible: false,
         type: DialogMode.New,
       } as DialogState,
@@ -183,6 +200,12 @@ export const useDialogStore = defineStore('dialog', {
     },
     openServerPickerDialog(data?: unknown) {
       this.showNewDialog(DialogType.ServerPicker, data)
+    },
+    openDestructiveConfirmDialog(data: DestructiveConfirmData) {
+      this.showNewDialog(DialogType.DestructiveConfirm, data)
+    },
+    closeDestructiveConfirmDialog() {
+      this.hide(DialogType.DestructiveConfirm)
     },
   },
   getters: {

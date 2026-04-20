@@ -6,8 +6,6 @@ import * as settingsProxy from 'wailsjs/go/api/SettingsProxy'
 import { type models } from 'wailsjs/go/models.ts'
 import { useNotifier } from '@/utils/dialog.ts'
 
-const theme = useOsTheme()
-
 type SettingsStore = models.Settings & {
   fontList: models.Font[]
   previousVersion?: models.Settings
@@ -125,7 +123,13 @@ export const useSettingsStore = defineStore('settings', {
     },
     isDark(): boolean {
       const th = this.general.theme || 'auto'
-      return th === 'dark' || (th === 'auto' && theme.value === 'dark')
+      if (th === 'dark') {
+        return true
+      }
+      if (th === 'light') {
+        return false
+      }
+      return useOsTheme().value === 'dark'
     },
   },
   actions: {

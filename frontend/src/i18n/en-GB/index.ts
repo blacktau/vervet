@@ -232,9 +232,26 @@ export default {
         message:
           'Are you sure you want to drop collection "{name}"? This action cannot be undone.',
       },
-      dropDatabase: {
-        message:
-          'Are you sure you want to drop database "{name}"? This will delete all collections and data within it. This action cannot be undone.',
+      destructiveConfirm: {
+        database: {
+          title: 'Drop database',
+          warning: 'You are about to permanently drop the database {name}. This cannot be undone.',
+          impactWithCounts:
+            'It contains {collections} collections and approximately {documents} documents.',
+          impactCollectionsOnly: 'It contains {collections} collections.',
+          impactUnavailable: 'Impact details unavailable.',
+          inputLabel: 'Type the database name to confirm:',
+        },
+        collection: {
+          title: 'Drop collection',
+          warning: 'You are about to permanently drop the collection {name}. This cannot be undone.',
+          impactDocuments: 'It contains approximately {documents} documents.',
+          impactUnavailable: 'Impact details unavailable.',
+          inputLabel: 'Type the collection name to confirm:',
+        },
+        confirm: 'Drop',
+        cancel: 'Cancel',
+        mismatchHelp: 'The name must match exactly.',
       },
     },
   },

@@ -15,6 +15,7 @@ import AddDatabaseDialog from '@/features/data-browser/AddDatabaseDialog.vue'
 import AddCollectionDialog from '@/features/data-browser/AddCollectionDialog.vue'
 import CreateIndexDialog from '@/features/indexes/CreateIndexDialog.vue'
 import RenameCollectionDialog from '@/features/data-browser/RenameCollectionDialog.vue'
+import DestructiveConfirmDialog from '@/features/data-browser/DestructiveConfirmDialog.vue'
 import ServerPickerDialog from '@/features/workspaces/ServerPickerDialog.vue'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 import { DialogType, useDialogStore } from '@/stores/dialog.ts'
@@ -104,6 +105,7 @@ watch(
         <add-collection-dialog v-if="dialogStore.isVisible(DialogType.AddCollection)" />
         <create-index-dialog v-if="dialogStore.isVisible(DialogType.CreateIndex)" />
         <rename-collection-dialog v-if="dialogStore.isVisible(DialogType.RenameCollection)" />
+        <destructive-confirm-dialog v-if="dialogStore.isVisible(DialogType.DestructiveConfirm)" />
         <server-picker-dialog v-if="dialogStore.isVisible(DialogType.ServerPicker)" />
       </n-dialog-provider>
     </n-notification-provider>
