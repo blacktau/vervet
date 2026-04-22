@@ -8,4 +8,9 @@ type QueryResult struct {
 	RawOutput     string `json:"rawOutput"`
 	OperationType string `json:"operationType,omitempty"`
 	AffectedCount int    `json:"affectedCount,omitempty"`
+	// Single marks results that semantically represent one object (write acks,
+	// counts, findOneAnd* matches, explain output) rather than a document list.
+	// Consumed by the Goja engine so scripts see `result.insertedIds` instead
+	// of `result[0].insertedIds`. Not serialised to the frontend.
+	Single bool `json:"-"`
 }

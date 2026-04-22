@@ -32,6 +32,32 @@ func TestToGojaValue_SingleDocument(t *testing.T) {
 	assert.Len(t, arr, 1)
 }
 
+func TestToGojaValue_SingleFlag_UnwrapsToObject(t *testing.T) {
+	rt := goja.New()
+	result := models.QueryResult{
+		Single: true,
+		Documents: []any{
+			map[string]any{"acknowledged": true, "insertedIds": []any{"a", "b", "c"}},
+		},
+	}
+	val := toGojaValue(rt, result)
+	m, ok := val.Export().(map[string]any)
+	require.True(t, ok, "Single=true should unwrap to a map, got %T", val.Export())
+	assert.Equal(t, true, m["acknowledged"])
+	ids, ok := m["insertedIds"].([]any)
+	require.True(t, ok)
+	assert.Len(t, ids, 3)
+}
+
+func TestToGojaValue_SingleFlagEmpty_ReturnsEmptyArray(t *testing.T) {
+	rt := goja.New()
+	result := models.QueryResult{Single: true, Documents: []any{}}
+	val := toGojaValue(rt, result)
+	arr, ok := val.Export().([]any)
+	require.True(t, ok)
+	assert.Empty(t, arr)
+}
+
 func TestToGojaValue_RawOutput(t *testing.T) {
 	rt := goja.New()
 	result := models.QueryResult{RawOutput: "hello world"}

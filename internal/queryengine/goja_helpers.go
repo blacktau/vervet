@@ -14,6 +14,9 @@ func toGojaValue(rt *goja.Runtime, result models.QueryResult) goja.Value {
 	if result.RawOutput != "" {
 		return rt.ToValue(result.RawOutput)
 	}
+	if result.Single && len(result.Documents) > 0 {
+		return rt.ToValue(result.Documents[0])
+	}
 	return rt.ToValue(result.Documents)
 }
 

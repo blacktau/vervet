@@ -881,14 +881,14 @@ func singleToResult(v any) models.QueryResult {
 		// Fall back to regular JSON for non-BSON types (e.g. plain maps)
 		b, err = json.Marshal(v)
 		if err != nil {
-			return models.QueryResult{Documents: []any{v}}
+			return models.QueryResult{Documents: []any{v}, Single: true}
 		}
 	}
 	var m any
 	if err := json.Unmarshal(b, &m); err != nil {
-		return models.QueryResult{Documents: []any{v}}
+		return models.QueryResult{Documents: []any{v}, Single: true}
 	}
-	return models.QueryResult{Documents: []any{m}}
+	return models.QueryResult{Documents: []any{m}, Single: true}
 }
 
 // updateResultToQueryResult converts a mongo UpdateResult to a QueryResult.
