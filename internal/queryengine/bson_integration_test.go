@@ -277,13 +277,13 @@ func TestIntegration_Issue148_DistinctLongs(t *testing.T) {
 	}
 }
 
-// --- Issue #210: write-method results should be a single object in scripts ---
+// --- Write-method results are single objects in scripts, matching mongosh ---
 
 // A multi-line script that stores an insertMany result in a variable and
-// reads a field off it (as mongosh does). Before the fix, the eager-method
-// return was wrapped in an array, so `result.insertedIds` was undefined and
-// the print reported 0 — even though the inserts had actually happened.
-func TestIntegration_Issue210_InsertManyResultInScript(t *testing.T) {
+// reads a field off it (as mongosh does). If the eager-method return were
+// wrapped in an array, `result.insertedIds` would be undefined and the print
+// would report 0 even though the inserts happened.
+func TestIntegration_InsertManyResultInScript(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -313,7 +313,7 @@ func TestIntegration_Issue210_InsertManyResultInScript(t *testing.T) {
 // Guards the single-object shape for the most common write/read-single ops
 // so future changes to toGojaValue/singleToResult don't silently regress to
 // an array wrapper.
-func TestIntegration_Issue210_WriteResultsAreObjectsNotArrays(t *testing.T) {
+func TestIntegration_WriteResultsAreObjectsNotArrays(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
