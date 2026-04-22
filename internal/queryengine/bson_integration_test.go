@@ -277,6 +277,76 @@ func TestIntegration_Issue148_DistinctLongs(t *testing.T) {
 	}
 }
 
+// --- Write-method results are single objects in scripts, matching mongosh ---
+
+// A multi-line script that stores an insertMany result in a variable and
+// reads a field off it (as mongosh does). If the eager-method return were
+// wrapped in an array, `result.insertedIds` would be undefined and the print
+// would report 0 even though the inserts happened.
+func TestIntegration_InsertManyResultInScript(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	db := dbName(t)
+	defer testClient.Database(db).Drop(ctx)
+
+	engine := NewGojaEngine(testClient)
+
+	query := `
+		const items = [1, 2, 3];
+		const payload = items.map(id => ({ id: id, status: "active" }));
+		const result = db.myCollection.insertMany(payload);
+		print("Inserted " + (result.insertedIds ? Object.keys(result.insertedIds).length : 0));
+	`
+
+	res, err := engine.ExecuteQuery(ctx, testURI, db, query)
+	require.NoError(t, err)
+
+	count, err := testClient.Database(db).Collection("myCollection").CountDocuments(ctx, bson.M{})
+	require.NoError(t, err)
+	assert.Equal(t, int64(3), count, "three documents should be inserted")
+
+	assert.Equal(t, "Inserted 3", res.RawOutput,
+		"script must see result.insertedIds — regressed if this says 'Inserted 0'")
+}
+
+// Guards the single-object shape for the most common write/read-single ops
+// so future changes to toGojaValue/singleToResult don't silently regress to
+// an array wrapper.
+func TestIntegration_WriteResultsAreObjectsNotArrays(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	db := dbName(t)
+	defer testClient.Database(db).Drop(ctx)
+
+	engine := NewGojaEngine(testClient)
+
+	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.c.insertMany([{n:1},{n:2},{n:3}])`)
+	require.NoError(t, err)
+
+	cases := []struct {
+		name  string
+		query string
+	}{
+		{"insertOne", `const r = db.c.insertOne({n: 99}); print(typeof r.acknowledged + ":" + (r.insertedId ? "id" : "nil"))`},
+		{"updateOne", `const r = db.c.updateOne({n:1}, {$set:{n:10}}); print(typeof r.acknowledged + ":" + r.matchedCount)`},
+		{"deleteOne", `const r = db.c.deleteOne({n:10}); print(typeof r.acknowledged + ":" + r.deletedCount)`},
+		{"countDocuments", `const r = db.c.countDocuments({}); print(typeof r.count + ":" + r.count)`},
+		{"distinct", `const r = db.c.distinct("n"); print(Array.isArray(r.values) + ":" + r.values.length)`},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			res, err := engine.ExecuteQuery(ctx, testURI, db, tc.query)
+			require.NoError(t, err)
+			assert.NotEmpty(t, res.RawOutput)
+			assert.NotContains(t, res.RawOutput, "undefined",
+				"field access on result returned undefined — result is likely still array-wrapped")
+		})
+	}
+}
+
 func TestIntegration_Regex_NestedInOperator(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
