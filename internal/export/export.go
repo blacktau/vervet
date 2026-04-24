@@ -11,7 +11,7 @@ func Serialize(docs []bson.M, opts Options) ([]byte, error) {
 	case FormatJSON:
 		return serializeJSON(docs)
 	case FormatNDJSON:
-		return nil, fmt.Errorf("ndjson not yet implemented")
+		return serializeNDJSON(docs)
 	case FormatCSV:
 		return nil, fmt.Errorf("csv not yet implemented")
 	default:
