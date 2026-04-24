@@ -28,6 +28,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'update:checkedKeys', keys: DataTableRowKey[]): void
   (e: 'document-changed'): void
+  (e: 'export-requested'): void
 }>()
 
 const { t } = useI18n()
@@ -226,6 +227,10 @@ function handleContextMenuSelect(key: string) {
   if (key === 'copyDocument') {
     const doc = resolveRawValue(props.documents, row.key)
     copyToClipboard(JSON.stringify(humanizeEjson(doc), null, 2))
+  }
+
+  if (key === 'exportResults') {
+    emit('export-requested')
   }
 
   if (key === 'copyValue') {

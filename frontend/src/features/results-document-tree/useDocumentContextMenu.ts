@@ -49,6 +49,7 @@ export function useDocumentContextMenu(collectionContext: Ref<CollectionContext 
       options.push(
         { type: 'divider', key: 'd1' },
         { label: t('query.contextMenu.copyDocument'), key: 'copyDocument' },
+        { label: t('export.contextMenu'), key: 'exportResults' },
       )
 
       if (collectionContext.value) {

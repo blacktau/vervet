@@ -2,6 +2,7 @@
 import { h } from 'vue'
 import { type DropdownOption, NDropdown, NIcon } from 'naive-ui'
 import {
+  ArrowDownOnSquareIcon,
   ClipboardIcon,
   ClipboardDocumentIcon,
   EyeIcon,
@@ -29,6 +30,7 @@ const iconMap: Record<string, typeof EyeIcon> = {
   editDocument: PencilSquareIcon,
   insertDocument: PlusIcon,
   copyDocument: ClipboardIcon,
+  exportResults: ArrowDownOnSquareIcon,
   deleteDocument: TrashIcon,
   copyValue: ClipboardIcon,
   copyField: ClipboardDocumentIcon,

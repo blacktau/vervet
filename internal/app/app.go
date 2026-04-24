@@ -11,6 +11,7 @@ import (
 	"vervet/internal/connectionStrings"
 	"vervet/internal/connections"
 	"vervet/internal/databases"
+	"vervet/internal/export"
 	"vervet/internal/files"
 	"vervet/internal/indexes"
 	"vervet/internal/models"
@@ -24,6 +25,23 @@ import (
 
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
+
+// filesServiceSaveDialogAdapter adapts files.Service to export.SaveDialog,
+// converting between api.FileFilter and export.FileFilter.
+type filesServiceSaveDialogAdapter struct {
+	svc *files.Service
+}
+
+func (a *filesServiceSaveDialogAdapter) SaveFile(title *string, name *string, filters []export.FileFilter) (string, error) {
+	apiFilters := make([]api.FileFilter, len(filters))
+	for i, f := range filters {
+		apiFilters[i] = api.FileFilter{
+			DisplayName: f.DisplayName,
+			Pattern:     f.Pattern,
+		}
+	}
+	return a.svc.SaveFile(title, name, apiFilters)
+}
 
 // App struct
 type App struct {
@@ -40,6 +58,7 @@ type App struct {
 	FilesProxy       *api.FilesProxy
 	WorkspacesProxy  *api.WorkspacesProxy
 	UpdatesProxy     *api.UpdatesProxy
+	ExportProxy      *api.ExportProxy
 
 	serverService      *servers.ServerService
 	registry           *clientregistry.ClientRegistry
@@ -52,6 +71,7 @@ type App struct {
 	settingsService    settings.Service
 	systemService      *system.Service
 	filesService       *files.Service
+	exportService      *export.Service
 	updatesService     *updates.Service
 	updatesEmitter     *updates.WailsEmitter
 	updatesOpener      *updates.BrowserOpener
@@ -84,6 +104,7 @@ func NewApp(log *slog.Logger, settingsService settings.Service, version string) 
 	systemService := system.NewSystemService(log)
 	fontService := system.NewFontService(log)
 	filesService := files.NewService(log)
+	exportService := export.NewService(log, &filesServiceSaveDialogAdapter{svc: filesService})
 	workspaceStore, err := workspaces.NewStore(log)
 	if err != nil {
 		log.Error("Failed to initialize workspace store", slog.Any("error", err))
@@ -104,6 +125,7 @@ func NewApp(log *slog.Logger, settingsService settings.Service, version string) 
 		settingsService:    settingsService,
 		systemService:      systemService,
 		filesService:       filesService,
+		exportService:      exportService,
 		ServersProxy:       api.NewServersProxy(log, serverService),
 		ConnectionsProxy:   api.NewConnectionsProxy(log, connectionManager),
 		DatabasesProxy:     api.NewDatabasesProxy(log, databasesService),
@@ -114,6 +136,7 @@ func NewApp(log *slog.Logger, settingsService settings.Service, version string) 
 		SettingsProxy:      api.NewSettingsProxy(log, settingsService, fontService, version),
 		FilesProxy:         api.NewFilesProxy(log, filesService),
 		WorkspacesProxy:    api.NewWorkspacesProxy(log, workspaceService, settingsService),
+		ExportProxy:        api.NewExportProxy(log, exportService),
 		UpdatesProxy:       api.NewUpdatesProxy(log, updatesService, updatesOpener),
 		appVersion:         version,
 		updatesService:     updatesService,
@@ -153,6 +176,7 @@ func (a *App) Startup(ctx context.Context) {
 	}
 
 	a.filesService.Init(ctx)
+	a.exportService.Init(ctx)
 	a.systemService.Init(ctx)
 	a.WorkspacesProxy.Init(ctx)
 

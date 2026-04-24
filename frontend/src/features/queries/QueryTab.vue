@@ -11,9 +11,11 @@ import {
   CodeBracketIcon,
   FolderOpenIcon,
   ArrowDownTrayIcon,
+  ArrowDownOnSquareIcon,
   DocumentArrowDownIcon,
   TrashIcon,
 } from '@heroicons/vue/24/outline'
+import { useDialogStore } from '@/stores/dialog'
 import ListTreeIcon from '@/features/icon/ListTreeIcon.vue'
 import { useSettingsStore } from '@/features/settings/settingsStore'
 import { isMacOS } from '@/init/environment'
@@ -30,6 +32,7 @@ const { t } = useI18n()
 const queryStore = useQueryStore()
 const tabStore = useTabStore()
 const settingsStore = useSettingsStore()
+const dialogStore = useDialogStore()
 const dialog = useDialog()
 const themeVars = useThemeVars()
 
@@ -196,6 +199,13 @@ const openFile = async () => {
 
 function setResultView(view: 'table' | 'json') {
   queryState.value.resultView = view
+}
+
+function openExport() {
+  dialogStore.openExportResultsDialog({
+    ejson: queryStore.getRawJson(props.queryId),
+    collectionName: queryTabItem.value?.collectionName,
+  })
 }
 
 async function handleDocumentChanged() {
@@ -409,6 +419,20 @@ watch(
                 </template>
                 {{ t('query.jsonView') }}
               </n-tooltip>
+              <n-tooltip>
+                <template #trigger>
+                  <n-button
+                    size="small"
+                    :disabled="!hasDocuments"
+                    data-testid="export-results-button"
+                    @click="openExport">
+                    <template #icon>
+                      <n-icon :component="ArrowDownOnSquareIcon" />
+                    </template>
+                  </n-button>
+                </template>
+                {{ t('export.button') }}
+              </n-tooltip>
             </n-space>
             <n-space
               v-if="queryState.activeResultTab === 'messages'"
@@ -450,7 +474,8 @@ watch(
                   :documents="queryState.documents"
                   :enable-context-menu="true"
                   :collection-context="collectionContext"
-                  @document-changed="handleDocumentChanged" />
+                  @document-changed="handleDocumentChanged"
+                  @export-requested="openExport" />
               </div>
               <div v-else class="json-results">
                 <json-result-view :content="queryStore.getRawJson(props.queryId)" />

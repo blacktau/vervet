@@ -17,6 +17,7 @@ import CreateIndexDialog from '@/features/indexes/CreateIndexDialog.vue'
 import RenameCollectionDialog from '@/features/data-browser/RenameCollectionDialog.vue'
 import DestructiveConfirmDialog from '@/features/data-browser/DestructiveConfirmDialog.vue'
 import ServerPickerDialog from '@/features/workspaces/ServerPickerDialog.vue'
+import ExportResultsDialog from '@/features/results-export/ExportResultsDialog.vue'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 import { DialogType, useDialogStore } from '@/stores/dialog.ts'
 import hljs from 'highlight.js/lib/core'
@@ -107,6 +108,12 @@ watch(
         <rename-collection-dialog v-if="dialogStore.isVisible(DialogType.RenameCollection)" />
         <destructive-confirm-dialog v-if="dialogStore.isVisible(DialogType.DestructiveConfirm)" />
         <server-picker-dialog v-if="dialogStore.isVisible(DialogType.ServerPicker)" />
+        <export-results-dialog
+          v-if="dialogStore.isVisible(DialogType.ExportResults)"
+          :show="dialogStore.isVisible(DialogType.ExportResults)"
+          :ejson="dialogStore.exportResultsData.ejson"
+          :collection-name="dialogStore.exportResultsData.collectionName"
+          @update:show="(v) => { if (!v) dialogStore.closeExportResultsDialog() }" />
       </n-dialog-provider>
     </n-notification-provider>
   </n-config-provider>

@@ -439,6 +439,35 @@ export default {
     unsavedChangesCancel: 'Cancel',
     modified: 'Modified',
   },
+  export: {
+    title: 'Export results',
+    button: 'Export',
+    contextMenu: 'Export results…',
+    format: {
+      label: 'Format',
+      csv: 'CSV',
+      json: 'JSON',
+      ndjson: 'NDJSON',
+    },
+    csv: {
+      separator: {
+        label: 'Field separator',
+        comma: 'Comma (,)',
+        tab: 'Tab',
+        semicolon: 'Semicolon (;)',
+        pipe: "Pipe ({'|'})",
+        custom: 'Custom…',
+        customPlaceholder: 'Single character',
+      },
+      includeHeader: 'Include header row',
+      utf8Bom: 'UTF-8 BOM',
+      utf8BomHelp: 'Enable if you plan to open this file in Excel — helps preserve non-ASCII characters.',
+    },
+    filenamePreview: 'Default filename: {name}',
+    cancel: 'Cancel',
+    saved: 'Saved to {path}',
+    error: 'Export failed: {message}',
+  },
   serverPane: {
     serverTree: {
       addServerToGroup: 'Add Server',
