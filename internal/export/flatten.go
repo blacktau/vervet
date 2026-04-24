@@ -109,3 +109,8 @@ func sortedKeys(m bson.M) []string {
 	sort.Strings(keys)
 	return keys
 }
+
+// sortStrings sorts a slice of strings in-place alphabetically.
+func sortStrings(s []string) {
+	sort.Strings(s)
+}

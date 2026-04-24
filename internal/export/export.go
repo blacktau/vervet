@@ -13,7 +13,7 @@ func Serialize(docs []bson.M, opts Options) ([]byte, error) {
 	case FormatNDJSON:
 		return serializeNDJSON(docs)
 	case FormatCSV:
-		return nil, fmt.Errorf("csv not yet implemented")
+		return serializeCSV(docs, opts.Columns, opts.CSV)
 	default:
 		return nil, fmt.Errorf("unknown format %q", opts.Format)
 	}
