@@ -13,7 +13,13 @@ import (
 )
 
 const serviceName = "Vervet"
-const keyringTimeout = 5 * time.Second
+
+// keyringTimeout is intentionally generous: on Linux the OS secret service may
+// prompt the user for a password to unlock the login keyring, and that interaction
+// dominates wall-clock latency. A truly-missing D-Bus daemon fails fast from
+// go-keyring with an error, so the timeout only needs to guard against a wedged
+// daemon, not normal interactive unlock.
+const keyringTimeout = 60 * time.Second
 const keyringCooldown = 1 * time.Minute
 
 type Store interface {
@@ -102,11 +108,19 @@ func (s *store) markKeyringUnavailable() {
 	s.lastCheck = time.Now()
 }
 
+func (s *store) markKeyringAvailable() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.keyringAvailable = true
+}
+
 // withTimeout runs fn in a goroutine and returns its error, or a timeout error
 // if it doesn't complete within the given duration. This prevents keyring operations
-// from hanging indefinitely when the OS secret service (D-Bus) is unavailable,
-// which is common in environments like WSL2 without a running keyring daemon.
+// from hanging indefinitely when the OS secret service (D-Bus) is wedged.
 // If the keyring has previously timed out, it fails fast during the cooldown period.
+// If a goroutine started by a previous timed-out call eventually returns, the
+// unavailable flag is cleared — any return (success or error) proves the keyring
+// is responsive and the cooldown should not block the next attempt.
 func (s *store) withTimeout(timeout time.Duration, fn func() error) error {
 	if err := s.checkKeyringAvailable(); err != nil {
 		return err
@@ -114,7 +128,9 @@ func (s *store) withTimeout(timeout time.Duration, fn func() error) error {
 
 	done := make(chan error, 1)
 	go func() {
-		done <- fn()
+		err := fn()
+		done <- err
+		s.markKeyringAvailable()
 	}()
 	select {
 	case err := <-done:
