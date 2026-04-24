@@ -16,6 +16,7 @@ var dbMethodNames = map[string]bool{
 	"getCollectionNames":       true,
 	"getCollectionInfos":       true,
 	"createCollection":         true,
+	"createView":               true,
 	"dropDatabase":             true,
 	"stats":                    true,
 	"version":                  true,
@@ -66,6 +67,8 @@ func newDatabaseProxy(ec *execContext) goja.Value {
 				return ec.rt.ToValue(dbGetCollectionInfos(ec))
 			case "createCollection":
 				return ec.rt.ToValue(dbCreateCollection(ec))
+			case "createView":
+				return ec.rt.ToValue(dbCreateView(ec))
 			case "dropDatabase":
 				return ec.rt.ToValue(dbDropDatabase(ec))
 			case "stats":
