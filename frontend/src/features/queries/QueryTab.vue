@@ -474,7 +474,8 @@ watch(
                   :documents="queryState.documents"
                   :enable-context-menu="true"
                   :collection-context="collectionContext"
-                  @document-changed="handleDocumentChanged" />
+                  @document-changed="handleDocumentChanged"
+                  @export-requested="openExport" />
               </div>
               <div v-else class="json-results">
                 <json-result-view :content="queryStore.getRawJson(props.queryId)" />
