@@ -24,6 +24,7 @@ export const enum DialogType {
   RenameCollection = 'renameCollection',
   ServerPicker = 'serverPicker',
   Export = 'export',
+  ExportResults = 'exportResults',
   DestructiveConfirm = 'destructiveConfirm',
 }
 
@@ -88,6 +89,10 @@ export const useDialogStore = defineStore('dialog', {
         type: DialogMode.New,
       } as DialogState,
       [DialogType.Export]: {
+        visible: false,
+        type: DialogMode.New,
+      } as DialogState,
+      [DialogType.ExportResults]: {
         visible: false,
         type: DialogMode.New,
       } as DialogState,
@@ -213,10 +218,10 @@ export const useDialogStore = defineStore('dialog', {
       this.hide(DialogType.DestructiveConfirm)
     },
     openExportResultsDialog(data: ExportResultsData) {
-      this.showNewDialog(DialogType.Export, data)
+      this.showNewDialog(DialogType.ExportResults, data)
     },
     closeExportResultsDialog() {
-      this.hide(DialogType.Export)
+      this.hide(DialogType.ExportResults)
     },
   },
   getters: {
@@ -240,7 +245,7 @@ export const useDialogStore = defineStore('dialog', {
       }
     },
     exportResultsData(state): ExportResultsData {
-      const data = state.dialogs[DialogType.Export]?.data as ExportResultsData | undefined
+      const data = state.dialogs[DialogType.ExportResults]?.data as ExportResultsData | undefined
       return data ?? { ejson: '' }
     },
   },

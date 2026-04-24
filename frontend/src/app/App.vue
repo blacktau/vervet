@@ -109,8 +109,8 @@ watch(
         <destructive-confirm-dialog v-if="dialogStore.isVisible(DialogType.DestructiveConfirm)" />
         <server-picker-dialog v-if="dialogStore.isVisible(DialogType.ServerPicker)" />
         <export-results-dialog
-          v-if="dialogStore.isVisible(DialogType.Export)"
-          :show="dialogStore.isVisible(DialogType.Export)"
+          v-if="dialogStore.isVisible(DialogType.ExportResults)"
+          :show="dialogStore.isVisible(DialogType.ExportResults)"
           :ejson="dialogStore.exportResultsData.ejson"
           :collection-name="dialogStore.exportResultsData.collectionName"
           @update:show="(v) => { if (!v) dialogStore.closeExportResultsDialog() }" />
