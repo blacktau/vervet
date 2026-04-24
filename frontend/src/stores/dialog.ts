@@ -44,6 +44,11 @@ export type DestructiveConfirmData = {
   onConfirm: () => Promise<void>
 }
 
+export type ExportResultsData = {
+  ejson: string
+  collectionName?: string
+}
+
 export const useDialogStore = defineStore('dialog', {
   state: () => ({
     dialogs: {
@@ -207,6 +212,12 @@ export const useDialogStore = defineStore('dialog', {
     closeDestructiveConfirmDialog() {
       this.hide(DialogType.DestructiveConfirm)
     },
+    openExportResultsDialog(data: ExportResultsData) {
+      this.showNewDialog(DialogType.Export, data)
+    },
+    closeExportResultsDialog() {
+      this.hide(DialogType.Export)
+    },
   },
   getters: {
     serverDialogData(state): ServerDialogData | undefined {
@@ -227,6 +238,10 @@ export const useDialogStore = defineStore('dialog', {
         const data = state.dialogs[dialog].data as T | undefined
         return data
       }
+    },
+    exportResultsData(state): ExportResultsData {
+      const data = state.dialogs[DialogType.Export]?.data as ExportResultsData | undefined
+      return data ?? { ejson: '' }
     },
   },
 })
