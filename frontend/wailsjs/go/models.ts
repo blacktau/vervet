@@ -10,6 +10,19 @@ export namespace api {
 	    errorCode?: string;
 	    errorDetail?: string;
 	}
+	export interface ExportCSVOptions {
+	    separator: string;
+	    includeHeader: boolean;
+	    utf8Bom: boolean;
+	}
+	export interface ExportRequest {
+	    format: string;
+	    ejson: string;
+	    collectionName: string;
+	    defaultFilename: string;
+	    csv?: ExportCSVOptions;
+	    columns?: string[];
+	}
 	export interface FileFilter {
 	    displayName: string;
 	    pattern: string;
