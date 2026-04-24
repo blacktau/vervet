@@ -455,7 +455,7 @@ export default {
         comma: 'Comma (,)',
         tab: 'Tab',
         semicolon: 'Semicolon (;)',
-        pipe: 'Pipe (|)',
+        pipe: "Pipe ({'|'})",
         custom: 'Custom…',
         customPlaceholder: 'Single character',
       },
