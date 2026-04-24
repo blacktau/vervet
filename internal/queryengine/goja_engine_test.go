@@ -220,7 +220,7 @@ func TestDatabaseProxy_RunCommand_PanicsWithoutArgs(t *testing.T) {
 func TestDatabaseProxy_CoreMethods_AreFunctions(t *testing.T) {
 	rt, _ := setupRuntime(t)
 	methods := []string{
-		"getCollectionNames", "getCollectionInfos", "createCollection",
+		"getCollectionNames", "getCollectionInfos", "createCollection", "createView",
 		"dropDatabase", "stats", "version", "getSiblingDB", "getMongo", "aggregate",
 	}
 	for _, m := range methods {
@@ -250,6 +250,7 @@ func TestDatabaseProxy_CoreMethods_PanicWithoutClient(t *testing.T) {
 		`db.getCollectionNames()`,
 		`db.getCollectionInfos()`,
 		`db.createCollection("test")`,
+		`db.createView("v", "src", [])`,
 		`db.dropDatabase()`,
 		`db.stats()`,
 		`db.version()`,

@@ -125,6 +125,26 @@ func TestIntegration_CreateCollection(t *testing.T) {
 	assert.Contains(t, names, "newcoll")
 }
 
+func TestIntegration_CreateView(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	db := dbName(t)
+	defer testClient.Database(db).Drop(ctx)
+
+	engine := NewGojaEngine(testClient)
+	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.src.insertOne({ x: 1, y: 2 })`)
+	require.NoError(t, err)
+
+	result, err := engine.ExecuteQuery(ctx, testURI, db, `db.createView("myview", "src", [{ $project: { x: 1 } }])`)
+	require.NoError(t, err)
+	assert.Contains(t, result.RawOutput, "ok")
+
+	infos, err := testClient.Database(db).ListCollectionNames(ctx, map[string]any{"name": "myview"})
+	require.NoError(t, err)
+	assert.Contains(t, infos, "myview")
+}
+
 func TestIntegration_DropDatabase(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

@@ -80,6 +80,44 @@ func dbCreateCollection(ec *execContext) func(goja.FunctionCall) goja.Value {
 	}
 }
 
+// dbCreateView returns a function: db.createView(name, source, pipeline, options?) → { ok: 1 }
+// Equivalent to db.runCommand({ create: name, viewOn: source, pipeline: [...], ...options }).
+func dbCreateView(ec *execContext) func(goja.FunctionCall) goja.Value {
+	return func(call goja.FunctionCall) goja.Value {
+		requireClient(ec)
+		if len(call.Arguments) < 3 {
+			panic(ec.rt.NewGoError(fmt.Errorf("createView requires name, source, and pipeline arguments")))
+		}
+
+		name := call.Arguments[0].String()
+		source := call.Arguments[1].String()
+
+		pipelineRaw := exportValue(call.Arguments[2])
+		pipeline := convertToBson(pipelineRaw)
+
+		cmd := bson.D{
+			{Key: "create", Value: name},
+			{Key: "viewOn", Value: source},
+			{Key: "pipeline", Value: pipeline},
+		}
+
+		if len(call.Arguments) >= 4 && !goja.IsUndefined(call.Arguments[3]) {
+			optsRaw := exportValue(call.Arguments[3])
+			if optsDoc, ok := convertToBson(optsRaw).(bson.D); ok {
+				cmd = append(cmd, optsDoc...)
+			}
+		}
+
+		var result bson.M
+		err := ec.client.Database(ec.dbName).RunCommand(ec.ctx, cmd).Decode(&result)
+		if err != nil {
+			panic(ec.rt.NewGoError(fmt.Errorf("createView: %w", err)))
+		}
+
+		return ec.rt.ToValue(result)
+	}
+}
+
 // dbAggregate returns a function: db.aggregate(pipeline) → results array
 func dbAggregate(ec *execContext) func(goja.FunctionCall) goja.Value {
 	return func(call goja.FunctionCall) goja.Value {
