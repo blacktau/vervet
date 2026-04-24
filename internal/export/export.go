@@ -19,14 +19,6 @@ func Serialize(docs []bson.M, opts Options) ([]byte, error) {
 	}
 }
 
-// serializeJSON is a temporary stub so the package compiles.
-// The real implementation lands in Task 2.
 func serializeJSON(docs []bson.M) ([]byte, error) {
-	if docs == nil {
-		docs = []bson.M{}
-	}
-	if len(docs) == 0 {
-		return []byte("[]"), nil
-	}
-	return nil, fmt.Errorf("json not yet implemented")
+	return serializeJSONImpl(docs)
 }
