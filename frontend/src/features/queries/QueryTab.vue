@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import { useQueryStore } from '@/features/queries/queryStore'
 import { useTabStore } from '@/features/tabs/tabs'
+import { useDataBrowserStore } from '@/features/data-browser/browserStore'
 import { useMonacoEditor } from './useMonacoEditor'
 import VerticalResizeableWrapper from '@/features/common/VerticalResizeableWrapper.vue'
 import DocumentTreeTable from '@/features/results-document-tree/DocumentTreeTable.vue'
@@ -31,6 +32,7 @@ const props = defineProps<{
 const { t } = useI18n()
 const queryStore = useQueryStore()
 const tabStore = useTabStore()
+const browserStore = useDataBrowserStore()
 const settingsStore = useSettingsStore()
 const dialogStore = useDialogStore()
 const dialog = useDialog()
@@ -100,6 +102,19 @@ const runButtonTooltip = computed(() => {
 const openFileTooltip = computed(() => `${t('query.openFile')} (${modKey}+O)`)
 const saveFileTooltip = computed(() => `${t('query.saveFile')} (${modKey}+S)`)
 const saveFileAsTooltip = computed(() => `${t('query.saveFileAs')} (${modKey}+Shift+S)`)
+
+const databaseOptions = computed(() => {
+  const serverId = tabStore.currentTab?.serverId
+  if (!serverId) {
+    return []
+  }
+  const connection = browserStore.connections.find((c) => c.serverID === serverId)
+  return (connection?.databases ?? []).map((db) => ({ label: db.name, value: db.name }))
+})
+
+function onDatabaseChange(value: string) {
+  queryStore.setDatabase(props.queryId, value)
+}
 
 const hasDocuments = computed(() => queryState.value.documents.length > 0)
 const limitTruncated = computed(() => {
@@ -238,6 +253,11 @@ onMounted(async () => {
 
   await queryStore.checkMongosh()
 
+  const serverId = tabStore.currentTab?.serverId
+  if (serverId) {
+    await browserStore.getDatabaseList(serverId)
+  }
+
   if (editor.value) {
     editor.value.addAction({
       id: 'vervet.openFile',
@@ -303,10 +323,15 @@ watch(
   <div class="query-tab">
     <div class="toolbar">
       <n-space align="center">
-        <span class="database-label">
-          {{ t('query.database') }}:
-          <strong>{{ queryState.selectedDatabase }}</strong>
-        </span>
+        <n-select
+          class="database-select"
+          size="small"
+          filterable
+          :value="queryState.selectedDatabase || null"
+          :options="databaseOptions"
+          :placeholder="t('query.selectDatabase')"
+          :consistent-menu-width="false"
+          @update:value="onDatabaseChange" />
         <n-tooltip v-if="!queryState.loading" :delay="800">
           <template #trigger>
             <n-button
@@ -521,9 +546,8 @@ watch(
   justify-content: space-between;
 }
 
-.database-label {
-  font-size: 13px;
-  color: var(--n-text-color-2);
+.database-select {
+  min-width: 200px;
 }
 
 .mongosh-warning {
