@@ -132,7 +132,9 @@ const runQuery = async () => {
   if (!editor.value) {
     return
   }
-  const query = editor.value.getValue()
+  const selection = editor.value.getSelection()
+  const selectedText = selection ? (editor.value.getModel()?.getValueInRange(selection) ?? '') : ''
+  const query = selectedText.trim() !== '' ? selectedText : editor.value.getValue()
   await queryStore.executeQuery(props.queryId, query)
 }
 
