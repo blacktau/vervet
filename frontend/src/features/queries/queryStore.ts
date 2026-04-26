@@ -124,6 +124,11 @@ export const useQueryStore = defineStore('query', {
       delete this.queries[queryId]
     },
 
+    setDatabase(queryId: string, database: string) {
+      const state = this.getQueryState(queryId)
+      state.selectedDatabase = database
+    },
+
     async checkMongosh() {
       const result = await shellProxy.CheckMongosh()
       if (result.isSuccess) {
