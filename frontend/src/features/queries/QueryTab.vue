@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import { useQueryStore } from '@/features/queries/queryStore'
 import { useTabStore } from '@/features/tabs/tabs'
-import { useBrowserStore } from '@/features/data-browser/browserStore'
+import { useDataBrowserStore } from '@/features/data-browser/browserStore'
 import { useMonacoEditor } from './useMonacoEditor'
 import VerticalResizeableWrapper from '@/features/common/VerticalResizeableWrapper.vue'
 import DocumentTreeTable from '@/features/results-document-tree/DocumentTreeTable.vue'
@@ -32,7 +32,7 @@ const props = defineProps<{
 const { t } = useI18n()
 const queryStore = useQueryStore()
 const tabStore = useTabStore()
-const browserStore = useBrowserStore()
+const browserStore = useDataBrowserStore()
 const settingsStore = useSettingsStore()
 const dialogStore = useDialogStore()
 const dialog = useDialog()
