@@ -1,5 +1,6 @@
 <script lang="ts" setup>
-import { useQueryStore } from '@/features/queries/queryStore'
+import { useQueryStore, type LogMessageQuery } from '@/features/queries/queryStore'
+import MessagesPane from './MessagesPane.vue'
 import { useTabStore } from '@/features/tabs/tabs'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore'
 import { useMonacoEditor } from './useMonacoEditor'
@@ -15,6 +16,9 @@ import {
   ArrowDownOnSquareIcon,
   DocumentArrowDownIcon,
   TrashIcon,
+  InformationCircleIcon,
+  ExclamationTriangleIcon,
+  XCircleIcon,
 } from '@heroicons/vue/24/outline'
 import { useDialogStore } from '@/stores/dialog'
 import ListTreeIcon from '@/features/icon/ListTreeIcon.vue'
@@ -43,15 +47,6 @@ const filenameBarStyle = computed(() => ({
 }))
 
 const messagesFontSize = computed(() => settingsStore.terminal.font.size || 13)
-
-const messagesFontKey = computed(
-  () => `${settingsStore.terminal.font.family}-${settingsStore.terminal.font.size}`,
-)
-
-const messagesLogStyle = computed(() => {
-  const family = settingsStore.terminal.font.family
-  return family ? { '--n-font-family': `"${family}"` } : {}
-})
 
 const queryContentRef = ref<HTMLElement | null>(null)
 const editorHeight = ref(300)
@@ -132,10 +127,6 @@ const hasNoResults = computed(
     !queryState.value.loading,
 )
 
-function clearMessages() {
-  queryState.value.messages = ''
-}
-
 const initialText = queryTabItem.value?.initialText
 const { container: editorContainer, editor } = useMonacoEditor({
   language: 'javascript',
@@ -144,13 +135,47 @@ const { container: editorContainer, editor } = useMonacoEditor({
 })
 
 const runQuery = async () => {
-  if (!editor.value) {
+  const ed = editor.value
+  if (!ed) {
     return
   }
-  const selection = editor.value.getSelection()
-  const selectedText = selection ? (editor.value.getModel()?.getValueInRange(selection) ?? '') : ''
-  const query = selectedText.trim() !== '' ? selectedText : editor.value.getValue()
-  await queryStore.executeQuery(props.queryId, query)
+  const model = ed.getModel()
+  if (!model) {
+    return
+  }
+  const selection = ed.getSelection()
+  const selectedText = selection ? model.getValueInRange(selection) : ''
+  const useSelection = selectedText.trim() !== ''
+  const text = useSelection ? selectedText : model.getValue()
+  const range: monaco.IRange = useSelection ? selection! : model.getFullModelRange()
+  await queryStore.executeQuery(props.queryId, { text, range })
+}
+
+function jumpToQuery(q: LogMessageQuery) {
+  const ed = editor.value
+  const model = ed?.getModel()
+  if (!ed || !model) {
+    return
+  }
+  let target: monaco.IRange = q.range
+  if (model.getValueInRange(q.range) !== q.text) {
+    const matches = model.findMatches(q.text, true, false, true, null, false)
+    if (matches.length > 0) {
+      let best = matches[0]!
+      let bestDelta = Math.abs(best.range.startLineNumber - q.range.startLineNumber)
+      for (const m of matches.slice(1)) {
+        const d = Math.abs(m.range.startLineNumber - q.range.startLineNumber)
+        if (d < bestDelta) {
+          best = m
+          bestDelta = d
+        }
+      }
+      target = best.range
+    }
+  }
+  ed.setSelection(target)
+  ed.revealRangeInCenter(target)
+  ed.focus()
 }
 
 const cancelQuery = () => {
@@ -467,7 +492,67 @@ watch(
               style="margin-right: 8px">
               <n-tooltip>
                 <template #trigger>
-                  <n-button size="small" :disabled="!queryState.messages" @click="clearMessages">
+                  <n-button
+                    size="small"
+                    :type="queryState.messageFilter.info ? 'primary' : 'default'"
+                    @click="
+                      queryStore.setMessageFilter(
+                        props.queryId,
+                        'info',
+                        !queryState.messageFilter.info,
+                      )
+                    ">
+                    <template #icon>
+                      <n-icon :component="InformationCircleIcon" />
+                    </template>
+                  </n-button>
+                </template>
+                {{ t('query.messages.filter.info') }}
+              </n-tooltip>
+              <n-tooltip>
+                <template #trigger>
+                  <n-button
+                    size="small"
+                    :type="queryState.messageFilter.warning ? 'warning' : 'default'"
+                    @click="
+                      queryStore.setMessageFilter(
+                        props.queryId,
+                        'warning',
+                        !queryState.messageFilter.warning,
+                      )
+                    ">
+                    <template #icon>
+                      <n-icon :component="ExclamationTriangleIcon" />
+                    </template>
+                  </n-button>
+                </template>
+                {{ t('query.messages.filter.warning') }}
+              </n-tooltip>
+              <n-tooltip>
+                <template #trigger>
+                  <n-button
+                    size="small"
+                    :type="queryState.messageFilter.error ? 'error' : 'default'"
+                    @click="
+                      queryStore.setMessageFilter(
+                        props.queryId,
+                        'error',
+                        !queryState.messageFilter.error,
+                      )
+                    ">
+                    <template #icon>
+                      <n-icon :component="XCircleIcon" />
+                    </template>
+                  </n-button>
+                </template>
+                {{ t('query.messages.filter.error') }}
+              </n-tooltip>
+              <n-tooltip>
+                <template #trigger>
+                  <n-button
+                    size="small"
+                    :disabled="queryState.messages.length === 0"
+                    @click="queryStore.clearMessages(props.queryId)">
                     <template #icon>
                       <n-icon :component="TrashIcon" />
                     </template>
@@ -514,14 +599,12 @@ watch(
             </div>
           </n-tab-pane>
           <n-tab-pane name="messages" :tab="t('query.messagesTab')">
-            <n-log
-              :key="messagesFontKey"
-              class="messages-log"
-              :log="queryState.messages"
+            <messages-pane
+              :messages="queryState.messages"
+              :filter="queryState.messageFilter"
               :font-size="messagesFontSize"
-              :style="messagesLogStyle"
-              language="vervet-log"
-              trim />
+              :font-family="settingsStore.terminal.font.family"
+              :on-jump-to-query="jumpToQuery" />
           </n-tab-pane>
         </n-tabs>
       </div>
@@ -675,14 +758,6 @@ watch(
     font-size: 14px;
   }
 
-  :deep(.messages-log) {
-    height: 0 !important;
-    flex: 1;
-    padding-top: 8px;
-    -webkit-user-select: text;
-    user-select: text;
-    cursor: text;
-  }
 }
 
 .limit-hint {

@@ -31,6 +31,39 @@ function resultMessage(operationType: string, count: number, duration: string): 
   return translated
 }
 
+export type LogLevel = 'info' | 'warning' | 'error'
+
+export interface LogMessageQuery {
+  text: string
+  range: {
+    startLineNumber: number
+    startColumn: number
+    endLineNumber: number
+    endColumn: number
+  }
+}
+
+export interface LogMessage {
+  id: string
+  timestamp: string
+  level: LogLevel
+  text: string
+  query?: LogMessageQuery
+}
+
+export interface MessageFilter {
+  info: boolean
+  warning: boolean
+  error: boolean
+}
+
+function makeId(): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return crypto.randomUUID()
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
 export interface QueryState {
   loading: boolean
   cancelled: boolean
@@ -39,7 +72,8 @@ export interface QueryState {
   rawOutput: string
   error: string
   selectedDatabase: string
-  messages: string
+  messages: LogMessage[]
+  messageFilter: MessageFilter
   activeResultTab: string
   resultView: 'table' | 'json'
   selectedDocIndex: number
@@ -69,7 +103,8 @@ function createQueryState(database: string): QueryState {
     rawOutput: '',
     error: '',
     selectedDatabase: database,
-    messages: '',
+    messages: [],
+    messageFilter: { info: true, warning: true, error: true },
     activeResultTab: 'results',
     resultView: 'table',
     selectedDocIndex: 0,
@@ -129,6 +164,30 @@ export const useQueryStore = defineStore('query', {
       state.selectedDatabase = database
     },
 
+    appendMessage(
+      queryId: string,
+      msg: { level: LogLevel; text: string; query?: LogMessageQuery },
+    ) {
+      const state = this.getQueryState(queryId)
+      state.messages.push({
+        id: makeId(),
+        timestamp: new Date().toLocaleTimeString(),
+        level: msg.level,
+        text: msg.text,
+        query: msg.query,
+      })
+    },
+
+    clearMessages(queryId: string) {
+      const state = this.getQueryState(queryId)
+      state.messages = []
+    },
+
+    setMessageFilter(queryId: string, level: LogLevel, enabled: boolean) {
+      const state = this.getQueryState(queryId)
+      state.messageFilter[level] = enabled
+    },
+
     async checkMongosh() {
       const result = await shellProxy.CheckMongosh()
       if (result.isSuccess) {
@@ -136,7 +195,10 @@ export const useQueryStore = defineStore('query', {
       }
     },
 
-    async executeQuery(queryId: string, rawQuery: string) {
+    async executeQuery(
+      queryId: string,
+      payload: { text: string; range: LogMessageQuery['range'] },
+    ) {
       const tabStore = useTabStore()
       const serverId = tabStore.currentTabId
       if (!serverId) {
@@ -144,15 +206,19 @@ export const useQueryStore = defineStore('query', {
       }
 
       const state = this.getQueryState(queryId)
-      const timestamp = new Date().toLocaleTimeString()
+      let query = payload.text
+      const queryPayload: LogMessageQuery = { text: payload.text, range: payload.range }
 
       // Handle "use <database>" command — extract it and switch database
-      let query = rawQuery
       const useMatch = query.match(/(?:^|\n)\s*use\s+(\S+)\s*(?:\n|$)/)
       if (useMatch) {
         const dbName = useMatch[1]!
         state.selectedDatabase = dbName
-        state.messages += `${timestamp} [INFO] ${i18nGlobal.t('query.messages.switchedDatabase', { name: dbName })}\n`
+        this.appendMessage(queryId, {
+          level: 'info',
+          text: i18nGlobal.t('query.messages.switchedDatabase', { name: dbName }),
+          query: queryPayload,
+        })
 
         // Remove the use line and run any remaining query
         const remaining = query.replace(/(?:^|\n)\s*use\s+\S+\s*(?:\n|$)/, '\n').trim()
@@ -175,7 +241,7 @@ export const useQueryStore = defineStore('query', {
       if (!state.selectedDatabase) {
         const msg = i18nGlobal.t('errors.no_database_selected')
         state.error = msg
-        state.messages += `${timestamp} [ERROR] ${msg}\n`
+        this.appendMessage(queryId, { level: 'error', text: msg, query: queryPayload })
         return
       }
 
@@ -183,7 +249,7 @@ export const useQueryStore = defineStore('query', {
       if (settingsStore.editor.queryEngine === 'mongosh' && this.mongoshAvailable === false) {
         const msg = i18nGlobal.t('errors.shell_not_found')
         state.error = msg
-        state.messages += `${timestamp} [ERROR] ${msg}\n`
+        this.appendMessage(queryId, { level: 'error', text: msg, query: queryPayload })
         return
       }
 
@@ -197,7 +263,11 @@ export const useQueryStore = defineStore('query', {
       state.error = ''
       state.selectedDocIndex = 0
       state.activeLimit = parseLimit(query)
-      state.messages += `${timestamp} [INFO] ${i18nGlobal.t('query.messages.executing')}\n`
+      this.appendMessage(queryId, {
+        level: 'info',
+        text: i18nGlobal.t('query.messages.executing'),
+        query: queryPayload,
+      })
 
       const startTime = Date.now()
 
@@ -222,15 +292,21 @@ export const useQueryStore = defineStore('query', {
           const docCount = data.documents?.length ?? 0
           const opType = data.operationType || 'find'
           const msg = resultMessage(opType, data.affectedCount || docCount, elapsed)
-          const ts = new Date().toLocaleTimeString()
-          state.messages += `${ts} [INFO] ${msg}\n`
+          this.appendMessage(queryId, { level: 'info', text: msg, query: queryPayload })
         } else {
           const translated = translateError(result.errorCode, result.errorDetail)
           state.error = translated
-          const ts = new Date().toLocaleTimeString()
-          state.messages += `${ts} [ERROR] ${translated}\n`
+          this.appendMessage(queryId, {
+            level: 'error',
+            text: translated,
+            query: queryPayload,
+          })
           if (result.errorDetail && result.errorDetail !== translated) {
-            state.messages += `${ts} [ERROR] ${result.errorDetail}\n`
+            this.appendMessage(queryId, {
+              level: 'error',
+              text: result.errorDetail,
+              query: queryPayload,
+            })
           }
           state.activeResultTab = 'messages'
         }
@@ -241,8 +317,7 @@ export const useQueryStore = defineStore('query', {
         const notifier = useNotifier()
         notifier.error(String(e))
         state.error = String(e)
-        const ts = new Date().toLocaleTimeString()
-        state.messages += `${ts} [ERROR] ${String(e)}\n`
+        this.appendMessage(queryId, { level: 'error', text: String(e), query: queryPayload })
         state.activeResultTab = 'messages'
       } finally {
         state.loading = false
@@ -260,8 +335,10 @@ export const useQueryStore = defineStore('query', {
       state.cancelled = true
       state.loading = false
       state.error = ''
-      const ts = new Date().toLocaleTimeString()
-      state.messages += `${ts} [WARNING] ${i18nGlobal.t('errors.query_cancelled')}\n`
+      this.appendMessage(queryId, {
+        level: 'warning',
+        text: i18nGlobal.t('errors.query_cancelled'),
+      })
       await shellProxy.CancelQuery(serverId)
     },
 
