@@ -650,5 +650,6 @@ export default {
     updateDocument: 'Failed to update document',
     deleteDocument: 'Failed to delete document',
     insertDocument: 'Failed to insert document',
+    loadFile: 'Failed to load file',
   },
 }
