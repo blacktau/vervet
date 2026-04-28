@@ -124,8 +124,8 @@ func Test_SettingsService_DefaultQueryEngine(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if c.Editor.QueryEngine != "builtin" {
-			t.Errorf("expected default query engine 'builtin', got '%s'", c.Editor.QueryEngine)
+		if c.Query.QueryEngine != "builtin" {
+			t.Errorf("expected default query engine 'builtin', got '%s'", c.Query.QueryEngine)
 		}
 	})
 }
@@ -202,13 +202,18 @@ func expectedSettings() models.Settings {
 			Font: models.FontSettings{
 				Size: settings.DefaultFontSize,
 			},
+			ConfirmDestructive: true,
 		},
 		Editor: models.EditorSettings{
 			Font: models.FontSettings{
 				Size: settings.DefaultFontSize,
 			},
 			LineNumbers: true,
-			QueryEngine: "builtin",
+		},
+		Query: models.QuerySettings{
+			DefaultLimit:    settings.DefaultResultLimit,
+			DefaultPageSize: settings.DefaultResultPageSize,
+			QueryEngine:     "builtin",
 		},
 		Terminal: models.TerminalSettings{
 			Font: models.FontSettings{

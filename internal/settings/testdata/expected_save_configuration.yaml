@@ -10,14 +10,18 @@ general:
       language: "auto"
       font:
            size: 14
+      confirmDestructive: true
 editor:
       lineNumbers: true
       showFolding: false
       dropText: false
       links: false
-      queryEngine: "builtin"
       font:
            size: 14
+query:
+      defaultLimit: 42
+      defaultPageSize: 25
+      queryEngine: "builtin"
 terminal:
       font:
            size: 14
