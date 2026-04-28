@@ -10,6 +10,7 @@ type Settings struct {
 	Window     WindowSettings     `json:"window" yaml:"window"`
 	General    GeneralSettings    `json:"general" yaml:"general"`
 	Editor     EditorSettings     `json:"editor" yaml:"editor"`
+	Query      QuerySettings      `json:"query" yaml:"query"`
 	Terminal   TerminalSettings   `json:"terminal" yaml:"terminal"`
 	Workspaces WorkspacesSettings `json:"workspaces" yaml:"workspaces"`
 	Updates    UpdatesSettings    `json:"updates" yaml:"updates"`
@@ -36,9 +37,16 @@ type WindowSettings struct {
 }
 
 type GeneralSettings struct {
-	Theme    string       `json:"theme" yaml:"theme"`
-	Language string       `json:"language" yaml:"language"`
-	Font     FontSettings `json:"font" yaml:"font,omitempty"`
+	Theme              string       `json:"theme" yaml:"theme"`
+	Language           string       `json:"language" yaml:"language"`
+	Font               FontSettings `json:"font" yaml:"font,omitempty"`
+	ConfirmDestructive bool         `json:"confirmDestructive" yaml:"confirmDestructive"`
+}
+
+type QuerySettings struct {
+	DefaultLimit    int    `json:"defaultLimit" yaml:"defaultLimit"`
+	DefaultPageSize int    `json:"defaultPageSize" yaml:"defaultPageSize"`
+	QueryEngine     string `json:"queryEngine" yaml:"queryEngine"`
 }
 
 type FontSettings struct {
@@ -53,7 +61,6 @@ type EditorSettings struct {
 	ShowFolding bool         `json:"showFolding" yaml:"showFolding"`
 	DropText    bool         `json:"dropText" yaml:"dropText"`
 	Links       bool         `json:"links" yaml:"links"`
-	QueryEngine string       `json:"queryEngine" yaml:"queryEngine"`
 }
 
 type TerminalSettings struct {
@@ -85,6 +92,24 @@ func (s *LoggingSettings) Normalize() {
 	}
 	if s.MaxBackups < 0 {
 		s.MaxBackups = 0
+	}
+}
+
+// Normalize clamps loaded query settings into safe ranges and falls back to
+// defaults when values are missing or out of bounds.
+func (q *QuerySettings) Normalize() {
+	if q.DefaultLimit < 1 || q.DefaultLimit > 10000 {
+		q.DefaultLimit = 42
+	}
+	switch q.DefaultPageSize {
+	case 25, 50, 100, 200, 500:
+	default:
+		q.DefaultPageSize = 25
+	}
+	switch q.QueryEngine {
+	case "builtin", "mongosh":
+	default:
+		q.QueryEngine = "builtin"
 	}
 }
 
