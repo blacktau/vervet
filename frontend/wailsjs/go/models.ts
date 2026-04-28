@@ -224,7 +224,6 @@ export namespace models {
 	    showFolding: boolean;
 	    dropText: boolean;
 	    links: boolean;
-	    queryEngine: string;
 	}
 	
 	export interface Font {
@@ -236,6 +235,7 @@ export namespace models {
 	    theme: string;
 	    language: string;
 	    font: FontSettings;
+	    confirmDestructive: boolean;
 	}
 	export interface Index {
 	    name: string;
@@ -260,6 +260,11 @@ export namespace models {
 	    rawOutput: string;
 	    operationType?: string;
 	    affectedCount?: number;
+	}
+	export interface QuerySettings {
+	    defaultLimit: number;
+	    defaultPageSize: number;
+	    queryEngine: string;
 	}
 	export interface RegisteredServer {
 	    id: string;
@@ -294,6 +299,7 @@ export namespace models {
 	    window: WindowSettings;
 	    general: GeneralSettings;
 	    editor: EditorSettings;
+	    query: QuerySettings;
 	    terminal: TerminalSettings;
 	    workspaces: WorkspacesSettings;
 	    updates: UpdatesSettings;
