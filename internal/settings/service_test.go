@@ -130,6 +130,85 @@ func Test_SettingsService_DefaultQueryEngine(t *testing.T) {
 	})
 }
 
+func Test_SettingsService_QueryDefaults(t *testing.T) {
+	t.Run("first run sets query defaults", func(t *testing.T) {
+		m := newTestService(nil, nil)
+		c, err := m.GetSettings()
+		assert.NoError(t, err)
+		assert.Equal(t, settings.DefaultResultLimit, c.Query.DefaultLimit)
+		assert.Equal(t, settings.DefaultResultPageSize, c.Query.DefaultPageSize)
+		assert.Equal(t, "builtin", c.Query.QueryEngine)
+	})
+
+	t.Run("first run sets confirmDestructive to true", func(t *testing.T) {
+		m := newTestService(nil, nil)
+		c, err := m.GetSettings()
+		assert.NoError(t, err)
+		assert.True(t, c.General.ConfirmDestructive)
+	})
+
+	t.Run("clamps out-of-range default limit", func(t *testing.T) {
+		m := newTestService(&storeStub{
+			content: []byte("query:\n  defaultLimit: 999999\n  defaultPageSize: 50\n  queryEngine: builtin"),
+		}, nil)
+		c, err := m.GetSettings()
+		assert.NoError(t, err)
+		assert.Equal(t, settings.DefaultResultLimit, c.Query.DefaultLimit)
+		assert.Equal(t, 50, c.Query.DefaultPageSize)
+	})
+
+	t.Run("clamps invalid page size to default", func(t *testing.T) {
+		m := newTestService(&storeStub{
+			content: []byte("query:\n  defaultLimit: 100\n  defaultPageSize: 7\n  queryEngine: builtin"),
+		}, nil)
+		c, err := m.GetSettings()
+		assert.NoError(t, err)
+		assert.Equal(t, 100, c.Query.DefaultLimit)
+		assert.Equal(t, settings.DefaultResultPageSize, c.Query.DefaultPageSize)
+	})
+
+	t.Run("clamps unknown query engine to builtin", func(t *testing.T) {
+		m := newTestService(&storeStub{
+			content: []byte("query:\n  defaultLimit: 42\n  defaultPageSize: 25\n  queryEngine: bogus"),
+		}, nil)
+		c, err := m.GetSettings()
+		assert.NoError(t, err)
+		assert.Equal(t, "builtin", c.Query.QueryEngine)
+	})
+}
+
+func Test_SettingsService_LegacyQueryEngineMigration(t *testing.T) {
+	t.Run("migrates editor.queryEngine to query.queryEngine and persists", func(t *testing.T) {
+		store := &storeStub{
+			content: []byte("editor:\n  queryEngine: mongosh\n"),
+		}
+		m := newTestService(store, nil)
+		c, err := m.GetSettings()
+		assert.NoError(t, err)
+		assert.Equal(t, "mongosh", c.Query.QueryEngine)
+
+		// Persisted YAML carries the migrated location.
+		assert.Contains(t, string(store.content), "query:")
+		assert.Contains(t, string(store.content), "queryEngine: mongosh")
+
+		// Subsequent read does not re-migrate (would otherwise overwrite an
+		// explicit user choice).
+		c2, err := m.GetSettings()
+		assert.NoError(t, err)
+		assert.Equal(t, "mongosh", c2.Query.QueryEngine)
+	})
+
+	t.Run("no migration when query.queryEngine already set", func(t *testing.T) {
+		store := &storeStub{
+			content: []byte("editor:\n  queryEngine: mongosh\nquery:\n  defaultLimit: 42\n  defaultPageSize: 25\n  queryEngine: builtin\n"),
+		}
+		m := newTestService(store, nil)
+		c, err := m.GetSettings()
+		assert.NoError(t, err)
+		assert.Equal(t, "builtin", c.Query.QueryEngine)
+	})
+}
+
 func Test_DefaultSettings_UpdatesFrequency_IsDaily(t *testing.T) {
 	m := newTestService(nil, nil)
 	c, err := m.GetSettings()
@@ -158,6 +237,16 @@ func Test_SettingsService_RestoreSettings(t *testing.T) {
 		if c.Window.Width != settings.DefaultWindowWidth {
 			t.Errorf("expected default window width, got %d", c.Window.Width)
 		}
+	})
+
+	t.Run("restore resets query and confirmDestructive", func(t *testing.T) {
+		m := newTestService(nil, nil)
+		c, err := m.RestoreSettings()
+		assert.NoError(t, err)
+		assert.Equal(t, settings.DefaultResultLimit, c.Query.DefaultLimit)
+		assert.Equal(t, settings.DefaultResultPageSize, c.Query.DefaultPageSize)
+		assert.Equal(t, "builtin", c.Query.QueryEngine)
+		assert.True(t, c.General.ConfirmDestructive)
 	})
 }
 

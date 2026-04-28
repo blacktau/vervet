@@ -214,20 +214,22 @@ func (s *settingsService) getSettings() (models.Settings, error) {
 
 // migrateLegacyFields lifts deprecated YAML keys to their new locations so
 // older configuration files do not lose user choices on upgrade. Returns true
-// when the caller should persist the migrated settings. Must be called on the
-// freshly-unmarshalled settings, before normalization, so that "field absent"
-// can be distinguished from "field defaulted".
+// when the caller should persist the migrated settings. Detection is based on
+// the raw YAML rather than the unmarshalled struct, because defaults pre-fill
+// the new fields so "absent in YAML" cannot be distinguished from "defaulted".
 func (s *settingsService) migrateLegacyFields(settings *models.Settings, raw []byte) bool {
-	if settings.Query.QueryEngine != "" {
-		return false
-	}
-
 	var legacy struct {
 		Editor struct {
 			QueryEngine string `yaml:"queryEngine"`
 		} `yaml:"editor"`
+		Query struct {
+			QueryEngine string `yaml:"queryEngine"`
+		} `yaml:"query"`
 	}
 	if err := yaml.Unmarshal(raw, &legacy); err != nil {
+		return false
+	}
+	if legacy.Query.QueryEngine != "" {
 		return false
 	}
 	if legacy.Editor.QueryEngine == "" {
