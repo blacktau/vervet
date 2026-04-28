@@ -246,7 +246,7 @@ export const useQueryStore = defineStore('query', {
       }
 
       const settingsStore = useSettingsStore()
-      if (settingsStore.editor.queryEngine === 'mongosh' && this.mongoshAvailable === false) {
+      if (settingsStore.query.queryEngine === 'mongosh' && this.mongoshAvailable === false) {
         const msg = i18nGlobal.t('errors.shell_not_found')
         state.error = msg
         this.appendMessage(queryId, { level: 'error', text: msg, query: queryPayload })
