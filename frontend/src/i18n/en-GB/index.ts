@@ -10,6 +10,10 @@ export default {
     error: 'Error',
     details: 'Details',
     copyToClipboard: 'Copy to Clipboard',
+    copy: 'Copy',
+    copied: 'Copied to clipboard',
+    showMore: 'Show more',
+    showLess: 'Show less',
     save: 'Save',
     create: 'Create',
     delete: 'Delete',
@@ -646,5 +650,6 @@ export default {
     updateDocument: 'Failed to update document',
     deleteDocument: 'Failed to delete document',
     insertDocument: 'Failed to insert document',
+    loadFile: 'Failed to load file',
   },
 }

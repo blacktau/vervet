@@ -399,7 +399,10 @@ export const useQueryStore = defineStore('query', {
       const result = await filesProxy.ReadFile(filePath)
       if (!result.isSuccess) {
         const notifier = useNotifier()
-        notifier.error(result.errorDetail || result.errorCode)
+        notifier.error(i18nGlobal.t(`errors.${result.errorCode}`), {
+          title: i18nGlobal.t('errorTitles.loadFile'),
+          detail: result.errorDetail,
+        })
         return false
       }
 

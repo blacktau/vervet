@@ -1,5 +1,5 @@
 import { useSettingsStore } from '@/features/settings/settingsStore.ts'
-import { computed, h, type VNodeChild } from 'vue'
+import { computed, h, ref, type VNodeChild } from 'vue'
 import {
   createDiscreteApi,
   darkTheme,
@@ -15,6 +15,7 @@ import { darkThemeOverrides, themeOverrides } from '@/utils/theme'
 import { i18nGlobal } from '@/i18n'
 import { type DialogApiInjection } from 'naive-ui/es/dialog/src/DialogProvider'
 import { type DialogReactive } from 'naive-ui/lib'
+import { summariseDetail } from './notificationContent'
 
 export async function initDiscreteApi() {
   const settingsStore = useSettingsStore()
@@ -86,7 +87,7 @@ interface Notification {
   duration?: number
   title?: string
   meta?: string
-  content?: string
+  content?: string | (() => VNodeChild)
   detail?: string
   icon?: string | (() => VNodeChild)
   action?: string | (() => VNodeChild)
@@ -102,32 +103,88 @@ export interface Notifier {
 }
 
 function createNotifier(notification: NotificationApiInjection): Notifier {
-  function withDetailAction(option: Notification & { content?: string }): void {
-    if (option.detail) {
-      const detail = option.detail
-      option.action = () =>
-        h(
-          NButton,
-          {
-            text: true,
-            type: 'primary',
-            size: 'small',
-            onClick: () => {
-              window.$dialoger.show({
-                title: option.title || i18nGlobal.t('common.error'),
-                content: () =>
-                  h('pre', {
-                    style: 'white-space: pre-wrap; word-break: break-all; margin: 0; font-size: 13px; user-select: text; cursor: text;',
-                  }, detail),
-                positiveText: i18nGlobal.t('common.copyToClipboard'),
-                onPositiveClick: () => {
-                  navigator.clipboard.writeText(detail)
-                },
-              })
+  function renderContent(option: Notification): (() => VNodeChild) | undefined {
+    const detail = option.detail
+    if (!detail) {
+      return undefined
+    }
+
+    const summary = summariseDetail(detail)
+    const expanded = ref(false)
+    const friendly = typeof option.content === 'string' ? option.content : ''
+
+    return () => {
+      const showFull = expanded.value || !summary.truncated
+      const detailText = showFull ? detail : summary.head + '…'
+
+      const detailBlock = h(
+        'pre',
+        {
+          style:
+            'margin: 6px 0 0 0; padding: 6px 8px; font-size: 12px; line-height: 1.4; ' +
+            'white-space: pre-wrap; word-break: break-word; user-select: text; cursor: text; ' +
+            'opacity: 0.75; background: rgba(127,127,127,0.08); border-radius: 4px; max-height: 200px; overflow: auto;',
+        },
+        detailText,
+      )
+
+      const toggle = summary.truncated
+        ? h(
+            NButton,
+            {
+              text: true,
+              size: 'tiny',
+              type: 'primary',
+              style: 'margin-top: 4px;',
+              onClick: () => {
+                expanded.value = !expanded.value
+              },
             },
+            {
+              default: () =>
+                expanded.value ? i18nGlobal.t('common.showLess') : i18nGlobal.t('common.showMore'),
+            },
+          )
+        : null
+
+      return h('div', null, [
+        h('div', null, friendly),
+        detailBlock,
+        toggle,
+      ])
+    }
+  }
+
+  function renderCopyAction(option: Notification): (() => VNodeChild) | undefined {
+    const detail = option.detail
+    if (!detail) {
+      return undefined
+    }
+    return () =>
+      h(
+        NButton,
+        {
+          text: true,
+          type: 'primary',
+          size: 'small',
+          onClick: () => {
+            navigator.clipboard.writeText(detail).then(() => {
+              window.$messager?.success(i18nGlobal.t('common.copied'))
+            })
           },
-          { default: () => i18nGlobal.t('common.details') },
-        )
+        },
+        { default: () => i18nGlobal.t('common.copy') },
+      )
+  }
+
+  function applyDetail(option: Notification): void {
+    const renderedContent = renderContent(option)
+    if (renderedContent) {
+      option.content = renderedContent
+    }
+    const action = renderCopyAction(option)
+    if (action) {
+      option.action = action
     }
   }
 
@@ -138,24 +195,24 @@ function createNotifier(notification: NotificationApiInjection): Notifier {
     error: (content, option = {}) => {
       option.content = content
       option.title = option.title || i18nGlobal.t('common.error')
-      withDetailAction(option)
+      applyDetail(option)
       return notification.error(option)
     },
     info: (content, option = {}) => {
       option.content = content
-      withDetailAction(option)
+      applyDetail(option)
       return notification.info(option)
     },
     success: (content, option = {}) => {
       option.content = content
       option.title = option.title || i18nGlobal.t('common.success')
-      withDetailAction(option)
+      applyDetail(option)
       return notification.success(option)
     },
     warning: (content, option = {}) => {
       option.content = content
       option.title = option.title || i18nGlobal.t('common.warning')
-      withDetailAction(option)
+      applyDetail(option)
       return notification.warning(option)
     },
   }
