@@ -65,6 +65,9 @@ export default {
       themeAuto: 'Auto',
       language: 'Language',
       systemLanguage: 'Use System Language',
+      confirmDestructive: 'Confirm destructive operations',
+      confirmDestructiveHelp:
+        'When enabled, dropping a database or collection requires confirmation. Disable to skip the confirmation prompts.',
     },
     editor: {
       name: 'Editor',
@@ -72,6 +75,15 @@ export default {
       showFolding: 'Enable Code Folding',
       dropText: 'Allow Dragging & Dropping of Text',
       links: 'Support Links',
+    },
+    query: {
+      name: 'Query',
+      defaultLimit: 'Default result limit',
+      defaultLimitHelp:
+        'The number of documents requested when opening a query from the data browser. Inserted as the .limit(N) clause in the generated query.',
+      defaultPageSize: 'Default page size',
+      defaultPageSizeHelp:
+        'Initial page size of the results table. You can still change page size per-table from the pagination control.',
       queryEngine: 'Query Engine',
       queryEngineBuiltin: 'Built-in (recommended)',
       queryEngineMongosh: 'mongosh',
