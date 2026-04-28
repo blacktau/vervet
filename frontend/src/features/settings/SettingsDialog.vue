@@ -4,6 +4,7 @@ import { ref, watchEffect } from 'vue'
 import { DialogType, useDialogStore } from '@/stores/dialog.ts'
 import GeneralSettings from '@/features/settings/GeneralSettings.vue'
 import EditorSettings from '@/features/settings/EditorSettings.vue'
+import QuerySettings from '@/features/settings/QuerySettings.vue'
 import MessagesSettings from '@/features/settings/MessagesSettings.vue'
 import WorkspacesSettings from '@/features/settings/WorkspacesSettings.vue'
 import LoggingSettings from '@/features/settings/LoggingSettings.vue'
@@ -76,6 +77,9 @@ const onClose = async () => {
         </n-tab-pane>
         <n-tab-pane :tab="$t('settings.editor.name')" display-directive="show:lazy" name="editor">
           <editor-settings :loading="loading" />
+        </n-tab-pane>
+        <n-tab-pane :tab="$t('settings.query.name')" display-directive="show:lazy" name="query">
+          <query-settings :loading="loading" />
         </n-tab-pane>
         <n-tab-pane
           :tab="$t('settings.terminal.name')"
