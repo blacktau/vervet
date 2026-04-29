@@ -20,6 +20,20 @@ function cacheKey(serverId: string, dbName: string, collectionName: string): str
   return `${serverId}:${dbName}:${collectionName}`
 }
 
+interface BackendField {
+  path: string
+  types: { type: string }[]
+  children?: BackendField[]
+}
+
+function projectFields(fields: BackendField[]): FieldInfo[] {
+  return fields.map((f) => ({
+    path: f.path,
+    types: f.types.map((t) => t.type),
+    children: f.children && f.children.length > 0 ? projectFields(f.children) : undefined,
+  }))
+}
+
 function registerDisconnectListener() {
   if (listenerRegistered) {
     return
@@ -55,10 +69,12 @@ export async function getCollectionSchema(
 
   const request = (async () => {
     try {
-      const result = await collectionsProxy.GetCollectionSchema(serverId, dbName, collectionName)
+      const requestId = crypto.randomUUID()
+      const result = await collectionsProxy.SampleSchema(serverId, dbName, collectionName, 100, requestId)
       if (result.isSuccess && result.data) {
-        schemaCache.set(key, result.data)
-        return result.data
+        const schema: CollectionSchema = { fields: projectFields(result.data.fields) }
+        schemaCache.set(key, schema)
+        return schema
       }
       return null
     } finally {
