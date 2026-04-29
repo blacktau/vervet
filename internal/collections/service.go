@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"vervet/internal/models"
-	"vervet/internal/queryengine"
+	"vervet/internal/schema"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -134,16 +134,12 @@ func (s *CollectionsService) CreateCollection(serverID, dbName, collectionName s
 	return nil
 }
 
-func (s *CollectionsService) GetCollectionSchema(serverID, dbName, collName string) (models.CollectionSchema, error) {
+func (s *CollectionsService) SampleSchema(ctx context.Context, serverID, dbName, collName string, size int) (models.CollectionSchema, error) {
 	client, err := s.clients.GetClient(serverID)
 	if err != nil {
 		return models.CollectionSchema{}, err
 	}
-
-	ctx, cancel := context.WithTimeout(s.ctx, operationTimeout)
-	defer cancel()
-
-	return queryengine.SampleSchema(ctx, client, dbName, collName)
+	return schema.Sample(ctx, client, dbName, collName, size)
 }
 
 func (s *CollectionsService) RenameCollection(serverID, dbName, oldName, newName string) error {
