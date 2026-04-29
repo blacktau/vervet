@@ -21,6 +21,13 @@ export type StatisticsTabItem = {
   level: 'collection' | 'database' | 'server'
 }
 
+export type SchemaTabItem = {
+  id: string
+  serverId: string
+  dbName: string
+  collectionName: string
+}
+
 export type ServerTabItem = {
   title: string
   blank: boolean
@@ -29,5 +36,6 @@ export type ServerTabItem = {
   queries: QueryTabItem[]
   indexTabs?: IndexTabItem[]
   statisticsTabs?: StatisticsTabItem[]
+  schemaTabs?: SchemaTabItem[]
   activeInnerTabId?: string
 }

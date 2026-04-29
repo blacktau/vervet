@@ -10,6 +10,7 @@ import {
   PencilSquareIcon,
   PlayIcon,
   PlusCircleIcon,
+  TableCellsIcon,
   TrashIcon,
 } from '@heroicons/vue/24/outline'
 import { type ContextMenuOption } from '@/features/data-browser/types.ts'
@@ -40,6 +41,7 @@ const iconMap: Record<string, typeof InformationCircleIcon> = {
   rename: PencilSquareIcon,
   dropCollection: TrashIcon,
   viewIndexes: EyeIcon,
+  inspectSchema: TableCellsIcon,
 }
 
 function renderIcon(option: DropdownOption) {

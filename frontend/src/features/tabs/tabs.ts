@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { type IndexTabItem, type QueryTabItem, type ServerTabItem, type StatisticsTabItem } from '@/types/ServerTabItem.ts'
+import { type IndexTabItem, type QueryTabItem, type SchemaTabItem, type ServerTabItem, type StatisticsTabItem } from '@/types/ServerTabItem.ts'
 import { useDialoger } from '@/utils/dialog.ts'
 import { i18nGlobal } from '@/i18n'
 import { findIndex } from 'lodash'
@@ -24,6 +24,8 @@ type TabStoreGetters = {
   currentIndexTabs: () => IndexTabItem[]
   currentStatisticsTabs: () => StatisticsTabItem[]
   currentStatisticsTab: () => StatisticsTabItem | undefined
+  currentSchemaTabs: () => SchemaTabItem[]
+  currentSchemaTab: () => SchemaTabItem | undefined
 }
 
 type TabUpsertOptions = ServerTabItem & {
@@ -42,6 +44,7 @@ export const enum NavType {
 let queryIdCounter = 0
 let indexTabIdCounter = 0
 let statisticsTabIdCounter = 0
+let schemaTabIdCounter = 0
 
 function innerTabType(id: string): BrowserSubTabType {
   if (id.startsWith('index-')) {
@@ -49,6 +52,9 @@ function innerTabType(id: string): BrowserSubTabType {
   }
   if (id.startsWith('stats-')) {
     return BrowserSubTabType.Statistics
+  }
+  if (id.startsWith('schema-')) {
+    return BrowserSubTabType.Schema
   }
   return BrowserSubTabType.Query
 }
@@ -62,6 +68,9 @@ function findFallbackInnerTabId(tab: ServerTabItem): string | undefined {
   }
   if (tab.statisticsTabs && tab.statisticsTabs.length > 0) {
     return tab.statisticsTabs[tab.statisticsTabs.length - 1]!.id
+  }
+  if (tab.schemaTabs && tab.schemaTabs.length > 0) {
+    return tab.schemaTabs[tab.schemaTabs.length - 1]!.id
   }
   return undefined
 }
@@ -106,6 +115,16 @@ export const useTabStore = defineStore('tabs', {
         return undefined
       }
       return tab.statisticsTabs.find((t) => t.id === tab.activeInnerTabId)
+    },
+    currentSchemaTabs(state: TabStoreState) {
+      return state.tabItems[state.activeTabIndex]?.schemaTabs ?? ([] as SchemaTabItem[])
+    },
+    currentSchemaTab(state: TabStoreState) {
+      const tab = state.tabItems[state.activeTabIndex]
+      if (!tab?.schemaTabs || !tab.activeInnerTabId) {
+        return undefined
+      }
+      return tab.schemaTabs.find((t) => t.id === tab.activeInnerTabId)
     },
   } as TabStoreGetters,
   actions: {
@@ -459,6 +478,82 @@ export const useTabStore = defineStore('tabs', {
         return i18nGlobal.t('statistics.databaseTabLabel', { database: statsTab.dbName })
       }
       return i18nGlobal.t('statistics.tabLabel', { collection: statsTab.collectionName })
+    },
+
+    openSchemaTab(serverId: string, dbName: string, collectionName: string) {
+      const tabIndex = findIndex(this.tabItems, { serverId })
+      if (tabIndex === -1) {
+        return
+      }
+
+      const tab = this.tabItems[tabIndex]
+      if (!tab) {
+        return
+      }
+
+      if (!tab.schemaTabs) {
+        tab.schemaTabs = []
+      }
+
+      const existing = tab.schemaTabs.find(
+        (t) => t.dbName === dbName && t.collectionName === collectionName,
+      )
+      if (existing) {
+        tab.activeInnerTabId = existing.id
+        this._setActivatedIndex(tabIndex, true)
+        return
+      }
+
+      const schemaTab: SchemaTabItem = {
+        id: `schema-${++schemaTabIdCounter}`,
+        serverId,
+        dbName,
+        collectionName,
+      }
+
+      tab.schemaTabs.push(schemaTab)
+      tab.activeInnerTabId = schemaTab.id
+      this._setActivatedIndex(tabIndex, true)
+    },
+
+    closeSchemaTab(serverId: string, schemaTabId: string) {
+      const tabIndex = findIndex(this.tabItems, { serverId })
+      if (tabIndex === -1) {
+        return
+      }
+
+      const tab = this.tabItems[tabIndex]
+      if (!tab || !tab.schemaTabs) {
+        return
+      }
+
+      const idx = tab.schemaTabs.findIndex((t) => t.id === schemaTabId)
+      if (idx === -1) {
+        return
+      }
+
+      tab.schemaTabs.splice(idx, 1)
+
+      if (tab.activeInnerTabId === schemaTabId) {
+        if (tab.schemaTabs.length > 0) {
+          const newIdx = Math.min(idx, tab.schemaTabs.length - 1)
+          tab.activeInnerTabId = tab.schemaTabs[newIdx]?.id
+        } else {
+          tab.activeInnerTabId = findFallbackInnerTabId(tab)
+        }
+      }
+    },
+
+    setActiveSchemaTab(schemaTabId: string) {
+      const tab = this.tabItems[this.activeTabIndex]
+      if (!tab) {
+        return
+      }
+      tab.activeInnerTabId = schemaTabId
+    },
+
+    schemaTabLabel(_tab: ServerTabItem, schemaTab: SchemaTabItem): string {
+      return i18nGlobal.t('schemaBrowser.tabLabel', { collection: schemaTab.collectionName })
     },
   },
 })

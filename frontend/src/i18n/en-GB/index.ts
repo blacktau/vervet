@@ -217,6 +217,7 @@ export default {
       rename: 'Rename...',
       dropCollection: 'Drop Collection',
       viewIndexes: 'View Indexes',
+      inspectSchema: 'Inspect Schema',
     },
     subTab: {
       query: 'Query',

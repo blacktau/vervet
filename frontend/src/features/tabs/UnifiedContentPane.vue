@@ -11,11 +11,12 @@ import IndexTab from '@/features/indexes/IndexTab.vue'
 import CollectionStatisticsTab from '@/features/statistics/CollectionStatisticsTab.vue'
 import DatabaseStatisticsTab from '@/features/statistics/DatabaseStatisticsTab.vue'
 import ServerStatisticsTab from '@/features/statistics/ServerStatisticsTab.vue'
+import SchemaBrowserPane from '@/features/schema-browser/SchemaBrowserPane.vue'
 
 type UnifiedTab = {
   id: string
   label: string
-  type: 'query' | 'index' | 'statistics'
+  type: 'query' | 'index' | 'statistics' | 'schema'
 }
 
 const tabStore = useTabStore()
@@ -57,6 +58,14 @@ const unifiedTabs = computed<UnifiedTab[]>(() => {
       id: statsTab.id,
       label: tabStore.statisticsTabLabel(tab, statsTab),
       type: 'statistics',
+    })
+  }
+
+  for (const schemaTab of tab.schemaTabs ?? []) {
+    tabs.push({
+      id: schemaTab.id,
+      label: tabStore.schemaTabLabel(tab, schemaTab),
+      type: 'schema',
     })
   }
 
@@ -114,6 +123,10 @@ function findStatsTabById(id: string) {
   return (tabStore.currentTab?.statisticsTabs ?? []).find((t) => t.id === id)
 }
 
+function findSchemaTabById(id: string) {
+  return (tabStore.currentTab?.schemaTabs ?? []).find((t) => t.id === id)
+}
+
 async function handleClose(innerTabId: string) {
   const serverId = tabStore.currentTab?.serverId
   if (!serverId) {
@@ -134,6 +147,8 @@ async function handleClose(innerTabId: string) {
     tabStore.closeIndexTab(serverId, innerTabId)
   } else if (innerTabId.startsWith('stats-')) {
     tabStore.closeStatisticsTab(serverId, innerTabId)
+  } else if (innerTabId.startsWith('schema-')) {
+    tabStore.closeSchemaTab(serverId, innerTabId)
   }
 }
 
@@ -219,6 +234,16 @@ async function promptSaveBeforeClose(queryId: string, state: QueryState): Promis
           <ServerStatisticsTab
             v-else-if="findStatsTabById(uTab.id)?.level === 'server'"
             :server-id="findStatsTabById(uTab.id)!.serverId" />
+        </template>
+
+        <!-- Schema content -->
+        <template v-else-if="uTab.type === 'schema'">
+          <SchemaBrowserPane
+            v-if="findSchemaTabById(uTab.id)"
+            :tab-id="uTab.id"
+            :server-id="findSchemaTabById(uTab.id)!.serverId"
+            :db-name="findSchemaTabById(uTab.id)!.dbName"
+            :collection-name="findSchemaTabById(uTab.id)!.collectionName" />
         </template>
       </n-tab-pane>
     </n-tabs>
