@@ -17,6 +17,9 @@ type fakeUpdatesService struct {
 func (f *fakeUpdatesService) CheckNow(ctx context.Context) (updates.UpdateInfo, error) {
 	return f.info, f.err
 }
+func (f *fakeUpdatesService) CheckIfDue(ctx context.Context) error {
+	return f.err
+}
 func (f *fakeUpdatesService) DismissVersion(v string) error {
 	f.dismissed = v
 	return nil
