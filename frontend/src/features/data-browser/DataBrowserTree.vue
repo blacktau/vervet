@@ -181,6 +181,21 @@ async function handleContextMenuSelect(key: string) {
       const serverId = parts[0]
       const dbName = parts[1]
       if (serverId && dbName) {
+        const doDropDb = async () => {
+          const result = await databasesProxy.DropDatabase(serverId, dbName)
+          if (!result.isSuccess) {
+            notifier.error(t(`errors.${result.errorCode}`), {
+              title: t('errorTitles.dropDatabase'),
+              detail: result.errorDetail,
+            })
+            return
+          }
+          await browserStore.refreshServerDatabases(serverId)
+        }
+        if (!settingsStore.general.confirmDestructive) {
+          await doDropDb()
+          return
+        }
         const statsResult = await databasesProxy.GetDatabaseStatistics(serverId, dbName)
         const impact =
           statsResult.isSuccess && statsResult.data
@@ -190,17 +205,7 @@ async function handleContextMenuSelect(key: string) {
           kind: 'database',
           name: dbName,
           impact,
-          onConfirm: async () => {
-            const result = await databasesProxy.DropDatabase(serverId, dbName)
-            if (!result.isSuccess) {
-              notifier.error(t(`errors.${result.errorCode}`), {
-                title: t('errorTitles.dropDatabase'),
-                detail: result.errorDetail,
-              })
-              return
-            }
-            await browserStore.refreshServerDatabases(serverId)
-          },
+          onConfirm: doDropDb,
         })
       }
     }
@@ -233,6 +238,23 @@ async function handleContextMenuSelect(key: string) {
       const dbName = parts[1]
       const collectionName = parts[3]
       if (serverId && dbName && collectionName) {
+        const doDrop = async () => {
+          const result = await collectionsProxy.DropCollection(serverId, dbName, collectionName)
+          if (!result.isSuccess) {
+            notifier.error(t(`errors.${result.errorCode}`), {
+              title: t('errorTitles.dropCollection'),
+              detail: result.errorDetail,
+            })
+            return
+          }
+          await browserStore.refreshDatabaseCollections(serverId, dbName)
+        }
+
+        if (!settingsStore.general.confirmDestructive) {
+          await doDrop()
+          return
+        }
+
         const isView = node.type === DataNodeType.View
         let impact: { documentCount?: number } = {}
         let statsFetchFailed = false
@@ -246,18 +268,6 @@ async function handleContextMenuSelect(key: string) {
         }
         const documentCount = statsFetchFailed ? undefined : impact.documentCount
         const escalate = shouldEscalateCollectionDrop({ isView, documentCount })
-
-        const doDrop = async () => {
-          const result = await collectionsProxy.DropCollection(serverId, dbName, collectionName)
-          if (!result.isSuccess) {
-            notifier.error(t(`errors.${result.errorCode}`), {
-              title: t('errorTitles.dropCollection'),
-              detail: result.errorDetail,
-            })
-            return
-          }
-          await browserStore.refreshDatabaseCollections(serverId, dbName)
-        }
 
         if (escalate) {
           dialogStore.openDestructiveConfirmDialog({
