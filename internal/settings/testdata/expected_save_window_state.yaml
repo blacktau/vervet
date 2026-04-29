@@ -10,6 +10,7 @@ general:
   language: auto
   font:
     size: 14
+  confirmDestructive: true
 editor:
   font:
     size: 14
@@ -17,6 +18,9 @@ editor:
   showFolding: false
   dropText: false
   links: false
+query:
+  defaultLimit: 42
+  defaultPageSize: 25
   queryEngine: builtin
 terminal:
   font:

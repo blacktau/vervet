@@ -64,6 +64,19 @@ const fontOptions = computed(() => [
       <n-form-item-gi :label="$t('settings.common.fontSize')" :span="24">
         <n-input-number v-model:value="settingsStore.general.font.size" :max="65535" :min="1" />
       </n-form-item-gi>
+      <n-form-item-gi :show-feedback="false" :show-label="false" :span="24">
+        <n-checkbox v-model:checked="settingsStore.general.confirmDestructive">
+          {{ $t('settings.general.confirmDestructive') }}
+          <n-tooltip trigger="hover">
+            <template #trigger>
+              <n-icon :component="QuestionMarkCircleIcon" />
+            </template>
+            <div class="text-block">
+              {{ $t('settings.general.confirmDestructiveHelp') }}
+            </div>
+          </n-tooltip>
+        </n-checkbox>
+      </n-form-item-gi>
     </n-grid>
   </n-form>
 </template>

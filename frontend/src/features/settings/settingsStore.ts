@@ -26,12 +26,17 @@ export const useSettingsStore = defineStore('settings', {
         font: {
           size: 14,
         },
+        confirmDestructive: true,
       },
       editor: {
         font: {
           size: 14,
         },
         showLineNumbers: true,
+      },
+      query: {
+        defaultLimit: 42,
+        defaultPageSize: 25,
         queryEngine: 'builtin',
       },
       terminal: {
@@ -163,6 +168,19 @@ export const useSettingsStore = defineStore('settings', {
       const links = get(result.data, 'editor.links')
       if (links === undefined) {
         set(result.data, 'editor.links', true)
+      }
+      const query = get(result.data, 'query')
+      if (query === undefined) {
+        const legacyEngine = get(result.data, 'editor.queryEngine') as string | undefined
+        set(this, 'query', {
+          defaultLimit: 42,
+          defaultPageSize: 25,
+          queryEngine: legacyEngine ?? 'builtin',
+        })
+      }
+      const confirmDestructive = get(result.data, 'general.confirmDestructive')
+      if (confirmDestructive === undefined) {
+        set(this, 'general.confirmDestructive', true)
       }
       const fileExtensions = get(result.data, 'workspaces.fileExtensions')
       if (fileExtensions == null) {

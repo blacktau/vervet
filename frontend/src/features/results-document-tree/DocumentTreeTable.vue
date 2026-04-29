@@ -98,7 +98,7 @@ watch(
 
 const pagination = reactive({
   page: 1,
-  pageSize: 25,
+  pageSize: settingsStore.query.defaultPageSize,
   pageSizes: PAGE_SIZES,
   showSizePicker: true,
   size: 'small' as const,

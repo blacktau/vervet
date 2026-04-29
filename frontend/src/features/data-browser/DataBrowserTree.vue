@@ -7,6 +7,7 @@ import { CircleStackIcon, EyeIcon, FolderIcon, FolderOpenIcon } from '@heroicons
 import { DataNodeType, type DataTreeNode } from '@/features/data-browser/types.ts'
 import { useDataTreeContextMenu } from '@/features/data-browser/useDataTreeContextMenu.ts'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
+import { useSettingsStore } from '@/features/settings/settingsStore.ts'
 import { useTabStore } from '@/features/tabs/tabs.ts'
 import DataTreeContextMenu from '@/features/data-browser/DataTreeContextMenu.vue'
 import { useDialogStore } from '@/stores/dialog.ts'
@@ -25,6 +26,7 @@ const props = defineProps<{
 
 const tabStore = useTabStore()
 const browserStore = useDataBrowserStore()
+const settingsStore = useSettingsStore()
 const contextMenu = useDataTreeContextMenu()
 const dialogStore = useDialogStore()
 const dialog = useDialog()
@@ -50,7 +52,7 @@ const openQueryForNode = (node: DataTreeNode) => {
     const dbName = parts[1]
     const name = parts[3]
     if (serverId && dbName && name) {
-      const queryText = `db.getCollection('${name}').find({}).limit(42)`
+      const queryText = `db.getCollection('${name}').find({}).limit(${settingsStore.query.defaultLimit})`
       tabStore.openQuery(serverId, dbName, queryText, name)
     }
   }
@@ -179,6 +181,21 @@ async function handleContextMenuSelect(key: string) {
       const serverId = parts[0]
       const dbName = parts[1]
       if (serverId && dbName) {
+        const doDropDb = async () => {
+          const result = await databasesProxy.DropDatabase(serverId, dbName)
+          if (!result.isSuccess) {
+            notifier.error(t(`errors.${result.errorCode}`), {
+              title: t('errorTitles.dropDatabase'),
+              detail: result.errorDetail,
+            })
+            return
+          }
+          await browserStore.refreshServerDatabases(serverId)
+        }
+        if (!settingsStore.general.confirmDestructive) {
+          await doDropDb()
+          return
+        }
         const statsResult = await databasesProxy.GetDatabaseStatistics(serverId, dbName)
         const impact =
           statsResult.isSuccess && statsResult.data
@@ -188,17 +205,7 @@ async function handleContextMenuSelect(key: string) {
           kind: 'database',
           name: dbName,
           impact,
-          onConfirm: async () => {
-            const result = await databasesProxy.DropDatabase(serverId, dbName)
-            if (!result.isSuccess) {
-              notifier.error(t(`errors.${result.errorCode}`), {
-                title: t('errorTitles.dropDatabase'),
-                detail: result.errorDetail,
-              })
-              return
-            }
-            await browserStore.refreshServerDatabases(serverId)
-          },
+          onConfirm: doDropDb,
         })
       }
     }
@@ -231,6 +238,23 @@ async function handleContextMenuSelect(key: string) {
       const dbName = parts[1]
       const collectionName = parts[3]
       if (serverId && dbName && collectionName) {
+        const doDrop = async () => {
+          const result = await collectionsProxy.DropCollection(serverId, dbName, collectionName)
+          if (!result.isSuccess) {
+            notifier.error(t(`errors.${result.errorCode}`), {
+              title: t('errorTitles.dropCollection'),
+              detail: result.errorDetail,
+            })
+            return
+          }
+          await browserStore.refreshDatabaseCollections(serverId, dbName)
+        }
+
+        if (!settingsStore.general.confirmDestructive) {
+          await doDrop()
+          return
+        }
+
         const isView = node.type === DataNodeType.View
         let impact: { documentCount?: number } = {}
         let statsFetchFailed = false
@@ -244,18 +268,6 @@ async function handleContextMenuSelect(key: string) {
         }
         const documentCount = statsFetchFailed ? undefined : impact.documentCount
         const escalate = shouldEscalateCollectionDrop({ isView, documentCount })
-
-        const doDrop = async () => {
-          const result = await collectionsProxy.DropCollection(serverId, dbName, collectionName)
-          if (!result.isSuccess) {
-            notifier.error(t(`errors.${result.errorCode}`), {
-              title: t('errorTitles.dropCollection'),
-              detail: result.errorDetail,
-            })
-            return
-          }
-          await browserStore.refreshDatabaseCollections(serverId, dbName)
-        }
 
         if (escalate) {
           dialogStore.openDestructiveConfirmDialog({

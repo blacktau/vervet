@@ -30,6 +30,8 @@ const DefaultFontSize = 14
 const DefaultWindowWidth = 1024
 const DefaultWindowHeight = 768
 const DefaultAsideWidth = 300
+const DefaultResultLimit = 42
+const DefaultResultPageSize = 25
 
 type settingsService struct {
 	store         infrastructure.Store
@@ -196,8 +198,46 @@ func (s *settingsService) getSettings() (models.Settings, error) {
 		return s.defaultSettings(), fmt.Errorf("error parsing configuration: %w", err)
 	}
 
+	migrated := s.migrateLegacyFields(&settings, b)
+
 	settings.Logging.Normalize()
+	settings.Query.Normalize()
+
+	if migrated {
+		if saveErr := s.saveSettings(&settings); saveErr != nil {
+			s.log.Warn("failed to persist settings migration", slog.Any("error", saveErr))
+		}
+	}
+
 	return settings, nil
+}
+
+// migrateLegacyFields lifts deprecated YAML keys to their new locations so
+// older configuration files do not lose user choices on upgrade. Returns true
+// when the caller should persist the migrated settings. Detection is based on
+// the raw YAML rather than the unmarshalled struct, because defaults pre-fill
+// the new fields so "absent in YAML" cannot be distinguished from "defaulted".
+func (s *settingsService) migrateLegacyFields(settings *models.Settings, raw []byte) bool {
+	var legacy struct {
+		Editor struct {
+			QueryEngine string `yaml:"queryEngine"`
+		} `yaml:"editor"`
+		Query struct {
+			QueryEngine string `yaml:"queryEngine"`
+		} `yaml:"query"`
+	}
+	if err := yaml.Unmarshal(raw, &legacy); err != nil {
+		return false
+	}
+	if legacy.Query.QueryEngine != "" {
+		return false
+	}
+	if legacy.Editor.QueryEngine == "" {
+		return false
+	}
+
+	settings.Query.QueryEngine = legacy.Editor.QueryEngine
+	return true
 }
 
 func (s *settingsService) setSettings(settings *models.Settings, key string, value any) error {
@@ -273,13 +313,18 @@ func defaultSettingsForBuild(isDev bool) models.Settings {
 			Font: models.FontSettings{
 				Size: DefaultFontSize,
 			},
+			ConfirmDestructive: true,
 		},
 		Editor: models.EditorSettings{
 			Font: models.FontSettings{
 				Size: DefaultFontSize,
 			},
 			LineNumbers: true,
-			QueryEngine: "builtin",
+		},
+		Query: models.QuerySettings{
+			DefaultLimit:    DefaultResultLimit,
+			DefaultPageSize: DefaultResultPageSize,
+			QueryEngine:     "builtin",
 		},
 		Terminal: models.TerminalSettings{
 			Font: models.FontSettings{

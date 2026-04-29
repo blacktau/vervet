@@ -73,7 +73,7 @@ func (qe *QueryExecutor) ExecuteQuery(serverID, dbName, query string) (models.Qu
 	}()
 
 	cfg, _ := qe.settings.GetSettings()
-	if cfg.Editor.QueryEngine == "builtin" {
+	if cfg.Query.QueryEngine == "builtin" {
 		return qe.executeWithGoja(queryCtx, serverID, dbName, query)
 	}
 	return qe.executeWithMongosh(queryCtx, serverID, dbName, query)
