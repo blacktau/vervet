@@ -9,6 +9,7 @@ import (
 
 type UpdatesService interface {
 	CheckNow(ctx context.Context) (updates.UpdateInfo, error)
+	CheckIfDue(ctx context.Context) error
 	DismissVersion(version string) error
 }
 
@@ -38,6 +39,14 @@ func (p *UpdatesProxy) CheckNow() Result[updates.UpdateInfo] {
 		return FailResult[updates.UpdateInfo](err)
 	}
 	return SuccessResult(info)
+}
+
+func (p *UpdatesProxy) CheckIfDue() EmptyResult {
+	if err := p.svc.CheckIfDue(p.ctx); err != nil {
+		logFail(p.log, "CheckIfDue", err)
+		return Fail(err)
+	}
+	return Success()
 }
 
 func (p *UpdatesProxy) DismissUpdate(version string) EmptyResult {

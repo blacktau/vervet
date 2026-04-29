@@ -183,12 +183,6 @@ func (a *App) Startup(ctx context.Context) {
 	a.updatesEmitter.SetContext(ctx)
 	a.updatesOpener.SetContext(ctx)
 	a.UpdatesProxy.Init(ctx)
-
-	go func() {
-		if err := a.updatesService.CheckIfDue(ctx); err != nil {
-			a.log.Warn("update check failed", slog.Any("error", err))
-		}
-	}()
 }
 
 // DomReady is called after front-end resources have been loaded
