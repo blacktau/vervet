@@ -7,6 +7,7 @@ import { CircleStackIcon, EyeIcon, FolderIcon, FolderOpenIcon } from '@heroicons
 import { DataNodeType, type DataTreeNode } from '@/features/data-browser/types.ts'
 import { useDataTreeContextMenu } from '@/features/data-browser/useDataTreeContextMenu.ts'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
+import { useSettingsStore } from '@/features/settings/settingsStore.ts'
 import { useTabStore } from '@/features/tabs/tabs.ts'
 import DataTreeContextMenu from '@/features/data-browser/DataTreeContextMenu.vue'
 import { useDialogStore } from '@/stores/dialog.ts'
@@ -25,6 +26,7 @@ const props = defineProps<{
 
 const tabStore = useTabStore()
 const browserStore = useDataBrowserStore()
+const settingsStore = useSettingsStore()
 const contextMenu = useDataTreeContextMenu()
 const dialogStore = useDialogStore()
 const dialog = useDialog()
@@ -50,7 +52,7 @@ const openQueryForNode = (node: DataTreeNode) => {
     const dbName = parts[1]
     const name = parts[3]
     if (serverId && dbName && name) {
-      const queryText = `db.getCollection('${name}').find({}).limit(42)`
+      const queryText = `db.getCollection('${name}').find({}).limit(${settingsStore.query.defaultLimit})`
       tabStore.openQuery(serverId, dbName, queryText, name)
     }
   }
