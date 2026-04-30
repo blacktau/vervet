@@ -5,7 +5,7 @@ import { type FormInst } from 'naive-ui'
 import { DialogMode, DialogType, useDialogStore } from '@/stores/dialog.ts'
 import { type IndexInfo, useIndexStore } from '@/features/indexes/indexStore.ts'
 import { useNotifier } from '@/utils/dialog.ts'
-import { GetCollectionSchema } from 'wailsjs/go/api/CollectionsProxy'
+import { SampleSchema } from 'wailsjs/go/api/CollectionsProxy'
 import type { models } from 'wailsjs/go/models'
 
 type DialogData = {
@@ -13,6 +13,7 @@ type DialogData = {
   dbName: string
   collectionName: string
   index?: IndexInfo
+  presetField?: string
 }
 
 const dialogStore = useDialogStore()
@@ -28,13 +29,12 @@ const collectionName = ref('')
 const editingIndexName = ref<string | undefined>(undefined)
 const fieldSuggestions = ref<string[]>([])
 
-function flattenFields(fields: models.FieldInfo[], prefix = ''): string[] {
+function flattenFields(fields: models.FieldInfo[]): string[] {
   const paths: string[] = []
   for (const f of fields) {
-    const path = prefix ? `${prefix}.${f.path}` : f.path
-    paths.push(path)
+    paths.push(f.path)
     if (f.children?.length) {
-      paths.push(...flattenFields(f.children, path))
+      paths.push(...flattenFields(f.children))
     }
   }
   return paths
@@ -45,7 +45,8 @@ async function fetchFieldSuggestions() {
     return
   }
   try {
-    const result = await GetCollectionSchema(serverID.value, dbName.value, collectionName.value)
+    const requestId = crypto.randomUUID()
+    const result = await SampleSchema(serverID.value, dbName.value, collectionName.value, 100, requestId)
     if (result.isSuccess && result.data?.fields) {
       fieldSuggestions.value = flattenFields(result.data.fields)
     }
@@ -103,7 +104,7 @@ watchEffect(() => {
       form.ttl = data.index.ttl ?? null
     } else {
       editingIndexName.value = undefined
-      form.keys = [{ field: '', direction: 1 }]
+      form.keys = [{ field: data?.presetField ?? '', direction: 1 }]
       form.name = ''
       form.unique = false
       form.sparse = false

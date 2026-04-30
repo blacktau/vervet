@@ -3,6 +3,8 @@
 import {api} from '../models';
 import {context} from '../models';
 
+export function CheckIfDue():Promise<api.EmptyResult>;
+
 export function CheckNow():Promise<api.Result_vervet_internal_updates_UpdateInfo_>;
 
 export function DismissUpdate(arg1:string):Promise<api.EmptyResult>;

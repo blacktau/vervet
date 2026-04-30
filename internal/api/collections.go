@@ -1,7 +1,10 @@
 package api
 
 import (
+	"context"
+	"errors"
 	"log/slog"
+	"sync"
 
 	"vervet/internal/models"
 )
@@ -11,7 +14,7 @@ type CollectionsProvider interface {
 	GetServerStatistics(serverID string) (map[string]any, error)
 	GetCollections(serverID string, dbName string) ([]string, error)
 	GetViews(serverID string, dbName string) ([]string, error)
-	GetCollectionSchema(serverID string, dbName string, collectionName string) (models.CollectionSchema, error)
+	SampleSchema(ctx context.Context, serverID string, dbName string, collectionName string, size int) (models.CollectionSchema, error)
 	CreateCollection(serverID string, dbName string, collectionName string) error
 	RenameCollection(serverID string, dbName string, oldName string, newName string) error
 	DropCollection(serverID string, dbName string, collectionName string) error
@@ -20,6 +23,7 @@ type CollectionsProvider interface {
 type CollectionsProxy struct {
 	log      *slog.Logger
 	provider CollectionsProvider
+	cancels  sync.Map // requestID -> context.CancelFunc
 }
 
 func NewCollectionsProxy(log *slog.Logger, provider CollectionsProvider) *CollectionsProxy {
@@ -62,13 +66,29 @@ func (cp *CollectionsProxy) GetViews(serverID string, dbName string) Result[[]st
 	return SuccessResult(result)
 }
 
-func (cp *CollectionsProxy) GetCollectionSchema(serverID string, dbName string, collectionName string) Result[models.CollectionSchema] {
-	result, err := cp.provider.GetCollectionSchema(serverID, dbName, collectionName)
+func (cp *CollectionsProxy) SampleSchema(serverID string, dbName string, collectionName string, size int, requestID string) Result[models.CollectionSchema] {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if requestID != "" {
+		cp.cancels.Store(requestID, cancel)
+		defer cp.cancels.Delete(requestID)
+	}
+	result, err := cp.provider.SampleSchema(ctx, serverID, dbName, collectionName, size)
 	if err != nil {
-		logFail(cp.log, "GetCollectionSchema", err)
+		logFail(cp.log, "SampleSchema", err)
 		return FailResult[models.CollectionSchema](err)
 	}
 	return SuccessResult(result)
+}
+
+func (cp *CollectionsProxy) CancelSampleSchema(requestID string) EmptyResult {
+	v, ok := cp.cancels.LoadAndDelete(requestID)
+	if !ok {
+		return Fail(errors.New("no in-flight sample for requestID"))
+	}
+	cancel := v.(context.CancelFunc)
+	cancel()
+	return Success()
 }
 
 func (cp *CollectionsProxy) CreateCollection(serverID string, dbName string, collectionName string) EmptyResult {

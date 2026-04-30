@@ -164,12 +164,24 @@ export namespace api {
 
 export namespace models {
 	
+	export interface TypeStat {
+	    type: string;
+	    count: number;
+	    min?: string;
+	    max?: string;
+	    minLen?: number;
+	    maxLen?: number;
+	}
 	export interface FieldInfo {
 	    path: string;
-	    types: string[];
+	    name: string;
+	    count: number;
+	    types: TypeStat[];
 	    children: FieldInfo[];
 	}
 	export interface CollectionSchema {
+	    sampledCount: number;
+	    totalCount: number;
 	    fields: FieldInfo[];
 	}
 	export interface Connection {
@@ -305,6 +317,7 @@ export namespace models {
 	    updates: UpdatesSettings;
 	    logging: LoggingSettings;
 	}
+	
 	
 	
 	

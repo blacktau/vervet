@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -60,7 +61,7 @@ func (m *MockCollectionsProvider) GetViews(serverID, dbName string) ([]string, e
 	return m.views, nil
 }
 
-func (m *MockCollectionsProvider) GetCollectionSchema(serverID, dbName, collectionName string) (models.CollectionSchema, error) {
+func (m *MockCollectionsProvider) SampleSchema(ctx context.Context, serverID, dbName, collectionName string, size int) (models.CollectionSchema, error) {
 	if m.getSchemaErr != nil {
 		return models.CollectionSchema{}, m.getSchemaErr
 	}
@@ -180,23 +181,31 @@ func TestCollectionsProxy_DropCollection(t *testing.T) {
 	})
 }
 
-func TestCollectionsProxy_GetCollectionSchema(t *testing.T) {
-	t.Run("successful get schema", func(t *testing.T) {
+func TestCollectionsProxy_SampleSchema(t *testing.T) {
+	t.Run("successful sample", func(t *testing.T) {
 		provider := &MockCollectionsProvider{
-			schema: models.CollectionSchema{},
+			schema: models.CollectionSchema{SampledCount: 5},
 		}
 		proxy := NewCollectionsProxy(testLogger(), provider)
-		result := proxy.GetCollectionSchema("1", "db1", "coll1")
+		result := proxy.SampleSchema("1", "db1", "coll1", 100, "req-1")
 		assert.True(t, result.IsSuccess)
+		assert.Equal(t, 5, result.Data.SampledCount)
 	})
 
-	t.Run("get schema error", func(t *testing.T) {
+	t.Run("sample error", func(t *testing.T) {
 		provider := &MockCollectionsProvider{
 			getSchemaErr: errors.New("failed"),
 		}
 		proxy := NewCollectionsProxy(testLogger(), provider)
-		result := proxy.GetCollectionSchema("1", "db1", "coll1")
+		result := proxy.SampleSchema("1", "db1", "coll1", 100, "req-2")
 		assert.False(t, result.IsSuccess)
 		assert.NotEmpty(t, result.ErrorCode)
 	})
+}
+
+func TestCollectionsProxy_CancelSampleSchema_NotFound(t *testing.T) {
+	provider := &MockCollectionsProvider{}
+	proxy := NewCollectionsProxy(testLogger(), provider)
+	result := proxy.CancelSampleSchema("missing")
+	assert.False(t, result.IsSuccess)
 }

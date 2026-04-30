@@ -130,6 +130,19 @@ async function handleContextMenuSelect(key: string) {
     }
   }
 
+  if (key === 'inspectSchema') {
+    if (node.type === DataNodeType.Collection || node.type === DataNodeType.View) {
+      const nodeKey = node.key as string
+      const parts = nodeKey.split(':')
+      const serverId = parts[0]
+      const dbName = parts[1]
+      const collectionName = parts[3]
+      if (serverId && dbName && collectionName) {
+        tabStore.openSchemaTab(serverId, dbName, collectionName)
+      }
+    }
+  }
+
   if (key === 'serverStatus') {
     if (node.type === DataNodeType.Server) {
       const serverId = node.key as string

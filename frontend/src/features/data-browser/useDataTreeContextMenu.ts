@@ -100,6 +100,11 @@ export function useDataTreeContextMenu() {
       disabled: false,
     },
     {
+      label: t('dataBrowser.contextMenu.inspectSchema'),
+      key: 'inspectSchema',
+      disabled: false,
+    },
+    {
       label: t('dataBrowser.contextMenu.statistics'),
       key: 'statistics',
       disabled: false,
