@@ -10,20 +10,25 @@ const originalConsole = {
   error: console.error,
 }
 
-function formatMessage(level: LogLevel, args: unknown[]): string {
-  const message = args
-    .map((arg) => {
-      if (typeof arg === 'object') {
-        try {
-          return JSON.stringify(arg)
-        } catch {
-          return String(arg)
-        }
-      }
+function formatArg(arg: unknown): string {
+  if (arg instanceof Error) {
+    return arg.stack ?? `${arg.name}: ${arg.message}`
+  }
+  if (arg === null || arg === undefined) {
+    return String(arg)
+  }
+  if (typeof arg === 'object') {
+    try {
+      return JSON.stringify(arg, Object.getOwnPropertyNames(arg))
+    } catch {
       return String(arg)
-    })
-    .join(' ')
-  return `${message}`
+    }
+  }
+  return String(arg)
+}
+
+function formatMessage(_level: LogLevel, args: unknown[]): string {
+  return args.map(formatArg).join(' ')
 }
 
 function sendToBackend(level: LogLevel, message: string) {
