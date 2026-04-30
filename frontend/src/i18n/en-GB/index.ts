@@ -331,7 +331,8 @@ export default {
       presence: 'Presence',
       actions: 'Actions',
     },
-    presenceTooltip: '% of sampled documents containing this field',
+    presenceTooltip: '% of sampled documents containing this field. Array element rows (`[]`) show the average number of elements per containing array.',
+    avgElements: '{n} ×',
     typesTooltip: 'BSON types observed in the sampled documents for this field',
     legend: {
       label: 'Types',

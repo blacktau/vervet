@@ -180,13 +180,14 @@ const columns = computed<DataTableColumns<SchemaRow>>(() => [
     key: 'presence',
     width: 110,
     align: 'right',
-    sorter: (a, b) => a.presence - b.presence,
+    sorter: (a, b) =>
+      (a.isArrayElement ? a.avgPerParent : a.presence) -
+      (b.isArrayElement ? b.avgPerParent : b.presence),
     render(row) {
-      return h(
-        'span',
-        { class: 'schema-presence' },
-        `${row.presence.toFixed(1)}%`,
-      )
+      const text = row.isArrayElement
+        ? t('schemaBrowser.avgElements', { n: row.avgPerParent.toFixed(1) })
+        : `${row.presence.toFixed(1)}%`
+      return h('span', { class: 'schema-presence' }, text)
     },
   },
   {
