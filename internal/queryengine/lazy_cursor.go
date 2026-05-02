@@ -28,6 +28,27 @@ type lazyCursor struct {
 	batchSize  int32
 	collation  map[string]any
 	comment    string
+	pageCtx    *models.PageContext
+}
+
+// buildPageContext returns a PageContext snapshot of this cursor's find
+// parameters. Returns nil for findOne (not pageable).
+func (c *lazyCursor) buildPageContext() *models.PageContext {
+	if c.isFindOne {
+		return nil
+	}
+	return &models.PageContext{
+		Collection: c.collection,
+		Filter:     c.filter,
+		Projection: c.projection,
+		Sort:       c.sort,
+		Hint:       c.hint,
+		Collation:  c.collation,
+		UserLimit:  c.limit,
+		UserSkip:   c.skip,
+		MaxTimeMS:  c.maxTimeMS,
+		Comment:    c.comment,
+	}
 }
 
 func (c *lazyCursor) setLimit(n int64) error {
@@ -58,15 +79,27 @@ func (c *lazyCursor) setSort(spec any) error {
 // Subsequent calls return cached results.
 func (c *lazyCursor) execute() (models.QueryResult, error) {
 	if c.resolved {
-		return models.QueryResult{Documents: c.results}, nil
+		return models.QueryResult{Documents: c.results, PageContext: c.pageCtx}, nil
+	}
+
+	pageCtx := c.buildPageContext()
+
+	effSkip := c.skip
+	effLimit := c.limit
+	if pageCtx != nil && c.ec.pageSize > 0 {
+		if c.limit > 0 && c.limit < c.ec.pageSize {
+			effLimit = c.limit
+		} else {
+			effLimit = c.ec.pageSize
+		}
 	}
 
 	op := CapturedOp{
 		Collection: c.collection,
 		Method:     "find",
 		Args:       []any{c.filter, c.projection},
-		Limit:      c.limit,
-		Skip:       c.skip,
+		Limit:      effLimit,
+		Skip:       effSkip,
 		Sort:       c.sort,
 		Hint:       c.hint,
 		MaxTimeMS:  c.maxTimeMS,
@@ -87,6 +120,8 @@ func (c *lazyCursor) execute() (models.QueryResult, error) {
 
 	c.results = result.Documents
 	c.resolved = true
+	c.pageCtx = pageCtx
+	result.PageContext = pageCtx
 	return result, nil
 }
 
