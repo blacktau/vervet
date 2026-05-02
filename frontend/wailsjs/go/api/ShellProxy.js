@@ -10,6 +10,14 @@ export function CheckMongosh() {
   return window['go']['api']['ShellProxy']['CheckMongosh']();
 }
 
+export function CountForPage(arg1, arg2, arg3) {
+  return window['go']['api']['ShellProxy']['CountForPage'](arg1, arg2, arg3);
+}
+
 export function ExecuteQuery(arg1, arg2, arg3) {
   return window['go']['api']['ShellProxy']['ExecuteQuery'](arg1, arg2, arg3);
+}
+
+export function FetchPage(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['api']['ShellProxy']['FetchPage'](arg1, arg2, arg3, arg4, arg5);
 }
