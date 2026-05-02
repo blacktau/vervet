@@ -23,12 +23,21 @@ const props = defineProps<{
   defaultExpandDepth?: number
   enableContextMenu?: boolean
   collectionContext?: CollectionContext
+  paged?: boolean
+  page?: number
+  pageSize?: number
+  total?: number | null
+  totalEstimated?: boolean
+  loadingPage?: boolean
+  loadingCount?: boolean
 }>()
 
 const emit = defineEmits<{
   (e: 'update:checkedKeys', keys: DataTableRowKey[]): void
   (e: 'document-changed'): void
   (e: 'export-requested'): void
+  (e: 'update:page', page: number): void
+  (e: 'update:page-size', size: number): void
 }>()
 
 const { t } = useI18n()
@@ -96,18 +105,51 @@ watch(
   { immediate: true },
 )
 
-const pagination = reactive({
+const clientPagination = reactive({
   page: 1,
   pageSize: settingsStore.query.defaultPageSize,
   pageSizes: PAGE_SIZES,
   showSizePicker: true,
   size: 'small' as const,
   onChange: (page: number) => {
-    pagination.page = page
+    clientPagination.page = page
   },
   onUpdatePageSize: (pageSize: number) => {
-    pagination.pageSize = pageSize
+    clientPagination.pageSize = pageSize
   },
+})
+
+const pagination = computed(() => {
+  if (!props.paged) {
+    return clientPagination
+  }
+  const total = props.total ?? null
+  const pageSize = props.pageSize ?? settingsStore.query.defaultPageSize
+  const pageCount = total != null ? Math.max(1, Math.ceil(total / pageSize)) : undefined
+  return {
+    page: (props.page ?? 0) + 1,
+    pageSize,
+    pageSizes: PAGE_SIZES,
+    showSizePicker: true,
+    size: 'small' as const,
+    itemCount: total ?? undefined,
+    pageCount,
+    disabled: props.loadingPage,
+    prefix: () => {
+      if (props.loadingCount) {
+        return t('results.counting')
+      }
+      if (total == null) {
+        return ''
+      }
+      const fmt = total.toLocaleString()
+      return props.totalEstimated
+        ? t('results.totalEstimated', { n: fmt })
+        : t('results.total', { n: fmt })
+    },
+    onChange: (page: number) => emit('update:page', page - 1),
+    onUpdatePageSize: (size: number) => emit('update:page-size', size),
+  }
 })
 
 const columns = computed<DataTableColumns<DocumentRow>>(() => [

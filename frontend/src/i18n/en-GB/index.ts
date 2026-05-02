@@ -395,6 +395,11 @@ export default {
     bytes: '{value} bytes',
     error: 'Failed to load statistics',
   },
+  results: {
+    total: 'Total: {n}',
+    totalEstimated: 'Total: ~{n}',
+    counting: 'Counting…',
+  },
   query: {
     run: 'Run',
     cancel: 'Cancel',
