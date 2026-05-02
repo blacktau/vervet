@@ -2,6 +2,7 @@ package queryengine
 
 import (
 	"context"
+	"fmt"
 
 	"vervet/internal/models"
 )
@@ -99,15 +100,34 @@ func extractCount(r models.QueryResult) int64 {
 	if !ok {
 		return 0
 	}
-	switch v := doc["count"].(type) {
+	return coerceInt64(doc["count"])
+}
+
+// coerceInt64 handles raw numeric values and ExtJSON-canonical wrappers
+// such as {"$numberLong": "60"} or {"$numberInt": "60"} produced by
+// dispatchCountDocuments / dispatchEstimatedDocumentCount round-tripping.
+func coerceInt64(v any) int64 {
+	switch x := v.(type) {
 	case int64:
-		return v
+		return x
 	case int32:
-		return int64(v)
-	case float64:
-		return int64(v)
+		return int64(x)
 	case int:
-		return int64(v)
+		return int64(x)
+	case float64:
+		return int64(x)
+	case string:
+		var n int64
+		fmt.Sscanf(x, "%d", &n)
+		return n
+	case map[string]any:
+		for _, key := range []string{"$numberLong", "$numberInt", "$numberDouble"} {
+			if s, ok := x[key].(string); ok {
+				var n int64
+				fmt.Sscanf(s, "%d", &n)
+				return n
+			}
+		}
 	}
 	return 0
 }
