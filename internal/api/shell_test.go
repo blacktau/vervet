@@ -75,6 +75,41 @@ func TestShellProxy_CancelQuery(t *testing.T) {
 	})
 }
 
+func TestShellProxy_FetchPage(t *testing.T) {
+	t.Run("successful page", func(t *testing.T) {
+		provider := &MockShellProvider{
+			queryResult: models.QueryResult{Documents: []any{map[string]any{"x": int64(1)}}},
+		}
+		proxy := NewShellProxy(testLogger(), provider)
+		result := proxy.FetchPage("1", "db1", models.PageContext{Collection: "c"}, 0, 25)
+		assert.True(t, result.IsSuccess)
+		assert.Len(t, result.Data.Documents, 1)
+	})
+
+	t.Run("error", func(t *testing.T) {
+		provider := &MockShellProvider{executeErr: errors.New("boom")}
+		proxy := NewShellProxy(testLogger(), provider)
+		result := proxy.FetchPage("1", "db1", models.PageContext{Collection: "c"}, 0, 25)
+		assert.False(t, result.IsSuccess)
+	})
+}
+
+func TestShellProxy_CountForPage(t *testing.T) {
+	t.Run("successful count", func(t *testing.T) {
+		provider := &MockShellProvider{}
+		proxy := NewShellProxy(testLogger(), provider)
+		result := proxy.CountForPage("1", "db1", models.PageContext{Collection: "c"})
+		assert.True(t, result.IsSuccess)
+	})
+
+	t.Run("error", func(t *testing.T) {
+		provider := &MockShellProvider{executeErr: errors.New("boom")}
+		proxy := NewShellProxy(testLogger(), provider)
+		result := proxy.CountForPage("1", "db1", models.PageContext{Collection: "c"})
+		assert.False(t, result.IsSuccess)
+	})
+}
+
 func TestShellProxy_CheckMongosh(t *testing.T) {
 	t.Run("mongosh available", func(t *testing.T) {
 		provider := &MockShellProvider{mongoshAvail: true}
