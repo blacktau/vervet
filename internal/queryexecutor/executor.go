@@ -2,6 +2,7 @@ package queryexecutor
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"regexp"
@@ -15,6 +16,10 @@ import (
 	"vervet/internal/queryengine"
 	"vervet/internal/shell"
 )
+
+// ErrPagingUnsupported is returned by FetchPage / CountForPage when the active
+// query engine doesn't support server-side paging (e.g. mongosh).
+var ErrPagingUnsupported = errors.New("paging is supported only for the builtin engine")
 
 // SettingsProvider allows QueryExecutor to read app settings without depending on the full settings package.
 type SettingsProvider interface {
@@ -121,6 +126,36 @@ func (qe *QueryExecutor) executeWithMongosh(ctx context.Context, serverID, dbNam
 	}
 
 	return result, nil
+}
+
+// FetchPage fetches a single page for a previously captured PageContext using
+// the builtin engine. Returns ErrPagingUnsupported when mongosh is selected.
+func (qe *QueryExecutor) FetchPage(serverID, dbName string, pc models.PageContext, page, pageSize int64) (models.QueryResult, error) {
+	cfg, _ := qe.settings.GetSettings()
+	if cfg.Query.QueryEngine != "builtin" {
+		return models.QueryResult{}, ErrPagingUnsupported
+	}
+	client, err := qe.registry.GetClient(serverID)
+	if err != nil {
+		return models.QueryResult{}, fmt.Errorf("no active connection: %w", err)
+	}
+	engine := queryengine.NewGojaEngine(client, int64(cfg.Query.DefaultPageSize))
+	return engine.FetchPage(qe.ctx, dbName, pc, page, pageSize)
+}
+
+// CountForPage returns the row count for a PageContext using the builtin
+// engine. Returns ErrPagingUnsupported when mongosh is selected.
+func (qe *QueryExecutor) CountForPage(serverID, dbName string, pc models.PageContext) (int64, bool, error) {
+	cfg, _ := qe.settings.GetSettings()
+	if cfg.Query.QueryEngine != "builtin" {
+		return 0, false, ErrPagingUnsupported
+	}
+	client, err := qe.registry.GetClient(serverID)
+	if err != nil {
+		return 0, false, fmt.Errorf("no active connection: %w", err)
+	}
+	engine := queryengine.NewGojaEngine(client, 0)
+	return engine.CountForPage(qe.ctx, dbName, pc)
 }
 
 // CancelQuery cancels any in-flight query for the given server.

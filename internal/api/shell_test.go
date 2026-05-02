@@ -30,6 +30,20 @@ func (m *MockShellProvider) CheckMongosh() bool {
 
 func (m *MockShellProvider) CloseAll() {}
 
+func (m *MockShellProvider) FetchPage(serverID, dbName string, pc models.PageContext, page, pageSize int64) (models.QueryResult, error) {
+	if m.executeErr != nil {
+		return models.QueryResult{}, m.executeErr
+	}
+	return m.queryResult, nil
+}
+
+func (m *MockShellProvider) CountForPage(serverID, dbName string, pc models.PageContext) (int64, bool, error) {
+	if m.executeErr != nil {
+		return 0, false, m.executeErr
+	}
+	return 0, false, nil
+}
+
 func TestShellProxy_ExecuteQuery(t *testing.T) {
 	t.Run("successful query", func(t *testing.T) {
 		provider := &MockShellProvider{
