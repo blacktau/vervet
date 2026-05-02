@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import * as shellProxy from 'wailsjs/go/api/ShellProxy'
 import * as filesProxy from 'wailsjs/go/api/FilesProxy'
-import { models } from 'wailsjs/go/models'
+import type { models } from 'wailsjs/go/models'
 import { useTabStore } from '@/features/tabs/tabs'
 import { useNotifier } from '@/utils/dialog'
 import { useSettingsStore } from '@/features/settings/settingsStore'

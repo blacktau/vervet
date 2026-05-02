@@ -17,6 +17,7 @@
     "copyright": "Copyright 2026 Sean Garrett",
     "comments": "A desktop MongoDB explorer"
   },
+  "build:tags": "webkit2_41",
   "bindings": {
     "ts_generation": {
       "outputType": "interfaces"
