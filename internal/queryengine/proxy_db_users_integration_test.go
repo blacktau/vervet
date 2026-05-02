@@ -17,7 +17,7 @@ func TestIntegration_CreateUser_GetUser_DropUser(t *testing.T) {
 
 	db := dbName(t)
 	defer testClient.Database(db).Drop(ctx)
-	engine := NewGojaEngine(testClient)
+	engine := NewGojaEngine(testClient, 0)
 
 	script := `db.createUser({ user: "alice", pwd: "pw123456", roles: [{ role: "read", db: "` + db + `" }] })`
 	_, err := engine.ExecuteQuery(ctx, testURI, db, script)
@@ -41,7 +41,7 @@ func TestIntegration_GetUsers(t *testing.T) {
 
 	db := dbName(t)
 	defer testClient.Database(db).Drop(ctx)
-	engine := NewGojaEngine(testClient)
+	engine := NewGojaEngine(testClient, 0)
 
 	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.createUser({ user: "u1", pwd: "pw123456", roles: [] })`)
 	require.NoError(t, err)
@@ -60,7 +60,7 @@ func TestIntegration_UpdateUser(t *testing.T) {
 
 	db := dbName(t)
 	defer testClient.Database(db).Drop(ctx)
-	engine := NewGojaEngine(testClient)
+	engine := NewGojaEngine(testClient, 0)
 
 	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.createUser({ user: "bob", pwd: "pw123456", roles: [] })`)
 	require.NoError(t, err)
@@ -79,7 +79,7 @@ func TestIntegration_ChangeUserPassword(t *testing.T) {
 
 	db := dbName(t)
 	defer testClient.Database(db).Drop(ctx)
-	engine := NewGojaEngine(testClient)
+	engine := NewGojaEngine(testClient, 0)
 
 	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.createUser({ user: "carol", pwd: "pw123456", roles: [] })`)
 	require.NoError(t, err)
@@ -94,7 +94,7 @@ func TestIntegration_GrantRevokeRolesToUser(t *testing.T) {
 
 	db := dbName(t)
 	defer testClient.Database(db).Drop(ctx)
-	engine := NewGojaEngine(testClient)
+	engine := NewGojaEngine(testClient, 0)
 
 	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.createUser({ user: "dan", pwd: "pw123456", roles: [] })`)
 	require.NoError(t, err)
@@ -116,7 +116,7 @@ func TestIntegration_DropAllUsers(t *testing.T) {
 
 	db := dbName(t)
 	defer testClient.Database(db).Drop(ctx)
-	engine := NewGojaEngine(testClient)
+	engine := NewGojaEngine(testClient, 0)
 
 	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.createUser({ user: "e1", pwd: "pw123456", roles: [] })`)
 	require.NoError(t, err)

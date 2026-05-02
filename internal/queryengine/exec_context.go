@@ -10,8 +10,9 @@ import (
 // execContext holds the dependencies needed by proxy methods to execute
 // MongoDB operations during Goja script execution.
 type execContext struct {
-	ctx    context.Context
-	client *mongo.Client
-	dbName string
-	rt     *goja.Runtime
+	ctx      context.Context
+	client   *mongo.Client
+	dbName   string
+	rt       *goja.Runtime
+	pageSize int64
 }

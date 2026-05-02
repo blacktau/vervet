@@ -18,7 +18,7 @@ func TestIntegration_Cursor_Explain(t *testing.T) {
 	db := dbName(t)
 	defer testClient.Database(db).Drop(ctx)
 
-	engine := NewGojaEngine(testClient)
+	engine := NewGojaEngine(testClient, 0)
 
 	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.test.insertMany([{ x: 1 }, { x: 2 }])`)
 	require.NoError(t, err)
@@ -35,7 +35,7 @@ func TestIntegration_Cursor_ExplainWithVerbosity(t *testing.T) {
 	db := dbName(t)
 	defer testClient.Database(db).Drop(ctx)
 
-	engine := NewGojaEngine(testClient)
+	engine := NewGojaEngine(testClient, 0)
 
 	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.test.insertOne({ x: 1 })`)
 	require.NoError(t, err)
@@ -52,7 +52,7 @@ func TestIntegration_Cursor_Hint(t *testing.T) {
 	db := dbName(t)
 	defer testClient.Database(db).Drop(ctx)
 
-	engine := NewGojaEngine(testClient)
+	engine := NewGojaEngine(testClient, 0)
 
 	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.test.insertMany([{ x: 1 }, { x: 2 }, { x: 3 }])`)
 	require.NoError(t, err)
@@ -71,7 +71,7 @@ func TestIntegration_Cursor_BatchSizeAndMaxTimeMS(t *testing.T) {
 	db := dbName(t)
 	defer testClient.Database(db).Drop(ctx)
 
-	engine := NewGojaEngine(testClient)
+	engine := NewGojaEngine(testClient, 0)
 
 	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.test.insertMany([{ x: 1 }, { x: 2 }, { x: 3 }])`)
 	require.NoError(t, err)
@@ -88,7 +88,7 @@ func TestIntegration_Cursor_Collation(t *testing.T) {
 	db := dbName(t)
 	defer testClient.Database(db).Drop(ctx)
 
-	engine := NewGojaEngine(testClient)
+	engine := NewGojaEngine(testClient, 0)
 
 	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.test.insertMany([{ s: "a" }, { s: "A" }])`)
 	require.NoError(t, err)
@@ -105,7 +105,7 @@ func TestIntegration_Cursor_Comment(t *testing.T) {
 	db := dbName(t)
 	defer testClient.Database(db).Drop(ctx)
 
-	engine := NewGojaEngine(testClient)
+	engine := NewGojaEngine(testClient, 0)
 
 	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.test.insertOne({ x: 1 })`)
 	require.NoError(t, err)

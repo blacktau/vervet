@@ -19,7 +19,7 @@ func TestIntegration_CollectionStats(t *testing.T) {
 	db := dbName(t)
 	defer testClient.Database(db).Drop(ctx)
 
-	engine := NewGojaEngine(testClient)
+	engine := NewGojaEngine(testClient, 0)
 	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.test.insertMany([{ x: 1 }, { x: 2 }])`)
 	require.NoError(t, err)
 
@@ -35,7 +35,7 @@ func TestIntegration_CollectionIsCapped_False(t *testing.T) {
 	db := dbName(t)
 	defer testClient.Database(db).Drop(ctx)
 
-	engine := NewGojaEngine(testClient)
+	engine := NewGojaEngine(testClient, 0)
 	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.test.insertOne({ x: 1 })`)
 	require.NoError(t, err)
 
@@ -55,7 +55,7 @@ func TestIntegration_CollectionIsCapped_True(t *testing.T) {
 		options.CreateCollection().SetCapped(true).SetSizeInBytes(4096))
 	require.NoError(t, err)
 
-	engine := NewGojaEngine(testClient)
+	engine := NewGojaEngine(testClient, 0)
 	result, err := engine.ExecuteQuery(ctx, testURI, db, `db.capped.isCapped()`)
 	require.NoError(t, err)
 	assert.Equal(t, "true", result.RawOutput)
@@ -68,7 +68,7 @@ func TestIntegration_CollectionSizeHelpers(t *testing.T) {
 	db := dbName(t)
 	defer testClient.Database(db).Drop(ctx)
 
-	engine := NewGojaEngine(testClient)
+	engine := NewGojaEngine(testClient, 0)
 	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.test.insertMany([{ x: 1 }, { x: 2 }])`)
 	require.NoError(t, err)
 
@@ -86,7 +86,7 @@ func TestIntegration_CollectionGetIndexes(t *testing.T) {
 	db := dbName(t)
 	defer testClient.Database(db).Drop(ctx)
 
-	engine := NewGojaEngine(testClient)
+	engine := NewGojaEngine(testClient, 0)
 	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.test.insertOne({ x: 1 })`)
 	require.NoError(t, err)
 
@@ -102,7 +102,7 @@ func TestIntegration_CollectionCount(t *testing.T) {
 	db := dbName(t)
 	defer testClient.Database(db).Drop(ctx)
 
-	engine := NewGojaEngine(testClient)
+	engine := NewGojaEngine(testClient, 0)
 	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.test.insertMany([{ x: 1 }, { x: 2 }, { x: 3 }])`)
 	require.NoError(t, err)
 
@@ -118,7 +118,7 @@ func TestIntegration_CollectionRename(t *testing.T) {
 	db := dbName(t)
 	defer testClient.Database(db).Drop(ctx)
 
-	engine := NewGojaEngine(testClient)
+	engine := NewGojaEngine(testClient, 0)
 	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.oldname.insertOne({ x: 1 })`)
 	require.NoError(t, err)
 
@@ -137,7 +137,7 @@ func TestIntegration_CollectionValidate(t *testing.T) {
 	db := dbName(t)
 	defer testClient.Database(db).Drop(ctx)
 
-	engine := NewGojaEngine(testClient)
+	engine := NewGojaEngine(testClient, 0)
 	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.test.insertOne({ x: 1 })`)
 	require.NoError(t, err)
 
@@ -153,7 +153,7 @@ func TestIntegration_CollectionFindAndModify_Update(t *testing.T) {
 	db := dbName(t)
 	defer testClient.Database(db).Drop(ctx)
 
-	engine := NewGojaEngine(testClient)
+	engine := NewGojaEngine(testClient, 0)
 	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.test.insertOne({ x: 1, name: "old" })`)
 	require.NoError(t, err)
 
@@ -175,7 +175,7 @@ func TestIntegration_CollectionFindAndModify_Remove(t *testing.T) {
 	db := dbName(t)
 	defer testClient.Database(db).Drop(ctx)
 
-	engine := NewGojaEngine(testClient)
+	engine := NewGojaEngine(testClient, 0)
 	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.test.insertOne({ x: 1 })`)
 	require.NoError(t, err)
 

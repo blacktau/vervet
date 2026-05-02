@@ -18,7 +18,7 @@ func TestIntegration_EJSON_Stringify_QueryResult(t *testing.T) {
 	db := dbName(t)
 	defer testClient.Database(db).Drop(ctx)
 
-	engine := NewGojaEngine(testClient)
+	engine := NewGojaEngine(testClient, 0)
 
 	// Insert a document
 	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.ejsontest.insertOne({ name: "alice", age: 30 })`)
@@ -41,7 +41,7 @@ func TestIntegration_EJSON_Stringify_WithIndent(t *testing.T) {
 	db := dbName(t)
 	defer testClient.Database(db).Drop(ctx)
 
-	engine := NewGojaEngine(testClient)
+	engine := NewGojaEngine(testClient, 0)
 
 	result, err := engine.ExecuteQuery(ctx, testURI, db, `EJSON.stringify({ x: 1, y: 2 }, null, 2)`)
 	require.NoError(t, err)
@@ -55,7 +55,7 @@ func TestIntegration_EJSON_Parse_ExtendedJSON(t *testing.T) {
 	db := dbName(t)
 	defer testClient.Database(db).Drop(ctx)
 
-	engine := NewGojaEngine(testClient)
+	engine := NewGojaEngine(testClient, 0)
 
 	// Parse extended JSON, stringify it back, and verify roundtrip
 	result, err := engine.ExecuteQuery(ctx, testURI, db, `
@@ -74,7 +74,7 @@ func TestIntegration_EJSON_SerializeDeserialize_Roundtrip(t *testing.T) {
 	db := dbName(t)
 	defer testClient.Database(db).Drop(ctx)
 
-	engine := NewGojaEngine(testClient)
+	engine := NewGojaEngine(testClient, 0)
 
 	// Insert, fetch via toArray to get plain docs, serialize/deserialize roundtrip
 	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.ejsontest.insertOne({ label: "original" })`)

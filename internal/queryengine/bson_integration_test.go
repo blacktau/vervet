@@ -73,7 +73,7 @@ func insertAndReadBack(t *testing.T, query string) bson.M {
 	db := dbName(t)
 	defer testClient.Database(db).Drop(ctx)
 
-	engine := NewGojaEngine(testClient)
+	engine := NewGojaEngine(testClient, 0)
 	_, err := engine.ExecuteQuery(ctx, testURI, db, query)
 	require.NoError(t, err)
 
@@ -92,7 +92,7 @@ func TestIntegration_Issue124_InsertOneWithUUID(t *testing.T) {
 	db := dbName(t)
 	defer testClient.Database(db).Drop(ctx)
 
-	engine := NewGojaEngine(testClient)
+	engine := NewGojaEngine(testClient, 0)
 	query := `db.getCollection("test-collection").insertOne({
 		_id: UUID(),
 		CheckType: "CustomerOnly",
@@ -219,7 +219,7 @@ func TestIntegration_Regex_FindMatchesCorrectly(t *testing.T) {
 	db := dbName(t)
 	defer testClient.Database(db).Drop(ctx)
 
-	engine := NewGojaEngine(testClient)
+	engine := NewGojaEngine(testClient, 0)
 
 	// Insert test documents
 	setup := `db.test.insertMany([
@@ -245,7 +245,7 @@ func TestIntegration_Issue148_DistinctLongs(t *testing.T) {
 	db := dbName(t)
 	defer testClient.Database(db).Drop(ctx)
 
-	engine := NewGojaEngine(testClient)
+	engine := NewGojaEngine(testClient, 0)
 
 	setup := `db.test.insertMany([
 		{ AField: 1, LongId: NumberLong("7151") },
@@ -290,7 +290,7 @@ func TestIntegration_InsertManyResultInScript(t *testing.T) {
 	db := dbName(t)
 	defer testClient.Database(db).Drop(ctx)
 
-	engine := NewGojaEngine(testClient)
+	engine := NewGojaEngine(testClient, 0)
 
 	query := `
 		const items = [1, 2, 3];
@@ -320,7 +320,7 @@ func TestIntegration_WriteResultsAreObjectsNotArrays(t *testing.T) {
 	db := dbName(t)
 	defer testClient.Database(db).Drop(ctx)
 
-	engine := NewGojaEngine(testClient)
+	engine := NewGojaEngine(testClient, 0)
 
 	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.c.insertMany([{n:1},{n:2},{n:3}])`)
 	require.NoError(t, err)
@@ -354,7 +354,7 @@ func TestIntegration_Regex_NestedInOperator(t *testing.T) {
 	db := dbName(t)
 	defer testClient.Database(db).Drop(ctx)
 
-	engine := NewGojaEngine(testClient)
+	engine := NewGojaEngine(testClient, 0)
 
 	setup := `db.test.insertMany([
 		{ name: "foo-bar" },

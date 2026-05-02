@@ -17,7 +17,7 @@ func TestIntegration_CreateRole_GetRole_DropRole(t *testing.T) {
 
 	db := dbName(t)
 	defer testClient.Database(db).Drop(ctx)
-	engine := NewGojaEngine(testClient)
+	engine := NewGojaEngine(testClient, 0)
 
 	script := `db.createRole({ role: "reader1", privileges: [], roles: [{ role: "read", db: "` + db + `" }] })`
 	_, err := engine.ExecuteQuery(ctx, testURI, db, script)
@@ -41,7 +41,7 @@ func TestIntegration_GetRoles(t *testing.T) {
 
 	db := dbName(t)
 	defer testClient.Database(db).Drop(ctx)
-	engine := NewGojaEngine(testClient)
+	engine := NewGojaEngine(testClient, 0)
 
 	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.createRole({ role: "r1", privileges: [], roles: [] })`)
 	require.NoError(t, err)
@@ -60,7 +60,7 @@ func TestIntegration_UpdateRole(t *testing.T) {
 
 	db := dbName(t)
 	defer testClient.Database(db).Drop(ctx)
-	engine := NewGojaEngine(testClient)
+	engine := NewGojaEngine(testClient, 0)
 
 	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.createRole({ role: "r3", privileges: [], roles: [] })`)
 	require.NoError(t, err)
@@ -79,7 +79,7 @@ func TestIntegration_GrantRevokePrivilegesToRole(t *testing.T) {
 
 	db := dbName(t)
 	defer testClient.Database(db).Drop(ctx)
-	engine := NewGojaEngine(testClient)
+	engine := NewGojaEngine(testClient, 0)
 
 	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.createRole({ role: "r4", privileges: [], roles: [] })`)
 	require.NoError(t, err)
@@ -98,7 +98,7 @@ func TestIntegration_GrantRevokeRolesToRole(t *testing.T) {
 
 	db := dbName(t)
 	defer testClient.Database(db).Drop(ctx)
-	engine := NewGojaEngine(testClient)
+	engine := NewGojaEngine(testClient, 0)
 
 	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.createRole({ role: "r5", privileges: [], roles: [] })`)
 	require.NoError(t, err)
@@ -116,7 +116,7 @@ func TestIntegration_DropAllRoles(t *testing.T) {
 
 	db := dbName(t)
 	defer testClient.Database(db).Drop(ctx)
-	engine := NewGojaEngine(testClient)
+	engine := NewGojaEngine(testClient, 0)
 
 	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.createRole({ role: "r6", privileges: [], roles: [] })`)
 	require.NoError(t, err)

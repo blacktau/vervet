@@ -85,7 +85,8 @@ func (qe *QueryExecutor) executeWithGoja(ctx context.Context, serverID, dbName, 
 		return models.QueryResult{}, fmt.Errorf("no active connection: %w", err)
 	}
 
-	engine := queryengine.NewGojaEngine(client)
+	cfg, _ := qe.settings.GetSettings()
+	engine := queryengine.NewGojaEngine(client, int64(cfg.Query.DefaultPageSize))
 	result, err := engine.ExecuteQuery(ctx, "", dbName, query)
 	if err != nil {
 		return models.QueryResult{}, err
