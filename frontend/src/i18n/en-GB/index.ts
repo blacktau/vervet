@@ -80,7 +80,7 @@ export default {
       name: 'Query',
       defaultLimit: 'Default result limit',
       defaultLimitHelp:
-        'The number of documents requested when opening a query from the data browser. Inserted as the .limit(N) clause in the generated query.',
+        'The number of documents requested when opening a query from the data browser. Inserted as the .limit(N) clause in the generated query. Paginated find() results page through up to this many documents; remove or raise the limit to page beyond it.',
       defaultPageSize: 'Default page size',
       defaultPageSizeHelp:
         'Initial page size of the results table. You can still change page size per-table from the pagination control.',
