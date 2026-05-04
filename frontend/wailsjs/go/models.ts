@@ -5,6 +5,10 @@ export namespace api {
 	    OSX = "darwin",
 	    WINDOWS = "windows",
 	}
+	export interface CountResponse {
+	    count: number;
+	    estimated: boolean;
+	}
 	export interface EmptyResult {
 	    isSuccess: boolean;
 	    errorCode?: string;
@@ -84,6 +88,12 @@ export namespace api {
 	export interface Result_string_ {
 	    isSuccess: boolean;
 	    data: string;
+	    errorCode?: string;
+	    errorDetail?: string;
+	}
+	export interface Result_vervet_internal_api_CountResponse_ {
+	    isSuccess: boolean;
+	    data: CountResponse;
 	    errorCode?: string;
 	    errorDetail?: string;
 	}
@@ -267,11 +277,24 @@ export namespace models {
 	    maxBackups: number;
 	}
 	
+	export interface PageContext {
+	    collection: string;
+	    filter?: any;
+	    projection?: any;
+	    sort?: any;
+	    hint?: any;
+	    collation?: Record<string, any>;
+	    userLimit?: number;
+	    userSkip?: number;
+	    maxTimeMS?: number;
+	    comment?: string;
+	}
 	export interface QueryResult {
 	    documents: any[];
 	    rawOutput: string;
 	    operationType?: string;
 	    affectedCount?: number;
+	    pageContext?: PageContext;
 	}
 	export interface QuerySettings {
 	    defaultLimit: number;

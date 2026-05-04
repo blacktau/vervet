@@ -52,6 +52,31 @@ func TestLazyCursor_SetSortAfterResolve_Errors(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestLazyCursor_BuildPageContext_Find(t *testing.T) {
+	c := &lazyCursor{
+		collection: "users",
+		filter:     map[string]any{"status": "active"},
+		projection: map[string]any{"name": int64(1)},
+		sort:       map[string]any{"_id": int64(1)},
+		limit:      100,
+		skip:       5,
+		maxTimeMS:  3000,
+		comment:    "tagged",
+	}
+	pc := c.buildPageContext()
+	assert.NotNil(t, pc)
+	assert.Equal(t, "users", pc.Collection)
+	assert.Equal(t, int64(100), pc.UserLimit)
+	assert.Equal(t, int64(5), pc.UserSkip)
+	assert.Equal(t, int64(3000), pc.MaxTimeMS)
+	assert.Equal(t, "tagged", pc.Comment)
+}
+
+func TestLazyCursor_BuildPageContext_FindOneReturnsNil(t *testing.T) {
+	c := &lazyCursor{collection: "users", isFindOne: true}
+	assert.Nil(t, c.buildPageContext())
+}
+
 func TestLazyCursor_CursorOptionsFieldsDefaults(t *testing.T) {
 	c := &lazyCursor{}
 	assert.Nil(t, c.hint)

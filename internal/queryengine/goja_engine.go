@@ -15,16 +15,17 @@ import (
 // Write methods execute eagerly during script execution. find/findOne return
 // lazy cursors that execute on terminal method calls or implicit resolve.
 type GojaEngine struct {
-	client *mongo.Client
+	client   *mongo.Client
+	pageSize int64
 }
 
-func NewGojaEngine(client *mongo.Client) *GojaEngine {
-	return &GojaEngine{client: client}
+func NewGojaEngine(client *mongo.Client, pageSize int64) *GojaEngine {
+	return &GojaEngine{client: client, pageSize: pageSize}
 }
 
 func (e *GojaEngine) ExecuteQuery(ctx context.Context, uri, dbName, query string) (models.QueryResult, error) {
 	rt := goja.New()
-	ec := &execContext{ctx: ctx, client: e.client, dbName: dbName, rt: rt}
+	ec := &execContext{ctx: ctx, client: e.client, dbName: dbName, rt: rt, pageSize: e.pageSize}
 
 	if err := registerBSONTypes(rt); err != nil {
 		return models.QueryResult{}, err

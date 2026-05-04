@@ -586,6 +586,15 @@ watch(
                   :documents="queryState.documents"
                   :enable-context-menu="true"
                   :collection-context="collectionContext"
+                  :paged="queryState.pageContext !== null"
+                  :page="queryState.page"
+                  :page-size="queryState.pageSize"
+                  :total="queryState.total"
+                  :total-estimated="queryState.totalEstimated"
+                  :loading-page="queryState.loadingPage"
+                  :loading-count="queryState.loadingCount"
+                  @update:page="(p: number) => queryStore.fetchPage(props.queryId, p, queryState.pageSize)"
+                  @update:page-size="(s: number) => queryStore.fetchPage(props.queryId, 0, s)"
                   @document-changed="handleDocumentChanged"
                   @export-requested="openExport" />
               </div>

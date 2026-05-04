@@ -1,10 +1,13 @@
 import { defineStore } from 'pinia'
 import * as shellProxy from 'wailsjs/go/api/ShellProxy'
 import * as filesProxy from 'wailsjs/go/api/FilesProxy'
+import type { models } from 'wailsjs/go/models'
 import { useTabStore } from '@/features/tabs/tabs'
 import { useNotifier } from '@/utils/dialog'
 import { useSettingsStore } from '@/features/settings/settingsStore'
 import { i18nGlobal } from '@/i18n'
+
+export type PageContext = models.PageContext
 
 function formatDuration(ms: number): string {
   if (ms < 1000) {
@@ -85,6 +88,14 @@ export interface QueryState {
   activeLimit: number | null
   /** Lazily computed JSON — only populated when the JSON view is first accessed */
   _rawJsonCache: string | null
+  /** Server-side paging state. Populated when the engine returns a PageContext. */
+  pageContext: PageContext | null
+  page: number
+  pageSize: number
+  total: number | null
+  totalEstimated: boolean
+  loadingPage: boolean
+  loadingCount: boolean
 }
 
 interface QueryStoreState {
@@ -114,6 +125,13 @@ function createQueryState(database: string): QueryState {
     currentContent: '',
     activeLimit: null,
     _rawJsonCache: null,
+    pageContext: null,
+    page: 0,
+    pageSize: 25,
+    total: null,
+    totalEstimated: false,
+    loadingPage: false,
+    loadingCount: false,
   }
 }
 
@@ -263,6 +281,13 @@ export const useQueryStore = defineStore('query', {
       state.error = ''
       state.selectedDocIndex = 0
       state.activeLimit = parseLimit(query)
+      state.pageContext = null
+      state.page = 0
+      state.pageSize = settingsStore.query.defaultPageSize
+      state.total = null
+      state.totalEstimated = false
+      state.loadingPage = false
+      state.loadingCount = false
       this.appendMessage(queryId, {
         level: 'info',
         text: i18nGlobal.t('query.messages.executing'),
@@ -287,6 +312,12 @@ export const useQueryStore = defineStore('query', {
             state.rawOutput = data.rawOutput
           }
           state.activeResultTab = 'results'
+
+          if (data.pageContext) {
+            state.pageContext = data.pageContext
+            state.page = 0
+            void this.fetchCount(queryId)
+          }
 
           const elapsed = formatDuration(Date.now() - startTime)
           const docCount = data.documents?.length ?? 0
@@ -321,6 +352,65 @@ export const useQueryStore = defineStore('query', {
         state.activeResultTab = 'messages'
       } finally {
         state.loading = false
+      }
+    },
+
+    async fetchPage(queryId: string, page: number, pageSize: number) {
+      const tabStore = useTabStore()
+      const serverId = tabStore.currentTabId
+      if (!serverId) {
+        return
+      }
+      const state = this.getQueryState(queryId)
+      if (!state.pageContext) {
+        return
+      }
+      state.loadingPage = true
+      try {
+        const result = await shellProxy.FetchPage(
+          serverId,
+          state.selectedDatabase,
+          state.pageContext,
+          page,
+          pageSize,
+        )
+        if (result.isSuccess && result.data) {
+          state.documents = result.data.documents ?? []
+          state.page = page
+          state.pageSize = pageSize
+          state._rawJsonCache = null
+        } else {
+          const notifier = useNotifier()
+          notifier.error(result.errorDetail || result.errorCode || 'Failed to fetch page')
+        }
+      } finally {
+        state.loadingPage = false
+      }
+    },
+
+    async fetchCount(queryId: string) {
+      const tabStore = useTabStore()
+      const serverId = tabStore.currentTabId
+      if (!serverId) {
+        return
+      }
+      const state = this.getQueryState(queryId)
+      if (!state.pageContext) {
+        return
+      }
+      state.loadingCount = true
+      try {
+        const result = await shellProxy.CountForPage(
+          serverId,
+          state.selectedDatabase,
+          state.pageContext,
+        )
+        if (result.isSuccess && result.data) {
+          state.total = result.data.count
+          state.totalEstimated = result.data.estimated
+        }
+      } finally {
+        state.loadingCount = false
       }
     },
 
