@@ -388,6 +388,7 @@ function rowClassName(row: DocumentRow): string {
       :columns="columns"
       :data="treeData"
       :pagination="pagination"
+      :remote="paged"
       :row-key="(row: DocumentRow) => row.key"
       :expanded-row-keys="expandedKeys"
       :checked-row-keys="checkedKeys"
