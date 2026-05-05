@@ -1,0 +1,32 @@
+// Package jsmodules registers Node-compatible built-in modules
+// (fs, path, os, crypto) onto a goja_nodejs require.Registry.
+package jsmodules
+
+import (
+	"errors"
+
+	"github.com/dop251/goja"
+	"github.com/dop251/goja_nodejs/require"
+)
+
+// RegisterAll registers fs, path, os, and crypto on the given registry.
+func RegisterAll(r *require.Registry) {
+	registerPath(r)
+	registerOS(r)
+	registerCrypto(r)
+	registerFS(r)
+}
+
+// nodeError builds a JS Error with a Node-style `code` property.
+// Pass to panic() to surface as a script error from the runtime.
+func nodeError(rt *goja.Runtime, code, msg string) *goja.Object {
+	obj := rt.NewGoError(errors.New(msg))
+	_ = obj.Set("code", code)
+	return obj
+}
+
+// Stubs replaced by per-module files in subsequent tasks.
+func registerPath(r *require.Registry)   {}
+func registerOS(r *require.Registry)     {}
+func registerCrypto(r *require.Registry) {}
+func registerFS(r *require.Registry)     {}
