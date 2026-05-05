@@ -26,7 +26,6 @@ func nodeError(rt *goja.Runtime, code, msg string) *goja.Object {
 }
 
 // Stubs replaced by per-module files in subsequent tasks.
-func registerPath(r *require.Registry)   {}
 func registerOS(r *require.Registry)     {}
 func registerCrypto(r *require.Registry) {}
 func registerFS(r *require.Registry)     {}
