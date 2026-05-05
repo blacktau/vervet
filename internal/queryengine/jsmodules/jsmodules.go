@@ -19,8 +19,13 @@ func RegisterAll(r *require.Registry) {
 
 // nodeError builds a JS Error with a Node-style `code` property.
 // Pass to panic() to surface as a script error from the runtime.
+// The code is prefixed onto the message so it surfaces in Go errors too.
 func nodeError(rt *goja.Runtime, code, msg string) *goja.Object {
-	obj := rt.NewGoError(errors.New(msg))
+	full := msg
+	if code != "" {
+		full = code + ": " + msg
+	}
+	obj := rt.NewGoError(errors.New(full))
 	_ = obj.Set("code", code)
 	return obj
 }
