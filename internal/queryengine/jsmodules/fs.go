@@ -94,5 +94,107 @@ func registerFS(r *require.Registry) {
 			}
 			return rt.ToValue(names)
 		})
+
+		_ = exports.Set("writeFileSync", func(call goja.FunctionCall) goja.Value {
+			path := call.Argument(0).String()
+			data := []byte(call.Argument(1).String())
+			if err := os.WriteFile(path, data, 0o644); err != nil {
+				panicFSErr(rt, err)
+			}
+			return goja.Undefined()
+		})
+
+		_ = exports.Set("appendFileSync", func(call goja.FunctionCall) goja.Value {
+			path := call.Argument(0).String()
+			data := []byte(call.Argument(1).String())
+			f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+			if err != nil {
+				panicFSErr(rt, err)
+			}
+			defer f.Close()
+			if _, err := f.Write(data); err != nil {
+				panicFSErr(rt, err)
+			}
+			return goja.Undefined()
+		})
+
+		_ = exports.Set("mkdirSync", func(call goja.FunctionCall) goja.Value {
+			path := call.Argument(0).String()
+			recursive := false
+			mode := os.FileMode(0o755)
+			if len(call.Arguments) > 1 {
+				if obj, ok := call.Argument(1).Export().(map[string]any); ok {
+					if r, ok := obj["recursive"].(bool); ok {
+						recursive = r
+					}
+					if m, ok := obj["mode"].(int64); ok {
+						mode = os.FileMode(m)
+					}
+				}
+			}
+			var err error
+			if recursive {
+				err = os.MkdirAll(path, mode)
+			} else {
+				err = os.Mkdir(path, mode)
+			}
+			if err != nil {
+				panicFSErr(rt, err)
+			}
+			return goja.Undefined()
+		})
+
+		_ = exports.Set("rmSync", func(call goja.FunctionCall) goja.Value {
+			path := call.Argument(0).String()
+			recursive := false
+			force := false
+			if len(call.Arguments) > 1 {
+				if obj, ok := call.Argument(1).Export().(map[string]any); ok {
+					if r, ok := obj["recursive"].(bool); ok {
+						recursive = r
+					}
+					if f, ok := obj["force"].(bool); ok {
+						force = f
+					}
+				}
+			}
+			var err error
+			if recursive {
+				err = os.RemoveAll(path)
+			} else {
+				err = os.Remove(path)
+			}
+			if err != nil && !(force && errors.Is(err, fs.ErrNotExist)) {
+				panicFSErr(rt, err)
+			}
+			return goja.Undefined()
+		})
+
+		_ = exports.Set("unlinkSync", func(call goja.FunctionCall) goja.Value {
+			if err := os.Remove(call.Argument(0).String()); err != nil {
+				panicFSErr(rt, err)
+			}
+			return goja.Undefined()
+		})
+
+		_ = exports.Set("renameSync", func(call goja.FunctionCall) goja.Value {
+			if err := os.Rename(call.Argument(0).String(), call.Argument(1).String()); err != nil {
+				panicFSErr(rt, err)
+			}
+			return goja.Undefined()
+		})
+
+		_ = exports.Set("copyFileSync", func(call goja.FunctionCall) goja.Value {
+			src := call.Argument(0).String()
+			dst := call.Argument(1).String()
+			data, err := os.ReadFile(src)
+			if err != nil {
+				panicFSErr(rt, err)
+			}
+			if err := os.WriteFile(dst, data, 0o644); err != nil {
+				panicFSErr(rt, err)
+			}
+			return goja.Undefined()
+		})
 	})
 }
