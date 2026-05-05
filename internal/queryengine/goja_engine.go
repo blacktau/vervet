@@ -6,8 +6,13 @@ import (
 	"reflect"
 	"strings"
 	"vervet/internal/models"
+	"vervet/internal/queryengine/jsmodules"
 
 	"github.com/dop251/goja"
+	"github.com/dop251/goja_nodejs/buffer"
+	"github.com/dop251/goja_nodejs/console"
+	"github.com/dop251/goja_nodejs/process"
+	"github.com/dop251/goja_nodejs/require"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
@@ -17,14 +22,21 @@ import (
 type GojaEngine struct {
 	client   *mongo.Client
 	pageSize int64
+	registry *require.Registry
 }
 
 func NewGojaEngine(client *mongo.Client, pageSize int64) *GojaEngine {
-	return &GojaEngine{client: client, pageSize: pageSize}
+	registry := require.NewRegistry()
+	jsmodules.RegisterAll(registry)
+	return &GojaEngine{client: client, pageSize: pageSize, registry: registry}
 }
 
 func (e *GojaEngine) ExecuteQuery(ctx context.Context, uri, dbName, query string) (models.QueryResult, error) {
 	rt := goja.New()
+	e.registry.Enable(rt)
+	buffer.Enable(rt)
+	process.Enable(rt)
+	console.Enable(rt)
 	ec := &execContext{ctx: ctx, client: e.client, dbName: dbName, rt: rt, pageSize: e.pageSize}
 
 	if err := registerBSONTypes(rt); err != nil {
