@@ -25,6 +25,5 @@ func nodeError(rt *goja.Runtime, code, msg string) *goja.Object {
 	return obj
 }
 
-// Stubs replaced by per-module files in subsequent tasks.
-func registerCrypto(r *require.Registry) {}
-func registerFS(r *require.Registry)     {}
+// Stub replaced by per-module file in subsequent task.
+func registerFS(r *require.Registry) {}
