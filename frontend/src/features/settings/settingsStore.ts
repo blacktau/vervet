@@ -210,7 +210,24 @@ export const useSettingsStore = defineStore('settings', {
       this.fontList = result.data
     },
     async saveConfiguration(): Promise<boolean> {
-      const result = await settingsProxy.SetSettings(this)
+      const payload: models.Settings = {
+        window: this.window,
+        general: this.general,
+        editor: this.editor,
+        query: this.query,
+        terminal: this.terminal,
+        workspaces: this.workspaces,
+        updates: this.updates,
+        logging: this.logging,
+      } as models.Settings
+      const result = await settingsProxy.SetSettings(payload)
+      if (!result.isSuccess) {
+        const notifier = useNotifier()
+        notifier.error(i18nGlobal.t(`errors.${result.errorCode || 'unknown_error'}`), {
+          title: i18nGlobal.t('errorTitles.saveSettings'),
+          detail: result.errorDetail,
+        })
+      }
       return result.isSuccess
     },
     async restoreConfiguration(): Promise<boolean> {
