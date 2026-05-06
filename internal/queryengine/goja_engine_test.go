@@ -2,6 +2,9 @@ package queryengine
 
 import (
 	"context"
+	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/dop251/goja"
@@ -318,4 +321,48 @@ func TestMultiStatement_VariableThenCursor(t *testing.T) {
 	cursor := extractLazyCursor(val)
 	require.NotNil(t, cursor)
 	assert.Equal(t, "users", cursor.collection)
+}
+
+func TestGojaEngine_RequireFS_RoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "doc.json")
+	require.NoError(t, os.WriteFile(p, []byte(`{"hello":"world","n":42}`), 0o644))
+
+	eng := NewGojaEngine(nil, 100)
+	script := fmt.Sprintf(`
+		const fs = require('fs');
+		JSON.parse(fs.readFileSync(%q, 'utf8'))
+	`, p)
+	res, err := eng.ExecuteQuery(context.Background(), "", "testdb", script)
+	require.NoError(t, err)
+	require.Len(t, res.Documents, 1)
+	doc := res.Documents[0].(map[string]any)
+	assert.Equal(t, "world", doc["hello"])
+}
+
+func TestGojaEngine_RequirePath_Join(t *testing.T) {
+	eng := NewGojaEngine(nil, 100)
+	res, err := eng.ExecuteQuery(context.Background(), "", "testdb",
+		`require('path').join('a', 'b', 'c.txt')`)
+	require.NoError(t, err)
+	assert.Equal(t, "a/b/c.txt", res.RawOutput)
+}
+
+func TestGojaEngine_RequireCrypto_Sha256(t *testing.T) {
+	eng := NewGojaEngine(nil, 100)
+	res, err := eng.ExecuteQuery(context.Background(), "", "testdb",
+		`require('crypto').createHash('sha256').update('abc').digest('hex')`)
+	require.NoError(t, err)
+	assert.Equal(t,
+		"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+		res.RawOutput,
+	)
+}
+
+func TestGojaEngine_RequireFS_MissingFileSurfacesENOENT(t *testing.T) {
+	eng := NewGojaEngine(nil, 100)
+	_, err := eng.ExecuteQuery(context.Background(), "", "testdb",
+		`require('fs').readFileSync('/definitely/not/here.txt', 'utf8')`)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "ENOENT")
 }
