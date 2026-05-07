@@ -65,4 +65,15 @@ describe('validate', () => {
   it('accepts top-level await', () => {
     expect(validate('await db.users.findOne({})')).toEqual([])
   })
+
+  it('reports error column unchanged when preceding line is a sugar line', () => {
+    // Same error on column N must report the same column whether or not a
+    // sugar line precedes it. This guards the "replace with same-length spaces"
+    // invariant in preprocess().
+    const without = validate('db.x.find({)')
+    const withSugar = validate('show dbs\ndb.x.find({)')
+    expect(without[0]).toBeDefined()
+    expect(withSugar[0]).toBeDefined()
+    expect(withSugar[0].startColumn).toBe(without[0].startColumn)
+  })
 })
