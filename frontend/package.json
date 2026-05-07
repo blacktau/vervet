@@ -15,6 +15,7 @@
     "preview": "bunx --bun vite preview"
   },
   "dependencies": {
+    "@babel/parser": "^7.29.3",
     "@heroicons/vue": "^2.2.0",
     "color": "^5.0.3",
     "copy-text-to-clipboard": "^3.2.2",
