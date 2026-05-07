@@ -26,4 +26,43 @@ describe('validate', () => {
     const markers = validate(source)
     expect(markers.length).toBeGreaterThan(0)
   })
+
+  it('does not flag "show dbs" alone', () => {
+    expect(validate('show dbs')).toEqual([])
+  })
+
+  it('does not flag "show collections" alone', () => {
+    expect(validate('show collections')).toEqual([])
+  })
+
+  it('does not flag "use foo" alone', () => {
+    expect(validate('use foo')).toEqual([])
+  })
+
+  it('does not flag "it" alone', () => {
+    expect(validate('it')).toEqual([])
+  })
+
+  it('tolerates trailing semicolons on shell sugar', () => {
+    expect(validate('show dbs;')).toEqual([])
+    expect(validate('use foo;')).toEqual([])
+  })
+
+  it('masks a shell-sugar line and only reports the error on the next line', () => {
+    const source = 'show dbs\ndb.x.find({)'
+    const markers = validate(source)
+    expect(markers.length).toBeGreaterThan(0)
+    for (const m of markers) {
+      expect(m.startLineNumber).toBe(2)
+    }
+  })
+
+  it('does not strip shell sugar when it appears inside an expression', () => {
+    const markers = validate('const x = show dbs')
+    expect(markers.length).toBeGreaterThan(0)
+  })
+
+  it('accepts top-level await', () => {
+    expect(validate('await db.users.findOne({})')).toEqual([])
+  })
 })
