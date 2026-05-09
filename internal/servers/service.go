@@ -294,6 +294,34 @@ func (sm *ServerService) GetURI(id string) (string, error) {
 	return uri, nil
 }
 
+// BuildFullConnectionString returns the stored URI for a registered server,
+// synthesizing missing auth-mechanism parameters for OIDC. Other auth methods
+// return the URI verbatim. Returns an error if the server is not registered or
+// the keyring lookup fails.
+func (sm *ServerService) BuildFullConnectionString(serverID string) (string, error) {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+
+	servers, err := sm.store.LoadServers()
+	if err != nil {
+		return "", fmt.Errorf("failed to load registered servers: %w", err)
+	}
+	server, _ := findServer(serverID, servers)
+	if server == nil {
+		return "", fmt.Errorf("server with ID %s not found", serverID)
+	}
+
+	cfg, err := sm.connectionStrings.GetConnectionConfig(serverID)
+	if err != nil {
+		return "", fmt.Errorf("failed to get connection config: %w", err)
+	}
+
+	if cfg.AuthMethod == models.AuthOIDC {
+		return buildOIDCURI(cfg.URI)
+	}
+	return cfg.URI, nil
+}
+
 func findServer(serverID string, servers []models.RegisteredServer) (*models.RegisteredServer, int) {
 	if len(servers) == 0 {
 		return nil, -1

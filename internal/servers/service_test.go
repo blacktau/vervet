@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net/url"
 	"sync"
 	"testing"
 	"vervet/internal/connectionStrings"
 	"vervet/internal/models"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // mockServerStore is a mock implementation of serverStore for testing.
@@ -35,8 +37,9 @@ func (m *mockServerStore) SaveServers(servers []models.RegisteredServer) error {
 
 // MockConnectionStringsStore is a mock implementation of ConnectionStringsStore for testing.
 type MockConnectionStringsStore struct {
-	uris map[string]string
-	err  error
+	uris    map[string]string
+	configs map[string]models.ConnectionConfig
+	err     error
 }
 
 func (m *MockConnectionStringsStore) StoreRegisteredServerURI(id, uri string) error {
@@ -70,6 +73,10 @@ func (m *MockConnectionStringsStore) StoreConnectionConfig(id string, cfg models
 	if m.err != nil {
 		return m.err
 	}
+	if m.configs == nil {
+		m.configs = map[string]models.ConnectionConfig{}
+	}
+	m.configs[id] = cfg
 	m.uris[id] = cfg.URI
 	return nil
 }
@@ -77,6 +84,9 @@ func (m *MockConnectionStringsStore) StoreConnectionConfig(id string, cfg models
 func (m *MockConnectionStringsStore) GetConnectionConfig(id string) (models.ConnectionConfig, error) {
 	if m.err != nil {
 		return models.ConnectionConfig{}, m.err
+	}
+	if cfg, ok := m.configs[id]; ok {
+		return cfg, nil
 	}
 	uri, ok := m.uris[id]
 	if !ok {
@@ -328,4 +338,95 @@ func TestGetURI(t *testing.T) {
 		assert.Error(t, err)
 		assert.Empty(t, uri)
 	})
+}
+
+func TestBuildFullConnectionString_VerbatimAuthMethods(t *testing.T) {
+	cases := []struct {
+		name   string
+		method models.AuthMethod
+		uri    string
+	}{
+		{"none", models.AuthNone, "mongodb://example.com:27017/?retryWrites=true"},
+		{"password", models.AuthPassword, "mongodb://user:pass@example.com:27017/admin"},
+		{"x509", models.AuthX509, "mongodb://example.com/?authMechanism=MONGODB-X509&tlsCertificateKeyFile=/c.pem"},
+		{"aws", models.AuthAWS, "mongodb://example.com/?authMechanism=MONGODB-AWS"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cs := &MockConnectionStringsStore{uris: map[string]string{}}
+			require.NoError(t, cs.StoreConnectionConfig("s1", models.ConnectionConfig{
+				URI:        tc.uri,
+				AuthMethod: tc.method,
+			}))
+			store := &mockServerStore{servers: []models.RegisteredServer{{ID: "s1", Name: "S1"}}}
+			sm := newTestServerService(store, cs)
+
+			got, err := sm.BuildFullConnectionString("s1")
+			require.NoError(t, err)
+			assert.Equal(t, tc.uri, got)
+		})
+	}
+}
+
+func TestBuildFullConnectionString_ServerNotFound(t *testing.T) {
+	cs := &MockConnectionStringsStore{uris: map[string]string{}}
+	store := &mockServerStore{servers: []models.RegisteredServer{}}
+	sm := newTestServerService(store, cs)
+
+	_, err := sm.BuildFullConnectionString("missing")
+	assert.Error(t, err)
+}
+
+func TestBuildFullConnectionString_KeyringError(t *testing.T) {
+	cs := &MockConnectionStringsStore{uris: map[string]string{}, err: errors.New("keyring locked")}
+	store := &mockServerStore{servers: []models.RegisteredServer{{ID: "s1", Name: "S1"}}}
+	sm := newTestServerService(store, cs)
+
+	_, err := sm.BuildFullConnectionString("s1")
+	assert.Error(t, err)
+}
+
+func TestBuildFullConnectionString_StoreError(t *testing.T) {
+	cs := &MockConnectionStringsStore{uris: map[string]string{}}
+	store := &mockServerStore{err: errors.New("yaml parse error")}
+	sm := newTestServerService(store, cs)
+
+	_, err := sm.BuildFullConnectionString("s1")
+	assert.Error(t, err)
+}
+
+func TestBuildFullConnectionString_OIDC_AddsParams(t *testing.T) {
+	cs := &MockConnectionStringsStore{uris: map[string]string{}}
+	require.NoError(t, cs.StoreConnectionConfig("s1", models.ConnectionConfig{
+		URI:        "mongodb://example.com/",
+		AuthMethod: models.AuthOIDC,
+	}))
+	store := &mockServerStore{servers: []models.RegisteredServer{{ID: "s1", Name: "S1"}}}
+	sm := newTestServerService(store, cs)
+
+	got, err := sm.BuildFullConnectionString("s1")
+	require.NoError(t, err)
+
+	u, err := url.Parse(got)
+	require.NoError(t, err)
+	assert.Equal(t, "MONGODB-OIDC", u.Query().Get("authMechanism"))
+	assert.Equal(t, "ALLOWED_HOSTS:*", u.Query().Get("authMechanismProperties"))
+}
+
+func TestBuildFullConnectionString_OIDC_PreservesUserParams(t *testing.T) {
+	in := "mongodb://example.com/?authMechanism=MONGODB-OIDC&authMechanismProperties=ENVIRONMENT:azure"
+	cs := &MockConnectionStringsStore{uris: map[string]string{}}
+	require.NoError(t, cs.StoreConnectionConfig("s1", models.ConnectionConfig{
+		URI:        in,
+		AuthMethod: models.AuthOIDC,
+	}))
+	store := &mockServerStore{servers: []models.RegisteredServer{{ID: "s1", Name: "S1"}}}
+	sm := newTestServerService(store, cs)
+
+	got, err := sm.BuildFullConnectionString("s1")
+	require.NoError(t, err)
+	u, err := url.Parse(got)
+	require.NoError(t, err)
+	assert.Equal(t, "MONGODB-OIDC", u.Query().Get("authMechanism"))
+	assert.Equal(t, "ENVIRONMENT:azure", u.Query().Get("authMechanismProperties"))
 }

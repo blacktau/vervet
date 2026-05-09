@@ -11,9 +11,10 @@ import (
 )
 
 type MockServersProvider struct {
-	err     error
-	server  *models.RegisteredServer
-	servers []models.RegisteredServer
+	err            error
+	server         *models.RegisteredServer
+	servers        []models.RegisteredServer
+	fullConnString string
 }
 
 func (m *MockServersProvider) GetServers() ([]models.RegisteredServer, error) {
@@ -47,6 +48,13 @@ func (m *MockServersProvider) GetURI(id string) (string, error) {
 		return "", m.err
 	}
 	return "mongodb://localhost", nil
+}
+
+func (m *MockServersProvider) BuildFullConnectionString(id string) (string, error) {
+	if m.err != nil {
+		return "", m.err
+	}
+	return m.fullConnString, nil
 }
 
 func (m *MockServersProvider) CreateGroup(parentID, name string) error {
@@ -287,6 +295,30 @@ func TestServersProxy_GetURI(t *testing.T) {
 		proxy := NewServersProxy(testLogger(), provider)
 
 		result := proxy.GetURI("1")
+
+		assert.False(t, result.IsSuccess)
+		assert.NotEmpty(t, result.ErrorCode)
+	})
+}
+
+func TestServersProxy_GetFullConnectionString(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		provider := &MockServersProvider{
+			fullConnString: "mongodb://example.com/?authMechanism=MONGODB-OIDC&authMechanismProperties=ALLOWED_HOSTS:*",
+		}
+		proxy := NewServersProxy(testLogger(), provider)
+
+		result := proxy.GetFullConnectionString("s1")
+
+		assert.True(t, result.IsSuccess)
+		assert.Equal(t, provider.fullConnString, result.Data)
+	})
+
+	t.Run("error", func(t *testing.T) {
+		provider := &MockServersProvider{err: errors.New("boom")}
+		proxy := NewServersProxy(testLogger(), provider)
+
+		result := proxy.GetFullConnectionString("s1")
 
 		assert.False(t, result.IsSuccess)
 		assert.NotEmpty(t, result.ErrorCode)
