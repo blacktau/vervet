@@ -35,8 +35,9 @@ func (m *mockServerStore) SaveServers(servers []models.RegisteredServer) error {
 
 // MockConnectionStringsStore is a mock implementation of ConnectionStringsStore for testing.
 type MockConnectionStringsStore struct {
-	uris map[string]string
-	err  error
+	uris    map[string]string
+	configs map[string]models.ConnectionConfig
+	err     error
 }
 
 func (m *MockConnectionStringsStore) StoreRegisteredServerURI(id, uri string) error {
@@ -70,6 +71,10 @@ func (m *MockConnectionStringsStore) StoreConnectionConfig(id string, cfg models
 	if m.err != nil {
 		return m.err
 	}
+	if m.configs == nil {
+		m.configs = map[string]models.ConnectionConfig{}
+	}
+	m.configs[id] = cfg
 	m.uris[id] = cfg.URI
 	return nil
 }
@@ -77,6 +82,9 @@ func (m *MockConnectionStringsStore) StoreConnectionConfig(id string, cfg models
 func (m *MockConnectionStringsStore) GetConnectionConfig(id string) (models.ConnectionConfig, error) {
 	if m.err != nil {
 		return models.ConnectionConfig{}, m.err
+	}
+	if cfg, ok := m.configs[id]; ok {
+		return cfg, nil
 	}
 	uri, ok := m.uris[id]
 	if !ok {
