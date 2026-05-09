@@ -386,6 +386,15 @@ func TestBuildFullConnectionString_KeyringError(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestBuildFullConnectionString_StoreError(t *testing.T) {
+	cs := &MockConnectionStringsStore{uris: map[string]string{}}
+	store := &mockServerStore{err: errors.New("yaml parse error")}
+	sm := newTestServerService(store, cs)
+
+	_, err := sm.BuildFullConnectionString("s1")
+	assert.Error(t, err)
+}
+
 func TestBuildFullConnectionString_OIDC_AddsParams(t *testing.T) {
 	cs := &MockConnectionStringsStore{uris: map[string]string{}}
 	require.NoError(t, cs.StoreConnectionConfig("s1", models.ConnectionConfig{

@@ -116,7 +116,7 @@ export function useServerTreeContextMenu(
         label: 'serverPane.serverTree.copyConnectionString',
         icon: ClipboardDocumentIcon,
       },
-      { type: 'divider', key: 'd1' },
+      { type: 'divider', key: 'd1', label: '' },
       {
         key: MenuKeys.ServerDelete,
         label: 'serverPane.serverTree.deleteServer',
