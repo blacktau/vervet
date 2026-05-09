@@ -99,6 +99,17 @@ describe('tabs.duplicateQuery', () => {
     expect(tabs.pendingFocusQueryId).toBe(dupId)
   })
 
+  it('switches nav to Browser via _setActivatedIndex', () => {
+    const tabs = useTabStore()
+    tabs.tabItems = [seedServerTab('s1')]
+    const srcId = tabs.openQuery('s1', 'mydb')!
+    // NavType is a const enum (inlined by tsc, not accessible at vitest runtime)
+    tabs.nav = 'servers' as never
+
+    tabs.duplicateQuery('s1', srcId)
+    expect(tabs.nav).toBe('browser')
+  })
+
   it('returns undefined for unknown serverId or queryId', () => {
     const tabs = useTabStore()
     tabs.tabItems = [seedServerTab('s1')]

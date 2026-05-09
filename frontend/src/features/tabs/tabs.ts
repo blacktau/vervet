@@ -312,17 +312,17 @@ export const useTabStore = defineStore('tabs', {
     duplicateQuery(serverId: string, queryId: string): string | undefined {
       const tabIndex = findIndex(this.tabItems, { serverId })
       if (tabIndex === -1) {
-        return undefined
+        return
       }
 
       const tab = this.tabItems[tabIndex]
       if (!tab) {
-        return undefined
+        return
       }
 
       const queryIndex = tab.queries.findIndex((q) => q.id === queryId)
       if (queryIndex === -1) {
-        return undefined
+        return
       }
 
       const source = tab.queries[queryIndex]!
@@ -338,6 +338,7 @@ export const useTabStore = defineStore('tabs', {
       tab.queries.splice(queryIndex + 1, 0, newItem)
       tab.activeInnerTabId = newItem.id
       this.pendingFocusQueryId = newItem.id
+      this._setActivatedIndex(tabIndex, true)
       return newItem.id
     },
 
