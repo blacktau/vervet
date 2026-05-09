@@ -562,6 +562,9 @@ export default {
       empty: 'No Mongo Servers Added',
       deleteGroupTooltip: 'Are you sure you want to delete group "{name}"?',
       deleteGroupWithChildrenTooltip: 'Delete "{name}" and all its sub-groups and servers?',
+      copyConnectionString: 'Copy Connection String',
+      connectionStringCopied: 'Connection string copied to clipboard',
+      copyConnectionStringFailed: 'Failed to copy connection string',
     },
     dialogs: {
       common: {
