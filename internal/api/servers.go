@@ -21,6 +21,7 @@ type ServersProvider interface {
 	GetConnectionConfig(serverID string) (models.ConnectionConfig, error)
 	ExportServers(serverIDs []string, includeSensitiveData bool) ([]byte, error)
 	ImportServers(data []byte) (*servers.ImportResult, error)
+	BuildFullConnectionString(id string) (string, error)
 }
 
 // ServersProxy exposes the ServerService to the UI
@@ -168,4 +169,13 @@ func (sp *ServersProxy) ImportServers(jsonData string) Result[servers.ImportResu
 		return FailResult[servers.ImportResult](err)
 	}
 	return SuccessResult(*result)
+}
+
+func (sp *ServersProxy) GetFullConnectionString(id string) Result[string] {
+	uri, err := sp.sm.BuildFullConnectionString(id)
+	if err != nil {
+		logFail(sp.log, "GetFullConnectionString", err)
+		return FailResult[string](err)
+	}
+	return SuccessResult(uri)
 }
