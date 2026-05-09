@@ -9,6 +9,8 @@ export function ExportServers(arg1:Array<string>,arg2:boolean):Promise<api.Resul
 
 export function GetConnectionConfig(arg1:string):Promise<api.Result_vervet_internal_models_ConnectionConfig_>;
 
+export function GetFullConnectionString(arg1:string):Promise<api.Result_string_>;
+
 export function GetServer(arg1:string):Promise<api.Result_vervet_internal_models_RegisteredServer_>;
 
 export function GetServers():Promise<api.Result___vervet_internal_models_RegisteredServer_>;

@@ -2,6 +2,7 @@ import { markRaw, nextTick, reactive, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   ArrowUpTrayIcon,
+  ClipboardDocumentIcon,
   Cog8ToothIcon,
   DocumentDuplicateIcon,
   FolderPlusIcon,
@@ -9,6 +10,7 @@ import {
   PlusCircleIcon,
   TrashIcon,
 } from '@heroicons/vue/24/outline'
+import * as serversProxy from 'wailsjs/go/api/ServersProxy'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 import { DialogType, useDialogStore } from '@/stores/dialog.ts'
 import { type RegisteredServerNode, useServerStore } from '@/features/server-pane/serverStore.ts'
@@ -27,6 +29,7 @@ export const MenuKeys = {
   ServerConnect: 'server_connect',
   ServerDelete: 'server_delete',
   ServerExport: 'server_export',
+  ServerCopyConnectionString: 'server_copy_connection_string',
   GroupExport: 'group_export',
 } as const
 
@@ -107,6 +110,11 @@ export function useServerTreeContextMenu(
         key: MenuKeys.ServerExport,
         label: 'serverPane.exportServerMenuItem',
         icon: ArrowUpTrayIcon,
+      },
+      {
+        key: MenuKeys.ServerCopyConnectionString,
+        label: 'serverPane.serverTree.copyConnectionString',
+        icon: ClipboardDocumentIcon,
       },
       { type: 'divider', key: 'd1' },
       {
@@ -192,7 +200,7 @@ export function useServerTreeContextMenu(
     }
   }
 
-  const handleSelectContextMenu = (key: string) => {
+  const handleSelectContextMenu = async (key: string) => {
     contextMenuParams.show = false
     const serverId = selectedKeys.value[0]
     if (!serverId) return
@@ -239,6 +247,20 @@ export function useServerTreeContextMenu(
       case MenuKeys.GroupExport:
         dialogStore.showNewDialog(DialogType.Export, { serverIDs: [serverId] })
         break
+      case MenuKeys.ServerCopyConnectionString: {
+        const result = await serversProxy.GetFullConnectionString(serverId)
+        if (!result.isSuccess) {
+          useMessager().error(i18n.t('serverPane.serverTree.copyConnectionStringFailed'))
+          break
+        }
+        try {
+          await navigator.clipboard.writeText(result.data)
+          useMessager().success(i18n.t('serverPane.serverTree.connectionStringCopied'))
+        } catch {
+          useMessager().error(i18n.t('serverPane.serverTree.copyConnectionStringFailed'))
+        }
+        break
+      }
       default:
         console.warn(`missing context menu option handling for key '${key}'`)
     }

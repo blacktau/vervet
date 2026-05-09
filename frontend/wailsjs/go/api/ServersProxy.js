@@ -14,6 +14,10 @@ export function GetConnectionConfig(arg1) {
   return window['go']['api']['ServersProxy']['GetConnectionConfig'](arg1);
 }
 
+export function GetFullConnectionString(arg1) {
+  return window['go']['api']['ServersProxy']['GetFullConnectionString'](arg1);
+}
+
 export function GetServer(arg1) {
   return window['go']['api']['ServersProxy']['GetServer'](arg1);
 }
