@@ -309,6 +309,38 @@ export const useTabStore = defineStore('tabs', {
       }
     },
 
+    duplicateQuery(serverId: string, queryId: string): string | undefined {
+      const tabIndex = findIndex(this.tabItems, { serverId })
+      if (tabIndex === -1) {
+        return undefined
+      }
+
+      const tab = this.tabItems[tabIndex]
+      if (!tab) {
+        return undefined
+      }
+
+      const queryIndex = tab.queries.findIndex((q) => q.id === queryId)
+      if (queryIndex === -1) {
+        return undefined
+      }
+
+      const source = tab.queries[queryIndex]!
+      const liveContent = useQueryStore().getQueryState(queryId).currentContent
+
+      const newItem: QueryTabItem = {
+        id: `query-${++queryIdCounter}`,
+        database: source.database,
+        initialText: liveContent,
+        collectionName: source.collectionName,
+      }
+
+      tab.queries.splice(queryIndex + 1, 0, newItem)
+      tab.activeInnerTabId = newItem.id
+      this.pendingFocusQueryId = newItem.id
+      return newItem.id
+    },
+
     queryTabLabel(tab: ServerTabItem, query: QueryTabItem): string {
       if (query.filePath) {
         return query.filePath.split('/').pop() ?? query.database
