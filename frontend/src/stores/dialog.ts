@@ -33,6 +33,12 @@ export type ServerDialogData = {
   mode: 'edit' | 'clone'
 }
 
+export type NewServerDialogData = {
+  mode: 'new'
+  uri?: string
+  name?: string
+}
+
 export type DestructiveConfirmKind = 'database' | 'collection'
 
 export type DestructiveConfirmData = {
@@ -142,8 +148,13 @@ export const useDialogStore = defineStore('dialog', {
       this.dialogs[dialog].type = DialogMode.Edit
       this.dialogs[dialog].data = data
     },
-    showNewServerDialog() {
-      this.showNewDialog(DialogType.Server, undefined)
+    showNewServerDialog(prefill?: { uri?: string; name?: string }) {
+      const data: NewServerDialogData = {
+        mode: 'new',
+        uri: prefill?.uri,
+        name: prefill?.name,
+      }
+      this.showNewDialog(DialogType.Server, data)
     },
     async showServerEditDialog(serverId: string) {
       this.showEditDialog(DialogType.Server, {
@@ -225,13 +236,13 @@ export const useDialogStore = defineStore('dialog', {
     },
   },
   getters: {
-    serverDialogData(state): ServerDialogData | undefined {
+    serverDialogData(state): ServerDialogData | NewServerDialogData | undefined {
       const dialog = state.dialogs[DialogType.Server]
       if (!dialog) {
         return undefined
       }
 
-      return dialog.data as ServerDialogData
+      return dialog.data as ServerDialogData | NewServerDialogData | undefined
     },
     isVisible(state) {
       return (dialog: DialogType) => {

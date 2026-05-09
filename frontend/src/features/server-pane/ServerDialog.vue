@@ -164,6 +164,7 @@ const onClose = () => {
 }
 
 const resetForm = () => {
+  editServerID.value = undefined
   generalForm.value = {
     id: '',
     name: '',
@@ -185,30 +186,44 @@ const resetForm = () => {
 watch(
   () => dialogStore.dialogs[DialogType.Server].visible,
   async (visible: boolean) => {
-    if (visible) {
-      resetForm()
-      const rawData = dialogStore.dialogs[DialogType.Server].data as Record<string, string> | undefined
-      if (rawData?.parentId) {
-        generalForm.value.parentId = rawData.parentId
-      }
-      const data = dialogStore.serverDialogData
-      if (data?.mode == 'edit' || data?.mode == 'clone') {
-        editServerID.value = data?.serverId
-        const server = await serverStore.getServerDetails(data?.serverId)
-        if (server != null) {
-          generalForm.value = {
-            id: server.id,
-            name: server.name,
-            colour: server.colour,
-            connectionString: server.uri,
-            parentId: server.parentID || '',
-          }
-          authMethod.value = server.authMethod ?? 'password'
-          if (server.oidcConfig) {
-            oidcConfig.value = { ...server.oidcConfig }
-          }
+    if (!visible) {
+      return
+    }
+    resetForm()
+    const data = dialogStore.serverDialogData
+    if (data?.mode === 'edit' || data?.mode === 'clone') {
+      editServerID.value = data.serverId
+      const server = await serverStore.getServerDetails(data.serverId)
+      if (server != null) {
+        generalForm.value = {
+          id: server.id,
+          name: server.name,
+          colour: server.colour,
+          connectionString: server.uri,
+          parentId: server.parentID || '',
+        }
+        authMethod.value = server.authMethod ?? 'password'
+        if (server.oidcConfig) {
+          oidcConfig.value = { ...server.oidcConfig }
         }
       }
+      return
+    }
+    if (data?.mode === 'new') {
+      if (data.uri) {
+        generalForm.value.connectionString = data.uri
+      }
+      if (data.name) {
+        generalForm.value.name = data.name
+      }
+      return
+    }
+    // legacy parentId payload (ServerPane right-click "New server in group")
+    const rawData = dialogStore.dialogs[DialogType.Server].data as
+      | Record<string, string>
+      | undefined
+    if (rawData?.parentId) {
+      generalForm.value.parentId = rawData.parentId
     }
   },
   { immediate: true },
