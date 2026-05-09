@@ -8,7 +8,7 @@ import { DialogType, useDialogStore } from '@/stores/dialog.ts'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 import { type RegisteredServerNode, useServerStore } from '@/features/server-pane/serverStore.ts'
 import { useMessager, useNotifier } from '@/utils/dialog.ts'
-import { parseUri } from '@/features/server-pane/connectionStrings.ts'
+import { parseUri, detectAuthFromUri } from '@/features/server-pane/connectionStrings.ts'
 import { filterGroupMap } from '@/features/server-pane/helpers.ts'
 import * as connectionsProxy from 'wailsjs/go/api/ConnectionsProxy'
 import type { AuthMethod, OIDCConfig } from '@/types/ConnectionConfig'
@@ -220,25 +220,13 @@ watch(
     if (!uri) {
       return
     }
-    const lower = uri.toLowerCase()
-    if (lower.includes('authmechanism=mongodb-oidc')) {
-      authMethod.value = 'oidc'
-      generalForm.value.connectionString = stripAuthMechanism(uri)
-    } else if (lower.includes('authmechanism=mongodb-x509')) {
-      authMethod.value = 'x509'
-    } else if (lower.includes('authmechanism=mongodb-aws')) {
-      authMethod.value = 'aws'
+    const detected = detectAuthFromUri(uri)
+    if (detected.authMethod !== 'password') {
+      authMethod.value = detected.authMethod
+      generalForm.value.connectionString = detected.uri
     }
   },
 )
-
-function stripAuthMechanism(uri: string): string {
-  return uri
-    .replace(/[?&]authMechanism=[^&]*/gi, '')
-    .replace(/[?&]authMechanismProperties=[^&]*/gi, '')
-    .replace(/\?&/, '?')
-    .replace(/\?$/, '')
-}
 
 const onTestConnection = async () => {
   if (authMethod.value === 'oidc') {

@@ -1,4 +1,5 @@
 import { i18nGlobal } from '@/i18n'
+import type { AuthMethod } from '@/types/ConnectionConfig'
 
 interface OptionValidator {
   v: (value?: string) => boolean
@@ -786,4 +787,31 @@ function validateZlibCompressionLevel(value?: string) {
   } catch {
     return false
   }
+}
+
+export interface DetectAuthResult {
+  authMethod: AuthMethod
+  uri: string
+}
+
+export function detectAuthFromUri(uri: string): DetectAuthResult {
+  const lower = uri.toLowerCase()
+  if (lower.includes('authmechanism=mongodb-oidc')) {
+    return { authMethod: 'oidc', uri: stripAuthMechanism(uri) }
+  }
+  if (lower.includes('authmechanism=mongodb-x509')) {
+    return { authMethod: 'x509', uri }
+  }
+  if (lower.includes('authmechanism=mongodb-aws')) {
+    return { authMethod: 'aws', uri }
+  }
+  return { authMethod: 'password', uri }
+}
+
+function stripAuthMechanism(uri: string): string {
+  return uri
+    .replace(/[?&]authMechanism=[^&]*/gi, '')
+    .replace(/[?&]authMechanismProperties=[^&]*/gi, '')
+    .replace(/\?&/, '?')
+    .replace(/\?$/, '')
 }
