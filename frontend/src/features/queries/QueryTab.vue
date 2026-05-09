@@ -328,6 +328,7 @@ onMounted(async () => {
         queryStore.setDirty(props.queryId, currentContent !== saved)
       }
     })
+    queryStore.setCurrentContent(props.queryId, editor.value.getValue())
   }
 })
 

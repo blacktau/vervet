@@ -461,6 +461,9 @@ export default {
     objectFields: "{'{'} {count} fields {'}'}",
     binaryValue: 'Binary ({subType})',
     timestampValue: 'Timestamp({t}, {i})',
+    tabContextMenu: {
+      duplicate: 'Duplicate',
+    },
     contextMenu: {
       viewDocument: 'View Document',
       editDocument: 'Edit Document',

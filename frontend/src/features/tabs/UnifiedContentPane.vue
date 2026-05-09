@@ -115,6 +115,56 @@ function handleTabSelect(key: string) {
   activeInnerTabId.value = key
 }
 
+const contextMenuShown = ref(false)
+const contextMenuX = ref(0)
+const contextMenuY = ref(0)
+const contextMenuTargetId = ref<string | null>(null)
+const contextMenuTargetType = ref<UnifiedTab['type'] | null>(null)
+
+const contextMenuOptions = computed<DropdownOption[]>(() => {
+  if (contextMenuTargetType.value !== 'query') {
+    return []
+  }
+  return [
+    { label: t('query.tabContextMenu.duplicate'), key: 'duplicate' },
+  ]
+})
+
+function onTabContextMenu(e: MouseEvent, uTab: UnifiedTab) {
+  e.preventDefault()
+  if (uTab.type !== 'query') {
+    contextMenuShown.value = false
+    return
+  }
+  contextMenuTargetId.value = uTab.id
+  contextMenuTargetType.value = uTab.type
+  contextMenuX.value = e.clientX
+  contextMenuY.value = e.clientY
+  contextMenuShown.value = false
+  nextTick(() => {
+    contextMenuShown.value = true
+  })
+}
+
+function onContextMenuSelect(key: string) {
+  const targetId = contextMenuTargetId.value
+  contextMenuShown.value = false
+  if (!targetId) {
+    return
+  }
+  const serverId = tabStore.currentTab?.serverId
+  if (!serverId) {
+    return
+  }
+  if (key === 'duplicate') {
+    tabStore.duplicateQuery(serverId, targetId)
+  }
+}
+
+function onContextMenuClickOutside() {
+  contextMenuShown.value = false
+}
+
 function findIndexTabById(id: string) {
   return (tabStore.currentTab?.indexTabs ?? []).find((t) => t.id === id)
 }
@@ -208,6 +258,9 @@ async function promptSaveBeforeClose(queryId: string, state: QueryState): Promis
         :name="uTab.id"
         :tab="uTab.label"
         display-directive="show:lazy">
+        <template #tab>
+          <span @contextmenu="onTabContextMenu($event, uTab)">{{ uTab.label }}</span>
+        </template>
         <!-- Query content -->
         <QueryTab v-if="uTab.type === 'query'" :query-id="uTab.id" />
 
@@ -250,6 +303,15 @@ async function promptSaveBeforeClose(queryId: string, state: QueryState): Promis
     <div v-else class="empty-state">
       <n-empty :description="t('query.emptyState')" />
     </div>
+    <n-dropdown
+      trigger="manual"
+      placement="bottom-start"
+      :show="contextMenuShown"
+      :x="contextMenuX"
+      :y="contextMenuY"
+      :options="contextMenuOptions"
+      @select="onContextMenuSelect"
+      @clickoutside="onContextMenuClickOutside" />
   </div>
 </template>
 
