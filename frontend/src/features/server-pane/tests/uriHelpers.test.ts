@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { detectAuthFromUri } from '@/features/server-pane/connectionStrings.ts'
+import { detectAuthFromUri, getUriHost } from '@/features/server-pane/connectionStrings.ts'
 
 describe('detectAuthFromUri', () => {
   test('returns password for plain URI', () => {
@@ -38,5 +38,35 @@ describe('detectAuthFromUri', () => {
       'mongodb://host/?authMechanism=MONGODB-OIDC',
     )
     expect(result.uri).toBe('mongodb://host/')
+  })
+})
+
+describe('getUriHost', () => {
+  test('returns host:port for plain URI', () => {
+    expect(getUriHost('mongodb://localhost:27017')).toBe('localhost:27017')
+  })
+
+  test('returns host only when port absent', () => {
+    expect(getUriHost('mongodb://example.com')).toBe('example.com')
+  })
+
+  test('returns first host for multi-host URI', () => {
+    expect(getUriHost('mongodb://a.example.com,b.example.com:27018')).toBe('a.example.com')
+  })
+
+  test('returns srv host', () => {
+    expect(getUriHost('mongodb+srv://cluster0.mongodb.net')).toBe('cluster0.mongodb.net')
+  })
+
+  test('strips userinfo', () => {
+    expect(getUriHost('mongodb://user:pw@host:27017')).toBe('host:27017')
+  })
+
+  test('returns empty string for invalid URI', () => {
+    expect(getUriHost('not-a-uri')).toBe('')
+  })
+
+  test('returns empty string for empty input', () => {
+    expect(getUriHost('')).toBe('')
   })
 })

@@ -808,6 +808,24 @@ export function detectAuthFromUri(uri: string): DetectAuthResult {
   return { authMethod: 'password', uri }
 }
 
+export function getUriHost(uri: string): string {
+  if (!uri) {
+    return ''
+  }
+  const result = parseUri(uri)
+  if (!result.success || !result.data) {
+    return ''
+  }
+  const first = result.data.nodelist[0]
+  if (!first) {
+    return ''
+  }
+  if (first.port != null) {
+    return `${first.host}:${first.port}`
+  }
+  return first.host
+}
+
 function stripAuthMechanism(uri: string): string {
   return uri
     .replace(/[?&]authMechanism=[^&]*/gi, '')
