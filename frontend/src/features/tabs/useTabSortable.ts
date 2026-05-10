@@ -23,8 +23,11 @@ export function useTabSortable(
     sortable = new Sortable(navEl, {
       animation: 150,
       scroll: true,
+      direction: 'horizontal',
       forceFallback: true,
       fallbackOnBody: false,
+      fallbackClass: 'tab-sortable-fallback',
+      ghostClass: 'tab-sortable-ghost',
       revertOnSpill: true,
       draggable: '.n-tabs-tab-wrapper',
       filter: '.n-tabs-tab__close, .n-tabs-tab-pad',

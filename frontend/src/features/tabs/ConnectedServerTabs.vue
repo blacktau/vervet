@@ -189,4 +189,11 @@ const exThemeVars = computed(() => {
     right: -2px;
   }
 }
+
+:deep(.tab-sortable-fallback) {
+  opacity: 0 !important;
+}
+:deep(.tab-sortable-ghost) {
+  opacity: 0.4;
+}
 </style>
