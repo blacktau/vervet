@@ -10,6 +10,7 @@ import { useSettingsStore } from '@/features/settings/settingsStore.ts'
 import { ChevronDownIcon, ServerIcon } from '@heroicons/vue/24/outline'
 import type { ServerTabItem } from '@/types/ServerTabItem.ts'
 import Color from 'color'
+import { useTabSortable } from '@/features/tabs/useTabSortable'
 
 const tabStore = useTabStore()
 const serverStore = useServerStore()
@@ -45,6 +46,10 @@ onBeforeUnmount(() => {
 })
 
 watch(() => tabStore.tabs.length, () => nextTick(checkOverflow))
+
+useTabSortable(tabsRef, '.n-tabs-wrapper', (from, to) => {
+  tabStore.reorderTabs(from, to)
+})
 
 const serverDropdownOptions = computed<DropdownOption[]>(() => {
   return tabStore.tabs.map((tab, index) => ({
@@ -136,7 +141,7 @@ const exThemeVars = computed(() => {
     </template>
     <n-tab
       v-for="(t, index) in tabStore.tabs"
-      :key="index"
+      :key="t.serverId"
       :class="tabClass(index)"
       :closable="true"
       :name="index"
@@ -183,5 +188,12 @@ const exThemeVars = computed(() => {
     background-color: v-bind('themeVars.borderColor');
     right: -2px;
   }
+}
+
+:deep(.tab-sortable-fallback) {
+  opacity: 0 !important;
+}
+:deep(.tab-sortable-ghost) {
+  opacity: 0.4;
 }
 </style>

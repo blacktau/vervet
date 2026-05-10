@@ -37,5 +37,6 @@ export type ServerTabItem = {
   indexTabs?: IndexTabItem[]
   statisticsTabs?: StatisticsTabItem[]
   schemaTabs?: SchemaTabItem[]
+  innerTabOrder: string[]
   activeInnerTabId?: string
 }

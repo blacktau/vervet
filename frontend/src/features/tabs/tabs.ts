@@ -26,6 +26,7 @@ type TabStoreGetters = {
   currentStatisticsTab: () => StatisticsTabItem | undefined
   currentSchemaTabs: () => SchemaTabItem[]
   currentSchemaTab: () => SchemaTabItem | undefined
+  currentInnerTabIds: () => string[]
 }
 
 type TabUpsertOptions = ServerTabItem & {
@@ -60,19 +61,10 @@ function innerTabType(id: string): BrowserSubTabType {
 }
 
 function findFallbackInnerTabId(tab: ServerTabItem): string | undefined {
-  if (tab.queries.length > 0) {
-    return tab.queries[tab.queries.length - 1]!.id
+  if (tab.innerTabOrder.length === 0) {
+    return undefined
   }
-  if (tab.indexTabs && tab.indexTabs.length > 0) {
-    return tab.indexTabs[tab.indexTabs.length - 1]!.id
-  }
-  if (tab.statisticsTabs && tab.statisticsTabs.length > 0) {
-    return tab.statisticsTabs[tab.statisticsTabs.length - 1]!.id
-  }
-  if (tab.schemaTabs && tab.schemaTabs.length > 0) {
-    return tab.schemaTabs[tab.schemaTabs.length - 1]!.id
-  }
-  return undefined
+  return tab.innerTabOrder[tab.innerTabOrder.length - 1]
 }
 
 export const useTabStore = defineStore('tabs', {
@@ -125,6 +117,9 @@ export const useTabStore = defineStore('tabs', {
         return undefined
       }
       return tab.schemaTabs.find((t) => t.id === tab.activeInnerTabId)
+    },
+    currentInnerTabIds(state: TabStoreState) {
+      return state.tabItems[state.activeTabIndex]?.innerTabOrder ?? []
     },
   } as TabStoreGetters,
   actions: {
@@ -191,6 +186,7 @@ export const useTabStore = defineStore('tabs', {
           queries: [],
           indexTabs: [],
           statisticsTabs: [],
+          innerTabOrder: [],
         }
         this.tabItems.push(tabItem)
         tabIndex = this.tabItems.length - 1
@@ -275,6 +271,7 @@ export const useTabStore = defineStore('tabs', {
       }
 
       tab.queries.push(queryItem)
+      tab.innerTabOrder.push(queryItem.id)
       tab.activeInnerTabId = queryItem.id
       this._setActivatedIndex(tabIndex, true)
       this.pendingFocusQueryId = queryItem.id
@@ -298,6 +295,11 @@ export const useTabStore = defineStore('tabs', {
       }
 
       tab.queries.splice(queryIndex, 1)
+
+      const orderIdx = tab.innerTabOrder.indexOf(queryId)
+      if (orderIdx !== -1) {
+        tab.innerTabOrder.splice(orderIdx, 1)
+      }
 
       if (tab.activeInnerTabId === queryId) {
         if (tab.queries.length > 0) {
@@ -336,6 +338,9 @@ export const useTabStore = defineStore('tabs', {
       }
 
       tab.queries.splice(queryIndex + 1, 0, newItem)
+      const orderIdx = tab.innerTabOrder.indexOf(queryId)
+      const insertAt = orderIdx === -1 ? tab.innerTabOrder.length : orderIdx + 1
+      tab.innerTabOrder.splice(insertAt, 0, newItem.id)
       tab.activeInnerTabId = newItem.id
       this.pendingFocusQueryId = newItem.id
       this._setActivatedIndex(tabIndex, true)
@@ -386,6 +391,7 @@ export const useTabStore = defineStore('tabs', {
       }
 
       tab.indexTabs.push(indexTab)
+      tab.innerTabOrder.push(indexTab.id)
       tab.activeInnerTabId = indexTab.id
       this._setActivatedIndex(tabIndex, true)
     },
@@ -407,6 +413,11 @@ export const useTabStore = defineStore('tabs', {
       }
 
       tab.indexTabs.splice(idx, 1)
+
+      const orderIdx = tab.innerTabOrder.indexOf(indexTabId)
+      if (orderIdx !== -1) {
+        tab.innerTabOrder.splice(orderIdx, 1)
+      }
 
       if (tab.activeInnerTabId === indexTabId) {
         if (tab.indexTabs.length > 0) {
@@ -463,6 +474,7 @@ export const useTabStore = defineStore('tabs', {
       }
 
       tab.statisticsTabs.push(statsTab)
+      tab.innerTabOrder.push(statsTab.id)
       tab.activeInnerTabId = statsTab.id
       this._setActivatedIndex(tabIndex, true)
     },
@@ -484,6 +496,11 @@ export const useTabStore = defineStore('tabs', {
       }
 
       tab.statisticsTabs.splice(idx, 1)
+
+      const orderIdx = tab.innerTabOrder.indexOf(statisticsTabId)
+      if (orderIdx !== -1) {
+        tab.innerTabOrder.splice(orderIdx, 1)
+      }
 
       if (tab.activeInnerTabId === statisticsTabId) {
         if (tab.statisticsTabs.length > 0) {
@@ -545,6 +562,7 @@ export const useTabStore = defineStore('tabs', {
       }
 
       tab.schemaTabs.push(schemaTab)
+      tab.innerTabOrder.push(schemaTab.id)
       tab.activeInnerTabId = schemaTab.id
       this._setActivatedIndex(tabIndex, true)
     },
@@ -567,6 +585,11 @@ export const useTabStore = defineStore('tabs', {
 
       tab.schemaTabs.splice(idx, 1)
 
+      const orderIdx = tab.innerTabOrder.indexOf(schemaTabId)
+      if (orderIdx !== -1) {
+        tab.innerTabOrder.splice(orderIdx, 1)
+      }
+
       if (tab.activeInnerTabId === schemaTabId) {
         if (tab.schemaTabs.length > 0) {
           const newIdx = Math.min(idx, tab.schemaTabs.length - 1)
@@ -587,6 +610,48 @@ export const useTabStore = defineStore('tabs', {
 
     schemaTabLabel(_tab: ServerTabItem, schemaTab: SchemaTabItem): string {
       return i18nGlobal.t('schemaBrowser.tabLabel', { collection: schemaTab.collectionName })
+    },
+
+    reorderTabs(from: number, to: number) {
+      const len = this.tabItems.length
+      if (from === to) {
+        return
+      }
+      if (from < 0 || from >= len || to < 0 || to >= len) {
+        return
+      }
+      const activeTab = this.tabItems[this.activeTabIndex]
+      const [moved] = this.tabItems.splice(from, 1)
+      if (!moved) {
+        return
+      }
+      this.tabItems.splice(to, 0, moved)
+      if (activeTab) {
+        this.activeTabIndex = this.tabItems.indexOf(activeTab)
+      }
+    },
+
+    reorderInnerTabs(serverId: string, from: number, to: number) {
+      const tabIndex = findIndex(this.tabItems, { serverId })
+      if (tabIndex === -1) {
+        return
+      }
+      const tab = this.tabItems[tabIndex]
+      if (!tab) {
+        return
+      }
+      const len = tab.innerTabOrder.length
+      if (from === to) {
+        return
+      }
+      if (from < 0 || from >= len || to < 0 || to >= len) {
+        return
+      }
+      const [moved] = tab.innerTabOrder.splice(from, 1)
+      if (moved == null) {
+        return
+      }
+      tab.innerTabOrder.splice(to, 0, moved)
     },
   },
 })

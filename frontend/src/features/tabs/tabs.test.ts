@@ -42,6 +42,7 @@ function seedServerTab(serverId: string): ServerTabItem {
     blank: false,
     serverId,
     queries: [],
+    innerTabOrder: [],
   }
 }
 
@@ -117,5 +118,242 @@ describe('tabs.duplicateQuery', () => {
 
     expect(tabs.duplicateQuery('missing', srcId)).toBeUndefined()
     expect(tabs.duplicateQuery('s1', 'query-999999')).toBeUndefined()
+  })
+})
+
+describe('tabs.innerTabOrder maintenance on add', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  it('appends id when openQuery is called', () => {
+    const store = useTabStore()
+    store.tabItems = [seedServerTab('s1')]
+    const id = store.openQuery('s1', 'mydb')
+    expect(store.tabItems[0]!.innerTabOrder).toEqual([id])
+  })
+
+  it('appends id when openIndexTab is called', () => {
+    const store = useTabStore()
+    store.tabItems = [seedServerTab('s1')]
+    store.openIndexTab('s1', 'mydb', 'col')
+    const ids = store.tabItems[0]!.innerTabOrder
+    expect(ids.length).toBe(1)
+    expect(ids[0]!.startsWith('index-')).toBe(true)
+  })
+
+  it('appends id when openStatisticsTab is called', () => {
+    const store = useTabStore()
+    store.tabItems = [seedServerTab('s1')]
+    store.openStatisticsTab('s1', 'mydb', 'col', 'collection')
+    const ids = store.tabItems[0]!.innerTabOrder
+    expect(ids.length).toBe(1)
+    expect(ids[0]!.startsWith('stats-')).toBe(true)
+  })
+
+  it('appends id when openSchemaTab is called', () => {
+    const store = useTabStore()
+    store.tabItems = [seedServerTab('s1')]
+    store.openSchemaTab('s1', 'mydb', 'col')
+    const ids = store.tabItems[0]!.innerTabOrder
+    expect(ids.length).toBe(1)
+    expect(ids[0]!.startsWith('schema-')).toBe(true)
+  })
+
+  it('inserts duplicated query id immediately after source', () => {
+    const store = useTabStore()
+    store.tabItems = [seedServerTab('s1')]
+    const a = store.openQuery('s1', 'mydb')!
+    const b = store.openQuery('s1', 'mydb')!
+    const dup = store.duplicateQuery('s1', a)!
+    expect(store.tabItems[0]!.innerTabOrder).toEqual([a, dup, b])
+  })
+
+  it('reuses existing entry when openIndexTab matches existing target', () => {
+    const store = useTabStore()
+    store.tabItems = [seedServerTab('s1')]
+    store.openIndexTab('s1', 'mydb', 'col')
+    store.openIndexTab('s1', 'mydb', 'col')
+    expect(store.tabItems[0]!.innerTabOrder.length).toBe(1)
+  })
+})
+
+describe('tabs.innerTabOrder maintenance on close', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  it('removes id on closeQuery', () => {
+    const store = useTabStore()
+    store.tabItems = [seedServerTab('s1')]
+    const a = store.openQuery('s1', 'mydb')!
+    const b = store.openQuery('s1', 'mydb')!
+    store.closeQuery('s1', a)
+    expect(store.tabItems[0]!.innerTabOrder).toEqual([b])
+  })
+
+  it('removes id on closeIndexTab', () => {
+    const store = useTabStore()
+    store.tabItems = [seedServerTab('s1')]
+    store.openIndexTab('s1', 'mydb', 'col')
+    const id = store.tabItems[0]!.innerTabOrder[0]!
+    store.closeIndexTab('s1', id)
+    expect(store.tabItems[0]!.innerTabOrder).toEqual([])
+  })
+
+  it('removes id on closeStatisticsTab', () => {
+    const store = useTabStore()
+    store.tabItems = [seedServerTab('s1')]
+    store.openStatisticsTab('s1', 'mydb', 'col', 'collection')
+    const id = store.tabItems[0]!.innerTabOrder[0]!
+    store.closeStatisticsTab('s1', id)
+    expect(store.tabItems[0]!.innerTabOrder).toEqual([])
+  })
+
+  it('removes id on closeSchemaTab', () => {
+    const store = useTabStore()
+    store.tabItems = [seedServerTab('s1')]
+    store.openSchemaTab('s1', 'mydb', 'col')
+    const id = store.tabItems[0]!.innerTabOrder[0]!
+    store.closeSchemaTab('s1', id)
+    expect(store.tabItems[0]!.innerTabOrder).toEqual([])
+  })
+})
+
+describe('tabs.findFallbackInnerTabId via innerTabOrder', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  it('falls back to last id in innerTabOrder when active type empties', () => {
+    const store = useTabStore()
+    store.tabItems = [seedServerTab('s1')]
+    const q1 = store.openQuery('s1', 'mydb')!
+    store.openIndexTab('s1', 'mydb', 'col')
+    const indexId = store.tabItems[0]!.innerTabOrder[1]!
+    store.tabItems[0]!.activeInnerTabId = indexId
+    store.closeIndexTab('s1', indexId)
+    expect(store.tabItems[0]!.activeInnerTabId).toBe(q1)
+  })
+})
+
+describe('tabs.currentInnerTabIds', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  it('returns innerTabOrder of the active server tab', () => {
+    const store = useTabStore()
+    store.tabItems = [seedServerTab('s1')]
+    store.activeTabIndex = 0
+    const q = store.openQuery('s1', 'mydb')!
+    store.openIndexTab('s1', 'mydb', 'col')
+    expect(store.currentInnerTabIds).toEqual(store.tabItems[0]!.innerTabOrder)
+    expect(store.currentInnerTabIds[0]).toBe(q)
+  })
+
+  it('returns empty array when no tab is active', () => {
+    const store = useTabStore()
+    store.activeTabIndex = -1
+    expect(store.currentInnerTabIds).toEqual([])
+  })
+})
+
+describe('tabs.reorderTabs', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  it('moves an item from one position to another', () => {
+    const store = useTabStore()
+    store.tabItems = [seedServerTab('a'), seedServerTab('b'), seedServerTab('c')]
+    store.activeTabIndex = 0
+    store.reorderTabs(0, 2)
+    expect(store.tabItems.map((t) => t.serverId)).toEqual(['b', 'c', 'a'])
+  })
+
+  it('keeps the same tab active after the move', () => {
+    const store = useTabStore()
+    store.tabItems = [seedServerTab('a'), seedServerTab('b'), seedServerTab('c')]
+    store.activeTabIndex = 1 // active = b
+    store.reorderTabs(0, 2) // a -> end; b shifts left
+    expect(store.tabItems[store.activeTabIndex]!.serverId).toBe('b')
+  })
+
+  it('keeps active tab when active itself is moved', () => {
+    const store = useTabStore()
+    store.tabItems = [seedServerTab('a'), seedServerTab('b'), seedServerTab('c')]
+    store.activeTabIndex = 0 // active = a
+    store.reorderTabs(0, 2)
+    expect(store.tabItems[store.activeTabIndex]!.serverId).toBe('a')
+  })
+
+  it('is a no-op when from === to', () => {
+    const store = useTabStore()
+    store.tabItems = [seedServerTab('a'), seedServerTab('b')]
+    store.activeTabIndex = 1
+    store.reorderTabs(1, 1)
+    expect(store.tabItems.map((t) => t.serverId)).toEqual(['a', 'b'])
+    expect(store.activeTabIndex).toBe(1)
+  })
+
+  it('is a no-op when indices out of range', () => {
+    const store = useTabStore()
+    store.tabItems = [seedServerTab('a'), seedServerTab('b')]
+    store.activeTabIndex = 0
+    store.reorderTabs(-1, 5)
+    expect(store.tabItems.map((t) => t.serverId)).toEqual(['a', 'b'])
+    expect(store.activeTabIndex).toBe(0)
+  })
+})
+
+describe('tabs.reorderInnerTabs', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  it('reorders ids across types and leaves activeInnerTabId untouched', () => {
+    const store = useTabStore()
+    store.tabItems = [seedServerTab('s1')]
+    store.activeTabIndex = 0
+    const q = store.openQuery('s1', 'mydb')!
+    store.openIndexTab('s1', 'mydb', 'col')
+    const i = store.tabItems[0]!.innerTabOrder[1]!
+    store.tabItems[0]!.activeInnerTabId = q
+    store.reorderInnerTabs('s1', 0, 1)
+    expect(store.tabItems[0]!.innerTabOrder).toEqual([i, q])
+    expect(store.tabItems[0]!.activeInnerTabId).toBe(q)
+  })
+
+  it('is a no-op when from === to', () => {
+    const store = useTabStore()
+    store.tabItems = [seedServerTab('s1')]
+    store.activeTabIndex = 0
+    const q = store.openQuery('s1', 'mydb')!
+    store.openIndexTab('s1', 'mydb', 'col')
+    const before = [...store.tabItems[0]!.innerTabOrder]
+    store.reorderInnerTabs('s1', 0, 0)
+    expect(store.tabItems[0]!.innerTabOrder).toEqual(before)
+    expect(q).toBeDefined()
+  })
+
+  it('is a no-op for unknown serverId', () => {
+    const store = useTabStore()
+    store.tabItems = [seedServerTab('s1')]
+    store.activeTabIndex = 0
+    store.openQuery('s1', 'mydb')
+    const before = [...store.tabItems[0]!.innerTabOrder]
+    store.reorderInnerTabs('missing', 0, 1)
+    expect(store.tabItems[0]!.innerTabOrder).toEqual(before)
+  })
+
+  it('is a no-op for out-of-range indices', () => {
+    const store = useTabStore()
+    store.tabItems = [seedServerTab('s1')]
+    store.activeTabIndex = 0
+    store.openQuery('s1', 'mydb')
+    const before = [...store.tabItems[0]!.innerTabOrder]
+    store.reorderInnerTabs('s1', -1, 5)
+    expect(store.tabItems[0]!.innerTabOrder).toEqual(before)
   })
 })
