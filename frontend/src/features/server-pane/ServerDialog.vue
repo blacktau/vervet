@@ -89,6 +89,9 @@ const generalFormRules = () => {
 const isEditMode = computed(() => dialogStore.serverDialogData?.mode === 'edit')
 
 const closingConnection = computed(() => {
+  if (!isEditMode.value) {
+    return false
+  }
   if (isEmpty(editServerID.value)) {
     return false
   }
