@@ -219,3 +219,20 @@ describe('tabs.innerTabOrder maintenance on close', () => {
     expect(store.tabItems[0]!.innerTabOrder).toEqual([])
   })
 })
+
+describe('tabs.findFallbackInnerTabId via innerTabOrder', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  it('falls back to last id in innerTabOrder when active type empties', () => {
+    const store = useTabStore()
+    store.tabItems = [seedServerTab('s1')]
+    const q1 = store.openQuery('s1', 'mydb')!
+    store.openIndexTab('s1', 'mydb', 'col')
+    const indexId = store.tabItems[0]!.innerTabOrder[1]!
+    store.tabItems[0]!.activeInnerTabId = indexId
+    store.closeIndexTab('s1', indexId)
+    expect(store.tabItems[0]!.activeInnerTabId).toBe(q1)
+  })
+})

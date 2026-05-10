@@ -60,19 +60,10 @@ function innerTabType(id: string): BrowserSubTabType {
 }
 
 function findFallbackInnerTabId(tab: ServerTabItem): string | undefined {
-  if (tab.queries.length > 0) {
-    return tab.queries[tab.queries.length - 1]!.id
+  if (tab.innerTabOrder.length === 0) {
+    return undefined
   }
-  if (tab.indexTabs && tab.indexTabs.length > 0) {
-    return tab.indexTabs[tab.indexTabs.length - 1]!.id
-  }
-  if (tab.statisticsTabs && tab.statisticsTabs.length > 0) {
-    return tab.statisticsTabs[tab.statisticsTabs.length - 1]!.id
-  }
-  if (tab.schemaTabs && tab.schemaTabs.length > 0) {
-    return tab.schemaTabs[tab.schemaTabs.length - 1]!.id
-  }
-  return undefined
+  return tab.innerTabOrder[tab.innerTabOrder.length - 1]
 }
 
 export const useTabStore = defineStore('tabs', {
