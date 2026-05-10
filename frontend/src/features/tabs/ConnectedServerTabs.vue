@@ -10,6 +10,7 @@ import { useSettingsStore } from '@/features/settings/settingsStore.ts'
 import { ChevronDownIcon, ServerIcon } from '@heroicons/vue/24/outline'
 import type { ServerTabItem } from '@/types/ServerTabItem.ts'
 import Color from 'color'
+import { useTabSortable } from '@/features/tabs/useTabSortable'
 
 const tabStore = useTabStore()
 const serverStore = useServerStore()
@@ -45,6 +46,10 @@ onBeforeUnmount(() => {
 })
 
 watch(() => tabStore.tabs.length, () => nextTick(checkOverflow))
+
+useTabSortable(tabsRef, '.n-tabs-nav-scroll-content', (from, to) => {
+  tabStore.reorderTabs(from, to)
+})
 
 const serverDropdownOptions = computed<DropdownOption[]>(() => {
   return tabStore.tabs.map((tab, index) => ({
