@@ -1,4 +1,4 @@
-import { onBeforeUnmount, onMounted, type Ref, type ComponentPublicInstance } from 'vue'
+import { nextTick, onBeforeUnmount, watch, type Ref, type ComponentPublicInstance } from 'vue'
 import Sortable from 'sortablejs'
 
 type TabRoot = HTMLElement | ComponentPublicInstance | null
@@ -9,17 +9,32 @@ export function useTabSortable(
   onReorder: (from: number, to: number) => void,
 ): void {
   let sortable: Sortable | null = null
+  let boundEl: HTMLElement | null = null
 
-  onMounted(() => {
-    const root = (rootRef.value as ComponentPublicInstance | null)?.$el
-      ?? (rootRef.value as HTMLElement | null)
+  function teardown() {
+    sortable?.destroy()
+    sortable = null
+    boundEl = null
+  }
+
+  function setup() {
+    const value = rootRef.value
+    const root = (value as ComponentPublicInstance | null)?.$el
+      ?? (value as HTMLElement | null)
     if (!root) {
+      teardown()
       return
     }
     const navEl = root.querySelector(navSelector) as HTMLElement | null
     if (!navEl) {
+      teardown()
       return
     }
+    if (sortable && boundEl === navEl) {
+      return
+    }
+    teardown()
+    boundEl = navEl
     sortable = new Sortable(navEl, {
       animation: 150,
       scroll: true,
@@ -40,10 +55,11 @@ export function useTabSortable(
         }
       },
     })
-  })
+  }
 
-  onBeforeUnmount(() => {
-    sortable?.destroy()
-    sortable = null
-  })
+  watch(rootRef, () => {
+    void nextTick(setup)
+  }, { immediate: true, flush: 'post' })
+
+  onBeforeUnmount(teardown)
 }
