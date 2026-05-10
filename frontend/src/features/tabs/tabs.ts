@@ -630,5 +630,28 @@ export const useTabStore = defineStore('tabs', {
         this.activeTabIndex = this.tabItems.indexOf(activeTab)
       }
     },
+
+    reorderInnerTabs(serverId: string, from: number, to: number) {
+      const tabIndex = findIndex(this.tabItems, { serverId })
+      if (tabIndex === -1) {
+        return
+      }
+      const tab = this.tabItems[tabIndex]
+      if (!tab) {
+        return
+      }
+      const len = tab.innerTabOrder.length
+      if (from === to) {
+        return
+      }
+      if (from < 0 || from >= len || to < 0 || to >= len) {
+        return
+      }
+      const [moved] = tab.innerTabOrder.splice(from, 1)
+      if (moved == null) {
+        return
+      }
+      tab.innerTabOrder.splice(to, 0, moved)
+    },
   },
 })

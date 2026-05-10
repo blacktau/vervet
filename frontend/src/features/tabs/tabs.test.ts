@@ -306,3 +306,54 @@ describe('tabs.reorderTabs', () => {
     expect(store.activeTabIndex).toBe(0)
   })
 })
+
+describe('tabs.reorderInnerTabs', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  it('reorders ids across types and leaves activeInnerTabId untouched', () => {
+    const store = useTabStore()
+    store.tabItems = [seedServerTab('s1')]
+    store.activeTabIndex = 0
+    const q = store.openQuery('s1', 'mydb')!
+    store.openIndexTab('s1', 'mydb', 'col')
+    const i = store.tabItems[0]!.innerTabOrder[1]!
+    store.tabItems[0]!.activeInnerTabId = q
+    store.reorderInnerTabs('s1', 0, 1)
+    expect(store.tabItems[0]!.innerTabOrder).toEqual([i, q])
+    expect(store.tabItems[0]!.activeInnerTabId).toBe(q)
+  })
+
+  it('is a no-op when from === to', () => {
+    const store = useTabStore()
+    store.tabItems = [seedServerTab('s1')]
+    store.activeTabIndex = 0
+    const q = store.openQuery('s1', 'mydb')!
+    store.openIndexTab('s1', 'mydb', 'col')
+    const before = [...store.tabItems[0]!.innerTabOrder]
+    store.reorderInnerTabs('s1', 0, 0)
+    expect(store.tabItems[0]!.innerTabOrder).toEqual(before)
+    expect(q).toBeDefined()
+  })
+
+  it('is a no-op for unknown serverId', () => {
+    const store = useTabStore()
+    store.tabItems = [seedServerTab('s1')]
+    store.activeTabIndex = 0
+    store.openQuery('s1', 'mydb')
+    const before = [...store.tabItems[0]!.innerTabOrder]
+    store.reorderInnerTabs('missing', 0, 1)
+    expect(store.tabItems[0]!.innerTabOrder).toEqual(before)
+  })
+
+  it('is a no-op for out-of-range indices', () => {
+    const store = useTabStore()
+    store.tabItems = [seedServerTab('s1')]
+    store.activeTabIndex = 0
+    store.openQuery('s1', 'mydb')
+    const before = [...store.tabItems[0]!.innerTabOrder]
+    store.reorderInnerTabs('s1', -1, 5)
+    expect(store.tabItems[0]!.innerTabOrder).toEqual(before)
+  })
+})
