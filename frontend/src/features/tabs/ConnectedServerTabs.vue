@@ -141,7 +141,7 @@ const exThemeVars = computed(() => {
     </template>
     <n-tab
       v-for="(t, index) in tabStore.tabs"
-      :key="index"
+      :key="t.serverId"
       :class="tabClass(index)"
       :closable="true"
       :name="index"
