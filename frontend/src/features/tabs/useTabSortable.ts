@@ -41,6 +41,7 @@ export function useTabSortable(
       direction: 'horizontal',
       forceFallback: true,
       fallbackOnBody: false,
+      fallbackTolerance: 5,
       fallbackClass: 'tab-sortable-fallback',
       ghostClass: 'tab-sortable-ghost',
       revertOnSpill: true,
