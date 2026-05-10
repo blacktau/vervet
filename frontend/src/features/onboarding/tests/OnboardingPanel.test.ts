@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { nextTick } from 'vue'
 import { describe, expect, test, beforeEach, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
@@ -63,5 +64,32 @@ describe('OnboardingPanel', () => {
     await w.find('[data-test="uri-input"] input, [data-test="uri-input"] textarea').setValue('mongodb://localhost:27017')
     const button = w.find('[data-test="connect-btn"]')
     expect(button.attributes('disabled')).toBeUndefined()
+  })
+})
+
+describe('OnboardingPanel auto-name', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  test('name auto-fills from URI host', async () => {
+    const w = makeWrapper()
+    const uriField = w.find('[data-test="uri-input"] input, [data-test="uri-input"] textarea')
+    await uriField.setValue('mongodb://example.com:27017')
+    await nextTick()
+    const nameField = w.find('[data-test="name-input"] input')
+    expect((nameField.element as HTMLInputElement).value).toBe('example.com:27017')
+  })
+
+  test('auto-fill stops after user edits name', async () => {
+    const w = makeWrapper()
+    const uriField = w.find('[data-test="uri-input"] input, [data-test="uri-input"] textarea')
+    const nameField = w.find('[data-test="name-input"] input')
+    await uriField.setValue('mongodb://first.example.com:27017')
+    await nextTick()
+    await nameField.setValue('My Custom Name')
+    await uriField.setValue('mongodb://second.example.com:27017')
+    await nextTick()
+    expect((nameField.element as HTMLInputElement).value).toBe('My Custom Name')
   })
 })

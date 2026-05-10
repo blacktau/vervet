@@ -1,7 +1,7 @@
 <script lang="ts" setup>
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { parseUri } from '@/features/server-pane/connectionStrings.ts'
+import { getUriHost, parseUri } from '@/features/server-pane/connectionStrings.ts'
 
 const i18n = useI18n()
 
@@ -9,6 +9,20 @@ const uri = ref('')
 const name = ref('')
 const connecting = ref(false)
 const lastError = ref<{ code: string; detail: string } | null>(null)
+
+const nameTouched = ref(false)
+
+watch(uri, (next) => {
+  if (nameTouched.value) {
+    return
+  }
+  name.value = getUriHost(next)
+})
+
+const onNameInput = (value: string) => {
+  nameTouched.value = true
+  name.value = value
+}
 
 const uriValid = computed(() => {
   if (!uri.value) {
@@ -43,9 +57,10 @@ const onConnect = async () => {
 
         <n-form-item :label="i18n.t('onboarding.nameLabel')">
           <n-input
-            v-model:value="name"
+            :value="name"
             :placeholder="i18n.t('onboarding.namePlaceholder')"
             data-test="name-input"
+            @update:value="onNameInput"
           />
         </n-form-item>
 
