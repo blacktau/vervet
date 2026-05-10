@@ -16,7 +16,10 @@ watch(uri, (next) => {
   if (nameTouched.value) {
     return
   }
-  name.value = getUriHost(next)
+  const host = getUriHost(next)
+  if (host) {
+    name.value = host
+  }
 })
 
 const onNameInput = (value: string) => {
