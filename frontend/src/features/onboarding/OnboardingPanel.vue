@@ -86,7 +86,11 @@ const onConnect = async () => {
     }
 
     const newId = findNewServerId(serverStore.serverTree, existingIds)
-    await connectToServer(newId ?? '')
+    if (!newId) {
+      lastError.value = { code: 'saveFailed', detail: 'Saved server not found in tree' }
+      return
+    }
+    await connectToServer(newId)
   } finally {
     connecting.value = false
   }

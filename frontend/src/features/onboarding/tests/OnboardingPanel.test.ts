@@ -12,13 +12,26 @@ vi.mock('wailsjs/go/api/ConnectionsProxy', () => ({
   TestConnection: vi.fn(),
 }))
 
+interface MockNode {
+  id: string
+  name: string
+  isGroup: boolean
+  parentID?: string
+  colour: string
+  isCluster: boolean
+  isSrv: boolean
+  children?: MockNode[]
+}
+const storeState: { tree: MockNode[] } = { tree: [] }
 const saveServerWithConfig = vi.fn()
 const refreshServers = vi.fn()
 vi.mock('@/features/server-pane/serverStore.ts', () => ({
   useServerStore: () => ({
     saveServerWithConfig,
     refreshServers,
-    serverTree: [],
+    get serverTree() {
+      return storeState.tree
+    },
     findServerById: () => undefined,
   }),
 }))
@@ -45,7 +58,7 @@ function makeWrapper() {
           advanced: 'Advanced',
           errorTitle: 'Could not connect',
         },
-        errors: { CONN_FAIL: 'Connection failed' },
+        errors: { CONN_FAIL: 'Connection failed', saveFailed: 'Could not save server' },
         uriParser: { invalidScheme: 'bad scheme', emptyUri: 'empty' },
       },
     },
@@ -115,7 +128,20 @@ describe('OnboardingPanel connect flow', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
-    saveServerWithConfig.mockResolvedValue({ success: true })
+    storeState.tree = []
+    saveServerWithConfig.mockImplementation(async (name: string) => {
+      storeState.tree = [
+        {
+          id: 'new-server-id',
+          name,
+          isGroup: false,
+          colour: '',
+          isCluster: false,
+          isSrv: false,
+        },
+      ]
+      return { success: true }
+    })
     refreshServers.mockResolvedValue(undefined)
     vi.mocked(connectionsProxy.TestConnection).mockResolvedValue({ isSuccess: true })
   })
@@ -132,7 +158,18 @@ describe('OnboardingPanel connect flow', () => {
       '',
       { uri: 'mongodb://localhost:27017', authMethod: 'password', oidcConfig: undefined },
     )
-    expect(connectToServer).toHaveBeenCalled()
+    expect(connectToServer).toHaveBeenCalledWith('new-server-id')
+  })
+
+  test('save succeeds but new ID not in tree shows saveFailed error', async () => {
+    saveServerWithConfig.mockResolvedValue({ success: true })
+    const w = makeWrapper()
+    await w.find('[data-test="uri-input"] input, [data-test="uri-input"] textarea').setValue('mongodb://localhost:27017')
+    await w.find('[data-test="connect-btn"]').trigger('click')
+    await new Promise((r) => setTimeout(r, 0))
+    expect(saveServerWithConfig).toHaveBeenCalled()
+    expect(connectToServer).not.toHaveBeenCalled()
+    expect(w.find('[data-test="error-alert"]').exists()).toBe(true)
   })
 
   test('OIDC URI skips TestConnection', async () => {
