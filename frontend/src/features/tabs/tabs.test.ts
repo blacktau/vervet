@@ -258,3 +258,51 @@ describe('tabs.currentInnerTabIds', () => {
     expect(store.currentInnerTabIds).toEqual([])
   })
 })
+
+describe('tabs.reorderTabs', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  it('moves an item from one position to another', () => {
+    const store = useTabStore()
+    store.tabItems = [seedServerTab('a'), seedServerTab('b'), seedServerTab('c')]
+    store.activeTabIndex = 0
+    store.reorderTabs(0, 2)
+    expect(store.tabItems.map((t) => t.serverId)).toEqual(['b', 'c', 'a'])
+  })
+
+  it('keeps the same tab active after the move', () => {
+    const store = useTabStore()
+    store.tabItems = [seedServerTab('a'), seedServerTab('b'), seedServerTab('c')]
+    store.activeTabIndex = 1 // active = b
+    store.reorderTabs(0, 2) // a -> end; b shifts left
+    expect(store.tabItems[store.activeTabIndex]!.serverId).toBe('b')
+  })
+
+  it('keeps active tab when active itself is moved', () => {
+    const store = useTabStore()
+    store.tabItems = [seedServerTab('a'), seedServerTab('b'), seedServerTab('c')]
+    store.activeTabIndex = 0 // active = a
+    store.reorderTabs(0, 2)
+    expect(store.tabItems[store.activeTabIndex]!.serverId).toBe('a')
+  })
+
+  it('is a no-op when from === to', () => {
+    const store = useTabStore()
+    store.tabItems = [seedServerTab('a'), seedServerTab('b')]
+    store.activeTabIndex = 1
+    store.reorderTabs(1, 1)
+    expect(store.tabItems.map((t) => t.serverId)).toEqual(['a', 'b'])
+    expect(store.activeTabIndex).toBe(1)
+  })
+
+  it('is a no-op when indices out of range', () => {
+    const store = useTabStore()
+    store.tabItems = [seedServerTab('a'), seedServerTab('b')]
+    store.activeTabIndex = 0
+    store.reorderTabs(-1, 5)
+    expect(store.tabItems.map((t) => t.serverId)).toEqual(['a', 'b'])
+    expect(store.activeTabIndex).toBe(0)
+  })
+})

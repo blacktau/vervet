@@ -611,5 +611,24 @@ export const useTabStore = defineStore('tabs', {
     schemaTabLabel(_tab: ServerTabItem, schemaTab: SchemaTabItem): string {
       return i18nGlobal.t('schemaBrowser.tabLabel', { collection: schemaTab.collectionName })
     },
+
+    reorderTabs(from: number, to: number) {
+      const len = this.tabItems.length
+      if (from === to) {
+        return
+      }
+      if (from < 0 || from >= len || to < 0 || to >= len) {
+        return
+      }
+      const activeTab = this.tabItems[this.activeTabIndex]
+      const [moved] = this.tabItems.splice(from, 1)
+      if (!moved) {
+        return
+      }
+      this.tabItems.splice(to, 0, moved)
+      if (activeTab) {
+        this.activeTabIndex = this.tabItems.indexOf(activeTab)
+      }
+    },
   },
 })
