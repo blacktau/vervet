@@ -12,6 +12,7 @@ import CollectionStatisticsTab from '@/features/statistics/CollectionStatisticsT
 import DatabaseStatisticsTab from '@/features/statistics/DatabaseStatisticsTab.vue'
 import ServerStatisticsTab from '@/features/statistics/ServerStatisticsTab.vue'
 import SchemaBrowserPane from '@/features/schema-browser/SchemaBrowserPane.vue'
+import { useTabSortable } from '@/features/tabs/useTabSortable'
 
 type UnifiedTab = {
   id: string
@@ -34,42 +35,35 @@ const unifiedTabs = computed<UnifiedTab[]>(() => {
   if (!tab) {
     return []
   }
+  const queryById = new Map(tab.queries.map((q) => [q.id, q] as const))
+  const indexById = new Map((tab.indexTabs ?? []).map((i) => [i.id, i] as const))
+  const statsById = new Map((tab.statisticsTabs ?? []).map((s) => [s.id, s] as const))
+  const schemaById = new Map((tab.schemaTabs ?? []).map((s) => [s.id, s] as const))
 
-  const tabs: UnifiedTab[] = []
-
-  for (const query of tab.queries) {
-    tabs.push({
-      id: query.id,
-      label: tabStore.queryTabLabel(tab, query),
-      type: 'query',
-    })
+  const result: UnifiedTab[] = []
+  for (const id of tab.innerTabOrder) {
+    const q = queryById.get(id)
+    if (q) {
+      result.push({ id, label: tabStore.queryTabLabel(tab, q), type: 'query' })
+      continue
+    }
+    const i = indexById.get(id)
+    if (i) {
+      result.push({ id, label: tabStore.indexTabLabel(tab, i), type: 'index' })
+      continue
+    }
+    const s = statsById.get(id)
+    if (s) {
+      result.push({ id, label: tabStore.statisticsTabLabel(tab, s), type: 'statistics' })
+      continue
+    }
+    const sc = schemaById.get(id)
+    if (sc) {
+      result.push({ id, label: tabStore.schemaTabLabel(tab, sc), type: 'schema' })
+      continue
+    }
   }
-
-  for (const indexTab of tab.indexTabs ?? []) {
-    tabs.push({
-      id: indexTab.id,
-      label: tabStore.indexTabLabel(tab, indexTab),
-      type: 'index',
-    })
-  }
-
-  for (const statsTab of tab.statisticsTabs ?? []) {
-    tabs.push({
-      id: statsTab.id,
-      label: tabStore.statisticsTabLabel(tab, statsTab),
-      type: 'statistics',
-    })
-  }
-
-  for (const schemaTab of tab.schemaTabs ?? []) {
-    tabs.push({
-      id: schemaTab.id,
-      label: tabStore.schemaTabLabel(tab, schemaTab),
-      type: 'schema',
-    })
-  }
-
-  return tabs
+  return result
 })
 
 const hasInnerTabs = computed(() => unifiedTabs.value.length > 0)
@@ -103,6 +97,14 @@ onBeforeUnmount(() => {
 })
 
 watch(() => unifiedTabs.value.length, () => nextTick(checkOverflow))
+
+useTabSortable(innerTabsRef, '.n-tabs-nav-scroll-content', (from, to) => {
+  const serverId = tabStore.currentTab?.serverId
+  if (!serverId) {
+    return
+  }
+  tabStore.reorderInnerTabs(serverId, from, to)
+})
 
 const tabDropdownOptions = computed<DropdownOption[]>(() => {
   return unifiedTabs.value.map((tab) => ({
