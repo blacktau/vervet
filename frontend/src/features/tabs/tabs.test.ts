@@ -177,3 +177,45 @@ describe('tabs.innerTabOrder maintenance on add', () => {
     expect(store.tabItems[0]!.innerTabOrder.length).toBe(1)
   })
 })
+
+describe('tabs.innerTabOrder maintenance on close', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  it('removes id on closeQuery', () => {
+    const store = useTabStore()
+    store.tabItems = [seedServerTab('s1')]
+    const a = store.openQuery('s1', 'mydb')!
+    const b = store.openQuery('s1', 'mydb')!
+    store.closeQuery('s1', a)
+    expect(store.tabItems[0]!.innerTabOrder).toEqual([b])
+  })
+
+  it('removes id on closeIndexTab', () => {
+    const store = useTabStore()
+    store.tabItems = [seedServerTab('s1')]
+    store.openIndexTab('s1', 'mydb', 'col')
+    const id = store.tabItems[0]!.innerTabOrder[0]!
+    store.closeIndexTab('s1', id)
+    expect(store.tabItems[0]!.innerTabOrder).toEqual([])
+  })
+
+  it('removes id on closeStatisticsTab', () => {
+    const store = useTabStore()
+    store.tabItems = [seedServerTab('s1')]
+    store.openStatisticsTab('s1', 'mydb', 'col', 'collection')
+    const id = store.tabItems[0]!.innerTabOrder[0]!
+    store.closeStatisticsTab('s1', id)
+    expect(store.tabItems[0]!.innerTabOrder).toEqual([])
+  })
+
+  it('removes id on closeSchemaTab', () => {
+    const store = useTabStore()
+    store.tabItems = [seedServerTab('s1')]
+    store.openSchemaTab('s1', 'mydb', 'col')
+    const id = store.tabItems[0]!.innerTabOrder[0]!
+    store.closeSchemaTab('s1', id)
+    expect(store.tabItems[0]!.innerTabOrder).toEqual([])
+  })
+})

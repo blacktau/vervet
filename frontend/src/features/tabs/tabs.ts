@@ -301,6 +301,11 @@ export const useTabStore = defineStore('tabs', {
 
       tab.queries.splice(queryIndex, 1)
 
+      const orderIdx = tab.innerTabOrder.indexOf(queryId)
+      if (orderIdx !== -1) {
+        tab.innerTabOrder.splice(orderIdx, 1)
+      }
+
       if (tab.activeInnerTabId === queryId) {
         if (tab.queries.length > 0) {
           const newIndex = Math.min(queryIndex, tab.queries.length - 1)
@@ -414,6 +419,11 @@ export const useTabStore = defineStore('tabs', {
 
       tab.indexTabs.splice(idx, 1)
 
+      const orderIdx = tab.innerTabOrder.indexOf(indexTabId)
+      if (orderIdx !== -1) {
+        tab.innerTabOrder.splice(orderIdx, 1)
+      }
+
       if (tab.activeInnerTabId === indexTabId) {
         if (tab.indexTabs.length > 0) {
           const newIdx = Math.min(idx, tab.indexTabs.length - 1)
@@ -491,6 +501,11 @@ export const useTabStore = defineStore('tabs', {
       }
 
       tab.statisticsTabs.splice(idx, 1)
+
+      const orderIdx = tab.innerTabOrder.indexOf(statisticsTabId)
+      if (orderIdx !== -1) {
+        tab.innerTabOrder.splice(orderIdx, 1)
+      }
 
       if (tab.activeInnerTabId === statisticsTabId) {
         if (tab.statisticsTabs.length > 0) {
@@ -574,6 +589,11 @@ export const useTabStore = defineStore('tabs', {
       }
 
       tab.schemaTabs.splice(idx, 1)
+
+      const orderIdx = tab.innerTabOrder.indexOf(schemaTabId)
+      if (orderIdx !== -1) {
+        tab.innerTabOrder.splice(orderIdx, 1)
+      }
 
       if (tab.activeInnerTabId === schemaTabId) {
         if (tab.schemaTabs.length > 0) {
