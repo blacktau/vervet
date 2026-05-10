@@ -26,6 +26,7 @@ type TabStoreGetters = {
   currentStatisticsTab: () => StatisticsTabItem | undefined
   currentSchemaTabs: () => SchemaTabItem[]
   currentSchemaTab: () => SchemaTabItem | undefined
+  currentInnerTabIds: () => string[]
 }
 
 type TabUpsertOptions = ServerTabItem & {
@@ -116,6 +117,9 @@ export const useTabStore = defineStore('tabs', {
         return undefined
       }
       return tab.schemaTabs.find((t) => t.id === tab.activeInnerTabId)
+    },
+    currentInnerTabIds(state: TabStoreState) {
+      return state.tabItems[state.activeTabIndex]?.innerTabOrder ?? []
     },
   } as TabStoreGetters,
   actions: {

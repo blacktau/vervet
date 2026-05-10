@@ -236,3 +236,25 @@ describe('tabs.findFallbackInnerTabId via innerTabOrder', () => {
     expect(store.tabItems[0]!.activeInnerTabId).toBe(q1)
   })
 })
+
+describe('tabs.currentInnerTabIds', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  it('returns innerTabOrder of the active server tab', () => {
+    const store = useTabStore()
+    store.tabItems = [seedServerTab('s1')]
+    store.activeTabIndex = 0
+    const q = store.openQuery('s1', 'mydb')!
+    store.openIndexTab('s1', 'mydb', 'col')
+    expect(store.currentInnerTabIds).toEqual(store.tabItems[0]!.innerTabOrder)
+    expect(store.currentInnerTabIds[0]).toBe(q)
+  })
+
+  it('returns empty array when no tab is active', () => {
+    const store = useTabStore()
+    store.activeTabIndex = -1
+    expect(store.currentInnerTabIds).toEqual([])
+  })
+})
