@@ -9,6 +9,7 @@ import {
 import { useServerStore } from '@/features/server-pane/serverStore.ts'
 import { useServerConnection } from '@/features/server-pane/useServerConnection.ts'
 import { useDialogStore } from '@/stores/dialog.ts'
+import logoUrl from '@/assets/logo.svg'
 import * as connectionsProxy from 'wailsjs/go/api/ConnectionsProxy'
 import type { RegisteredServerNode } from '@/features/server-pane/serverStore.ts'
 
@@ -148,8 +149,11 @@ function findNewServerId(
 <template>
   <div class="onboarding-wrapper flex-box-v">
     <div class="onboarding-card">
-      <h1 class="title">{{ i18n.t('onboarding.welcomeTitle') }}</h1>
-      <p class="subtitle">{{ i18n.t('onboarding.welcomeSubtitle') }}</p>
+      <div class="header">
+        <img :src="logoUrl" alt="Vervet" class="logo" />
+        <h1 class="title">{{ i18n.t('onboarding.welcomeTitle') }}</h1>
+        <p class="subtitle">{{ i18n.t('onboarding.welcomeSubtitle') }}</p>
+      </div>
 
       <n-form label-placement="top">
         <n-form-item :label="i18n.t('onboarding.uriLabel')">
@@ -217,6 +221,17 @@ function findNewServerId(
   max-width: 480px;
 }
 
+.header {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.logo {
+  width: 128px;
+  height: 128px;
+  margin-bottom: 16px;
+}
+
 .title {
   font-size: 24px;
   font-weight: 500;
@@ -224,7 +239,7 @@ function findNewServerId(
 }
 
 .subtitle {
-  margin: 0 0 24px;
+  margin: 0;
   opacity: 0.75;
 }
 
