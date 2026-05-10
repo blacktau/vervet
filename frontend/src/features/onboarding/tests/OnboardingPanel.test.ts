@@ -41,6 +41,12 @@ vi.mock('@/features/server-pane/useServerConnection.ts', () => ({
   useServerConnection: () => ({ connectToServer }),
 }))
 
+const showNewServerDialog = vi.fn()
+vi.mock('@/stores/dialog.ts', () => ({
+  useDialogStore: () => ({ showNewServerDialog }),
+  DialogType: { Server: 'server' },
+}))
+
 function makeWrapper() {
   const i18n = createI18n({
     legacy: false,
@@ -216,5 +222,23 @@ describe('OnboardingPanel connect flow', () => {
     expect(w.find('[data-test="error-alert"]').exists()).toBe(true)
     await uriField.setValue('mongodb://localhost:27018')
     expect(w.find('[data-test="error-alert"]').exists()).toBe(false)
+  })
+})
+
+describe('OnboardingPanel advanced link', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+  })
+
+  test('opens dialog with prefilled URI and name', async () => {
+    const w = makeWrapper()
+    await w.find('[data-test="uri-input"] input, [data-test="uri-input"] textarea').setValue('mongodb://localhost:27017')
+    await nextTick()
+    await w.find('[data-test="advanced-link"]').trigger('click')
+    expect(showNewServerDialog).toHaveBeenCalledWith({
+      uri: 'mongodb://localhost:27017',
+      name: 'localhost:27017',
+    })
   })
 })

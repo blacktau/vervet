@@ -8,6 +8,7 @@ import {
 } from '@/features/server-pane/connectionStrings.ts'
 import { useServerStore } from '@/features/server-pane/serverStore.ts'
 import { useServerConnection } from '@/features/server-pane/useServerConnection.ts'
+import { useDialogStore } from '@/stores/dialog.ts'
 import * as connectionsProxy from 'wailsjs/go/api/ConnectionsProxy'
 import type { RegisteredServerNode } from '@/features/server-pane/serverStore.ts'
 
@@ -15,6 +16,7 @@ const i18n = useI18n()
 
 const serverStore = useServerStore()
 const { connectToServer } = useServerConnection()
+const dialogStore = useDialogStore()
 
 const uri = ref('')
 const name = ref('')
@@ -40,6 +42,13 @@ watch(uri, (next) => {
 const onNameInput = (value: string) => {
   nameTouched.value = true
   name.value = value
+}
+
+const onAdvanced = () => {
+  dialogStore.showNewServerDialog({
+    uri: uri.value,
+    name: name.value,
+  })
 }
 
 const uriValid = computed(() => {
@@ -186,7 +195,7 @@ function findNewServerId(
         </n-button>
 
         <div class="advanced-link">
-          <n-button text data-test="advanced-link">
+          <n-button text data-test="advanced-link" @click="onAdvanced">
             {{ i18n.t('onboarding.advanced') }}
           </n-button>
         </div>
