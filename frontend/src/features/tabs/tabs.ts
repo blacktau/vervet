@@ -191,6 +191,7 @@ export const useTabStore = defineStore('tabs', {
           queries: [],
           indexTabs: [],
           statisticsTabs: [],
+          innerTabOrder: [],
         }
         this.tabItems.push(tabItem)
         tabIndex = this.tabItems.length - 1

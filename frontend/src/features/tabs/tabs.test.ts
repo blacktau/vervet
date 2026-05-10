@@ -42,6 +42,7 @@ function seedServerTab(serverId: string): ServerTabItem {
     blank: false,
     serverId,
     queries: [],
+    innerTabOrder: [],
   }
 }
 
