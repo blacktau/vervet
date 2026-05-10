@@ -1,9 +1,20 @@
 <script lang="ts" setup>
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { getUriHost, parseUri } from '@/features/server-pane/connectionStrings.ts'
+import {
+  detectAuthFromUri,
+  getUriHost,
+  parseUri,
+} from '@/features/server-pane/connectionStrings.ts'
+import { useServerStore } from '@/features/server-pane/serverStore.ts'
+import { useServerConnection } from '@/features/server-pane/useServerConnection.ts'
+import * as connectionsProxy from 'wailsjs/go/api/ConnectionsProxy'
+import type { RegisteredServerNode } from '@/features/server-pane/serverStore.ts'
 
 const i18n = useI18n()
+
+const serverStore = useServerStore()
+const { connectToServer } = useServerConnection()
 
 const uri = ref('')
 const name = ref('')
@@ -11,6 +22,10 @@ const connecting = ref(false)
 const lastError = ref<{ code: string; detail: string } | null>(null)
 
 const nameTouched = ref(false)
+
+watch(uri, () => {
+  lastError.value = null
+})
 
 watch(uri, (next) => {
   if (nameTouched.value) {
@@ -37,7 +52,83 @@ const uriValid = computed(() => {
 const canConnect = computed(() => uriValid.value && !connecting.value)
 
 const onConnect = async () => {
-  // wired in Task 7
+  if (!uriValid.value) {
+    return
+  }
+  lastError.value = null
+  connecting.value = true
+  try {
+    const detected = detectAuthFromUri(uri.value)
+    const finalUri = detected.uri
+
+    if (detected.authMethod !== 'oidc') {
+      const testResult = await connectionsProxy.TestConnection(finalUri)
+      if (!testResult.isSuccess) {
+        lastError.value = {
+          code: testResult.errorCode,
+          detail: testResult.errorDetail,
+        }
+        return
+      }
+    }
+
+    const existingIds = collectServerIds(serverStore.serverTree)
+
+    const saveResult = await serverStore.saveServerWithConfig(
+      name.value,
+      '',
+      '',
+      { uri: finalUri, authMethod: detected.authMethod, oidcConfig: undefined },
+    )
+    if (!saveResult.success) {
+      lastError.value = { code: 'saveFailed', detail: saveResult.msg ?? '' }
+      return
+    }
+
+    const newId = findNewServerId(serverStore.serverTree, existingIds)
+    await connectToServer(newId ?? '')
+  } finally {
+    connecting.value = false
+  }
+}
+
+function collectServerIds(nodes: RegisteredServerNode[]): Set<string> {
+  const ids = new Set<string>()
+  const walk = (list: RegisteredServerNode[]) => {
+    for (const node of list) {
+      if (!node.isGroup) {
+        ids.add(node.id)
+      }
+      if (node.children) {
+        walk(node.children)
+      }
+    }
+  }
+  walk(nodes)
+  return ids
+}
+
+function findNewServerId(
+  nodes: RegisteredServerNode[],
+  before: Set<string>,
+): string | undefined {
+  let found: string | undefined
+  const walk = (list: RegisteredServerNode[]) => {
+    for (const node of list) {
+      if (!node.isGroup && !before.has(node.id)) {
+        found = node.id
+        return
+      }
+      if (node.children) {
+        walk(node.children)
+        if (found) {
+          return
+        }
+      }
+    }
+  }
+  walk(nodes)
+  return found
 }
 </script>
 

@@ -708,6 +708,7 @@ export default {
     operation_not_supported: 'Operation not supported by the current query engine',
     unknown_error: 'An unexpected error occurred',
     configParseError: 'Your server configuration file could not be read. Your server list may appear empty until the file is repaired or new servers are added.',
+    saveFailed: 'Could not save server',
   },
   errorTitles: {
     loadServers: 'Failed to load servers',

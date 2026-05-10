@@ -6,9 +6,26 @@ import { createPinia, setActivePinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
 import naive from 'naive-ui'
 import OnboardingPanel from '@/features/onboarding/OnboardingPanel.vue'
+import * as connectionsProxy from 'wailsjs/go/api/ConnectionsProxy'
 
 vi.mock('wailsjs/go/api/ConnectionsProxy', () => ({
   TestConnection: vi.fn(),
+}))
+
+const saveServerWithConfig = vi.fn()
+const refreshServers = vi.fn()
+vi.mock('@/features/server-pane/serverStore.ts', () => ({
+  useServerStore: () => ({
+    saveServerWithConfig,
+    refreshServers,
+    serverTree: [],
+    findServerById: () => undefined,
+  }),
+}))
+
+const connectToServer = vi.fn()
+vi.mock('@/features/server-pane/useServerConnection.ts', () => ({
+  useServerConnection: () => ({ connectToServer }),
 }))
 
 function makeWrapper() {
@@ -91,5 +108,76 @@ describe('OnboardingPanel auto-name', () => {
     await uriField.setValue('mongodb://second.example.com:27017')
     await nextTick()
     expect((nameField.element as HTMLInputElement).value).toBe('My Custom Name')
+  })
+})
+
+describe('OnboardingPanel connect flow', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    saveServerWithConfig.mockResolvedValue({ success: true })
+    refreshServers.mockResolvedValue(undefined)
+    vi.mocked(connectionsProxy.TestConnection).mockResolvedValue({ isSuccess: true })
+  })
+
+  test('happy path: tests, saves, then connects', async () => {
+    const w = makeWrapper()
+    await w.find('[data-test="uri-input"] input, [data-test="uri-input"] textarea').setValue('mongodb://localhost:27017')
+    await w.find('[data-test="connect-btn"]').trigger('click')
+    await new Promise((r) => setTimeout(r, 0))
+    expect(connectionsProxy.TestConnection).toHaveBeenCalledWith('mongodb://localhost:27017')
+    expect(saveServerWithConfig).toHaveBeenCalledWith(
+      'localhost:27017',
+      '',
+      '',
+      { uri: 'mongodb://localhost:27017', authMethod: 'password', oidcConfig: undefined },
+    )
+    expect(connectToServer).toHaveBeenCalled()
+  })
+
+  test('OIDC URI skips TestConnection', async () => {
+    const w = makeWrapper()
+    await w.find('[data-test="uri-input"] input, [data-test="uri-input"] textarea').setValue('mongodb://host/?authMechanism=MONGODB-OIDC')
+    await w.find('[data-test="connect-btn"]').trigger('click')
+    await new Promise((r) => setTimeout(r, 0))
+    expect(connectionsProxy.TestConnection).not.toHaveBeenCalled()
+    expect(saveServerWithConfig).toHaveBeenCalledWith(
+      'host',
+      '',
+      '',
+      expect.objectContaining({ authMethod: 'oidc' }),
+    )
+    expect(connectToServer).toHaveBeenCalled()
+  })
+
+  test('failed test prevents save', async () => {
+    vi.mocked(connectionsProxy.TestConnection).mockResolvedValue({
+      isSuccess: false,
+      errorCode: 'CONN_FAIL',
+      errorDetail: 'refused',
+    })
+    const w = makeWrapper()
+    await w.find('[data-test="uri-input"] input, [data-test="uri-input"] textarea').setValue('mongodb://localhost:27017')
+    await w.find('[data-test="connect-btn"]').trigger('click')
+    await new Promise((r) => setTimeout(r, 0))
+    expect(saveServerWithConfig).not.toHaveBeenCalled()
+    expect(connectToServer).not.toHaveBeenCalled()
+    expect(w.find('[data-test="error-alert"]').exists()).toBe(true)
+  })
+
+  test('editing URI after failure clears error', async () => {
+    vi.mocked(connectionsProxy.TestConnection).mockResolvedValue({
+      isSuccess: false,
+      errorCode: 'CONN_FAIL',
+      errorDetail: 'refused',
+    })
+    const w = makeWrapper()
+    const uriField = w.find('[data-test="uri-input"] input, [data-test="uri-input"] textarea')
+    await uriField.setValue('mongodb://localhost:27017')
+    await w.find('[data-test="connect-btn"]').trigger('click')
+    await new Promise((r) => setTimeout(r, 0))
+    expect(w.find('[data-test="error-alert"]').exists()).toBe(true)
+    await uriField.setValue('mongodb://localhost:27018')
+    expect(w.find('[data-test="error-alert"]').exists()).toBe(false)
   })
 })
