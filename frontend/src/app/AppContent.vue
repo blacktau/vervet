@@ -15,6 +15,7 @@ import ResizeableWrapper from '@/features/common/ResizeableWrapper.vue'
 import ServerPane from '@/features/server-pane/ServerPane.vue'
 import DataBrowserPane from '@/features/data-browser/DataBrowserPane.vue'
 import UnconnectedContent from '@/features/unconnected-content/UnconnectedContent.vue'
+import OnboardingPanel from '@/features/onboarding/OnboardingPanel.vue'
 import TitleBar from '@/app/TitleBar.vue'
 import UnifiedContentPane from '@/features/tabs/UnifiedContentPane.vue'
 import WorkspacePane from '@/features/workspaces/WorkspacePane.vue'
@@ -202,7 +203,12 @@ watch(
             @update:size="handleResize">
             <server-pane class="app-side flex-item-expand" />
           </resizeable-wrapper>
-          <unconnected-content class="flex-item-expand" />
+          <onboarding-panel
+            v-if="serverStore.serverTree.length === 0"
+            class="flex-item-expand" />
+          <unconnected-content
+            v-else
+            class="flex-item-expand" />
         </div>
         <div
           v-show="tabStore.nav === NavType.Workspaces"

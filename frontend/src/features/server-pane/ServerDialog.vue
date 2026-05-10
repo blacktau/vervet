@@ -8,7 +8,7 @@ import { DialogType, useDialogStore } from '@/stores/dialog.ts'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 import { type RegisteredServerNode, useServerStore } from '@/features/server-pane/serverStore.ts'
 import { useMessager, useNotifier } from '@/utils/dialog.ts'
-import { parseUri } from '@/features/server-pane/connectionStrings.ts'
+import { parseUri, detectAuthFromUri } from '@/features/server-pane/connectionStrings.ts'
 import { filterGroupMap } from '@/features/server-pane/helpers.ts'
 import * as connectionsProxy from 'wailsjs/go/api/ConnectionsProxy'
 import type { AuthMethod, OIDCConfig } from '@/types/ConnectionConfig'
@@ -164,6 +164,7 @@ const onClose = () => {
 }
 
 const resetForm = () => {
+  editServerID.value = undefined
   generalForm.value = {
     id: '',
     name: '',
@@ -185,30 +186,44 @@ const resetForm = () => {
 watch(
   () => dialogStore.dialogs[DialogType.Server].visible,
   async (visible: boolean) => {
-    if (visible) {
-      resetForm()
-      const rawData = dialogStore.dialogs[DialogType.Server].data as Record<string, string> | undefined
-      if (rawData?.parentId) {
-        generalForm.value.parentId = rawData.parentId
-      }
-      const data = dialogStore.serverDialogData
-      if (data?.mode == 'edit' || data?.mode == 'clone') {
-        editServerID.value = data?.serverId
-        const server = await serverStore.getServerDetails(data?.serverId)
-        if (server != null) {
-          generalForm.value = {
-            id: server.id,
-            name: server.name,
-            colour: server.colour,
-            connectionString: server.uri,
-            parentId: server.parentID || '',
-          }
-          authMethod.value = server.authMethod ?? 'password'
-          if (server.oidcConfig) {
-            oidcConfig.value = { ...server.oidcConfig }
-          }
+    if (!visible) {
+      return
+    }
+    resetForm()
+    const data = dialogStore.serverDialogData
+    if (data?.mode === 'edit' || data?.mode === 'clone') {
+      editServerID.value = data.serverId
+      const server = await serverStore.getServerDetails(data.serverId)
+      if (server != null) {
+        generalForm.value = {
+          id: server.id,
+          name: server.name,
+          colour: server.colour,
+          connectionString: server.uri,
+          parentId: server.parentID || '',
+        }
+        authMethod.value = server.authMethod ?? 'password'
+        if (server.oidcConfig) {
+          oidcConfig.value = { ...server.oidcConfig }
         }
       }
+      return
+    }
+    if (data?.mode === 'new') {
+      if (data.uri) {
+        generalForm.value.connectionString = data.uri
+      }
+      if (data.name) {
+        generalForm.value.name = data.name
+      }
+      return
+    }
+    // legacy parentId payload (ServerPane right-click "New server in group")
+    const rawData = dialogStore.dialogs[DialogType.Server].data as
+      | Record<string, string>
+      | undefined
+    if (rawData?.parentId) {
+      generalForm.value.parentId = rawData.parentId
     }
   },
   { immediate: true },
@@ -220,25 +235,13 @@ watch(
     if (!uri) {
       return
     }
-    const lower = uri.toLowerCase()
-    if (lower.includes('authmechanism=mongodb-oidc')) {
-      authMethod.value = 'oidc'
-      generalForm.value.connectionString = stripAuthMechanism(uri)
-    } else if (lower.includes('authmechanism=mongodb-x509')) {
-      authMethod.value = 'x509'
-    } else if (lower.includes('authmechanism=mongodb-aws')) {
-      authMethod.value = 'aws'
+    const detected = detectAuthFromUri(uri)
+    if (detected.authMethod !== 'password') {
+      authMethod.value = detected.authMethod
+      generalForm.value.connectionString = detected.uri
     }
   },
 )
-
-function stripAuthMechanism(uri: string): string {
-  return uri
-    .replace(/[?&]authMechanism=[^&]*/gi, '')
-    .replace(/[?&]authMechanismProperties=[^&]*/gi, '')
-    .replace(/\?&/, '?')
-    .replace(/\?$/, '')
-}
 
 const onTestConnection = async () => {
   if (authMethod.value === 'oidc') {

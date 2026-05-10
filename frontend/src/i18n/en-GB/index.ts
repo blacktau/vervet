@@ -683,6 +683,17 @@ export default {
     emptyContent: 'Choose and open a collection from the panel on the left',
     newConnection: 'Add Connection',
   },
+  onboarding: {
+    welcomeTitle: 'Welcome to Vervet',
+    welcomeSubtitle: 'Paste a MongoDB connection string to get started.',
+    uriLabel: 'Connection string',
+    uriPlaceholder: 'mongodb://localhost:27017',
+    nameLabel: 'Name',
+    namePlaceholder: 'My Server',
+    connect: 'Connect',
+    advanced: 'Advanced options…',
+    errorTitle: 'Could not connect',
+  },
   errors: {
     connection_failed: 'Failed to connect to the server',
     auth_failed: 'Authentication failed',
@@ -697,6 +708,7 @@ export default {
     operation_not_supported: 'Operation not supported by the current query engine',
     unknown_error: 'An unexpected error occurred',
     configParseError: 'Your server configuration file could not be read. Your server list may appear empty until the file is repaired or new servers are added.',
+    saveFailed: 'Could not save server',
   },
   errorTitles: {
     loadServers: 'Failed to load servers',
