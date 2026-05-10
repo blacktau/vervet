@@ -120,3 +120,60 @@ describe('tabs.duplicateQuery', () => {
     expect(tabs.duplicateQuery('s1', 'query-999999')).toBeUndefined()
   })
 })
+
+describe('tabs.innerTabOrder maintenance on add', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  it('appends id when openQuery is called', () => {
+    const store = useTabStore()
+    store.tabItems = [seedServerTab('s1')]
+    const id = store.openQuery('s1', 'mydb')
+    expect(store.tabItems[0]!.innerTabOrder).toEqual([id])
+  })
+
+  it('appends id when openIndexTab is called', () => {
+    const store = useTabStore()
+    store.tabItems = [seedServerTab('s1')]
+    store.openIndexTab('s1', 'mydb', 'col')
+    const ids = store.tabItems[0]!.innerTabOrder
+    expect(ids.length).toBe(1)
+    expect(ids[0]!.startsWith('index-')).toBe(true)
+  })
+
+  it('appends id when openStatisticsTab is called', () => {
+    const store = useTabStore()
+    store.tabItems = [seedServerTab('s1')]
+    store.openStatisticsTab('s1', 'mydb', 'col', 'collection')
+    const ids = store.tabItems[0]!.innerTabOrder
+    expect(ids.length).toBe(1)
+    expect(ids[0]!.startsWith('stats-')).toBe(true)
+  })
+
+  it('appends id when openSchemaTab is called', () => {
+    const store = useTabStore()
+    store.tabItems = [seedServerTab('s1')]
+    store.openSchemaTab('s1', 'mydb', 'col')
+    const ids = store.tabItems[0]!.innerTabOrder
+    expect(ids.length).toBe(1)
+    expect(ids[0]!.startsWith('schema-')).toBe(true)
+  })
+
+  it('inserts duplicated query id immediately after source', () => {
+    const store = useTabStore()
+    store.tabItems = [seedServerTab('s1')]
+    const a = store.openQuery('s1', 'mydb')!
+    const b = store.openQuery('s1', 'mydb')!
+    const dup = store.duplicateQuery('s1', a)!
+    expect(store.tabItems[0]!.innerTabOrder).toEqual([a, dup, b])
+  })
+
+  it('reuses existing entry when openIndexTab matches existing target', () => {
+    const store = useTabStore()
+    store.tabItems = [seedServerTab('s1')]
+    store.openIndexTab('s1', 'mydb', 'col')
+    store.openIndexTab('s1', 'mydb', 'col')
+    expect(store.tabItems[0]!.innerTabOrder.length).toBe(1)
+  })
+})

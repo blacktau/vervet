@@ -276,6 +276,7 @@ export const useTabStore = defineStore('tabs', {
       }
 
       tab.queries.push(queryItem)
+      tab.innerTabOrder.push(queryItem.id)
       tab.activeInnerTabId = queryItem.id
       this._setActivatedIndex(tabIndex, true)
       this.pendingFocusQueryId = queryItem.id
@@ -337,6 +338,9 @@ export const useTabStore = defineStore('tabs', {
       }
 
       tab.queries.splice(queryIndex + 1, 0, newItem)
+      const orderIdx = tab.innerTabOrder.indexOf(queryId)
+      const insertAt = orderIdx === -1 ? tab.innerTabOrder.length : orderIdx + 1
+      tab.innerTabOrder.splice(insertAt, 0, newItem.id)
       tab.activeInnerTabId = newItem.id
       this.pendingFocusQueryId = newItem.id
       this._setActivatedIndex(tabIndex, true)
@@ -387,6 +391,7 @@ export const useTabStore = defineStore('tabs', {
       }
 
       tab.indexTabs.push(indexTab)
+      tab.innerTabOrder.push(indexTab.id)
       tab.activeInnerTabId = indexTab.id
       this._setActivatedIndex(tabIndex, true)
     },
@@ -464,6 +469,7 @@ export const useTabStore = defineStore('tabs', {
       }
 
       tab.statisticsTabs.push(statsTab)
+      tab.innerTabOrder.push(statsTab.id)
       tab.activeInnerTabId = statsTab.id
       this._setActivatedIndex(tabIndex, true)
     },
@@ -546,6 +552,7 @@ export const useTabStore = defineStore('tabs', {
       }
 
       tab.schemaTabs.push(schemaTab)
+      tab.innerTabOrder.push(schemaTab.id)
       tab.activeInnerTabId = schemaTab.id
       this._setActivatedIndex(tabIndex, true)
     },
