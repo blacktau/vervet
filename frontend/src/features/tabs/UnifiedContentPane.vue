@@ -98,7 +98,7 @@ onBeforeUnmount(() => {
 
 watch(() => unifiedTabs.value.length, () => nextTick(checkOverflow))
 
-useTabSortable(innerTabsRef, '.n-tabs-nav-scroll-content', (from, to) => {
+useTabSortable(innerTabsRef, '.n-tabs-wrapper', (from, to) => {
   const serverId = tabStore.currentTab?.serverId
   if (!serverId) {
     return

@@ -27,8 +27,8 @@ export function useTabSortable(
       filter: '.n-tabs-tab__close, .n-tabs-tab-pad',
       preventOnFilter: false,
       onEnd(evt) {
-        const from = evt.oldIndex
-        const to = evt.newIndex
+        const from = evt.oldDraggableIndex
+        const to = evt.newDraggableIndex
         if (typeof from === 'number' && typeof to === 'number' && from !== to) {
           onReorder(from, to)
         }

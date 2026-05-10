@@ -47,7 +47,7 @@ onBeforeUnmount(() => {
 
 watch(() => tabStore.tabs.length, () => nextTick(checkOverflow))
 
-useTabSortable(tabsRef, '.n-tabs-nav-scroll-content', (from, to) => {
+useTabSortable(tabsRef, '.n-tabs-wrapper', (from, to) => {
   tabStore.reorderTabs(from, to)
 })
 
