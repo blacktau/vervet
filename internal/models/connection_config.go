@@ -15,6 +15,8 @@ type OIDCConfig struct {
 	ClientID         string   `json:"clientId"`
 	Scopes           []string `json:"scopes,omitempty"`
 	WorkloadIdentity bool     `json:"workloadIdentity"`
+	Prompt           string   `json:"prompt,omitempty"`
+	ManualURLMode    bool     `json:"manualUrlMode,omitempty"`
 }
 
 type ConnectionConfig struct {

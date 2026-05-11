@@ -100,6 +100,7 @@ func main() {
 			application.WorkspacesProxy,
 			application.UpdatesProxy,
 			application.ExportProxy,
+			application.OIDCProxy,
 		},
 		EnumBind: []any{
 			api.AllOperatingSystems,

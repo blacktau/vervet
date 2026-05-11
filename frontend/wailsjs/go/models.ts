@@ -203,6 +203,8 @@ export namespace models {
 	    clientId: string;
 	    scopes?: string[];
 	    workloadIdentity: boolean;
+	    prompt?: string;
+	    manualUrlMode?: boolean;
 	}
 	export interface ConnectionConfig {
 	    uri: string;

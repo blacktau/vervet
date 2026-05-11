@@ -55,6 +55,8 @@ const oidcConfig = ref<OIDCConfig>({
   clientId: '',
   scopes: [],
   workloadIdentity: false,
+  prompt: '',
+  manualUrlMode: false,
 })
 
 const generalFormRules = () => {
@@ -183,6 +185,8 @@ const resetForm = () => {
     clientId: '',
     scopes: [],
     workloadIdentity: false,
+    prompt: '',
+    manualUrlMode: false,
   }
 }
 
@@ -386,6 +390,24 @@ const onTestConnection = async () => {
                     />
                   </n-form-item-gi>
                 </template>
+                <n-form-item-gi
+                  :label="$t('serverPane.dialogs.server.oidcPrompt')"
+                  :span="24">
+                  <n-select
+                    v-model:value="oidcConfig.prompt"
+                    :options="[
+                      { label: $t('serverPane.dialogs.server.oidcPromptOff'), value: '' },
+                      { label: $t('serverPane.dialogs.server.oidcPromptLogin'), value: 'login' },
+                      { label: $t('serverPane.dialogs.server.oidcPromptSelectAccount'), value: 'select_account' },
+                      { label: $t('serverPane.dialogs.server.oidcPromptConsent'), value: 'consent' },
+                    ]"
+                  />
+                </n-form-item-gi>
+                <n-form-item-gi :span="24">
+                  <n-checkbox v-model:checked="oidcConfig.manualUrlMode">
+                    {{ $t('serverPane.dialogs.server.oidcManualUrlMode') }}
+                  </n-checkbox>
+                </n-form-item-gi>
               </template>
               <n-form-item-gi
                 :label="$t('serverPane.dialogs.server.colour')"

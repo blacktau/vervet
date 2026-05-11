@@ -25,9 +25,10 @@ type TokenManager struct {
 	ctx         context.Context
 	log         *slog.Logger
 	store       connectionStrings.Store
-	mu          sync.RWMutex
-	cache       map[string]*CachedToken
-	openBrowser func(url string)
+	mu           sync.RWMutex
+	cache        map[string]*CachedToken
+	openBrowser  func(url string)
+	emitAuthURL  func(serverID, url string)
 
 	// browserMu protects activeServer — the in-flight OIDC callback HTTP server.
 	browserMu    sync.Mutex
@@ -48,6 +49,17 @@ func (tm *TokenManager) Init(ctx context.Context) {
 
 func (tm *TokenManager) SetOpenBrowser(fn func(url string)) {
 	tm.openBrowser = fn
+}
+
+func (tm *TokenManager) SetEmitAuthURL(fn func(serverID, url string)) {
+	tm.emitAuthURL = fn
+}
+
+// CancelLogin shuts down any in-flight OIDC browser login for the given
+// server. Currently a single in-flight server is tracked globally, so the
+// serverID is advisory only.
+func (tm *TokenManager) CancelLogin(serverID string) {
+	tm.closeBrowserServer()
 }
 
 func (tm *TokenManager) cacheToken(serverID string, token *CachedToken) {
@@ -135,7 +147,14 @@ func (tm *TokenManager) HumanCallback(serverID string, cfg *models.OIDCConfig) o
 			slog.String("clientID", clientID),
 			slog.Any("scopes", scopes))
 
-		result, err := tm.browserLogin(ctx, providerURL, clientID, scopes)
+		var prompt string
+		var manualURL bool
+		if cfg != nil {
+			prompt = cfg.Prompt
+			manualURL = cfg.ManualURLMode
+		}
+
+		result, err := tm.browserLogin(ctx, serverID, providerURL, clientID, prompt, scopes, manualURL)
 		if err != nil {
 			return nil, fmt.Errorf("OIDC browser login failed: %w", err)
 		}
