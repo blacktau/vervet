@@ -59,6 +59,7 @@ type App struct {
 	WorkspacesProxy  *api.WorkspacesProxy
 	UpdatesProxy     *api.UpdatesProxy
 	ExportProxy      *api.ExportProxy
+	OIDCProxy        *api.OIDCProxy
 
 	serverService      *servers.ServerService
 	registry           *clientregistry.ClientRegistry
@@ -137,6 +138,7 @@ func NewApp(log *slog.Logger, settingsService settings.Service, version string) 
 		FilesProxy:         api.NewFilesProxy(log, filesService),
 		WorkspacesProxy:    api.NewWorkspacesProxy(log, workspaceService, settingsService),
 		ExportProxy:        api.NewExportProxy(log, exportService),
+		OIDCProxy:          api.NewOIDCProxy(log, tokenManager),
 		UpdatesProxy:       api.NewUpdatesProxy(log, updatesService, updatesOpener),
 		appVersion:         version,
 		updatesService:     updatesService,
@@ -154,6 +156,12 @@ func (a *App) Startup(ctx context.Context) {
 	a.tokenManager.Init(ctx)
 	a.tokenManager.SetOpenBrowser(func(url string) {
 		wailsRuntime.BrowserOpenURL(ctx, url)
+	})
+	a.tokenManager.SetEmitAuthURL(func(serverID, url string) {
+		wailsRuntime.EventsEmit(ctx, "oidc-auth-url", map[string]string{
+			"serverID": serverID,
+			"url":      url,
+		})
 	})
 
 	a.registry.Init(ctx)

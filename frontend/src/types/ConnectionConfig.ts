@@ -1,10 +1,14 @@
 export type AuthMethod = 'none' | 'password' | 'x509' | 'oidc' | 'aws'
 
+export type OIDCPrompt = '' | 'login' | 'select_account' | 'consent'
+
 export interface OIDCConfig {
   providerUrl: string
   clientId: string
   scopes?: string[]
   workloadIdentity: boolean
+  prompt?: OIDCPrompt
+  manualUrlMode?: boolean
 }
 
 export interface ConnectionConfig {

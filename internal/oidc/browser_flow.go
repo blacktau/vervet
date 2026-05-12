@@ -66,7 +66,7 @@ func (tm *TokenManager) closeBrowserServer() {
 	}
 }
 
-func (tm *TokenManager) browserLogin(ctx context.Context, providerURL, clientID string, scopes []string) (*BrowserFlowResult, error) {
+func (tm *TokenManager) browserLogin(ctx context.Context, serverID, providerURL, clientID, prompt string, scopes []string, manualURL bool) (*BrowserFlowResult, error) {
 	// Close any leftover listener from a previous failed attempt.
 	tm.closeBrowserServer()
 
@@ -151,12 +151,20 @@ func (tm *TokenManager) browserLogin(ctx context.Context, providerURL, clientID 
 
 	go server.Serve(listener)
 
-	authURL := oauth2Cfg.AuthCodeURL(state,
+	opts := []oauth2.AuthCodeOption{
 		oauth2.SetAuthURLParam("code_challenge", challenge),
 		oauth2.SetAuthURLParam("code_challenge_method", "S256"),
-	)
+	}
+	if prompt != "" {
+		opts = append(opts, oauth2.SetAuthURLParam("prompt", prompt))
+	}
+	authURL := oauth2Cfg.AuthCodeURL(state, opts...)
 
-	if tm.openBrowser != nil {
+	if manualURL {
+		if tm.emitAuthURL != nil {
+			tm.emitAuthURL(serverID, authURL)
+		}
+	} else if tm.openBrowser != nil {
 		tm.openBrowser(authURL)
 	}
 
@@ -171,6 +179,9 @@ func (tm *TokenManager) browserLogin(ctx context.Context, providerURL, clientID 
 	case <-timeout:
 		return nil, fmt.Errorf("authentication timed out after 5 minutes")
 	case <-loginCtx.Done():
+		if tm.consumeCanceled() {
+			return nil, ErrLoginCanceled
+		}
 		return nil, loginCtx.Err()
 	}
 }

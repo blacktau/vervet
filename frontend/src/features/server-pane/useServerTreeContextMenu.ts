@@ -1,6 +1,7 @@
 import { markRaw, nextTick, reactive, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
+  ArrowPathIcon,
   ArrowUpTrayIcon,
   ClipboardDocumentIcon,
   Cog8ToothIcon,
@@ -11,6 +12,7 @@ import {
   TrashIcon,
 } from '@heroicons/vue/24/outline'
 import * as serversProxy from 'wailsjs/go/api/ServersProxy'
+import * as oidcProxy from 'wailsjs/go/api/OIDCProxy'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 import { DialogType, useDialogStore } from '@/stores/dialog.ts'
 import { type RegisteredServerNode, useServerStore } from '@/features/server-pane/serverStore.ts'
@@ -30,6 +32,7 @@ export const MenuKeys = {
   ServerDelete: 'server_delete',
   ServerExport: 'server_export',
   ServerCopyConnectionString: 'server_copy_connection_string',
+  ServerResetOIDC: 'server_reset_oidc',
   GroupExport: 'group_export',
 } as const
 
@@ -63,7 +66,7 @@ export function useServerTreeContextMenu(
     currentNode: undefined,
   })
 
-  const buildMenuOptions = (option: RegisteredServerNode): ContextMenuEntry[] => {
+  const buildMenuOptions = (option: RegisteredServerNode, isOIDC: boolean): ContextMenuEntry[] => {
     if (option.isGroup) {
       return [
         {
@@ -136,14 +139,29 @@ export function useServerTreeContextMenu(
           icon: PlugConnected,
         }
 
-    return [connectOption, ...common]
+    const oidcEntry: ContextMenuEntry[] = isOIDC
+      ? [
+          {
+            key: MenuKeys.ServerResetOIDC,
+            label: 'serverPane.serverTree.resetOIDCSession',
+            icon: ArrowPathIcon,
+          },
+        ]
+      : []
+
+    return [connectOption, ...common, ...oidcEntry]
   }
 
   const openContextMenu = (option: RegisteredServerNode, e: PointerEvent) => {
     e.preventDefault()
     contextMenuParams.show = false
-    nextTick().then(() => {
-      const menuOptions = buildMenuOptions(option)
+    nextTick().then(async () => {
+      let isOIDC = false
+      if (!option.isGroup) {
+        const cfg = await serversProxy.GetConnectionConfig(option.id)
+        isOIDC = cfg.isSuccess && cfg.data.authMethod === 'oidc'
+      }
+      const menuOptions = buildMenuOptions(option, isOIDC)
       contextMenuParams.options = markRaw(menuOptions) as never
       contextMenuParams.currentNode = option
       contextMenuParams.x = e.clientX
@@ -247,6 +265,25 @@ export function useServerTreeContextMenu(
       case MenuKeys.GroupExport:
         dialogStore.showNewDialog(DialogType.Export, { serverIDs: [serverId] })
         break
+      case MenuKeys.ServerResetOIDC: {
+        const server = serverStore.findServerById(serverId)
+        const name = server?.name ?? serverId
+        useDialoger().warning(
+          i18n.t('serverPane.serverTree.resetOIDCSessionConfirm', { name }),
+          async () => {
+            if (browserStore.isConnected(serverId)) {
+              await browserStore.disconnect(serverId)
+            }
+            const result = await oidcProxy.ResetSession(serverId)
+            if (!result.isSuccess) {
+              useMessager().error(i18n.t(`errors.${result.errorCode}`))
+              return
+            }
+            useMessager().success(i18n.t('serverPane.serverTree.resetOIDCSessionSuccess'))
+          },
+        )
+        break
+      }
       case MenuKeys.ServerCopyConnectionString: {
         const result = await serversProxy.GetFullConnectionString(serverId)
         if (!result.isSuccess) {

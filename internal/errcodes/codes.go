@@ -11,6 +11,7 @@ const (
 	ShellNotFound         = "shell_not_found"
 	NoDatabaseSelected    = "no_database_selected"
 	QueryCancelled        = "query_cancelled"
+	OIDCLoginCanceled     = "oidc_login_canceled"
 	OperationNotSupported = "operation_not_supported"
 	UnknownError          = "unknown_error"
 )

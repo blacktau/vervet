@@ -568,6 +568,9 @@ export default {
       copyConnectionString: 'Copy Connection String',
       connectionStringCopied: 'Connection string copied to clipboard',
       copyConnectionStringFailed: 'Failed to copy connection string',
+      resetOIDCSession: 'Reset OIDC Session',
+      resetOIDCSessionConfirm: 'Discard cached OIDC tokens for "{name}"? Next connect will prompt account selection.',
+      resetOIDCSessionSuccess: 'OIDC session reset. Reconnect to sign in again.',
     },
     dialogs: {
       common: {
@@ -599,6 +602,16 @@ export default {
         testOIDCUnsupported: 'Test connection is not available for OIDC — save the server and connect instead.',
         oidcWorkloadIdentity: 'Workload Identity',
         oidcWorkloadIdentityDesc: 'Use environment credentials (Azure/GCP)',
+        oidcPrompt: 'Account selection',
+        oidcPromptOff: 'Off (default)',
+        oidcPromptLogin: 'Force re-login',
+        oidcPromptSelectAccount: 'Show account picker',
+        oidcPromptConsent: 'Force consent',
+        oidcManualUrlMode: 'Show sign-in URL to copy instead of opening browser',
+        oidcAuthUrlTitle: 'Sign in to continue',
+        oidcAuthUrlDescription: 'Copy this URL and open it in a private window or a different browser profile signed in as the correct account.',
+        oidcAuthUrlCopy: 'Copy URL',
+        oidcAuthUrlCopied: 'URL copied to clipboard',
       },
       export: {
         title: 'Export Servers',

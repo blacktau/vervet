@@ -80,6 +80,7 @@ watch(
     class="fill-height">
     <n-notification-provider>
       <n-dialog-provider>
+        <n-message-provider>
         <app-content :loading="initializing" />
         <server-dialog v-if="dialogStore.isVisible(DialogType.Server)" />
         <group-dialog v-if="dialogStore.isVisible(DialogType.Group)" />
@@ -97,6 +98,7 @@ watch(
           :ejson="dialogStore.exportResultsData.ejson"
           :collection-name="dialogStore.exportResultsData.collectionName"
           @update:show="(v) => { if (!v) dialogStore.closeExportResultsDialog() }" />
+        </n-message-provider>
       </n-dialog-provider>
     </n-notification-provider>
   </n-config-provider>

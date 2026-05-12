@@ -7,6 +7,7 @@ import (
 
 	"go.mongodb.org/mongo-driver/mongo"
 
+	"vervet/internal/oidc"
 	"vervet/internal/shell"
 )
 
@@ -15,6 +16,10 @@ import (
 func ClassifyError(err error) ClassifiedError {
 	if err == nil {
 		return ClassifiedError{Code: UnknownError}
+	}
+
+	if errors.Is(err, oidc.ErrLoginCanceled) {
+		return ClassifiedError{Code: OIDCLoginCanceled, Detail: err.Error()}
 	}
 
 	if errors.Is(err, shell.ErrShellNotFound) {

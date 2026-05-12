@@ -2,9 +2,11 @@ package api
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 
 	"vervet/internal/models"
+	"vervet/internal/oidc"
 )
 
 type ConnectionsProxy struct {
@@ -40,7 +42,11 @@ func NewConnectionsProxy(log *slog.Logger, provider ConnectionsProvider) *Connec
 func (cp *ConnectionsProxy) Connect(serverID string) Result[models.Connection] {
 	connection, err := cp.provider.Connect(serverID)
 	if err != nil {
-		logFail(cp.log, "Connect", err)
+		if errors.Is(err, oidc.ErrLoginCanceled) {
+			cp.log.Info("Connect canceled by user", slog.String("serverID", serverID))
+		} else {
+			logFail(cp.log, "Connect", err)
+		}
 		return FailResult[models.Connection](err)
 	}
 

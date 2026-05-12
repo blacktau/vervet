@@ -20,6 +20,7 @@ import TitleBar from '@/app/TitleBar.vue'
 import UnifiedContentPane from '@/features/tabs/UnifiedContentPane.vue'
 import WorkspacePane from '@/features/workspaces/WorkspacePane.vue'
 import { useUpdateStore } from '@/features/updates/updateStore'
+import OIDCAuthUrlDialog from '@/features/oidc/OIDCAuthUrlDialog.vue'
 
 const themeVars = useThemeVars()
 const props = defineProps<{
@@ -225,6 +226,7 @@ watch(
         </div>
       </div>
     </div>
+    <OIDCAuthUrlDialog />
   </n-spin>
 </template>
 
