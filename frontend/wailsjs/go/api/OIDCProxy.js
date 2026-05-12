@@ -5,3 +5,7 @@
 export function CancelLogin(arg1) {
   return window['go']['api']['OIDCProxy']['CancelLogin'](arg1);
 }
+
+export function ResetSession(arg1) {
+  return window['go']['api']['OIDCProxy']['ResetSession'](arg1);
+}

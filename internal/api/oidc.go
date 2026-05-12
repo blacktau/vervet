@@ -11,6 +11,7 @@ type OIDCProxy struct {
 
 type OIDCProvider interface {
 	CancelLogin(serverID string)
+	ResetSession(serverID string) error
 }
 
 func NewOIDCProxy(log *slog.Logger, provider OIDCProvider) *OIDCProxy {
@@ -22,5 +23,13 @@ func NewOIDCProxy(log *slog.Logger, provider OIDCProvider) *OIDCProxy {
 
 func (p *OIDCProxy) CancelLogin(serverID string) EmptyResult {
 	p.provider.CancelLogin(serverID)
+	return Success()
+}
+
+func (p *OIDCProxy) ResetSession(serverID string) EmptyResult {
+	if err := p.provider.ResetSession(serverID); err != nil {
+		logFail(p.log, "ResetSession", err)
+		return Fail(err)
+	}
 	return Success()
 }

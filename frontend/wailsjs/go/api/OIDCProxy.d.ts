@@ -3,3 +3,5 @@
 import {api} from '../models';
 
 export function CancelLogin(arg1:string):Promise<api.EmptyResult>;
+
+export function ResetSession(arg1:string):Promise<api.EmptyResult>;

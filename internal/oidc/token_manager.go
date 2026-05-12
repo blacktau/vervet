@@ -2,6 +2,7 @@ package oidc
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -14,6 +15,11 @@ import (
 	"vervet/internal/connectionStrings"
 	"vervet/internal/models"
 )
+
+// ErrLoginCanceled is returned when the user cancels the OIDC browser login
+// flow (e.g. closes the manual URL dialog). Callers should treat this as a
+// benign user action, not an error to surface as a failure notification.
+var ErrLoginCanceled = errors.New("OIDC login canceled by user")
 
 type CachedToken struct {
 	AccessToken  string
@@ -33,14 +39,53 @@ type TokenManager struct {
 	// browserMu protects activeServer — the in-flight OIDC callback HTTP server.
 	browserMu    sync.Mutex
 	activeServer *activeCallbackServer
+	canceled     bool
+
+	promptMu         sync.Mutex
+	forcePromptOnce  map[string]string
 }
 
 func NewTokenManager(log *slog.Logger, store connectionStrings.Store) *TokenManager {
 	return &TokenManager{
-		log:   log,
-		store: store,
-		cache: make(map[string]*CachedToken),
+		log:             log,
+		store:           store,
+		cache:           make(map[string]*CachedToken),
+		forcePromptOnce: make(map[string]string),
 	}
+}
+
+// ResetSession clears cached + persisted OIDC state for a server and arms a
+// one-shot account-picker prompt for the next browser login. Caller should
+// disconnect the active MongoDB client first. No-op if the server isn't
+// configured with OIDC.
+func (tm *TokenManager) ResetSession(serverID string) error {
+	cfg, err := tm.store.GetConnectionConfig(serverID)
+	if err != nil {
+		return fmt.Errorf("read connection config: %w", err)
+	}
+	if cfg.AuthMethod != models.AuthOIDC {
+		return nil
+	}
+	tm.CleanupServer(serverID)
+	if cfg.RefreshToken != "" {
+		if err := tm.store.UpdateRefreshToken(serverID, ""); err != nil {
+			return fmt.Errorf("clear refresh token: %w", err)
+		}
+	}
+	tm.promptMu.Lock()
+	tm.forcePromptOnce[serverID] = "select_account"
+	tm.promptMu.Unlock()
+	return nil
+}
+
+func (tm *TokenManager) consumeForcePrompt(serverID string) string {
+	tm.promptMu.Lock()
+	defer tm.promptMu.Unlock()
+	p, ok := tm.forcePromptOnce[serverID]
+	if ok {
+		delete(tm.forcePromptOnce, serverID)
+	}
+	return p
 }
 
 func (tm *TokenManager) Init(ctx context.Context) {
@@ -59,7 +104,18 @@ func (tm *TokenManager) SetEmitAuthURL(fn func(serverID, url string)) {
 // server. Currently a single in-flight server is tracked globally, so the
 // serverID is advisory only.
 func (tm *TokenManager) CancelLogin(serverID string) {
+	tm.browserMu.Lock()
+	tm.canceled = true
+	tm.browserMu.Unlock()
 	tm.closeBrowserServer()
+}
+
+func (tm *TokenManager) consumeCanceled() bool {
+	tm.browserMu.Lock()
+	defer tm.browserMu.Unlock()
+	c := tm.canceled
+	tm.canceled = false
+	return c
 }
 
 func (tm *TokenManager) cacheToken(serverID string, token *CachedToken) {
@@ -153,9 +209,15 @@ func (tm *TokenManager) HumanCallback(serverID string, cfg *models.OIDCConfig) o
 			prompt = cfg.Prompt
 			manualURL = cfg.ManualURLMode
 		}
+		if forced := tm.consumeForcePrompt(serverID); forced != "" {
+			prompt = forced
+		}
 
 		result, err := tm.browserLogin(ctx, serverID, providerURL, clientID, prompt, scopes, manualURL)
 		if err != nil {
+			if errors.Is(err, ErrLoginCanceled) {
+				return nil, err
+			}
 			return nil, fmt.Errorf("OIDC browser login failed: %w", err)
 		}
 

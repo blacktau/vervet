@@ -568,6 +568,9 @@ export default {
       copyConnectionString: 'Copy Connection String',
       connectionStringCopied: 'Connection string copied to clipboard',
       copyConnectionStringFailed: 'Failed to copy connection string',
+      resetOIDCSession: 'Reset OIDC Session',
+      resetOIDCSessionConfirm: 'Discard cached OIDC tokens for "{name}"? Next connect will prompt account selection.',
+      resetOIDCSessionSuccess: 'OIDC session reset. Reconnect to sign in again.',
     },
     dialogs: {
       common: {

@@ -179,6 +179,9 @@ func (tm *TokenManager) browserLogin(ctx context.Context, serverID, providerURL,
 	case <-timeout:
 		return nil, fmt.Errorf("authentication timed out after 5 minutes")
 	case <-loginCtx.Done():
+		if tm.consumeCanceled() {
+			return nil, ErrLoginCanceled
+		}
 		return nil, loginCtx.Err()
 	}
 }

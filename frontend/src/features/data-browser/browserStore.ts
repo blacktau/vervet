@@ -477,8 +477,10 @@ export const useDataBrowserStore = defineStore('browser', {
 
       const result = await connectionsProxy.Connect(serverId)
       if (!result.isSuccess) {
-        const notifier = useNotifier()
-        notifier.error(i18nGlobal.t(`errors.${result.errorCode}`), { title: i18nGlobal.t('errorTitles.connect'), detail: result.errorDetail })
+        if (result.errorCode !== 'oidc_login_canceled') {
+          const notifier = useNotifier()
+          notifier.error(i18nGlobal.t(`errors.${result.errorCode}`), { title: i18nGlobal.t('errorTitles.connect'), detail: result.errorDetail })
+        }
         return {
           success: false,
         }
