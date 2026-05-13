@@ -1,0 +1,11 @@
+title: Vervet
+description: A desktop MongoDB explorer.
+theme: jekyll-theme-minimal
+url: https://blacktau.github.io
+baseurl: /vervet
+
+defaults:
+  - scope:
+      path: ""
+    values:
+      layout: default
