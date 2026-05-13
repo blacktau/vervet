@@ -20,6 +20,14 @@ const (
 	defaultReleasesURL = "https://api.github.com/repos/blacktau/vervet/releases/latest"
 )
 
+// Channel identifies a Vervet distribution channel that affects update behavior.
+type Channel string
+
+const (
+	ChannelGitHub  Channel = "github"
+	ChannelMSStore Channel = "msstore"
+)
+
 // UpdateInfo is returned to callers and emitted as the event payload.
 type UpdateInfo struct {
 	Available    bool   `json:"available"`
@@ -45,6 +53,7 @@ type EventEmitter interface {
 // Config carries all dependencies so tests can substitute fakes.
 type Config struct {
 	CurrentVersion string
+	Channel        Channel
 	ReleasesURL    string
 	HTTPClient     *http.Client
 	Settings       SettingsAccessor
@@ -55,6 +64,7 @@ type Config struct {
 type Service struct {
 	log            *slog.Logger
 	currentVersion string
+	channel        Channel
 	releasesURL    string
 	http           *http.Client
 	settings       SettingsAccessor
@@ -72,9 +82,13 @@ func NewService(log *slog.Logger, cfg Config) *Service {
 	if cfg.Now == nil {
 		cfg.Now = time.Now
 	}
+	if cfg.Channel == "" {
+		cfg.Channel = ChannelGitHub
+	}
 	return &Service{
 		log:            log,
 		currentVersion: cfg.CurrentVersion,
+		channel:        cfg.Channel,
 		releasesURL:    cfg.ReleasesURL,
 		http:           cfg.HTTPClient,
 		settings:       cfg.Settings,
@@ -86,6 +100,9 @@ func NewService(log *slog.Logger, cfg Config) *Service {
 // CheckNow fetches the latest release and returns an UpdateInfo.
 // It always updates lastCheckedAt, even on error.
 func (s *Service) CheckNow(ctx context.Context) (UpdateInfo, error) {
+	if s.channel == ChannelMSStore {
+		return UpdateInfo{Available: false}, nil
+	}
 	s.writeLastChecked()
 	latest, url, body, err := s.fetchLatest(ctx)
 	if err != nil {
@@ -103,6 +120,9 @@ func (s *Service) CheckNow(ctx context.Context) (UpdateInfo, error) {
 // CheckIfDue runs CheckNow only if frequency and interval allow it.
 // Emits "update-available" on discovery of a non-dismissed newer release.
 func (s *Service) CheckIfDue(ctx context.Context) error {
+	if s.channel == ChannelMSStore {
+		return nil
+	}
 	freq := s.settings.GetUpdatesFrequency()
 	if freq == FrequencyNever {
 		return nil

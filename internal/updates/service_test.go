@@ -145,6 +145,54 @@ func TestCheckIfDue_SkipsWhenCurrentVersionIsDev(t *testing.T) {
 	}
 }
 
+func TestCheckIfDue_MSStoreChannelShortCircuits(t *testing.T) {
+	settings := &fakeSettings{frequency: "startup"}
+	emitter := &fakeEmitter{}
+	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	s := NewService(log, Config{
+		CurrentVersion: "2026.04.4",
+		Channel:        ChannelMSStore,
+		ReleasesURL:    "http://127.0.0.1:1/must-not-call",
+		HTTPClient:     &http.Client{Timeout: 2 * time.Second},
+		Settings:       settings,
+		Emitter:        emitter,
+		Now:            func() time.Time { return time.Date(2026, 4, 13, 12, 0, 0, 0, time.UTC) },
+	})
+	if err := s.CheckIfDue(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(emitter.events) != 0 {
+		t.Fatalf("msstore channel must not emit events, got %+v", emitter.events)
+	}
+	if settings.lastCheckedAt != "" {
+		t.Fatalf("msstore channel must not write lastCheckedAt, got %q", settings.lastCheckedAt)
+	}
+}
+
+func TestCheckNow_MSStoreChannelShortCircuits(t *testing.T) {
+	settings := &fakeSettings{frequency: "startup"}
+	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	s := NewService(log, Config{
+		CurrentVersion: "2026.04.4",
+		Channel:        ChannelMSStore,
+		ReleasesURL:    "http://127.0.0.1:1/must-not-call",
+		HTTPClient:     &http.Client{Timeout: 2 * time.Second},
+		Settings:       settings,
+		Emitter:        &fakeEmitter{},
+		Now:            func() time.Time { return time.Date(2026, 4, 13, 12, 0, 0, 0, time.UTC) },
+	})
+	info, err := s.CheckNow(context.Background())
+	if err != nil {
+		t.Fatalf("CheckNow under msstore: %v", err)
+	}
+	if info.Available {
+		t.Fatalf("msstore must not report Available, got %+v", info)
+	}
+	if settings.lastCheckedAt != "" {
+		t.Fatalf("msstore must not write lastCheckedAt, got %q", settings.lastCheckedAt)
+	}
+}
+
 func TestCheckIfDue_UpdatesLastCheckedOnError(t *testing.T) {
 	settings := &fakeSettings{frequency: "daily"}
 	s := newService(t, "http://127.0.0.1:1/unreachable", settings, &fakeEmitter{}, "2026.04.4")
