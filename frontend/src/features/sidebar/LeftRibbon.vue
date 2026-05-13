@@ -6,6 +6,7 @@ import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 import { DialogType, useDialogStore } from '@/stores/dialog'
 import { useSettingsStore } from '@/features/settings/settingsStore.ts'
 import { useUpdateStore } from '@/features/updates/updateStore'
+import { useBuildInfoStore } from '@/features/buildinfo/buildInfoStore'
 import * as runtime from 'wailsjs/runtime'
 import IconButton from '@/features/common/IconButton.vue'
 import { extraTheme } from '@/utils/extraTheme'
@@ -26,7 +27,9 @@ const render = useRender()
 const dialogStore = useDialogStore()
 const settingsStore = useSettingsStore()
 const updateStore = useUpdateStore()
+const buildInfoStore = useBuildInfoStore()
 const browserStore = useDataBrowserStore()
+const showUpdateBadge = computed(() => updateStore.available && !buildInfoStore.isMSStore)
 
 const props = withDefaults(
   defineProps<{
@@ -152,7 +155,7 @@ const exThemeVars = computed(() => {
         "
         trigger="click"
         @select="onSelectSettingsMenu">
-        <n-badge :dot="updateStore.available" :show="updateStore.available">
+        <n-badge :dot="showUpdateBadge" :show="showUpdateBadge">
           <icon-button :icon="Cog8ToothIcon" :size="iconSize" :stroke-width="3" />
         </n-badge>
       </n-dropdown>

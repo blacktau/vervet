@@ -95,6 +95,7 @@ func main() {
 			application.CollectionsProxy,
 			application.ShellProxy,
 			application.SystemProxy,
+			application.BuildInfoProxy,
 			application.SettingsProxy,
 			application.FilesProxy,
 			application.WorkspacesProxy,
