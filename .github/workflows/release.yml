@@ -214,10 +214,12 @@ jobs:
             Write-Host 'appcert.exe not found; skipping WACK'
             exit 0
           }
-          & $appcert test -appxpackagepath Vervet.msix -reportoutputpath wack-report.xml
+          $msixPath = (Resolve-Path Vervet.msix).Path
+          $reportPath = Join-Path $PWD 'wack-report.xml'
+          & $appcert test -appxpackagepath $msixPath -reportoutputpath $reportPath
           if ($LASTEXITCODE -ne 0) {
             Write-Host '::error::WACK failed'
-            Get-Content wack-report.xml
+            if (Test-Path $reportPath) { Get-Content $reportPath }
             exit 1
           }
 
