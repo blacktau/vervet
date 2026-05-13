@@ -9,9 +9,11 @@ import MessagesSettings from '@/features/settings/MessagesSettings.vue'
 import WorkspacesSettings from '@/features/settings/WorkspacesSettings.vue'
 import LoggingSettings from '@/features/settings/LoggingSettings.vue'
 import UpdateSettings from '@/features/updates/UpdateSettings.vue'
+import { useBuildInfoStore } from '@/features/buildinfo/buildInfoStore'
 
 const settingsStore = useSettingsStore()
 const dialogStore = useDialogStore()
+const buildInfoStore = useBuildInfoStore()
 
 const previousSettings = ref({})
 const currentTab = ref('general')
@@ -100,6 +102,7 @@ const onClose = async () => {
           <logging-settings :loading="loading" />
         </n-tab-pane>
         <n-tab-pane
+          v-if="!buildInfoStore.isMSStore"
           :tab="$t('settings.updates.title')"
           display-directive="show:lazy"
           name="updates">

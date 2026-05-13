@@ -20,6 +20,7 @@ import TitleBar from '@/app/TitleBar.vue'
 import UnifiedContentPane from '@/features/tabs/UnifiedContentPane.vue'
 import WorkspacePane from '@/features/workspaces/WorkspacePane.vue'
 import { useUpdateStore } from '@/features/updates/updateStore'
+import { useBuildInfoStore } from '@/features/buildinfo/buildInfoStore'
 import OIDCAuthUrlDialog from '@/features/oidc/OIDCAuthUrlDialog.vue'
 
 const themeVars = useThemeVars()
@@ -34,6 +35,7 @@ const serverStore = useServerStore()
 const dataBrowserStore = useDataBrowserStore()
 const settingsStore = useSettingsStore()
 const updateStore = useUpdateStore()
+const buildInfoStore = useBuildInfoStore()
 
 runtime.EventsOn('oidc-reauth-required', (serverID: string) => {
   const server = serverStore.findServerById(serverID)
@@ -125,17 +127,25 @@ onMounted(async () => {
   onToggleFullscreen(fullscreen)
   const maximized = await runtime.WindowIsMinimised()
   onToggleMaximize(maximized)
-  updateStore.subscribe()
+  await buildInfoStore.load()
+  if (!buildInfoStore.isMSStore) {
+    updateStore.subscribe()
+  }
 })
 
 onBeforeUnmount(() => {
-  updateStore.unsubscribe()
+  if (!buildInfoStore.isMSStore) {
+    updateStore.unsubscribe()
+  }
 })
 
 watch(
   () => updateStore.available,
   (isAvailable, wasAvailable) => {
     if (!isAvailable || wasAvailable) {
+      return
+    }
+    if (buildInfoStore.isMSStore) {
       return
     }
     notification.info({
