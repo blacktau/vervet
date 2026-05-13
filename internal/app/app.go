@@ -55,6 +55,7 @@ type App struct {
 	CollectionsProxy *api.CollectionsProxy
 	ShellProxy       *api.ShellProxy
 	SystemProxy      *api.SystemProxy
+	BuildInfoProxy   *api.BuildInfoProxy
 	SettingsProxy    *api.SettingsProxy
 	FilesProxy       *api.FilesProxy
 	WorkspacesProxy  *api.WorkspacesProxy
@@ -136,6 +137,7 @@ func NewApp(log *slog.Logger, settingsService settings.Service, version string) 
 		CollectionsProxy:   api.NewCollectionsProxy(log, collectionsService),
 		ShellProxy:         api.NewShellProxy(log, queryExecutor),
 		SystemProxy:        api.NewSystemProxy(log, systemService),
+		BuildInfoProxy:     api.NewBuildInfoProxy(log),
 		SettingsProxy:      api.NewSettingsProxy(log, settingsService, fontService, version),
 		FilesProxy:         api.NewFilesProxy(log, filesService),
 		WorkspacesProxy:    api.NewWorkspacesProxy(log, workspaceService, settingsService),
