@@ -155,6 +155,88 @@ jobs:
           ARCH: ${{ matrix.arch }}
         run: mv "build/bin/Vervet-${ARCH}-installer.exe" "Vervet-windows-${ARCH}-installer.exe"
 
+      # ── MSIX build (Store channel, amd64 only) ──
+      # Re-builds Vervet.exe with the msstore channel ldflag. This overwrites
+      # build/bin/Vervet.exe but is run *after* the github-channel binary has
+      # already been packaged into the NSIS installer and portable zip.
+      - name: Build Vervet.exe for Store channel
+        if: runner.os == 'Windows' && matrix.arch == 'amd64'
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          wails build -webview2 embed -platform windows/amd64 \
+            -ldflags "-X main.version=v$VERSION -X vervet/internal/buildinfo.channel=msstore"
+          cp build/bin/Vervet.exe build/bin/Vervet-msstore.exe
+
+      - name: Derive MSIX version
+        if: runner.os == 'Windows' && matrix.arch == 'amd64'
+        id: msix-version
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if [[ "$VERSION" =~ ^([0-9]{4})\.([0-9]{2})\.([0-9]+)$ ]]; then
+            yr="${BASH_REMATCH[1]}"
+            mo=$((10#${BASH_REMATCH[2]}))
+            rel="${BASH_REMATCH[3]}"
+            msix="${yr}.${mo}.${rel}.0"
+          else
+            msix="0.0.0.0"
+          fi
+          echo "msix_version=$msix" >> "$GITHUB_OUTPUT"
+          echo "MSIX version: $msix"
+
+      - name: Pack MSIX
+        if: runner.os == 'Windows' && matrix.arch == 'amd64' && vars.MSIX_PACKAGE_IDENTITY != ''
+        shell: pwsh
+        env:
+          MSIX_PACKAGE_IDENTITY: ${{ vars.MSIX_PACKAGE_IDENTITY }}
+          MSIX_PUBLISHER_CN: ${{ vars.MSIX_PUBLISHER_CN }}
+          MSIX_PUBLISHER_DISPLAY_NAME: ${{ vars.MSIX_PUBLISHER_DISPLAY_NAME }}
+          MSIX_VERSION: ${{ steps.msix-version.outputs.msix_version }}
+        run: |
+          ./build/scripts/pack-msix.ps1 `
+            -ExePath build/bin/Vervet-msstore.exe `
+            -Version $env:MSIX_VERSION `
+            -PackageIdentity $env:MSIX_PACKAGE_IDENTITY `
+            -PublisherCN $env:MSIX_PUBLISHER_CN `
+            -PublisherDisplayName $env:MSIX_PUBLISHER_DISPLAY_NAME `
+            -OutputPath Vervet.msix
+
+      - name: Run WACK on MSIX
+        if: runner.os == 'Windows' && matrix.arch == 'amd64' && vars.MSIX_PACKAGE_IDENTITY != ''
+        shell: pwsh
+        run: |
+          $appcert = (Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\App Certification Kit' -Filter appcert.exe -Recurse -ErrorAction SilentlyContinue |
+                       Select-Object -First 1).FullName
+          if (-not $appcert) {
+            Write-Host 'appcert.exe not found; skipping WACK'
+            exit 0
+          }
+          & $appcert test -appxpackagepath Vervet.msix -reportoutputpath wack-report.xml
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host '::error::WACK failed'
+            Get-Content wack-report.xml
+            exit 1
+          }
+
+      - name: Upload MSIX artifact
+        if: runner.os == 'Windows' && matrix.arch == 'amd64' && vars.MSIX_PACKAGE_IDENTITY != ''
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: Vervet.msix
+          path: Vervet.msix
+          if-no-files-found: error
+
+      - name: Upload WACK report
+        if: always() && runner.os == 'Windows' && matrix.arch == 'amd64' && vars.MSIX_PACKAGE_IDENTITY != ''
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: wack-report
+          path: wack-report.xml
+          if-no-files-found: ignore
+
       # ── Package: Linux AppImage ──
       - name: Package AppImage
         if: runner.os == 'Linux'
@@ -345,7 +427,10 @@ jobs:
         with:
           draft: true
           generate_release_notes: true
-          files: artifacts/*
+          files: |
+            artifacts/Vervet-windows-*
+            artifacts/Vervet-linux-*
+            artifacts/Vervet-macos-*
 
       - name: Upload RPM to COPR
         env:
