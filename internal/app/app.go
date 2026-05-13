@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"vervet/internal/api"
+	"vervet/internal/buildinfo"
 	"vervet/internal/clientregistry"
 	"vervet/internal/collections"
 	"vervet/internal/connectionStrings"
@@ -98,6 +99,7 @@ func NewApp(log *slog.Logger, settingsService settings.Service, version string) 
 	updatesOpener := updates.NewBrowserOpener(nil)
 	updatesService := updates.NewService(log, updates.Config{
 		CurrentVersion: version,
+		Channel:        updates.Channel(buildinfo.Channel()),
 		Settings:       updates.NewSettingsAdapter(settingsService),
 		Emitter:        updatesEmitter,
 	})
