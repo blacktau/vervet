@@ -84,11 +84,16 @@ const resizeOffset = computed(() => {
 
 const modKey = isMacOS() ? 'Cmd' : 'Ctrl'
 
+const mongoshUnavailable = computed(
+  () =>
+    settingsStore.query.queryEngine === 'mongosh' && queryStore.mongoshAvailable === false,
+)
+
 const runButtonTooltip = computed(() => {
   if (!queryState.value.selectedDatabase) {
     return t('errors.no_database_selected')
   }
-  if (queryStore.mongoshAvailable === false) {
+  if (mongoshUnavailable.value) {
     return t('errors.shell_not_found')
   }
   return `${t('query.run')} (F5 / ${modKey}+Enter)`
@@ -363,7 +368,7 @@ watch(
             <n-button
               type="primary"
               size="small"
-              :disabled="!queryState.selectedDatabase || queryStore.mongoshAvailable === false"
+              :disabled="!queryState.selectedDatabase || mongoshUnavailable"
               @click="runQuery">
               <template #icon>
                 <n-icon :component="PlayIcon" />
@@ -413,7 +418,7 @@ watch(
         </n-tooltip>
       </n-space>
     </div>
-    <div v-if="queryStore.mongoshAvailable === false" class="mongosh-warning">
+    <div v-if="mongoshUnavailable" class="mongosh-warning">
       {{ t('errors.shell_not_found') }}
     </div>
     <div
