@@ -273,11 +273,12 @@ jobs:
           popd
 
           # Download AppRun binary
-          # Pinned to the immutable AppImageKit 13 release asset rather than
+          # Pinned to the immutable AppImageKit 12 release asset rather than
           # the mutable 'continuous' tag, so the binary baked into the shipped
-          # AppImage can't be swapped upstream. TODO: add sha256 verification
-          # once a vetted checksum is recorded.
-          wget -q https://github.com/AppImage/AppImageKit/releases/download/13/AppRun-x86_64 -O AppDir/AppRun
+          # AppImage can't be swapped upstream. (Tag 13 renamed the asset to
+          # obsolete-AppRun-x86_64; 12 is the newest tag with AppRun-x86_64.)
+          # TODO: add sha256 verification once a vetted checksum is recorded.
+          wget -q https://github.com/AppImage/AppImageKit/releases/download/12/AppRun-x86_64 -O AppDir/AppRun
           chmod +x AppDir/AppRun
 
           # Resize icon to 512x512 (linuxdeploy rejects >512)
