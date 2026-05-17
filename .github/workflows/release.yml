@@ -12,7 +12,7 @@ on:
         default: 'dev'
 
 permissions:
-  contents: write
+  contents: read
 
 env:
   GO_VERSION: '1.25'
@@ -73,6 +73,12 @@ jobs:
             version="${GH_REF_NAME#v}"
           else
             version="${INPUT_VERSION:-dev}"
+          fi
+          # Reject anything that isn't YYYY.MM.R or the literal "dev".
+          # version flows into shell-expanded ldflags, so constrain it.
+          if [[ "$version" != "dev" && ! "$version" =~ ^[0-9]{4}\.[0-9]{2}\.[0-9]+$ ]]; then
+            echo "::error::Invalid version '$version' (expected YYYY.MM.R or 'dev')"
+            exit 1
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "Version: $version"
@@ -267,7 +273,11 @@ jobs:
           popd
 
           # Download AppRun binary
-          wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/AppRun-x86_64 -O AppDir/AppRun
+          # Pinned to the immutable AppImageKit 13 release asset rather than
+          # the mutable 'continuous' tag, so the binary baked into the shipped
+          # AppImage can't be swapped upstream. TODO: add sha256 verification
+          # once a vetted checksum is recorded.
+          wget -q https://github.com/AppImage/AppImageKit/releases/download/13/AppRun-x86_64 -O AppDir/AppRun
           chmod +x AppDir/AppRun
 
           # Resize icon to 512x512 (linuxdeploy rejects >512)
@@ -416,6 +426,8 @@ jobs:
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     environment: release
+    permissions:
+      contents: write
 
     steps:
       - name: Download all artifacts
