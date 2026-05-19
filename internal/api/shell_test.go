@@ -15,14 +15,14 @@ type MockShellProvider struct {
 	mongoshAvail bool
 }
 
-func (m *MockShellProvider) ExecuteQuery(serverID, dbName, query string) (models.QueryResult, error) {
+func (m *MockShellProvider) ExecuteQuery(serverID, queryID, dbName, query string) (models.QueryResult, error) {
 	if m.executeErr != nil {
 		return models.QueryResult{}, m.executeErr
 	}
 	return m.queryResult, nil
 }
 
-func (m *MockShellProvider) CancelQuery(serverID string) {}
+func (m *MockShellProvider) CancelQuery(serverID, queryID string) {}
 
 func (m *MockShellProvider) CheckMongosh() bool {
 	return m.mongoshAvail
@@ -50,7 +50,7 @@ func TestShellProxy_ExecuteQuery(t *testing.T) {
 			queryResult: models.QueryResult{RawOutput: "ok"},
 		}
 		proxy := NewShellProxy(testLogger(), provider)
-		result := proxy.ExecuteQuery("1", "db1", "db.coll.find()")
+		result := proxy.ExecuteQuery("1", "q1", "db1", "db.coll.find()")
 		assert.True(t, result.IsSuccess)
 		assert.Equal(t, "ok", result.Data.RawOutput)
 	})
@@ -60,7 +60,7 @@ func TestShellProxy_ExecuteQuery(t *testing.T) {
 			executeErr: errors.New("query failed"),
 		}
 		proxy := NewShellProxy(testLogger(), provider)
-		result := proxy.ExecuteQuery("1", "db1", "db.coll.find()")
+		result := proxy.ExecuteQuery("1", "q1", "db1", "db.coll.find()")
 		assert.False(t, result.IsSuccess)
 		assert.NotEmpty(t, result.ErrorCode)
 	})
@@ -70,7 +70,7 @@ func TestShellProxy_CancelQuery(t *testing.T) {
 	t.Run("cancel query", func(t *testing.T) {
 		provider := &MockShellProvider{}
 		proxy := NewShellProxy(testLogger(), provider)
-		result := proxy.CancelQuery("1")
+		result := proxy.CancelQuery("1", "q1")
 		assert.True(t, result.IsSuccess)
 	})
 }

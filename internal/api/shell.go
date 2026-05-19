@@ -18,8 +18,8 @@ func NewShellProxy(log *slog.Logger, provider ShellProvider) *ShellProxy {
 	}
 }
 
-func (sp *ShellProxy) ExecuteQuery(serverID string, dbName string, query string) Result[models.QueryResult] {
-	result, err := sp.provider.ExecuteQuery(serverID, dbName, query)
+func (sp *ShellProxy) ExecuteQuery(serverID string, queryID string, dbName string, query string) Result[models.QueryResult] {
+	result, err := sp.provider.ExecuteQuery(serverID, queryID, dbName, query)
 	if err != nil {
 		logFail(sp.log, "ExecuteQuery", err)
 		return FailResult[models.QueryResult](err)
@@ -28,8 +28,8 @@ func (sp *ShellProxy) ExecuteQuery(serverID string, dbName string, query string)
 	return SuccessResult(result)
 }
 
-func (sp *ShellProxy) CancelQuery(serverID string) EmptyResult {
-	sp.provider.CancelQuery(serverID)
+func (sp *ShellProxy) CancelQuery(serverID string, queryID string) EmptyResult {
+	sp.provider.CancelQuery(serverID, queryID)
 	return Success()
 }
 

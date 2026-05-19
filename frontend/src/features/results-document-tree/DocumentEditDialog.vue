@@ -131,7 +131,12 @@ async function save() {
       query = `db.getCollection('${props.collectionName}').insertOne(${jsBody})`
     }
 
-    const result = await shellProxy.ExecuteQuery(props.serverId, props.dbName, query)
+    const result = await shellProxy.ExecuteQuery(
+      props.serverId,
+      crypto.randomUUID(),
+      props.dbName,
+      query,
+    )
     if (result.isSuccess) {
       emit('saved')
       emit('update:show', false)
