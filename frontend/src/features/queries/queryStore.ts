@@ -84,6 +84,8 @@ export interface QueryState {
   isDirty: boolean
   savedContent: string | null
   currentContent: string
+  /** Timestamp (ms since epoch) when the current execution started; null when idle */
+  runStartedAt: number | null
   /** The limit() from the last executed query, when the result may be truncated */
   activeLimit: number | null
   /** Lazily computed JSON — only populated when the JSON view is first accessed */
@@ -123,6 +125,7 @@ function createQueryState(database: string): QueryState {
     isDirty: false,
     savedContent: null,
     currentContent: '',
+    runStartedAt: null,
     activeLimit: null,
     _rawJsonCache: null,
     pageContext: null,
@@ -294,9 +297,8 @@ export const useQueryStore = defineStore('query', {
         query: queryPayload,
       })
 
-      const startTime = Date.now()
-
       try {
+        state.runStartedAt = Date.now()
         const result = await shellProxy.ExecuteQuery(
           serverId,
           queryId,
@@ -324,7 +326,7 @@ export const useQueryStore = defineStore('query', {
             void this.fetchCount(queryId)
           }
 
-          const elapsed = formatDuration(Date.now() - startTime)
+          const elapsed = formatDuration(Date.now() - (state.runStartedAt ?? Date.now()))
           const docCount = data.documents?.length ?? 0
           const opType = data.operationType || 'find'
           const msg = resultMessage(opType, data.affectedCount || docCount, elapsed)
@@ -357,6 +359,7 @@ export const useQueryStore = defineStore('query', {
         state.activeResultTab = 'messages'
       } finally {
         state.loading = false
+        state.runStartedAt = null
       }
     },
 
