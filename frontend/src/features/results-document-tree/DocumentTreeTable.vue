@@ -253,7 +253,12 @@ function handleContextMenuSelect(key: string) {
         const { serverId, dbName, collectionName } = props.collectionContext
         const filter = `{ _id: ${toJsExpression(doc._id)} }`
         const query = `db.getCollection('${collectionName}').deleteOne(${filter})`
-        const result = await shellProxy.ExecuteQuery(serverId, dbName, query)
+        const result = await shellProxy.ExecuteQuery(
+          serverId,
+          crypto.randomUUID(),
+          dbName,
+          query,
+        )
         if (result.isSuccess) {
           emit('document-changed')
         } else {

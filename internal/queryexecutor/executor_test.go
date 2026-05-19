@@ -1,6 +1,71 @@
 package queryexecutor
 
-import "testing"
+import (
+	"context"
+	"testing"
+)
+
+func newTestExecutor() *QueryExecutor {
+	return &QueryExecutor{
+		ctx:     context.Background(),
+		cancels: make(map[queryKey]context.CancelFunc),
+	}
+}
+
+// Two queries against the same server must not cancel each other:
+// registering a second query for a server leaves the first running.
+func TestRegisterQuery_ConcurrentSameServerDoNotCancelEachOther(t *testing.T) {
+	qe := newTestExecutor()
+
+	cancelled1 := false
+	cancelled2 := false
+	qe.registerQuery("srv", "q1", func() { cancelled1 = true })
+	qe.registerQuery("srv", "q2", func() { cancelled2 = true })
+
+	if cancelled1 {
+		t.Fatal("registering q2 must not cancel q1 on the same server")
+	}
+	if cancelled2 {
+		t.Fatal("q2 must not be cancelled on registration")
+	}
+}
+
+// CancelQuery targets exactly one (serverID, queryID) pair.
+func TestCancelQuery_CancelsOnlyTargetedQuery(t *testing.T) {
+	qe := newTestExecutor()
+
+	cancelled1 := false
+	cancelled2 := false
+	qe.registerQuery("srv", "q1", func() { cancelled1 = true })
+	qe.registerQuery("srv", "q2", func() { cancelled2 = true })
+
+	qe.CancelQuery("srv", "q1")
+
+	if !cancelled1 {
+		t.Fatal("q1 should have been cancelled")
+	}
+	if cancelled2 {
+		t.Fatal("q2 should not have been cancelled")
+	}
+}
+
+// CloseAll cancels every in-flight query across servers.
+func TestCloseAll_CancelsEveryQuery(t *testing.T) {
+	qe := newTestExecutor()
+
+	cancelled := make(map[string]bool)
+	qe.registerQuery("srvA", "q1", func() { cancelled["a1"] = true })
+	qe.registerQuery("srvA", "q2", func() { cancelled["a2"] = true })
+	qe.registerQuery("srvB", "q1", func() { cancelled["b1"] = true })
+
+	qe.CloseAll()
+
+	for _, k := range []string{"a1", "a2", "b1"} {
+		if !cancelled[k] {
+			t.Fatalf("expected %s to be cancelled", k)
+		}
+	}
+}
 
 func TestAppendDatabase(t *testing.T) {
 	tests := []struct {

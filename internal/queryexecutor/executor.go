@@ -26,6 +26,14 @@ type SettingsProvider interface {
 	GetSettings() (models.Settings, error)
 }
 
+// queryKey identifies a single in-flight query. Keying by both serverID and
+// queryID lets multiple queries run concurrently against the same connection
+// while still allowing a specific query to be cancelled.
+type queryKey struct {
+	serverID string
+	queryID  string
+}
+
 // QueryExecutor executes queries against connected servers.
 // Each query spawns a one-shot mongosh process or uses the built-in goja engine.
 type QueryExecutor struct {
@@ -34,7 +42,7 @@ type QueryExecutor struct {
 	log      *slog.Logger
 	registry *clientregistry.ClientRegistry
 	store    connectionStrings.Store
-	cancels  map[string]context.CancelFunc // serverID -> cancel for in-flight query
+	cancels  map[queryKey]context.CancelFunc // (serverID, queryID) -> cancel for in-flight query
 	cfg      shell.Config
 	settings SettingsProvider
 }
@@ -44,7 +52,7 @@ func NewQueryExecutor(log *slog.Logger, registry *clientregistry.ClientRegistry,
 		log:      log.With(slog.String(logging.SourceKey, "QueryExecutor")),
 		registry: registry,
 		store:    store,
-		cancels:  make(map[string]context.CancelFunc),
+		cancels:  make(map[queryKey]context.CancelFunc),
 		settings: settings,
 		cfg: shell.Config{
 			Timeout: 30 * time.Second,
@@ -57,24 +65,33 @@ func (qe *QueryExecutor) Init(ctx context.Context) {
 	qe.ctx = ctx
 }
 
-// ExecuteQuery runs a query against the given server and database.
-// Only one query per server runs at a time; a new call cancels any in-flight query.
-// The engine (built-in goja or mongosh) is selected based on the user's settings.
-func (qe *QueryExecutor) ExecuteQuery(serverID, dbName, query string) (models.QueryResult, error) {
-	// Cancel any in-flight query for this server
+// registerQuery records the cancel func for an in-flight query, keyed by
+// (serverID, queryID). It deliberately does NOT cancel other queries for the
+// same server — concurrent queries against one connection are supported.
+func (qe *QueryExecutor) registerQuery(serverID, queryID string, cancel context.CancelFunc) {
 	qe.mu.Lock()
-	if cancel, ok := qe.cancels[serverID]; ok {
-		cancel()
-	}
-	queryCtx, cancel := context.WithCancel(qe.ctx)
-	qe.cancels[serverID] = cancel
+	qe.cancels[queryKey{serverID, queryID}] = cancel
 	qe.mu.Unlock()
+}
+
+// unregisterQuery removes the tracked cancel func for a finished query.
+func (qe *QueryExecutor) unregisterQuery(serverID, queryID string) {
+	qe.mu.Lock()
+	delete(qe.cancels, queryKey{serverID, queryID})
+	qe.mu.Unlock()
+}
+
+// ExecuteQuery runs a query against the given server and database.
+// Multiple queries may run concurrently against the same server; each is
+// tracked by queryID so it can be cancelled independently.
+// The engine (built-in goja or mongosh) is selected based on the user's settings.
+func (qe *QueryExecutor) ExecuteQuery(serverID, queryID, dbName, query string) (models.QueryResult, error) {
+	queryCtx, cancel := context.WithCancel(qe.ctx)
+	qe.registerQuery(serverID, queryID, cancel)
 
 	defer func() {
 		cancel()
-		qe.mu.Lock()
-		delete(qe.cancels, serverID)
-		qe.mu.Unlock()
+		qe.unregisterQuery(serverID, queryID)
 	}()
 
 	cfg, _ := qe.settings.GetSettings()
@@ -158,15 +175,19 @@ func (qe *QueryExecutor) CountForPage(serverID, dbName string, pc models.PageCon
 	return engine.CountForPage(qe.ctx, dbName, pc)
 }
 
-// CancelQuery cancels any in-flight query for the given server.
-func (qe *QueryExecutor) CancelQuery(serverID string) {
+// CancelQuery cancels the in-flight query identified by (serverID, queryID).
+// Other queries against the same server are left running.
+func (qe *QueryExecutor) CancelQuery(serverID, queryID string) {
 	qe.mu.Lock()
 	defer qe.mu.Unlock()
 
-	if cancel, ok := qe.cancels[serverID]; ok {
-		qe.log.Debug("Cancelling query", slog.String("serverID", serverID))
+	key := queryKey{serverID, queryID}
+	if cancel, ok := qe.cancels[key]; ok {
+		if qe.log != nil {
+			qe.log.Debug("Cancelling query", slog.String("serverID", serverID), slog.String("queryID", queryID))
+		}
 		cancel()
-		delete(qe.cancels, serverID)
+		delete(qe.cancels, key)
 	}
 }
 

@@ -297,7 +297,12 @@ export const useQueryStore = defineStore('query', {
       const startTime = Date.now()
 
       try {
-        const result = await shellProxy.ExecuteQuery(serverId, state.selectedDatabase, query)
+        const result = await shellProxy.ExecuteQuery(
+          serverId,
+          queryId,
+          state.selectedDatabase,
+          query,
+        )
 
         if (state.cancelled || state.executionId !== thisExecution) {
           return
@@ -429,7 +434,7 @@ export const useQueryStore = defineStore('query', {
         level: 'warning',
         text: i18nGlobal.t('errors.query_cancelled'),
       })
-      await shellProxy.CancelQuery(serverId)
+      await shellProxy.CancelQuery(serverId, queryId)
     },
 
     setFilePath(queryId: string, filePath: string | null) {
