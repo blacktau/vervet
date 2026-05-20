@@ -226,6 +226,17 @@ export const useQueryStore = defineStore('query', {
         return
       }
 
+      const isBackgrounded = (): boolean => {
+        const tab = tabStore.currentTab
+        if (!tab) {
+          return true
+        }
+        if (tabStore.currentTabId !== serverId) {
+          return true
+        }
+        return tab.activeInnerTabId !== queryId
+      }
+
       const state = this.getQueryState(queryId)
       let query = payload.text
       const queryPayload: LogMessageQuery = { text: payload.text, range: payload.range }
@@ -331,6 +342,15 @@ export const useQueryStore = defineStore('query', {
           const opType = data.operationType || 'find'
           const msg = resultMessage(opType, data.affectedCount || docCount, elapsed)
           this.appendMessage(queryId, { level: 'info', text: msg, query: queryPayload })
+
+          if (isBackgrounded() && state.executionId === thisExecution && !state.cancelled) {
+            useNotifier().info(
+              i18nGlobal.t('query.messages.bgFinished', {
+                db: state.selectedDatabase,
+                elapsed,
+              }),
+            )
+          }
         } else {
           const translated = translateError(result.errorCode, result.errorDetail)
           state.error = translated
@@ -347,6 +367,12 @@ export const useQueryStore = defineStore('query', {
             })
           }
           state.activeResultTab = 'messages'
+
+          if (isBackgrounded() && state.executionId === thisExecution && !state.cancelled) {
+            useNotifier().error(
+              i18nGlobal.t('query.messages.bgFailed', { db: state.selectedDatabase }),
+            )
+          }
         }
       } catch (e) {
         if (state.cancelled || state.executionId !== thisExecution) {
@@ -357,6 +383,12 @@ export const useQueryStore = defineStore('query', {
         state.error = String(e)
         this.appendMessage(queryId, { level: 'error', text: String(e), query: queryPayload })
         state.activeResultTab = 'messages'
+
+        if (isBackgrounded()) {
+          useNotifier().error(
+            i18nGlobal.t('query.messages.bgFailed', { db: state.selectedDatabase }),
+          )
+        }
       } finally {
         state.loading = false
         state.runStartedAt = null
