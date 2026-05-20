@@ -379,16 +379,15 @@ export const useQueryStore = defineStore('query', {
           return
         }
         const notifier = useNotifier()
-        notifier.error(String(e))
+        const backgrounded = isBackgrounded()
+        if (backgrounded) {
+          notifier.error(i18nGlobal.t('query.messages.bgFailed', { db: state.selectedDatabase }))
+        } else {
+          notifier.error(String(e))
+        }
         state.error = String(e)
         this.appendMessage(queryId, { level: 'error', text: String(e), query: queryPayload })
         state.activeResultTab = 'messages'
-
-        if (isBackgrounded()) {
-          useNotifier().error(
-            i18nGlobal.t('query.messages.bgFailed', { db: state.selectedDatabase }),
-          )
-        }
       } finally {
         state.loading = false
         state.runStartedAt = null
