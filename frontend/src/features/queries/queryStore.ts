@@ -84,6 +84,8 @@ export interface QueryState {
   isDirty: boolean
   savedContent: string | null
   currentContent: string
+  /** Timestamp (ms since epoch) when the current execution started; null when idle */
+  runStartedAt: number | null
   /** The limit() from the last executed query, when the result may be truncated */
   activeLimit: number | null
   /** Lazily computed JSON — only populated when the JSON view is first accessed */
@@ -123,6 +125,7 @@ function createQueryState(database: string): QueryState {
     isDirty: false,
     savedContent: null,
     currentContent: '',
+    runStartedAt: null,
     activeLimit: null,
     _rawJsonCache: null,
     pageContext: null,
@@ -223,6 +226,17 @@ export const useQueryStore = defineStore('query', {
         return
       }
 
+      const isBackgrounded = (): boolean => {
+        const tab = tabStore.currentTab
+        if (!tab) {
+          return true
+        }
+        if (tabStore.currentTabId !== serverId) {
+          return true
+        }
+        return tab.activeInnerTabId !== queryId
+      }
+
       const state = this.getQueryState(queryId)
       let query = payload.text
       const queryPayload: LogMessageQuery = { text: payload.text, range: payload.range }
@@ -294,9 +308,8 @@ export const useQueryStore = defineStore('query', {
         query: queryPayload,
       })
 
-      const startTime = Date.now()
-
       try {
+        state.runStartedAt = Date.now()
         const result = await shellProxy.ExecuteQuery(
           serverId,
           queryId,
@@ -324,11 +337,20 @@ export const useQueryStore = defineStore('query', {
             void this.fetchCount(queryId)
           }
 
-          const elapsed = formatDuration(Date.now() - startTime)
+          const elapsed = formatDuration(Date.now() - (state.runStartedAt ?? Date.now()))
           const docCount = data.documents?.length ?? 0
           const opType = data.operationType || 'find'
           const msg = resultMessage(opType, data.affectedCount || docCount, elapsed)
           this.appendMessage(queryId, { level: 'info', text: msg, query: queryPayload })
+
+          if (isBackgrounded() && state.executionId === thisExecution && !state.cancelled) {
+            useNotifier().info(
+              i18nGlobal.t('query.messages.bgFinished', {
+                db: state.selectedDatabase,
+                elapsed,
+              }),
+            )
+          }
         } else {
           const translated = translateError(result.errorCode, result.errorDetail)
           state.error = translated
@@ -345,18 +367,30 @@ export const useQueryStore = defineStore('query', {
             })
           }
           state.activeResultTab = 'messages'
+
+          if (isBackgrounded() && state.executionId === thisExecution && !state.cancelled) {
+            useNotifier().error(
+              i18nGlobal.t('query.messages.bgFailed', { db: state.selectedDatabase }),
+            )
+          }
         }
       } catch (e) {
         if (state.cancelled || state.executionId !== thisExecution) {
           return
         }
         const notifier = useNotifier()
-        notifier.error(String(e))
+        const backgrounded = isBackgrounded()
+        if (backgrounded) {
+          notifier.error(i18nGlobal.t('query.messages.bgFailed', { db: state.selectedDatabase }))
+        } else {
+          notifier.error(String(e))
+        }
         state.error = String(e)
         this.appendMessage(queryId, { level: 'error', text: String(e), query: queryPayload })
         state.activeResultTab = 'messages'
       } finally {
         state.loading = false
+        state.runStartedAt = null
       }
     },
 

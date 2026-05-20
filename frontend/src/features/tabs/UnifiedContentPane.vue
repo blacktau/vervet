@@ -5,7 +5,7 @@ import { type QueryState } from '@/features/queries/queryStore'
 import { useI18n } from 'vue-i18n'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ChevronDownIcon } from '@heroicons/vue/24/outline'
-import type { DropdownOption } from 'naive-ui'
+import { useThemeVars, type DropdownOption } from 'naive-ui'
 import QueryTab from '@/features/queries/QueryTab.vue'
 import IndexTab from '@/features/indexes/IndexTab.vue'
 import CollectionStatisticsTab from '@/features/statistics/CollectionStatisticsTab.vue'
@@ -22,6 +22,14 @@ type UnifiedTab = {
 
 const tabStore = useTabStore()
 const queryStore = useQueryStore()
+const themeVars = useThemeVars()
+
+function isQueryTabLoading(id: string): boolean {
+  if (!id.startsWith('query-')) {
+    return false
+  }
+  return queryStore.queries[id]?.loading ?? false
+}
 const { t } = useI18n()
 const dialog = useDialog()
 
@@ -261,7 +269,19 @@ async function promptSaveBeforeClose(queryId: string, state: QueryState): Promis
         :tab="uTab.label"
         display-directive="show:lazy">
         <template #tab>
-          <span @contextmenu="onTabContextMenu($event, uTab)">{{ uTab.label }}</span>
+          <span
+            class="inner-tab-label"
+            :class="{
+              'inner-tab-label--loading': uTab.type === 'query' && isQueryTabLoading(uTab.id),
+            }"
+            :style="
+              uTab.type === 'query' && isQueryTabLoading(uTab.id)
+                ? { '--tab-progress-color': themeVars.primaryColor }
+                : {}
+            "
+            @contextmenu="onTabContextMenu($event, uTab)">
+            {{ uTab.label }}
+          </span>
         </template>
         <!-- Query content -->
         <QueryTab v-if="uTab.type === 'query'" :query-id="uTab.id" />
@@ -349,6 +369,43 @@ async function promptSaveBeforeClose(queryId: string, state: QueryState): Promis
   align-items: center;
   justify-content: center;
   height: 100%;
+}
+
+.inner-tab-label {
+  display: inline-block;
+  position: relative;
+}
+
+.inner-tab-label--loading {
+  padding-bottom: 4px;
+}
+
+.inner-tab-label--loading::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  border-radius: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--tab-progress-color, #2080f0) 40%,
+    var(--tab-progress-color, #2080f0) 60%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: tab-progress-sweep 2.8s ease-in-out infinite alternate;
+}
+
+@keyframes tab-progress-sweep {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 }
 
 :deep(.tab-sortable-fallback) {

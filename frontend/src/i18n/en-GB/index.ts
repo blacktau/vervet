@@ -443,6 +443,8 @@ export default {
       jumpToQuery: 'Jump to query',
       noMessages: 'No messages yet',
       noFilteredMessages: 'No messages match the current filter',
+      bgFinished: '{db} query finished ({elapsed})',
+      bgFailed: '{db} query failed',
     },
     database: 'Database',
     selectDatabase: 'Select database...',

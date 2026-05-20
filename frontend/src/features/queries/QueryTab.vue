@@ -24,7 +24,8 @@ import { useDialogStore } from '@/stores/dialog'
 import ListTreeIcon from '@/features/icon/ListTreeIcon.vue'
 import { useSettingsStore } from '@/features/settings/settingsStore'
 import { isMacOS } from '@/init/environment'
-import { ref, onMounted, computed, watch, nextTick } from 'vue'
+import { ref, onMounted, onBeforeUnmount, computed, watch, nextTick } from 'vue'
+import { formatElapsed } from '@/features/queries/timeFormat'
 import { useI18n } from 'vue-i18n'
 import type { CollectionContext } from '@/features/results-document-tree/useDocumentContextMenu'
 import * as monaco from 'monaco-editor'
@@ -186,6 +187,47 @@ function jumpToQuery(q: LogMessageQuery) {
 const cancelQuery = () => {
   queryStore.cancelQuery(props.queryId)
 }
+
+const elapsedLabel = ref('0:00')
+let elapsedTimer: ReturnType<typeof setInterval> | null = null
+
+function stopElapsedTimer() {
+  if (elapsedTimer !== null) {
+    clearInterval(elapsedTimer)
+    elapsedTimer = null
+  }
+}
+
+function startElapsedTimer() {
+  stopElapsedTimer()
+  const tick = () => {
+    const started = queryState.value.runStartedAt
+    if (started === null) {
+      elapsedLabel.value = '0:00'
+      return
+    }
+    elapsedLabel.value = formatElapsed(Date.now() - started)
+  }
+  tick()
+  elapsedTimer = setInterval(tick, 250)
+}
+
+watch(
+  () => queryState.value.loading,
+  (isLoading) => {
+    if (isLoading) {
+      startElapsedTimer()
+    } else {
+      stopElapsedTimer()
+      elapsedLabel.value = '0:00'
+    }
+  },
+  { immediate: true },
+)
+
+onBeforeUnmount(() => {
+  stopElapsedTimer()
+})
 
 const fileName = computed(() => {
   const fp = queryState.value.filePath
@@ -382,7 +424,7 @@ watch(
           <template #icon>
             <n-icon :component="StopIcon" />
           </template>
-          {{ t('query.cancel') }}
+          {{ t('query.cancel') }} · {{ elapsedLabel }}
         </n-button>
       </n-space>
       <n-space align="center" :size="4">
@@ -572,7 +614,7 @@ watch(
             <div v-if="queryState.loading" class="loading-state">
               <n-spin size="medium">
                 <template #description>
-                  {{ t('query.messages.executing') }}
+                  {{ t('query.messages.executing') }} {{ elapsedLabel }}
                 </template>
                 <div class="loading-state-spacer" />
               </n-spin>
