@@ -27,7 +27,7 @@ function isQueryTabLoading(id: string): boolean {
   if (!id.startsWith('query-')) {
     return false
   }
-  return queryStore.getQueryState(id).loading
+  return queryStore.queries[id]?.loading ?? false
 }
 const { t } = useI18n()
 const dialog = useDialog()
