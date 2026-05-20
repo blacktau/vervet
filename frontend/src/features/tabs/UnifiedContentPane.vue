@@ -22,6 +22,13 @@ type UnifiedTab = {
 
 const tabStore = useTabStore()
 const queryStore = useQueryStore()
+
+function isQueryTabLoading(id: string): boolean {
+  if (!id.startsWith('query-')) {
+    return false
+  }
+  return queryStore.getQueryState(id).loading
+}
 const { t } = useI18n()
 const dialog = useDialog()
 
@@ -261,7 +268,13 @@ async function promptSaveBeforeClose(queryId: string, state: QueryState): Promis
         :tab="uTab.label"
         display-directive="show:lazy">
         <template #tab>
-          <span @contextmenu="onTabContextMenu($event, uTab)">{{ uTab.label }}</span>
+          <span class="inner-tab-label" @contextmenu="onTabContextMenu($event, uTab)">
+            <n-spin
+              v-if="uTab.type === 'query' && isQueryTabLoading(uTab.id)"
+              :size="12"
+              class="inner-tab-spinner" />
+            {{ uTab.label }}
+          </span>
         </template>
         <!-- Query content -->
         <QueryTab v-if="uTab.type === 'query'" :query-id="uTab.id" />
@@ -349,6 +362,16 @@ async function promptSaveBeforeClose(queryId: string, state: QueryState): Promis
   align-items: center;
   justify-content: center;
   height: 100%;
+}
+
+.inner-tab-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.inner-tab-spinner {
+  flex: 0 0 auto;
 }
 
 :deep(.tab-sortable-fallback) {
