@@ -396,7 +396,7 @@ async function promptSaveBeforeClose(queryId: string, state: QueryState): Promis
     transparent 100%
   );
   background-size: 200% 100%;
-  animation: tab-progress-sweep 1.4s linear infinite;
+  animation: tab-progress-sweep 2.4s linear infinite;
 }
 
 @keyframes tab-progress-sweep {
