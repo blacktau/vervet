@@ -14,6 +14,7 @@ import {
   setAuthMechanism,
   signInBehaviourFromConfig,
   applySignInBehaviour,
+  getUriHost,
   type SyncableAuthMechanism,
   type SignInBehaviour,
 } from '@/features/server-pane/connectionStrings.ts'
@@ -61,6 +62,7 @@ const testing = ref(false)
 type AuthPickerValue = AuthMethod | 'auto'
 const authPicker = ref<AuthPickerValue>('auto')
 const lastChangeSource = ref<'uri' | 'picker' | null>(null)
+const nameWasEdited = ref(false)
 
 const SYNCABLE: Record<'oidc' | 'x509' | 'aws', SyncableAuthMechanism> = {
   oidc: 'MONGODB-OIDC',
@@ -212,6 +214,7 @@ const resetForm = () => {
   generalFormRef.value?.restoreValidation()
   testing.value = false
   authPicker.value = 'auto'
+  nameWasEdited.value = false
   oidcConfig.value = {
     providerUrl: '',
     clientId: '',
@@ -245,6 +248,7 @@ watch(
         if (server.oidcConfig) {
           oidcConfig.value = { ...server.oidcConfig }
         }
+        nameWasEdited.value = true
       }
       return
     }
@@ -254,6 +258,7 @@ watch(
       }
       if (data.name) {
         generalForm.value.name = data.name
+        nameWasEdited.value = true
       }
       return
     }
@@ -283,6 +288,12 @@ watch(
       lastChangeSource.value = 'uri'
       authPicker.value = detected
       nextTick(() => { lastChangeSource.value = null })
+    }
+    if (!nameWasEdited.value) {
+      const host = getUriHost(uri)
+      if (host) {
+        generalForm.value.name = host
+      }
     }
   },
 )
@@ -405,7 +416,8 @@ const onTestConnection = async () => {
                 required>
                 <n-input
                   v-model:value="generalForm.name"
-                  :placeholder="$t('serverPane.dialogs.server.nameTip')" />
+                  :placeholder="$t('serverPane.dialogs.server.nameTip')"
+                  @input="nameWasEdited = true" />
               </n-form-item-gi>
               <n-form-item-gi :label="$t('serverPane.dialogs.server.group')" :span="24" required>
                 <n-tree-select
