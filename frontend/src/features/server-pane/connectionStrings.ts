@@ -833,3 +833,35 @@ function stripAuthMechanism(uri: string): string {
     .replace(/\?&/, '?')
     .replace(/\?$/, '')
 }
+
+export type SyncableAuthMechanism = 'MONGODB-OIDC' | 'MONGODB-X509' | 'MONGODB-AWS'
+
+export function setAuthMechanism(uri: string, mechanism: SyncableAuthMechanism | null): string {
+  const queryIdx = uri.indexOf('?')
+  const base = queryIdx === -1 ? uri : uri.substring(0, queryIdx)
+  const query = queryIdx === -1 ? '' : uri.substring(queryIdx + 1)
+
+  const parts = query.length > 0 ? query.split('&') : []
+  let hasAuthMechanism = false
+  const kept: string[] = []
+  for (const part of parts) {
+    const lower = part.toLowerCase()
+    if (lower.startsWith('authmechanism=')) {
+      if (mechanism !== null && !hasAuthMechanism) {
+        kept.push(`authMechanism=${mechanism}`)
+        hasAuthMechanism = true
+      }
+      continue
+    }
+    if (lower.startsWith('authmechanismproperties=')) {
+      continue
+    }
+    kept.push(part)
+  }
+
+  if (mechanism !== null && !hasAuthMechanism) {
+    kept.push(`authMechanism=${mechanism}`)
+  }
+
+  return kept.length === 0 ? base : `${base}?${kept.join('&')}`
+}
