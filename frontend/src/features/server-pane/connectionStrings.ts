@@ -1,5 +1,5 @@
 import { i18nGlobal } from '@/i18n'
-import type { AuthMethod } from '@/types/ConnectionConfig'
+import type { AuthMethod, OIDCConfig } from '@/types/ConnectionConfig'
 
 interface OptionValidator {
   v: (value?: string) => boolean
@@ -856,4 +856,27 @@ export function setAuthMechanism(uri: string, mechanism: SyncableAuthMechanism |
   }
 
   return kept.length === 0 ? base : `${base}?${kept.join('&')}`
+}
+
+export type SignInBehaviour = 'openBrowser' | 'forceAccountPicker' | 'showUrl'
+
+export function signInBehaviourFromConfig(cfg: OIDCConfig): SignInBehaviour {
+  if (cfg.manualUrlMode === true) {
+    return 'showUrl'
+  }
+  if (cfg.prompt === 'select_account') {
+    return 'forceAccountPicker'
+  }
+  return 'openBrowser'
+}
+
+export function applySignInBehaviour(cfg: OIDCConfig, behaviour: SignInBehaviour): OIDCConfig {
+  switch (behaviour) {
+    case 'openBrowser':
+      return { ...cfg, prompt: '', manualUrlMode: false }
+    case 'forceAccountPicker':
+      return { ...cfg, prompt: 'select_account', manualUrlMode: false }
+    case 'showUrl':
+      return { ...cfg, prompt: '', manualUrlMode: true }
+  }
 }
