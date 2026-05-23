@@ -323,6 +323,15 @@ const onTestConnection = async () => {
             label-placement="top">
             <n-grid :x-gap="10">
               <n-form-item-gi
+                :label="$t('serverPane.dialogs.server.connectionString')"
+                :span="24"
+                path="connectionString"
+                required>
+                <n-input
+                  v-model:value="generalForm.connectionString"
+                  :placeholder="$t('serverPane.dialogs.server.connectionStringTip')" />
+              </n-form-item-gi>
+              <n-form-item-gi
                 :label="$t('serverPane.dialogs.server.name')"
                 :span="24"
                 path="name"
@@ -337,15 +346,6 @@ const onTestConnection = async () => {
                   :options="groupOptions"
                   key-field="id"
                   label-field="name" />
-              </n-form-item-gi>
-              <n-form-item-gi
-                :label="$t('serverPane.dialogs.server.connectionString')"
-                :span="24"
-                path="connectionString"
-                required>
-                <n-input
-                  v-model:value="generalForm.connectionString"
-                  :placeholder="$t('serverPane.dialogs.server.connectionStringTip')" />
               </n-form-item-gi>
               <n-form-item-gi
                 :label="$t('serverPane.dialogs.server.authMethod')"
