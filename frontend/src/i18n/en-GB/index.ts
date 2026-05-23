@@ -614,6 +614,13 @@ export default {
         oidcAuthUrlDescription: 'Copy this URL and open it in a private window or a different browser profile signed in as the correct account.',
         oidcAuthUrlCopy: 'Copy URL',
         oidcAuthUrlCopied: 'URL copied to clipboard',
+        oidcSignInBehaviour: 'Sign-in behaviour',
+        oidcSignInOpenBrowser: 'Open browser',
+        oidcSignInForceAccountPicker: 'Open browser, force account picker',
+        oidcSignInShowUrl: 'Show URL to copy',
+        oidcAdvanced: 'Advanced',
+        authMethodAuto: 'Auto (detect from URI)',
+        authenticationTab: 'Authentication',
       },
       export: {
         title: 'Export Servers',
