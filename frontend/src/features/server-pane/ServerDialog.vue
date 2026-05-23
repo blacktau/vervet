@@ -8,7 +8,12 @@ import { DialogType, useDialogStore } from '@/stores/dialog.ts'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 import { type RegisteredServerNode, useServerStore } from '@/features/server-pane/serverStore.ts'
 import { useMessager, useNotifier } from '@/utils/dialog.ts'
-import { parseUri, detectAuthFromUri } from '@/features/server-pane/connectionStrings.ts'
+import {
+  parseUri,
+  detectAuthFromUri,
+  setAuthMechanism,
+  type SyncableAuthMechanism,
+} from '@/features/server-pane/connectionStrings.ts'
 import { filterGroupMap } from '@/features/server-pane/helpers.ts'
 import * as connectionsProxy from 'wailsjs/go/api/ConnectionsProxy'
 import type { AuthMethod, OIDCConfig } from '@/types/ConnectionConfig'
@@ -49,7 +54,24 @@ const generalForm = ref<EditableRegisteredServer>({
 
 const generalFormRef = ref<FormInst | undefined>(undefined)
 const testing = ref(false)
-const authMethod = ref<AuthMethod>('password')
+
+type AuthPickerValue = AuthMethod | 'auto'
+const authPicker = ref<AuthPickerValue>('auto')
+const lastChangeSource = ref<'uri' | 'picker' | null>(null)
+
+const SYNCABLE: Record<'oidc' | 'x509' | 'aws', SyncableAuthMechanism> = {
+  oidc: 'MONGODB-OIDC',
+  x509: 'MONGODB-X509',
+  aws: 'MONGODB-AWS',
+}
+
+const effectiveAuthMethod = computed<AuthMethod>(() => {
+  if (authPicker.value === 'auto') {
+    return detectAuthFromUri(generalForm.value.connectionString).authMethod
+  }
+  return authPicker.value
+})
+
 const oidcConfig = ref<OIDCConfig>({
   providerUrl: '',
   clientId: '',
@@ -109,8 +131,8 @@ const onSaveServer = async () => {
 
   const cfg = {
     uri: generalForm.value.connectionString,
-    authMethod: authMethod.value,
-    oidcConfig: authMethod.value === 'oidc' ? { ...oidcConfig.value } : undefined,
+    authMethod: effectiveAuthMethod.value,
+    oidcConfig: effectiveAuthMethod.value === 'oidc' ? { ...oidcConfig.value } : undefined,
   }
 
   const messager = useMessager()
@@ -179,7 +201,7 @@ const resetForm = () => {
   }
   generalFormRef.value?.restoreValidation()
   testing.value = false
-  authMethod.value = 'password'
+  authPicker.value = 'auto'
   oidcConfig.value = {
     providerUrl: '',
     clientId: '',
@@ -209,7 +231,7 @@ watch(
           connectionString: server.uri,
           parentId: server.parentID || '',
         }
-        authMethod.value = server.authMethod ?? 'password'
+        authPicker.value = server.authMethod ?? 'password'
         if (server.oidcConfig) {
           oidcConfig.value = { ...server.oidcConfig }
         }
@@ -239,19 +261,48 @@ watch(
 watch(
   () => generalForm.value.connectionString,
   (uri) => {
+    if (lastChangeSource.value === 'picker') {
+      lastChangeSource.value = null
+      return
+    }
     if (!uri) {
       return
     }
-    const detected = detectAuthFromUri(uri)
-    if (detected.authMethod !== 'password') {
-      authMethod.value = detected.authMethod
-      generalForm.value.connectionString = detected.uri
+    const detected = detectAuthFromUri(uri).authMethod
+    if (detected !== 'password' && authPicker.value !== detected) {
+      lastChangeSource.value = 'uri'
+      authPicker.value = detected
+      nextTick(() => { lastChangeSource.value = null })
     }
   },
 )
 
+watch(authPicker, (next, prev) => {
+  if (lastChangeSource.value === 'uri') {
+    lastChangeSource.value = null
+    return
+  }
+  if (next === prev || next === 'auto') {
+    return
+  }
+  const uri = generalForm.value.connectionString
+  if (!uri) {
+    return
+  }
+  let mechanism: SyncableAuthMechanism | null = null
+  if (next === 'oidc' || next === 'x509' || next === 'aws') {
+    mechanism = SYNCABLE[next]
+  }
+  const newUri = setAuthMechanism(uri, mechanism)
+  if (newUri !== uri) {
+    lastChangeSource.value = 'picker'
+    generalForm.value.connectionString = newUri
+    nextTick(() => { lastChangeSource.value = null })
+  }
+})
+
 const onTestConnection = async () => {
-  if (authMethod.value === 'oidc') {
+  if (effectiveAuthMethod.value === 'oidc') {
     const notifier = useNotifier()
     notifier.info(i18n.t('serverPane.dialogs.server.testOIDCUnsupported'))
     return
@@ -351,8 +402,9 @@ const onTestConnection = async () => {
                 :label="$t('serverPane.dialogs.server.authMethod')"
                 :span="24">
                 <n-select
-                  v-model:value="authMethod"
+                  v-model:value="authPicker"
                   :options="[
+                    { label: $t('serverPane.dialogs.server.authMethodAuto'), value: 'auto' },
                     { label: $t('serverPane.dialogs.server.authNone'), value: 'none' },
                     { label: $t('serverPane.dialogs.server.authPassword'), value: 'password' },
                     { label: $t('serverPane.dialogs.server.authX509'), value: 'x509' },
@@ -361,7 +413,7 @@ const onTestConnection = async () => {
                   ]"
                 />
               </n-form-item-gi>
-              <template v-if="authMethod === 'oidc'">
+              <template v-if="effectiveAuthMethod === 'oidc'">
                 <n-form-item-gi
                   :label="$t('serverPane.dialogs.server.oidcWorkloadIdentity')"
                   :span="24">
