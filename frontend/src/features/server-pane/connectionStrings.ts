@@ -797,7 +797,7 @@ export interface DetectAuthResult {
 export function detectAuthFromUri(uri: string): DetectAuthResult {
   const lower = uri.toLowerCase()
   if (lower.includes('authmechanism=mongodb-oidc')) {
-    return { authMethod: 'oidc', uri: stripAuthMechanism(uri) }
+    return { authMethod: 'oidc', uri }
   }
   if (lower.includes('authmechanism=mongodb-x509')) {
     return { authMethod: 'x509', uri }
@@ -824,14 +824,6 @@ export function getUriHost(uri: string): string {
     return `${first.host}:${first.port}`
   }
   return first.host
-}
-
-function stripAuthMechanism(uri: string): string {
-  return uri
-    .replace(/[?&]authMechanism=[^&]*/gi, '')
-    .replace(/[?&]authMechanismProperties=[^&]*/gi, '')
-    .replace(/\?&/, '?')
-    .replace(/\?$/, '')
 }
 
 export type SyncableAuthMechanism = 'MONGODB-OIDC' | 'MONGODB-X509' | 'MONGODB-AWS'

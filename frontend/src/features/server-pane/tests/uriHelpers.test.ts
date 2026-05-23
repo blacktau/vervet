@@ -7,13 +7,11 @@ describe('detectAuthFromUri', () => {
     expect(result).toEqual({ authMethod: 'password', uri: 'mongodb://localhost:27017' })
   })
 
-  test('detects OIDC and strips authMechanism + authMechanismProperties', () => {
-    const result = detectAuthFromUri(
-      'mongodb://host/?authMechanism=MONGODB-OIDC&authMechanismProperties=PROVIDER_NAME:aws',
-    )
+  test('detects OIDC and preserves URI verbatim', () => {
+    const uri = 'mongodb://host/?authMechanism=MONGODB-OIDC&authMechanismProperties=PROVIDER_NAME:aws'
+    const result = detectAuthFromUri(uri)
     expect(result.authMethod).toBe('oidc')
-    expect(result.uri.toLowerCase()).not.toContain('authmechanism=')
-    expect(result.uri.toLowerCase()).not.toContain('authmechanismproperties=')
+    expect(result.uri).toBe(uri)
   })
 
   test('detects x509 without modifying URI', () => {
@@ -33,11 +31,10 @@ describe('detectAuthFromUri', () => {
     expect(result.authMethod).toBe('oidc')
   })
 
-  test('leaves leading question mark clean after OIDC stripping', () => {
-    const result = detectAuthFromUri(
-      'mongodb://host/?authMechanism=MONGODB-OIDC',
-    )
-    expect(result.uri).toBe('mongodb://host/')
+  test('OIDC detection preserves single-param URI', () => {
+    const uri = 'mongodb://host/?authMechanism=MONGODB-OIDC'
+    const result = detectAuthFromUri(uri)
+    expect(result.uri).toBe(uri)
   })
 })
 

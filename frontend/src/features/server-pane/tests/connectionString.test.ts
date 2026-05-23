@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { parseUri, setAuthMechanism } from '@/features/server-pane/connectionStrings.ts'
+import { parseUri, setAuthMechanism, detectAuthFromUri } from '@/features/server-pane/connectionStrings.ts'
 import InvalidUriScenarios from './scenarios/invalid-uris.json' with { type: 'json' }
 import ValidAuthScenarios from './scenarios/valid-auth.json' with { type: 'json' }
 import ValidDbWithDottedNameScenarios from './scenarios/valid-db-with-dotted-name.json' with { type: 'json' }
@@ -258,5 +258,25 @@ describe('connectionString.setAuthMechanism', () => {
   test('preserves userinfo', () => {
     expect(setAuthMechanism('mongodb://user:pass@host', 'MONGODB-OIDC'))
       .toBe('mongodb://user:pass@host?authMechanism=MONGODB-OIDC')
+  })
+})
+
+describe('connectionString.detectAuthFromUri', () => {
+  test('OIDC detection preserves authMechanism in URI', () => {
+    const result = detectAuthFromUri('mongodb://host?authMechanism=MONGODB-OIDC')
+    expect(result.authMethod).toBe('oidc')
+    expect(result.uri).toBe('mongodb://host?authMechanism=MONGODB-OIDC')
+  })
+
+  test('X509 detection preserves URI verbatim', () => {
+    const result = detectAuthFromUri('mongodb://host?authMechanism=MONGODB-X509')
+    expect(result.authMethod).toBe('x509')
+    expect(result.uri).toBe('mongodb://host?authMechanism=MONGODB-X509')
+  })
+
+  test('password fallback returns URI unchanged', () => {
+    const result = detectAuthFromUri('mongodb://user:pass@host')
+    expect(result.authMethod).toBe('password')
+    expect(result.uri).toBe('mongodb://user:pass@host')
   })
 })
