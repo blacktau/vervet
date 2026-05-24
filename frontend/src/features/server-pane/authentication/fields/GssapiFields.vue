@@ -72,7 +72,7 @@ const canonicalizeOptions = computed(() => [
   { label: i18n.t('serverPane.dialogs.server.auth.gssapi.canonicalizeNone'), value: 'none' },
   { label: i18n.t('serverPane.dialogs.server.auth.gssapi.canonicalizeForward'), value: 'forward' },
   {
-    label: t('serverPane.dialogs.server.auth.gssapi.canonicalizeForwardReverse'),
+    label: i18n.t('serverPane.dialogs.server.auth.gssapi.canonicalizeForwardReverse'),
     value: 'forwardAndReverse',
   },
 ])

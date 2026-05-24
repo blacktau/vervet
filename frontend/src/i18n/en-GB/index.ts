@@ -655,7 +655,7 @@ export default {
           },
           gssapi: {
             principal: 'Principal',
-            principalPlaceholder: 'user@REALM.EXAMPLE',
+            principalPlaceholder: "user{'@'}REALM.EXAMPLE",
             serviceName: 'Service name',
             serviceNamePlaceholder: 'mongodb',
             canonicalize: 'Canonicalize host name',
