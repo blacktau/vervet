@@ -345,3 +345,27 @@ describe('signInBehaviour mapping', () => {
     expect(signInBehaviourFromConfig(after)).toBe('showUrl')
   })
 })
+
+describe('detectAuthFromUri — gssapi/plain', () => {
+  test('detects GSSAPI', () => {
+    const result = detectAuthFromUri('mongodb://user@host/?authMechanism=GSSAPI')
+    expect(result.authMethod).toBe('gssapi')
+  })
+
+  test('detects PLAIN', () => {
+    const result = detectAuthFromUri('mongodb://user@host/?authMechanism=PLAIN')
+    expect(result.authMethod).toBe('plain')
+  })
+})
+
+describe('setAuthMechanism — gssapi/plain', () => {
+  test('writes authMechanism=GSSAPI', () => {
+    const out = setAuthMechanism('mongodb://host/', 'GSSAPI')
+    expect(out).toBe('mongodb://host/?authMechanism=GSSAPI')
+  })
+
+  test('writes authMechanism=PLAIN', () => {
+    const out = setAuthMechanism('mongodb://host/', 'PLAIN')
+    expect(out).toBe('mongodb://host/?authMechanism=PLAIN')
+  })
+})

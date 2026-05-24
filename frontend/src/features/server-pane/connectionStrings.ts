@@ -805,6 +805,12 @@ export function detectAuthFromUri(uri: string): DetectAuthResult {
   if (lower.includes('authmechanism=mongodb-aws')) {
     return { authMethod: 'aws', uri }
   }
+  if (lower.includes('authmechanism=gssapi')) {
+    return { authMethod: 'gssapi', uri }
+  }
+  if (lower.includes('authmechanism=plain')) {
+    return { authMethod: 'plain', uri }
+  }
   return { authMethod: 'password', uri }
 }
 
@@ -826,7 +832,12 @@ export function getUriHost(uri: string): string {
   return first.host
 }
 
-export type SyncableAuthMechanism = 'MONGODB-OIDC' | 'MONGODB-X509' | 'MONGODB-AWS'
+export type SyncableAuthMechanism =
+  | 'MONGODB-OIDC'
+  | 'MONGODB-X509'
+  | 'MONGODB-AWS'
+  | 'GSSAPI'
+  | 'PLAIN'
 
 export function setAuthMechanism(uri: string, mechanism: SyncableAuthMechanism | null): string {
   const queryIdx = uri.indexOf('?')
