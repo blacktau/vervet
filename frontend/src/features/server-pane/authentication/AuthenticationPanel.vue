@@ -18,11 +18,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { AuthMethod, OIDCConfig } from '@/types/ConnectionConfig'
-import {
-  detectAuthFromUri,
-  setAuthMechanism,
-  type SyncableAuthMechanism,
-} from '../connectionStrings'
+import { setAuthMechanism, type SyncableAuthMechanism } from '../connectionStrings'
 import NoneFields from './fields/NoneFields.vue'
 import ScramFields from './fields/ScramFields.vue'
 import X509Fields from './fields/X509Fields.vue'
@@ -31,24 +27,21 @@ import AwsFields from './fields/AwsFields.vue'
 import GssapiFields from './fields/GssapiFields.vue'
 import PlainFields from './fields/PlainFields.vue'
 
-type PickerValue = AuthMethod | 'auto'
-
 const props = defineProps<{
   uri: string
-  method: PickerValue
+  method: AuthMethod
   oidcConfig: OIDCConfig
 }>()
 
 const emit = defineEmits<{
   (e: 'update:uri', value: string): void
-  (e: 'update:method', value: PickerValue): void
+  (e: 'update:method', value: AuthMethod): void
   (e: 'update:oidcConfig', value: OIDCConfig): void
 }>()
 
 const { t } = useI18n()
 
 const pickerOptions = computed(() => [
-  { label: t('serverPane.dialogs.server.auth.picker.auto'), value: 'auto' },
   { label: t('serverPane.dialogs.server.auth.picker.none'), value: 'none' },
   { label: t('serverPane.dialogs.server.auth.picker.password'), value: 'password' },
   { label: t('serverPane.dialogs.server.auth.picker.x509'), value: 'x509' },
@@ -58,15 +51,8 @@ const pickerOptions = computed(() => [
   { label: t('serverPane.dialogs.server.auth.picker.plain'), value: 'plain' },
 ])
 
-const effective = computed<AuthMethod>(() => {
-  if (props.method === 'auto') {
-    return detectAuthFromUri(props.uri).authMethod
-  }
-  return props.method
-})
-
 const fieldsComponent = computed(() => {
-  switch (effective.value) {
+  switch (props.method) {
     case 'none':
       return NoneFields
     case 'password':
@@ -94,11 +80,8 @@ const SYNCABLE: Partial<Record<AuthMethod, SyncableAuthMechanism>> = {
   plain: 'PLAIN',
 }
 
-function onMethodChange(next: PickerValue): void {
+function onMethodChange(next: AuthMethod): void {
   emit('update:method', next)
-  if (next === 'auto') {
-    return
-  }
   const mechanism = next === 'none' || next === 'password' ? null : (SYNCABLE[next] ?? null)
   const newUri = setAuthMechanism(props.uri, mechanism)
   if (newUri !== props.uri) {

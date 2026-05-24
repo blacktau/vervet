@@ -55,20 +55,12 @@ const generalForm = ref<EditableRegisteredServer>({
 const generalFormRef = ref<FormInst | undefined>(undefined)
 const testing = ref(false)
 
-type AuthPickerValue = AuthMethod | 'auto'
-const authPicker = ref<AuthPickerValue>('auto')
+const authPicker = ref<AuthMethod>('password')
 const lastChangeSource = ref<'uri' | 'picker' | null>(null)
 const nameWasEdited = ref(false)
 
-const effectiveAuthMethod = computed<AuthMethod>(() => {
-  if (authPicker.value === 'auto') {
-    return detectAuthFromUri(generalForm.value.connectionString).authMethod
-  }
-  return authPicker.value
-})
-
 const hintMechanismLabel = computed(() =>
-  i18n.t(`serverPane.dialogs.server.auth.picker.${effectiveAuthMethod.value}`),
+  i18n.t(`serverPane.dialogs.server.auth.picker.${authPicker.value}`),
 )
 
 const oidcConfig = ref<OIDCConfig>({
@@ -130,8 +122,8 @@ const onSaveServer = async () => {
 
   const cfg = {
     uri: generalForm.value.connectionString,
-    authMethod: effectiveAuthMethod.value,
-    oidcConfig: effectiveAuthMethod.value === 'oidc' ? { ...oidcConfig.value } : undefined,
+    authMethod: authPicker.value,
+    oidcConfig: authPicker.value === 'oidc' ? { ...oidcConfig.value } : undefined,
   }
 
   const messager = useMessager()
@@ -200,7 +192,7 @@ const resetForm = () => {
   }
   generalFormRef.value?.restoreValidation()
   testing.value = false
-  authPicker.value = 'auto'
+  authPicker.value = 'password'
   nameWasEdited.value = false
   oidcConfig.value = {
     providerUrl: '',
@@ -285,7 +277,7 @@ watch(
   },
 )
 
-function onPanelMethodChange(next: AuthPickerValue): void {
+function onPanelMethodChange(next: AuthMethod): void {
   if (lastChangeSource.value === 'uri') {
     lastChangeSource.value = null
     authPicker.value = next
@@ -310,7 +302,7 @@ function onPanelUriChange(next: string): void {
 }
 
 const onTestConnection = async () => {
-  if (effectiveAuthMethod.value === 'oidc') {
+  if (authPicker.value === 'oidc') {
     const notifier = useNotifier()
     notifier.info(i18n.t('serverPane.dialogs.server.testOIDCUnsupported'))
     return

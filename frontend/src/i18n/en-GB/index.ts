@@ -613,12 +613,10 @@ export default {
         oidcSignInForceAccountPicker: 'Open browser, force account picker',
         oidcSignInShowUrl: 'Show URL to copy',
         oidcAdvanced: 'Advanced',
-        authMethodAuto: 'Auto (detect from URI)',
         authenticationTab: 'Authentication',
         auth: {
           hint: 'Authentication: {mechanism} — configure in Authentication tab',
           picker: {
-            auto: 'Auto-detect',
             none: 'None',
             password: 'Username & password (SCRAM)',
             x509: 'X.509 certificate',
