@@ -1,6 +1,9 @@
 <template>
-  <n-form label-placement="top" :show-feedback="false">
-    <n-form-item :label="$t('serverPane.dialogs.server.auth.gssapi.principal')">
+  <n-form label-placement="top">
+    <n-form-item
+      :label="$t('serverPane.dialogs.server.auth.gssapi.principal')"
+      :validation-status="fields.principal ? undefined : 'warning'"
+      :feedback="fields.principal ? '' : $t('serverPane.dialogs.server.auth.warnings.missingPrincipal')">
       <n-input
         :value="fields.principal"
         :placeholder="$t('serverPane.dialogs.server.auth.gssapi.principalPlaceholder')"
@@ -50,13 +53,13 @@ import { parseGssapi, serialiseGssapi, type GssapiAuth } from '../authUri'
 const props = defineProps<{ uri: string }>()
 const emit = defineEmits<{ (e: 'update:uri', value: string): void }>()
 
-const { t } = useI18n()
+const i18n = useI18n()
 
 const fields = computed<GssapiAuth>(() => parseGssapi(props.uri))
 
 const canonicalizeOptions = computed(() => [
-  { label: t('serverPane.dialogs.server.auth.gssapi.canonicalizeNone'), value: 'none' },
-  { label: t('serverPane.dialogs.server.auth.gssapi.canonicalizeForward'), value: 'forward' },
+  { label: i18n.t('serverPane.dialogs.server.auth.gssapi.canonicalizeNone'), value: 'none' },
+  { label: i18n.t('serverPane.dialogs.server.auth.gssapi.canonicalizeForward'), value: 'forward' },
   {
     label: t('serverPane.dialogs.server.auth.gssapi.canonicalizeForwardReverse'),
     value: 'forwardAndReverse',
@@ -66,14 +69,4 @@ const canonicalizeOptions = computed(() => [
 function update(patch: Partial<GssapiAuth>): void {
   emit('update:uri', serialiseGssapi(props.uri, { ...fields.value, ...patch }))
 }
-
-const warnings = computed<string[]>(() => {
-  const out: string[] = []
-  if (!fields.value.principal) {
-    out.push(t('serverPane.dialogs.server.auth.warnings.missingPrincipal'))
-  }
-  return out
-})
-
-defineExpose({ warnings })
 </script>

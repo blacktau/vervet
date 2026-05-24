@@ -4,19 +4,8 @@
       <n-select :value="method" :options="pickerOptions" @update:value="onMethodChange" />
     </n-form-item>
 
-    <n-alert
-      v-if="combinedWarnings.length > 0"
-      :show-icon="false"
-      type="warning"
-      class="warnings">
-      <ul>
-        <li v-for="(w, i) in combinedWarnings" :key="i">{{ w }}</li>
-      </ul>
-    </n-alert>
-
     <component
       :is="fieldsComponent"
-      ref="fieldsRef"
       :uri="uri"
       :oidc-config="oidcConfig"
       @update:uri="(v: string) => $emit('update:uri', v)"
@@ -26,7 +15,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { AuthMethod, OIDCConfig } from '@/types/ConnectionConfig'
 import {
@@ -117,21 +106,4 @@ function onMethodChange(next: PickerValue): void {
   }
 }
 
-const fieldsRef = ref<{ warnings?: string[] } | null>(null)
-
-const combinedWarnings = computed<string[]>(() => fieldsRef.value?.warnings ?? [])
-
-watch(effective, () => {
-  fieldsRef.value = null
-})
 </script>
-
-<style scoped>
-.warnings {
-  margin-bottom: 16px;
-}
-.warnings ul {
-  margin: 0;
-  padding-left: 1.25rem;
-}
-</style>

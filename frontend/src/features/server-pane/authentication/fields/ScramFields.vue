@@ -1,6 +1,9 @@
 <template>
-  <n-form label-placement="top" :show-feedback="false">
-    <n-form-item :label="$t('serverPane.dialogs.server.auth.scram.username')">
+  <n-form label-placement="top">
+    <n-form-item
+      :label="$t('serverPane.dialogs.server.auth.scram.username')"
+      :validation-status="fields.username ? undefined : 'warning'"
+      :feedback="fields.username ? '' : $t('serverPane.dialogs.server.auth.warnings.missingUsername')">
       <n-input
         :value="fields.username"
         data-testid="scram-username"
@@ -40,12 +43,12 @@ import { parseScram, serialiseScram, type ScramAuth } from '../authUri'
 const props = defineProps<{ uri: string }>()
 const emit = defineEmits<{ (e: 'update:uri', value: string): void }>()
 
-const { t } = useI18n()
+const i18n = useI18n()
 
 const fields = computed<ScramAuth>(() => parseScram(props.uri))
 
 const mechanismOptions = computed(() => [
-  { label: t('serverPane.dialogs.server.auth.scram.mechanismAuto'), value: 'auto' },
+  { label: i18n.t('serverPane.dialogs.server.auth.scram.mechanismAuto'), value: 'auto' },
   { label: 'SCRAM-SHA-256', value: 'SCRAM-SHA-256' },
   { label: 'SCRAM-SHA-1', value: 'SCRAM-SHA-1' },
 ])
@@ -53,14 +56,4 @@ const mechanismOptions = computed(() => [
 function update(patch: Partial<ScramAuth>): void {
   emit('update:uri', serialiseScram(props.uri, { ...fields.value, ...patch }))
 }
-
-const warnings = computed<string[]>(() => {
-  const out: string[] = []
-  if (!fields.value.username) {
-    out.push(t('serverPane.dialogs.server.auth.warnings.missingUsername'))
-  }
-  return out
-})
-
-defineExpose({ warnings })
 </script>

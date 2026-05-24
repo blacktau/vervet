@@ -1,6 +1,9 @@
 <template>
-  <n-form label-placement="top" :show-feedback="false">
-    <n-form-item :label="$t('serverPane.dialogs.server.auth.plain.username')">
+  <n-form label-placement="top">
+    <n-form-item
+      :label="$t('serverPane.dialogs.server.auth.plain.username')"
+      :validation-status="fields.username ? undefined : 'warning'"
+      :feedback="fields.username ? '' : $t('serverPane.dialogs.server.auth.warnings.missingUsername')">
       <n-input
         :value="fields.username"
         data-testid="plain-username"
@@ -27,27 +30,14 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useI18n } from 'vue-i18n'
 import { parsePlain, serialisePlain, type PlainAuth } from '../authUri'
 
 const props = defineProps<{ uri: string }>()
 const emit = defineEmits<{ (e: 'update:uri', value: string): void }>()
-
-const { t } = useI18n()
 
 const fields = computed<PlainAuth>(() => parsePlain(props.uri))
 
 function update(patch: Partial<PlainAuth>): void {
   emit('update:uri', serialisePlain(props.uri, { ...fields.value, ...patch }))
 }
-
-const warnings = computed<string[]>(() => {
-  const out: string[] = []
-  if (!fields.value.username) {
-    out.push(t('serverPane.dialogs.server.auth.warnings.missingUsername'))
-  }
-  return out
-})
-
-defineExpose({ warnings })
 </script>

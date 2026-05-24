@@ -90,7 +90,4 @@ function onScopes(v: string): void {
   })
 }
 
-const warnings = computed<string[]>(() => [])
-
-defineExpose({ warnings })
 </script>

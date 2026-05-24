@@ -1,6 +1,9 @@
 <template>
-  <n-form label-placement="top" :show-feedback="false">
-    <n-form-item :label="$t('serverPane.dialogs.server.auth.x509.certFile')">
+  <n-form label-placement="top">
+    <n-form-item
+      :label="$t('serverPane.dialogs.server.auth.x509.certFile')"
+      :validation-status="fields.certFile ? undefined : 'warning'"
+      :feedback="fields.certFile ? '' : $t('serverPane.dialogs.server.auth.warnings.missingCertFile')">
       <n-input-group>
         <n-input
           :value="fields.certFile"
@@ -49,7 +52,7 @@ import { SelectFile } from 'wailsjs/go/api/FilesProxy'
 const props = defineProps<{ uri: string }>()
 const emit = defineEmits<{ (e: 'update:uri', value: string): void }>()
 
-const { t } = useI18n()
+const i18n = useI18n()
 
 const fields = computed<X509Auth>(() => parseX509(props.uri))
 
@@ -58,7 +61,7 @@ function update(patch: Partial<X509Auth>): void {
 }
 
 async function browse(): Promise<void> {
-  const result = await SelectFile(t('serverPane.dialogs.server.auth.x509.certFile'), [
+  const result = await SelectFile(i18n.t('serverPane.dialogs.server.auth.x509.certFile'), [
     { displayName: 'PEM files', pattern: '*.pem;*.crt;*.key' },
     { displayName: 'All files', pattern: '*' },
   ])
@@ -66,14 +69,4 @@ async function browse(): Promise<void> {
     update({ certFile: result.data })
   }
 }
-
-const warnings = computed<string[]>(() => {
-  const out: string[] = []
-  if (!fields.value.certFile) {
-    out.push(t('serverPane.dialogs.server.auth.warnings.missingCertFile'))
-  }
-  return out
-})
-
-defineExpose({ warnings })
 </script>
