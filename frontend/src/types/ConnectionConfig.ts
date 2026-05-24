@@ -1,4 +1,4 @@
-export type AuthMethod = 'none' | 'password' | 'x509' | 'oidc' | 'aws'
+export type AuthMethod = 'none' | 'password' | 'x509' | 'oidc' | 'aws' | 'gssapi' | 'plain'
 
 export type OIDCPrompt = '' | 'login' | 'select_account' | 'consent'
 
