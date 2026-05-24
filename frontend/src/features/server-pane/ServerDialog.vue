@@ -390,11 +390,6 @@ const onTestConnection = async () => {
                   v-model:value="generalForm.connectionString"
                   :placeholder="$t('serverPane.dialogs.server.connectionStringTip')" />
               </n-form-item-gi>
-              <n-form-item-gi :span="24" :show-feedback="false">
-                <n-text depth="3" style="font-size: 12px">
-                  {{ $t('serverPane.dialogs.server.auth.hint', { mechanism: hintMechanismLabel }) }}
-                </n-text>
-              </n-form-item-gi>
               <n-form-item-gi
                 :label="$t('serverPane.dialogs.server.name')"
                 :span="24"
@@ -430,6 +425,11 @@ const onTestConnection = async () => {
                   @click="generalForm.colour = colour">
                   <n-icon v-if="isEmpty(colour)" :component="XCircleIcon" size="24" />
                 </div>
+              </n-form-item-gi>
+              <n-form-item-gi :span="24" :show-feedback="false">
+                <n-text depth="3" style="font-size: 12px">
+                  {{ $t('serverPane.dialogs.server.auth.hint', { mechanism: hintMechanismLabel }) }}
+                </n-text>
               </n-form-item-gi>
             </n-grid>
           </n-form>
