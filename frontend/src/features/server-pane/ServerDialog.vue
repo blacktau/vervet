@@ -11,16 +11,12 @@ import { useMessager, useNotifier } from '@/utils/dialog.ts'
 import {
   parseUri,
   detectAuthFromUri,
-  setAuthMechanism,
-  signInBehaviourFromConfig,
-  applySignInBehaviour,
   getUriHost,
-  type SyncableAuthMechanism,
-  type SignInBehaviour,
 } from '@/features/server-pane/connectionStrings.ts'
 import { filterGroupMap } from '@/features/server-pane/helpers.ts'
 import * as connectionsProxy from 'wailsjs/go/api/ConnectionsProxy'
 import type { AuthMethod, OIDCConfig } from '@/types/ConnectionConfig'
+import AuthenticationPanel from './authentication/AuthenticationPanel.vue'
 
 type EditableRegisteredServer = {
   id: string
@@ -59,30 +55,13 @@ const generalForm = ref<EditableRegisteredServer>({
 const generalFormRef = ref<FormInst | undefined>(undefined)
 const testing = ref(false)
 
-type AuthPickerValue = AuthMethod | 'auto'
-const authPicker = ref<AuthPickerValue>('auto')
+const authPicker = ref<AuthMethod>('password')
 const lastChangeSource = ref<'uri' | 'picker' | null>(null)
 const nameWasEdited = ref(false)
 
-const SYNCABLE: Record<'oidc' | 'x509' | 'aws', SyncableAuthMechanism> = {
-  oidc: 'MONGODB-OIDC',
-  x509: 'MONGODB-X509',
-  aws: 'MONGODB-AWS',
-}
-
-const effectiveAuthMethod = computed<AuthMethod>(() => {
-  if (authPicker.value === 'auto') {
-    return detectAuthFromUri(generalForm.value.connectionString).authMethod
-  }
-  return authPicker.value
-})
-
-const showAuthTab = computed(() => effectiveAuthMethod.value === 'oidc')
-
-const signInBehaviour = computed<SignInBehaviour>({
-  get: () => signInBehaviourFromConfig(oidcConfig.value),
-  set: (v) => { oidcConfig.value = applySignInBehaviour(oidcConfig.value, v) },
-})
+const hintMechanismLabel = computed(() =>
+  i18n.t(`serverPane.dialogs.server.auth.picker.${authPicker.value}`),
+)
 
 const oidcConfig = ref<OIDCConfig>({
   providerUrl: '',
@@ -143,8 +122,8 @@ const onSaveServer = async () => {
 
   const cfg = {
     uri: generalForm.value.connectionString,
-    authMethod: effectiveAuthMethod.value,
-    oidcConfig: effectiveAuthMethod.value === 'oidc' ? { ...oidcConfig.value } : undefined,
+    authMethod: authPicker.value,
+    oidcConfig: authPicker.value === 'oidc' ? { ...oidcConfig.value } : undefined,
   }
 
   const messager = useMessager()
@@ -213,7 +192,7 @@ const resetForm = () => {
   }
   generalFormRef.value?.restoreValidation()
   testing.value = false
-  authPicker.value = 'auto'
+  authPicker.value = 'password'
   nameWasEdited.value = false
   oidcConfig.value = {
     providerUrl: '',
@@ -298,38 +277,32 @@ watch(
   },
 )
 
-watch(showAuthTab, (visible) => {
-  if (!visible && tab.value === 'authentication') {
-    tab.value = 'general'
-  }
-})
-
-watch(authPicker, (next, prev) => {
+function onPanelMethodChange(next: AuthMethod): void {
   if (lastChangeSource.value === 'uri') {
     lastChangeSource.value = null
+    authPicker.value = next
     return
   }
-  if (next === prev || next === 'auto') {
+  authPicker.value = next
+}
+
+function onOidcConfigChange(next: OIDCConfig): void {
+  oidcConfig.value = next
+}
+
+function onPanelUriChange(next: string): void {
+  if (next === generalForm.value.connectionString) {
     return
   }
-  const uri = generalForm.value.connectionString
-  if (!uri) {
-    return
-  }
-  let mechanism: SyncableAuthMechanism | null = null
-  if (next === 'oidc' || next === 'x509' || next === 'aws') {
-    mechanism = SYNCABLE[next]
-  }
-  const newUri = setAuthMechanism(uri, mechanism)
-  if (newUri !== uri) {
-    lastChangeSource.value = 'picker'
-    generalForm.value.connectionString = newUri
-    nextTick(() => { lastChangeSource.value = null })
-  }
-})
+  lastChangeSource.value = 'picker'
+  generalForm.value.connectionString = next
+  nextTick(() => {
+    lastChangeSource.value = null
+  })
+}
 
 const onTestConnection = async () => {
-  if (effectiveAuthMethod.value === 'oidc') {
+  if (authPicker.value === 'oidc') {
     const notifier = useNotifier()
     notifier.info(i18n.t('serverPane.dialogs.server.testOIDCUnsupported'))
     return
@@ -427,21 +400,6 @@ const onTestConnection = async () => {
                   label-field="name" />
               </n-form-item-gi>
               <n-form-item-gi
-                :label="$t('serverPane.dialogs.server.authMethod')"
-                :span="24">
-                <n-select
-                  v-model:value="authPicker"
-                  :options="[
-                    { label: $t('serverPane.dialogs.server.authMethodAuto'), value: 'auto' },
-                    { label: $t('serverPane.dialogs.server.authNone'), value: 'none' },
-                    { label: $t('serverPane.dialogs.server.authPassword'), value: 'password' },
-                    { label: $t('serverPane.dialogs.server.authX509'), value: 'x509' },
-                    { label: $t('serverPane.dialogs.server.authOIDC'), value: 'oidc' },
-                    { label: $t('serverPane.dialogs.server.authAWS'), value: 'aws' },
-                  ]"
-                />
-              </n-form-item-gi>
-              <n-form-item-gi
                 :label="$t('serverPane.dialogs.server.colour')"
                 :span="24"
                 path="colour">
@@ -460,54 +418,26 @@ const onTestConnection = async () => {
                   <n-icon v-if="isEmpty(colour)" :component="XCircleIcon" size="24" />
                 </div>
               </n-form-item-gi>
+              <n-form-item-gi :span="24" :show-feedback="false">
+                <n-text depth="3" style="font-size: 12px">
+                  {{ $t('serverPane.dialogs.server.auth.hint', { mechanism: hintMechanismLabel }) }}
+                </n-text>
+              </n-form-item-gi>
             </n-grid>
           </n-form>
         </n-tab-pane>
         <n-tab-pane
-          v-if="showAuthTab"
           :tab="$t('serverPane.dialogs.server.authenticationTab')"
           display-directive="show:lazy"
           name="authentication">
-          <n-form :show-require-mark="false" label-placement="top">
-            <n-grid :x-gap="10">
-              <n-form-item-gi
-                :label="$t('serverPane.dialogs.server.oidcSignInBehaviour')"
-                :span="24">
-                <n-select
-                  v-model:value="signInBehaviour"
-                  :options="[
-                    { label: $t('serverPane.dialogs.server.oidcSignInOpenBrowser'), value: 'openBrowser' },
-                    { label: $t('serverPane.dialogs.server.oidcSignInForceAccountPicker'), value: 'forceAccountPicker' },
-                    { label: $t('serverPane.dialogs.server.oidcSignInShowUrl'), value: 'showUrl' },
-                  ]"
-                />
-              </n-form-item-gi>
-              <n-form-item-gi :span="24">
-                <n-collapse>
-                  <n-collapse-item :title="$t('serverPane.dialogs.server.oidcAdvanced')" name="adv">
-                    <n-form-item :label="$t('serverPane.dialogs.server.oidcProviderUrl')">
-                      <n-input v-model:value="oidcConfig.providerUrl" placeholder="Auto-detected from server" />
-                    </n-form-item>
-                    <n-form-item :label="$t('serverPane.dialogs.server.oidcClientId')">
-                      <n-input v-model:value="oidcConfig.clientId" placeholder="Auto-detected from server" />
-                    </n-form-item>
-                    <n-form-item :label="$t('serverPane.dialogs.server.oidcScopes')">
-                      <n-input
-                        :value="oidcConfig.scopes?.join(', ')"
-                        placeholder="Auto-detected from server"
-                        @update:value="(v: string) => oidcConfig.scopes = v.split(',').map((s: string) => s.trim()).filter(Boolean)"
-                      />
-                    </n-form-item>
-                    <n-form-item>
-                      <n-checkbox v-model:checked="oidcConfig.workloadIdentity">
-                        {{ $t('serverPane.dialogs.server.oidcWorkloadIdentityDesc') }}
-                      </n-checkbox>
-                    </n-form-item>
-                  </n-collapse-item>
-                </n-collapse>
-              </n-form-item-gi>
-            </n-grid>
-          </n-form>
+          <AuthenticationPanel
+            :uri="generalForm.connectionString"
+            :method="authPicker"
+            :oidc-config="oidcConfig"
+            @update:uri="onPanelUriChange"
+            @update:method="onPanelMethodChange"
+            @update:oidc-config="onOidcConfigChange"
+          />
         </n-tab-pane>
       </n-tabs>
 

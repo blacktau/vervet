@@ -8,6 +8,8 @@ const (
 	AuthX509     AuthMethod = "x509"
 	AuthOIDC     AuthMethod = "oidc"
 	AuthAWS      AuthMethod = "aws"
+	AuthGSSAPI   AuthMethod = "gssapi"
+	AuthPLAIN    AuthMethod = "plain"
 )
 
 type OIDCConfig struct {
