@@ -1,6 +1,6 @@
 <template>
   <div class="authentication-panel">
-    <n-form-item :label="$t('serverPane.dialogs.server.authMethod')" :show-feedback="false">
+    <n-form-item :label="$t('serverPane.dialogs.server.authMethod')">
       <n-select :value="method" :options="pickerOptions" @update:value="onMethodChange" />
     </n-form-item>
 
