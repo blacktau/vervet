@@ -316,6 +316,19 @@ func deriveAuthMethod(cfg *exportConnectionConfig) models.AuthMethod {
 		return models.AuthNone
 	}
 
+	switch cs.AuthMechanism {
+	case "MONGODB-OIDC":
+		return models.AuthOIDC
+	case "MONGODB-X509":
+		return models.AuthX509
+	case "MONGODB-AWS":
+		return models.AuthAWS
+	case "GSSAPI":
+		return models.AuthGSSAPI
+	case "PLAIN":
+		return models.AuthPLAIN
+	}
+
 	if cs.Username != "" {
 		return models.AuthPassword
 	}
