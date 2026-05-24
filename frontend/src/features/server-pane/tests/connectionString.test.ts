@@ -1,5 +1,12 @@
 import { describe, expect, test } from 'vitest'
-import { parseUri } from '@/features/server-pane/connectionStrings.ts'
+import {
+  parseUri,
+  setAuthMechanism,
+  detectAuthFromUri,
+  signInBehaviourFromConfig,
+  applySignInBehaviour,
+} from '@/features/server-pane/connectionStrings.ts'
+import type { OIDCConfig } from '@/types/ConnectionConfig'
 import InvalidUriScenarios from './scenarios/invalid-uris.json' with { type: 'json' }
 import ValidAuthScenarios from './scenarios/valid-auth.json' with { type: 'json' }
 import ValidDbWithDottedNameScenarios from './scenarios/valid-db-with-dotted-name.json' with { type: 'json' }
@@ -216,3 +223,125 @@ function runScenario(scenario: Scenario) {
     }
   }
 }
+
+describe('connectionString.setAuthMechanism', () => {
+  test('appends authMechanism when URI has no query', () => {
+    expect(setAuthMechanism('mongodb://host', 'MONGODB-OIDC'))
+      .toBe('mongodb://host?authMechanism=MONGODB-OIDC')
+  })
+
+  test('appends authMechanism when URI has existing query', () => {
+    expect(setAuthMechanism('mongodb://host?tls=true', 'MONGODB-X509'))
+      .toBe('mongodb://host?tls=true&authMechanism=MONGODB-X509')
+  })
+
+  test('replaces existing authMechanism', () => {
+    expect(setAuthMechanism('mongodb://host?authMechanism=MONGODB-OIDC&tls=true', 'MONGODB-AWS'))
+      .toBe('mongodb://host?authMechanism=MONGODB-AWS&tls=true')
+  })
+
+  test('strips authMechanism and authMechanismProperties on null', () => {
+    expect(setAuthMechanism(
+      'mongodb://host?authMechanism=MONGODB-OIDC&authMechanismProperties=ENVIRONMENT:gcp&tls=true',
+      null,
+    )).toBe('mongodb://host?tls=true')
+  })
+
+  test('strips trailing ? when only param removed', () => {
+    expect(setAuthMechanism('mongodb://host?authMechanism=MONGODB-OIDC', null))
+      .toBe('mongodb://host')
+  })
+
+  test('idempotent when stripping absent param', () => {
+    expect(setAuthMechanism('mongodb://host?tls=true', null))
+      .toBe('mongodb://host?tls=true')
+  })
+
+  test('preserves mongodb+srv scheme', () => {
+    expect(setAuthMechanism('mongodb+srv://cluster.example.com/db', 'MONGODB-OIDC'))
+      .toBe('mongodb+srv://cluster.example.com/db?authMechanism=MONGODB-OIDC')
+  })
+
+  test('preserves userinfo', () => {
+    expect(setAuthMechanism('mongodb://user:pass@host', 'MONGODB-OIDC'))
+      .toBe('mongodb://user:pass@host?authMechanism=MONGODB-OIDC')
+  })
+})
+
+describe('connectionString.detectAuthFromUri', () => {
+  test('OIDC detection preserves authMechanism in URI', () => {
+    const result = detectAuthFromUri('mongodb://host?authMechanism=MONGODB-OIDC')
+    expect(result.authMethod).toBe('oidc')
+    expect(result.uri).toBe('mongodb://host?authMechanism=MONGODB-OIDC')
+  })
+
+  test('X509 detection preserves URI verbatim', () => {
+    const result = detectAuthFromUri('mongodb://host?authMechanism=MONGODB-X509')
+    expect(result.authMethod).toBe('x509')
+    expect(result.uri).toBe('mongodb://host?authMechanism=MONGODB-X509')
+  })
+
+  test('password fallback returns URI unchanged', () => {
+    const result = detectAuthFromUri('mongodb://user:pass@host')
+    expect(result.authMethod).toBe('password')
+    expect(result.uri).toBe('mongodb://user:pass@host')
+  })
+})
+
+describe('signInBehaviour mapping', () => {
+  const baseConfig: OIDCConfig = {
+    providerUrl: '', clientId: '', scopes: [], workloadIdentity: false,
+  }
+
+  test('default OIDCConfig maps to openBrowser', () => {
+    expect(signInBehaviourFromConfig(baseConfig)).toBe('openBrowser')
+  })
+
+  test('prompt=select_account maps to forceAccountPicker', () => {
+    expect(signInBehaviourFromConfig({ ...baseConfig, prompt: 'select_account' }))
+      .toBe('forceAccountPicker')
+  })
+
+  test('manualUrlMode=true overrides prompt and maps to showUrl', () => {
+    expect(signInBehaviourFromConfig({ ...baseConfig, manualUrlMode: true, prompt: 'select_account' }))
+      .toBe('showUrl')
+  })
+
+  test('legacy prompt=login falls through to openBrowser', () => {
+    expect(signInBehaviourFromConfig({ ...baseConfig, prompt: 'login' }))
+      .toBe('openBrowser')
+  })
+
+  test('applySignInBehaviour openBrowser sets prompt="" and manualUrlMode=false', () => {
+    const out = applySignInBehaviour(baseConfig, 'openBrowser')
+    expect(out.prompt).toBe('')
+    expect(out.manualUrlMode).toBe(false)
+  })
+
+  test('applySignInBehaviour forceAccountPicker sets prompt=select_account', () => {
+    const out = applySignInBehaviour(baseConfig, 'forceAccountPicker')
+    expect(out.prompt).toBe('select_account')
+    expect(out.manualUrlMode).toBe(false)
+  })
+
+  test('applySignInBehaviour showUrl sets manualUrlMode=true and prompt=""', () => {
+    const out = applySignInBehaviour(baseConfig, 'showUrl')
+    expect(out.prompt).toBe('')
+    expect(out.manualUrlMode).toBe(true)
+  })
+
+  test('round-trip preserves openBrowser', () => {
+    const after = applySignInBehaviour(baseConfig, 'openBrowser')
+    expect(signInBehaviourFromConfig(after)).toBe('openBrowser')
+  })
+
+  test('round-trip preserves forceAccountPicker', () => {
+    const after = applySignInBehaviour(baseConfig, 'forceAccountPicker')
+    expect(signInBehaviourFromConfig(after)).toBe('forceAccountPicker')
+  })
+
+  test('round-trip preserves showUrl', () => {
+    const after = applySignInBehaviour(baseConfig, 'showUrl')
+    expect(signInBehaviourFromConfig(after)).toBe('showUrl')
+  })
+})

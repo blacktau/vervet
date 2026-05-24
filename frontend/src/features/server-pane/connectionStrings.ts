@@ -1,5 +1,5 @@
 import { i18nGlobal } from '@/i18n'
-import type { AuthMethod } from '@/types/ConnectionConfig'
+import type { AuthMethod, OIDCConfig } from '@/types/ConnectionConfig'
 
 interface OptionValidator {
   v: (value?: string) => boolean
@@ -797,7 +797,7 @@ export interface DetectAuthResult {
 export function detectAuthFromUri(uri: string): DetectAuthResult {
   const lower = uri.toLowerCase()
   if (lower.includes('authmechanism=mongodb-oidc')) {
-    return { authMethod: 'oidc', uri: stripAuthMechanism(uri) }
+    return { authMethod: 'oidc', uri }
   }
   if (lower.includes('authmechanism=mongodb-x509')) {
     return { authMethod: 'x509', uri }
@@ -826,10 +826,57 @@ export function getUriHost(uri: string): string {
   return first.host
 }
 
-function stripAuthMechanism(uri: string): string {
-  return uri
-    .replace(/[?&]authMechanism=[^&]*/gi, '')
-    .replace(/[?&]authMechanismProperties=[^&]*/gi, '')
-    .replace(/\?&/, '?')
-    .replace(/\?$/, '')
+export type SyncableAuthMechanism = 'MONGODB-OIDC' | 'MONGODB-X509' | 'MONGODB-AWS'
+
+export function setAuthMechanism(uri: string, mechanism: SyncableAuthMechanism | null): string {
+  const queryIdx = uri.indexOf('?')
+  const base = queryIdx === -1 ? uri : uri.substring(0, queryIdx)
+  const query = queryIdx === -1 ? '' : uri.substring(queryIdx + 1)
+
+  const parts = query.length > 0 ? query.split('&') : []
+  let hasAuthMechanism = false
+  const kept: string[] = []
+  for (const part of parts) {
+    const lower = part.toLowerCase()
+    if (lower.startsWith('authmechanism=')) {
+      if (mechanism !== null && !hasAuthMechanism) {
+        kept.push(`authMechanism=${mechanism}`)
+        hasAuthMechanism = true
+      }
+      continue
+    }
+    if (lower.startsWith('authmechanismproperties=')) {
+      continue
+    }
+    kept.push(part)
+  }
+
+  if (mechanism !== null && !hasAuthMechanism) {
+    kept.push(`authMechanism=${mechanism}`)
+  }
+
+  return kept.length === 0 ? base : `${base}?${kept.join('&')}`
+}
+
+export type SignInBehaviour = 'openBrowser' | 'forceAccountPicker' | 'showUrl'
+
+export function signInBehaviourFromConfig(cfg: OIDCConfig): SignInBehaviour {
+  if (cfg.manualUrlMode === true) {
+    return 'showUrl'
+  }
+  if (cfg.prompt === 'select_account') {
+    return 'forceAccountPicker'
+  }
+  return 'openBrowser'
+}
+
+export function applySignInBehaviour(cfg: OIDCConfig, behaviour: SignInBehaviour): OIDCConfig {
+  switch (behaviour) {
+    case 'openBrowser':
+      return { ...cfg, prompt: '', manualUrlMode: false }
+    case 'forceAccountPicker':
+      return { ...cfg, prompt: 'select_account', manualUrlMode: false }
+    case 'showUrl':
+      return { ...cfg, prompt: '', manualUrlMode: true }
+  }
 }
