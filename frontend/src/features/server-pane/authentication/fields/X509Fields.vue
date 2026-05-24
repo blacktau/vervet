@@ -25,14 +25,22 @@
         @update:value="(v: string) => update({ certPassphrase: v || undefined })"
       />
     </n-form-item>
-    <n-form-item :label="$t('serverPane.dialogs.server.auth.x509.usernameOverride')">
+    <n-form-item>
+      <template #label>
+        <span class="label-with-help">
+          {{ $t('serverPane.dialogs.server.auth.x509.usernameOverride') }}
+          <n-tooltip trigger="hover">
+            <template #trigger>
+              <n-icon :component="InformationCircleIcon" size="14" />
+            </template>
+            {{ $t('serverPane.dialogs.server.auth.x509.usernameOverrideHelp') }}
+          </n-tooltip>
+        </span>
+      </template>
       <n-input
         :value="fields.usernameOverride ?? ''"
         @update:value="(v: string) => update({ usernameOverride: v || undefined })"
       />
-      <template #feedback>
-        {{ $t('serverPane.dialogs.server.auth.x509.usernameOverrideHelp') }}
-      </template>
     </n-form-item>
     <n-form-item :label="$t('serverPane.dialogs.server.auth.x509.authSource')">
       <n-input
@@ -47,6 +55,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { InformationCircleIcon } from '@heroicons/vue/24/outline'
 import { parseX509, serialiseX509, type X509Auth } from '../authUri'
 import { SelectFile } from 'wailsjs/go/api/FilesProxy'
 
@@ -73,3 +82,11 @@ async function browse(): Promise<void> {
   }
 }
 </script>
+
+<style scoped>
+.label-with-help {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+</style>

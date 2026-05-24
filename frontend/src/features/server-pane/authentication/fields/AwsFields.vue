@@ -23,7 +23,18 @@
         @blur="secretTouched = true"
       />
     </n-form-item>
-    <n-form-item :label="$t('serverPane.dialogs.server.auth.aws.sessionToken')">
+    <n-form-item>
+      <template #label>
+        <span class="label-with-help">
+          {{ $t('serverPane.dialogs.server.auth.aws.sessionToken') }}
+          <n-tooltip trigger="hover">
+            <template #trigger>
+              <n-icon :component="InformationCircleIcon" size="14" />
+            </template>
+            {{ $t('serverPane.dialogs.server.auth.aws.sessionTokenHelp') }}
+          </n-tooltip>
+        </span>
+      </template>
       <n-input
         :value="fields.sessionToken ?? ''"
         type="password"
@@ -31,15 +42,13 @@
         data-testid="aws-session-token"
         @update:value="(v: string) => update({ sessionToken: v || undefined })"
       />
-      <template #feedback>
-        {{ $t('serverPane.dialogs.server.auth.aws.sessionTokenHelp') }}
-      </template>
     </n-form-item>
   </n-form>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { InformationCircleIcon } from '@heroicons/vue/24/outline'
 import { parseAws, serialiseAws, type AwsAuth } from '../authUri'
 
 const props = defineProps<{ uri: string }>()
@@ -53,3 +62,11 @@ function update(patch: Partial<AwsAuth>): void {
   emit('update:uri', serialiseAws(props.uri, { ...fields.value, ...patch }))
 }
 </script>
+
+<style scoped>
+.label-with-help {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+</style>

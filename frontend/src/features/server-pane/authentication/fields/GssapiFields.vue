@@ -32,16 +32,24 @@
         @update:value="(v: string) => update({ serviceRealm: v || undefined })"
       />
     </n-form-item>
-    <n-form-item :label="$t('serverPane.dialogs.server.auth.gssapi.password')">
+    <n-form-item>
+      <template #label>
+        <span class="label-with-help">
+          {{ $t('serverPane.dialogs.server.auth.gssapi.password') }}
+          <n-tooltip trigger="hover">
+            <template #trigger>
+              <n-icon :component="InformationCircleIcon" size="14" />
+            </template>
+            {{ $t('serverPane.dialogs.server.auth.gssapi.passwordHelp') }}
+          </n-tooltip>
+        </span>
+      </template>
       <n-input
         :value="fields.password ?? ''"
         type="password"
         show-password-on="click"
         @update:value="(v: string) => update({ password: v || undefined })"
       />
-      <template #feedback>
-        {{ $t('serverPane.dialogs.server.auth.gssapi.passwordHelp') }}
-      </template>
     </n-form-item>
   </n-form>
 </template>
@@ -49,6 +57,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { InformationCircleIcon } from '@heroicons/vue/24/outline'
 import { parseGssapi, serialiseGssapi, type GssapiAuth } from '../authUri'
 
 const props = defineProps<{ uri: string }>()
@@ -72,3 +81,11 @@ function update(patch: Partial<GssapiAuth>): void {
   emit('update:uri', serialiseGssapi(props.uri, { ...fields.value, ...patch }))
 }
 </script>
+
+<style scoped>
+.label-with-help {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+</style>
