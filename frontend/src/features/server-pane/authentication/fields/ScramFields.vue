@@ -2,12 +2,13 @@
   <n-form label-placement="top">
     <n-form-item
       :label="$t('serverPane.dialogs.server.auth.scram.username')"
-      :validation-status="fields.username ? undefined : 'warning'"
-      :feedback="fields.username ? '' : $t('serverPane.dialogs.server.auth.warnings.missingUsername')">
+      :validation-status="usernameTouched && !fields.username ? 'warning' : undefined"
+      :feedback="usernameTouched && !fields.username ? $t('serverPane.dialogs.server.auth.warnings.missingUsername') : ''">
       <n-input
         :value="fields.username"
         data-testid="scram-username"
         @update:value="(v: string) => update({ username: v })"
+        @blur="usernameTouched = true"
       />
     </n-form-item>
     <n-form-item :label="$t('serverPane.dialogs.server.auth.scram.password')">
@@ -36,7 +37,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { parseScram, serialiseScram, type ScramAuth } from '../authUri'
 
@@ -46,6 +47,7 @@ const emit = defineEmits<{ (e: 'update:uri', value: string): void }>()
 const i18n = useI18n()
 
 const fields = computed<ScramAuth>(() => parseScram(props.uri))
+const usernameTouched = ref(false)
 
 const mechanismOptions = computed(() => [
   { label: i18n.t('serverPane.dialogs.server.auth.scram.mechanismAuto'), value: 'auto' },

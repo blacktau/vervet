@@ -2,14 +2,15 @@
   <n-form label-placement="top">
     <n-form-item
       :label="$t('serverPane.dialogs.server.auth.x509.certFile')"
-      :validation-status="fields.certFile ? undefined : 'warning'"
-      :feedback="fields.certFile ? '' : $t('serverPane.dialogs.server.auth.warnings.missingCertFile')">
+      :validation-status="certFileTouched && !fields.certFile ? 'warning' : undefined"
+      :feedback="certFileTouched && !fields.certFile ? $t('serverPane.dialogs.server.auth.warnings.missingCertFile') : ''">
       <n-input-group>
         <n-input
           :value="fields.certFile"
           :placeholder="$t('serverPane.dialogs.server.auth.x509.certFilePlaceholder')"
           data-testid="x509-cert-file"
           @update:value="(v: string) => update({ certFile: v })"
+          @blur="certFileTouched = true"
         />
         <n-button @click="browse">
           {{ $t('serverPane.dialogs.server.auth.x509.certFileBrowse') }}
@@ -44,7 +45,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { parseX509, serialiseX509, type X509Auth } from '../authUri'
 import { SelectFile } from 'wailsjs/go/api/FilesProxy'
@@ -55,6 +56,7 @@ const emit = defineEmits<{ (e: 'update:uri', value: string): void }>()
 const i18n = useI18n()
 
 const fields = computed<X509Auth>(() => parseX509(props.uri))
+const certFileTouched = ref(false)
 
 function update(patch: Partial<X509Auth>): void {
   emit('update:uri', serialiseX509(props.uri, { ...fields.value, ...patch }))
@@ -67,6 +69,7 @@ async function browse(): Promise<void> {
   ])
   if (result.isSuccess && result.data) {
     update({ certFile: result.data })
+    certFileTouched.value = true
   }
 }
 </script>

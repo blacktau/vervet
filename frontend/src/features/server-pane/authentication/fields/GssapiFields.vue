@@ -2,13 +2,14 @@
   <n-form label-placement="top">
     <n-form-item
       :label="$t('serverPane.dialogs.server.auth.gssapi.principal')"
-      :validation-status="fields.principal ? undefined : 'warning'"
-      :feedback="fields.principal ? '' : $t('serverPane.dialogs.server.auth.warnings.missingPrincipal')">
+      :validation-status="principalTouched && !fields.principal ? 'warning' : undefined"
+      :feedback="principalTouched && !fields.principal ? $t('serverPane.dialogs.server.auth.warnings.missingPrincipal') : ''">
       <n-input
         :value="fields.principal"
         :placeholder="$t('serverPane.dialogs.server.auth.gssapi.principalPlaceholder')"
         data-testid="gssapi-principal"
         @update:value="(v: string) => update({ principal: v })"
+        @blur="principalTouched = true"
       />
     </n-form-item>
     <n-form-item :label="$t('serverPane.dialogs.server.auth.gssapi.serviceName')">
@@ -46,7 +47,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { parseGssapi, serialiseGssapi, type GssapiAuth } from '../authUri'
 
@@ -56,6 +57,7 @@ const emit = defineEmits<{ (e: 'update:uri', value: string): void }>()
 const i18n = useI18n()
 
 const fields = computed<GssapiAuth>(() => parseGssapi(props.uri))
+const principalTouched = ref(false)
 
 const canonicalizeOptions = computed(() => [
   { label: i18n.t('serverPane.dialogs.server.auth.gssapi.canonicalizeNone'), value: 'none' },
