@@ -46,6 +46,15 @@ runtime.EventsOn('config-parse-error', (detail: string) => {
   })
 })
 
+// Keep frontend state in sync when the backend drops a connection without
+// the user clicking disconnect (e.g. network loss, server-side timeout).
+// Without this the tab and connection entry persist, and a later click on
+// the tab's close button silently no-ops because browserStore.disconnect
+// short-circuits on a missing connection.
+runtime.EventsOn('connection-disconnected', (serverId: string) => {
+  dataBrowserStore._cleanupConnection(serverId)
+})
+
 const data = reactive({
   navMenuWidth: 50,
   toolbarHeight: 38,
