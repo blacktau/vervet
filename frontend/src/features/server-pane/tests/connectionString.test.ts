@@ -5,6 +5,7 @@ import {
   detectAuthFromUri,
   signInBehaviourFromConfig,
   applySignInBehaviour,
+  clearAuthState,
 } from '@/features/server-pane/connectionStrings.ts'
 import type { OIDCConfig } from '@/types/ConnectionConfig'
 import InvalidUriScenarios from './scenarios/invalid-uris.json' with { type: 'json' }
@@ -227,24 +228,24 @@ function runScenario(scenario: Scenario) {
 describe('connectionString.setAuthMechanism', () => {
   test('appends authMechanism when URI has no query', () => {
     expect(setAuthMechanism('mongodb://host', 'MONGODB-OIDC'))
-      .toBe('mongodb://host?authMechanism=MONGODB-OIDC')
+      .toBe('mongodb://host/?authMechanism=MONGODB-OIDC')
   })
 
   test('appends authMechanism when URI has existing query', () => {
     expect(setAuthMechanism('mongodb://host?tls=true', 'MONGODB-X509'))
-      .toBe('mongodb://host?tls=true&authMechanism=MONGODB-X509')
+      .toBe('mongodb://host/?tls=true&authMechanism=MONGODB-X509')
   })
 
   test('replaces existing authMechanism', () => {
     expect(setAuthMechanism('mongodb://host?authMechanism=MONGODB-OIDC&tls=true', 'MONGODB-AWS'))
-      .toBe('mongodb://host?authMechanism=MONGODB-AWS&tls=true')
+      .toBe('mongodb://host/?authMechanism=MONGODB-AWS&tls=true')
   })
 
   test('strips authMechanism and authMechanismProperties on null', () => {
     expect(setAuthMechanism(
       'mongodb://host?authMechanism=MONGODB-OIDC&authMechanismProperties=ENVIRONMENT:gcp&tls=true',
       null,
-    )).toBe('mongodb://host?tls=true')
+    )).toBe('mongodb://host/?tls=true')
   })
 
   test('strips trailing ? when only param removed', () => {
@@ -254,7 +255,7 @@ describe('connectionString.setAuthMechanism', () => {
 
   test('idempotent when stripping absent param', () => {
     expect(setAuthMechanism('mongodb://host?tls=true', null))
-      .toBe('mongodb://host?tls=true')
+      .toBe('mongodb://host/?tls=true')
   })
 
   test('preserves mongodb+srv scheme', () => {
@@ -264,7 +265,78 @@ describe('connectionString.setAuthMechanism', () => {
 
   test('preserves userinfo', () => {
     expect(setAuthMechanism('mongodb://user:pass@host', 'MONGODB-OIDC'))
-      .toBe('mongodb://user:pass@host?authMechanism=MONGODB-OIDC')
+      .toBe('mongodb://user:pass@host/?authMechanism=MONGODB-OIDC')
+  })
+
+  test('preserves explicit path slash', () => {
+    expect(setAuthMechanism('mongodb://host/', 'MONGODB-OIDC'))
+      .toBe('mongodb://host/?authMechanism=MONGODB-OIDC')
+  })
+
+  test('preserves explicit default database', () => {
+    expect(setAuthMechanism('mongodb://host/admin', 'MONGODB-OIDC'))
+      .toBe('mongodb://host/admin?authMechanism=MONGODB-OIDC')
+  })
+})
+
+describe('connectionString.parseUri write concern', () => {
+  test('accepts w=majority', () => {
+    expect(parseUri('mongodb://host/?w=majority').success).toBe(true)
+  })
+
+  test('accepts w=1', () => {
+    expect(parseUri('mongodb://host/?w=1').success).toBe(true)
+  })
+
+  test('accepts w=0', () => {
+    expect(parseUri('mongodb://host/?w=0').success).toBe(true)
+  })
+
+  test('accepts w=customTagSet', () => {
+    expect(parseUri('mongodb://host/?w=myTagSet').success).toBe(true)
+  })
+})
+
+describe('connectionString.parseUri misc params', () => {
+  test('accepts authMechanism in any case', () => {
+    expect(parseUri('mongodb://host/?authMechanism=plain').success).toBe(true)
+    expect(parseUri('mongodb://host/?authMechanism=Plain').success).toBe(true)
+  })
+
+  test('accepts serverMonitoringMode=stream', () => {
+    expect(parseUri('mongodb://host/?serverMonitoringMode=stream').success).toBe(true)
+  })
+
+  test('accepts timeoutMS', () => {
+    expect(parseUri('mongodb://host/?timeoutMS=5000').success).toBe(true)
+  })
+})
+
+describe('connectionString.clearAuthState', () => {
+  test('strips userinfo', () => {
+    expect(clearAuthState('mongodb://user:pass@host/'))
+      .toBe('mongodb://host/')
+  })
+
+  test('strips all auth-related query params', () => {
+    expect(clearAuthState(
+      'mongodb://user@host/?authMechanism=MONGODB-X509&authMechanismProperties=SERVICE_NAME:foo&authSource=$external&tlsCertificateKeyFile=%2Fp&tlsCertificateKeyFilePassword=x&tls=true',
+    )).toBe('mongodb://host/?tls=true')
+  })
+
+  test('keeps non-auth query params', () => {
+    expect(clearAuthState('mongodb://user:pass@host/?tls=true&replicaSet=rs0'))
+      .toBe('mongodb://host/?tls=true&replicaSet=rs0')
+  })
+
+  test('handles URI with no query', () => {
+    expect(clearAuthState('mongodb://user:pass@host'))
+      .toBe('mongodb://host')
+  })
+
+  test('preserves srv scheme', () => {
+    expect(clearAuthState('mongodb+srv://user:pass@cluster/?authMechanism=PLAIN'))
+      .toBe('mongodb+srv://cluster/')
   })
 })
 

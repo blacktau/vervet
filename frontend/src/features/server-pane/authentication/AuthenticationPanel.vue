@@ -18,7 +18,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { AuthMethod, OIDCConfig } from '@/types/ConnectionConfig'
-import { setAuthMechanism, type SyncableAuthMechanism } from '../connectionStrings'
+import { clearAuthState, setAuthMechanism, type SyncableAuthMechanism } from '../connectionStrings'
 import NoneFields from './fields/NoneFields.vue'
 import ScramFields from './fields/ScramFields.vue'
 import X509Fields from './fields/X509Fields.vue'
@@ -83,7 +83,8 @@ const SYNCABLE: Partial<Record<AuthMethod, SyncableAuthMechanism>> = {
 function onMethodChange(next: AuthMethod): void {
   emit('update:method', next)
   const mechanism = next === 'none' || next === 'password' ? null : (SYNCABLE[next] ?? null)
-  const newUri = setAuthMechanism(props.uri, mechanism)
+  const cleared = clearAuthState(props.uri)
+  const newUri = mechanism === null ? cleared : setAuthMechanism(cleared, mechanism)
   if (newUri !== props.uri) {
     emit('update:uri', newUri)
   }
