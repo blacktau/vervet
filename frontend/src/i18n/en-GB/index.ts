@@ -711,10 +711,6 @@ export default {
     filter: 'Filter',
     typeName: 'Server',
   },
-  oidc: {
-    reAuthTitle: 'Session Expired',
-    reAuthMessage: 'OIDC session expired for {name}. Reconnect to re-authenticate.',
-  },
   dialog: {
     common: {},
     about: {

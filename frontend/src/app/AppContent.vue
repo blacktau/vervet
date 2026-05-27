@@ -37,16 +37,6 @@ const settingsStore = useSettingsStore()
 const updateStore = useUpdateStore()
 const buildInfoStore = useBuildInfoStore()
 
-runtime.EventsOn('oidc-reauth-required', (serverID: string) => {
-  const server = serverStore.findServerById(serverID)
-  const name = server?.name ?? serverID
-  notification.warning({
-    title: i18n.t('oidc.reAuthTitle'),
-    content: i18n.t('oidc.reAuthMessage', { name }),
-    duration: 10000,
-  })
-})
-
 runtime.EventsOn('config-parse-error', (detail: string) => {
   notification.warning({
     title: i18n.t('errorTitles.configParseError'),

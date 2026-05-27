@@ -80,10 +80,12 @@ const SYNCABLE: Partial<Record<AuthMethod, SyncableAuthMechanism>> = {
   plain: 'PLAIN',
 }
 
+const USERINFO_METHODS: ReadonlySet<AuthMethod> = new Set(['password', 'plain', 'gssapi'])
+
 function onMethodChange(next: AuthMethod): void {
   emit('update:method', next)
   const mechanism = next === 'none' || next === 'password' ? null : (SYNCABLE[next] ?? null)
-  const cleared = clearAuthState(props.uri)
+  const cleared = clearAuthState(props.uri, { stripUserinfo: !USERINFO_METHODS.has(next) })
   const newUri = mechanism === null ? cleared : setAuthMechanism(cleared, mechanism)
   if (newUri !== props.uri) {
     emit('update:uri', newUri)

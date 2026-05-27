@@ -370,7 +370,7 @@ function splitHosts(hosts: string, defaultPort: number | undefined | null): Pars
 
     if (portNumber) {
       const port = Number.parseInt(portNumber)
-      if (port > 0 && port < 65535) {
+      if (port > 0 && port <= 65535) {
         parsedAddresses.push({ host: host!, port: port })
       } else {
         return {
@@ -593,9 +593,9 @@ const parseOptions = (query: string, separator?: string): ParseResult<UriOptions
     if (key!.toLowerCase() === 'readpreferencetags') {
       if (isDuplicateOption(normalizedKey, options)) {
         options[normalizedKey] = [...(options[normalizedKey] as string[]), value!]
+      } else {
+        options[normalizedKey] = [value!]
       }
-
-      options[normalizedKey] = [value!]
     } else {
       if (isDuplicateOption(normalizedKey, options)) {
         console.warn(`Duplicate option '${normalizedKey}' found in query string`)
@@ -606,7 +606,13 @@ const parseOptions = (query: string, separator?: string): ParseResult<UriOptions
         const pairs = value!.split(',')
         for (const pair of pairs) {
           const [key, value] = chopFirst(pair, ':')
-          authMechProps[decodeURIComponent(key!)] = decodeURIComponent(value!)
+          if (!key || value === undefined) {
+            return {
+              success: false,
+              error: i18nGlobal.t('uriParser.invalidQueryOption', { option: pair }),
+            }
+          }
+          authMechProps[decodeURIComponent(key)] = decodeURIComponent(value)
         }
         options[normalizedKey] = authMechProps
       } else {
@@ -661,15 +667,15 @@ function validateAuthMechanism(authMechanism?: string) {
 }
 
 // MongoDB write-concern value: a non-negative integer, the literal "majority",
-// or a custom write-concern tag set name (any non-empty string).
+// or a custom write-concern tag set name (an identifier).
 function validateWriteConcern(value?: string) {
   if (!value) {
     return false
   }
-  if (value.trim().match(/^[0-9]+$/)) {
-    return Number.parseInt(value) >= 0
+  if (/^[0-9]+$/.test(value)) {
+    return true
   }
-  return value.length > 0
+  return /^[A-Za-z_][A-Za-z0-9_]*$/.test(value)
 }
 
 function validateAuthMechanismProps(authMechanismProps?: string) {
@@ -739,7 +745,7 @@ function validateCompressors(compressors?: string) {
     return true
   }
 
-  const list = compressors.indexOf(',') ? compressors.split(',') : [compressors]
+  const list = compressors.includes(',') ? compressors.split(',') : [compressors]
   for (const compressor of list) {
     if (!SupportedCompressors.includes(compressor.toLowerCase())) {
       return false
@@ -912,7 +918,8 @@ const AUTH_QUERY_PARAMS = [
   'tlsCertificateKeyFilePassword',
 ]
 
-export function clearAuthState(uri: string): string {
+export function clearAuthState(uri: string, opts?: { stripUserinfo?: boolean }): string {
+  const stripUserinfo = opts?.stripUserinfo ?? true
   const schemeMatch = uri.match(/^(mongodb(?:\+srv)?:\/\/)/)
   const scheme = schemeMatch ? schemeMatch[1]! : 'mongodb://'
   const rest = schemeMatch ? uri.substring(scheme.length) : uri
@@ -922,7 +929,8 @@ export function clearAuthState(uri: string): string {
   const queryStr = queryIdx === -1 ? '' : rest.substring(queryIdx + 1)
 
   const atIdx = beforeQuery.lastIndexOf('@')
-  const hostAndPath = atIdx === -1 ? beforeQuery : beforeQuery.substring(atIdx + 1)
+  const hostAndPath =
+    stripUserinfo && atIdx !== -1 ? beforeQuery.substring(atIdx + 1) : beforeQuery
 
   const stripLower = new Set(AUTH_QUERY_PARAMS.map((p) => p.toLowerCase()))
   const kept: string[] = []

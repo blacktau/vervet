@@ -12,10 +12,10 @@ func inferURIShape(uri string) (isCluster, isSrv bool) {
 	const srvPrefix = "mongodb+srv://"
 	const stdPrefix = "mongodb://"
 
-	if strings.HasPrefix(uri, srvPrefix) {
+	if len(uri) >= len(srvPrefix) && strings.EqualFold(uri[:len(srvPrefix)], srvPrefix) {
 		return false, true
 	}
-	if !strings.HasPrefix(uri, stdPrefix) {
+	if len(uri) < len(stdPrefix) || !strings.EqualFold(uri[:len(stdPrefix)], stdPrefix) {
 		return false, false
 	}
 
