@@ -13,7 +13,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
-	"go.mongodb.org/mongo-driver/v2/x/mongo/driver/connstring"
 )
 
 const ConfigParseErrorEvent = "config-parse-error"
@@ -94,13 +93,7 @@ func (sm *ServerService) AddServer(parentID, name, uri, colour string) error {
 		parentID = ""
 	}
 
-	connString, err := connstring.Parse(uri)
-	if err != nil {
-		return fmt.Errorf("failed to parse connection string: %w", err)
-	}
-
-	isCluster := len(connString.Hosts) > 1
-	isSrv := connString.Scheme == connstring.SchemeMongoDBSRV
+	isCluster, isSrv := inferURIShape(uri)
 
 	servers = append(servers, models.RegisteredServer{
 		ID:        newID,
@@ -172,13 +165,7 @@ func (sm *ServerService) AddServerWithConfig(parentID, name, colour string, cfg 
 		parentID = ""
 	}
 
-	connString, err := connstring.Parse(cfg.URI)
-	if err != nil {
-		return fmt.Errorf("failed to parse connection string: %w", err)
-	}
-
-	isCluster := len(connString.Hosts) > 1
-	isSrv := connString.Scheme == connstring.SchemeMongoDBSRV
+	isCluster, isSrv := inferURIShape(cfg.URI)
 
 	servers = append(servers, models.RegisteredServer{
 		ID:        newID,

@@ -55,7 +55,8 @@ const uriOptions: Record<string, OptionValidator | null> = {
   tlsDisableCertificateRevocationCheck: { v: validateBoolean, m: 'uriParser.invalidBoolean' },
   tlsDisableOCSPEndpointCheck: { v: validateBoolean, m: 'uriParser.invalidBoolean' },
   tlsInsecure: { v: validateBoolean, m: 'uriParser.invalidBoolean' },
-  w: { v: validateNonNegativeInteger, m: 'uriParser.invalidNonNegativeInteger' },
+  timeoutMS: { v: validateTimeout, m: 'uriParser.invalidTimeout' },
+  w: { v: validateWriteConcern, m: 'uriParser.invalidWriteConcern' },
   waitQueueTimeoutMS: { v: validateTimeout, m: 'uriParser.invalidTimeout' },
   wTimeoutMS: { v: validateTimeout, m: 'uriParser.invalidTimeout' },
   zlibCompressionLevel: {
@@ -655,7 +656,20 @@ function validateAuthMechanism(authMechanism?: string) {
     return false
   }
 
-  return AuthMechanism.includes(authMechanism!)
+  const upper = authMechanism.toUpperCase()
+  return AuthMechanism.some((m) => m.toUpperCase() === upper)
+}
+
+// MongoDB write-concern value: a non-negative integer, the literal "majority",
+// or a custom write-concern tag set name (any non-empty string).
+function validateWriteConcern(value?: string) {
+  if (!value) {
+    return false
+  }
+  if (value.trim().match(/^[0-9]+$/)) {
+    return Number.parseInt(value) >= 0
+  }
+  return value.length > 0
 }
 
 function validateAuthMechanismProps(authMechanismProps?: string) {
@@ -773,7 +787,7 @@ function validateServerMonitoringMode(value?: string) {
     return false
   }
 
-  return ['auto', 'steam', 'poll'].includes(value.toLowerCase())
+  return ['auto', 'stream', 'poll'].includes(value.toLowerCase())
 }
 
 function validateZlibCompressionLevel(value?: string) {
@@ -839,6 +853,23 @@ export type SyncableAuthMechanism =
   | 'GSSAPI'
   | 'PLAIN'
 
+// The MongoDB connection-string spec (and Go driver's connstring.Parse) requires
+// a "/" between the host list and the "?" that starts the query. Naive string
+// joins like `${host}?${query}` produce "mongodb://host?..." which the driver
+// rejects. Insert the slash whenever the host portion has no path segment.
+export function ensurePathSlash(uri: string): string {
+  const schemeMatch = uri.match(/^(mongodb(?:\+srv)?:\/\/)/)
+  if (!schemeMatch) {
+    return uri
+  }
+  const scheme = schemeMatch[1]!
+  const rest = uri.substring(scheme.length)
+  if (rest.indexOf('/') !== -1) {
+    return uri
+  }
+  return `${scheme}${rest}/`
+}
+
 export function setAuthMechanism(uri: string, mechanism: SyncableAuthMechanism | null): string {
   const queryIdx = uri.indexOf('?')
   const base = queryIdx === -1 ? uri : uri.substring(0, queryIdx)
@@ -866,7 +897,48 @@ export function setAuthMechanism(uri: string, mechanism: SyncableAuthMechanism |
     kept.push(`authMechanism=${mechanism}`)
   }
 
-  return kept.length === 0 ? base : `${base}?${kept.join('&')}`
+  return kept.length === 0 ? base : `${ensurePathSlash(base)}?${kept.join('&')}`
+}
+
+// Strip auth-related state (userinfo and auth/cert query params) so the field
+// component for the newly-picked method starts from a clean URI. Without this
+// switching from password → OIDC leaves stale "user:pass@" in the URI, and
+// switching away from x509 leaves dangling tlsCertificateKey* options.
+const AUTH_QUERY_PARAMS = [
+  'authMechanism',
+  'authMechanismProperties',
+  'authSource',
+  'tlsCertificateKeyFile',
+  'tlsCertificateKeyFilePassword',
+]
+
+export function clearAuthState(uri: string): string {
+  const schemeMatch = uri.match(/^(mongodb(?:\+srv)?:\/\/)/)
+  const scheme = schemeMatch ? schemeMatch[1]! : 'mongodb://'
+  const rest = schemeMatch ? uri.substring(scheme.length) : uri
+
+  const queryIdx = rest.indexOf('?')
+  const beforeQuery = queryIdx === -1 ? rest : rest.substring(0, queryIdx)
+  const queryStr = queryIdx === -1 ? '' : rest.substring(queryIdx + 1)
+
+  const atIdx = beforeQuery.lastIndexOf('@')
+  const hostAndPath = atIdx === -1 ? beforeQuery : beforeQuery.substring(atIdx + 1)
+
+  const stripLower = new Set(AUTH_QUERY_PARAMS.map((p) => p.toLowerCase()))
+  const kept: string[] = []
+  if (queryStr.length > 0) {
+    for (const part of queryStr.split('&')) {
+      const eq = part.indexOf('=')
+      const key = eq === -1 ? part : part.substring(0, eq)
+      if (stripLower.has(key.toLowerCase())) {
+        continue
+      }
+      kept.push(part)
+    }
+  }
+
+  const base = `${scheme}${hostAndPath}`
+  return kept.length === 0 ? base : `${ensurePathSlash(base)}?${kept.join('&')}`
 }
 
 export type SignInBehaviour = 'openBrowser' | 'forceAccountPicker' | 'showUrl'

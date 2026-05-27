@@ -146,12 +146,7 @@ func (sm *ServerService) ImportServers(data []byte) (*ImportResult, error) {
 				}
 			}
 
-			var isCluster, isSrv bool
-			cs, parseErr := connstring.Parse(entry.ConnectionConfig.URI)
-			if parseErr == nil {
-				isCluster = len(cs.Hosts) > 1
-				isSrv = cs.Scheme == connstring.SchemeMongoDBSRV
-			}
+			isCluster, isSrv := inferURIShape(entry.ConnectionConfig.URI)
 
 			// Skip duplicate servers (same name, parent, and URI).
 			serverKey := parentID + "\x00" + entry.Name + "\x00" + cfg.URI

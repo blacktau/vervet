@@ -738,6 +738,7 @@ export default {
     invalidBoolean: 'Invalid boolean value for "{key}": "{value}"',
     invalidPositiveFloat: 'Invalid integer or float for "{key}": "{value}"',
     invalidNonNegativeInteger: 'Invalid non-negative integer for "{key}": "{value}"',
+    invalidWriteConcern: 'Invalid write concern for "{key}": "{value}"',
     invalidPositiveInteger: 'Invalid integer for "{key}": "{value}"',
     invalidMaxStaleness: 'Invalid value for "{key}": "{value}"',
     invalidReadPreferenceMode: 'Invalid read preference mode "{value}"',
