@@ -7,14 +7,14 @@ import (
 	"github.com/google/uuid"
 )
 
-// CreateGroup creates a new group node.
-func (sm *ServerService) CreateGroup(parentID, name string) error {
+// CreateGroup creates a new group node and returns its id.
+func (sm *ServerService) CreateGroup(parentID, name string) (string, error) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
 	servers, err := sm.store.LoadServers()
 	if err != nil {
-		return fmt.Errorf("failed to create Server Group: %w", err)
+		return "", fmt.Errorf("failed to create Server Group: %w", err)
 	}
 
 	parent, _ := findServer(parentID, servers)
@@ -31,12 +31,11 @@ func (sm *ServerService) CreateGroup(parentID, name string) error {
 	}
 
 	servers = append(servers, newServer)
-	err = sm.store.SaveServers(servers)
-	if err != nil {
-		return fmt.Errorf("failed to save new registered server group: %w", err)
+	if err := sm.store.SaveServers(servers); err != nil {
+		return "", fmt.Errorf("failed to save new registered server group: %w", err)
 	}
 
-	return nil
+	return newServer.ID, nil
 }
 
 func (sm *ServerService) UpdateGroup(groupID, name, parentID string) error {

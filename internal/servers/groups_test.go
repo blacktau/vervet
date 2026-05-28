@@ -16,10 +16,12 @@ func TestCreateGroup(t *testing.T) {
 		}
 		sm := newTestServerService(mockStore, &MockConnectionStringsStore{})
 
-		err := sm.CreateGroup("parent", "New Group")
+		id, err := sm.CreateGroup("parent", "New Group")
 
 		assert.NoError(t, err)
+		assert.NotEmpty(t, id)
 		assert.Len(t, mockStore.servers, 2)
+		assert.Equal(t, id, mockStore.servers[1].ID)
 		assert.True(t, mockStore.servers[1].IsGroup)
 		assert.Equal(t, "New Group", mockStore.servers[1].Name)
 		assert.Equal(t, "parent", mockStore.servers[1].ParentID)
