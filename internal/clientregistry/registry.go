@@ -209,7 +209,10 @@ func (r *ClientRegistry) Disconnect(serverID string) error {
 
 	rc, ok := r.clients[serverID]
 	if !ok {
-		return fmt.Errorf("no active connection for server %s", serverID)
+		// Idempotent: nothing to disconnect is success. Lets the frontend
+		// safely retry disconnect against stale state without surfacing a
+		// warning.
+		return nil
 	}
 
 	// Always remove the client from the map, even if Disconnect() fails.
