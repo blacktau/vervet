@@ -156,6 +156,8 @@ const onSaveServer = async () => {
   onClose()
 }
 
+const NEW_GROUP_SENTINEL = '__new_group__'
+
 const groupOptions = computed(() => {
   const nodes = serverStore.serverTree
   const options: RegisteredServerNode[] = []
@@ -174,8 +176,34 @@ const groupOptions = computed(() => {
     children: [],
     colour: '',
   })
+  options.splice(0, 0, {
+    name: i18n.t('serverPane.dialogs.common.newGroup'),
+    id: NEW_GROUP_SENTINEL,
+    isGroup: true,
+    isCluster: false,
+    isSrv: false,
+    children: [],
+    colour: '',
+  })
   return options
 })
+
+const previousParentId = ref('')
+
+function onParentChange(next: string) {
+  if (next === NEW_GROUP_SENTINEL) {
+    const prev = previousParentId.value
+    generalForm.value.parentId = prev
+    dialogStore.showNewDialog(DialogType.Group, {
+      onCreated: (id: string) => {
+        generalForm.value.parentId = id
+        previousParentId.value = id
+      },
+    })
+    return
+  }
+  previousParentId.value = next
+}
 
 const onClose = () => {
   dialogStore.hide(DialogType.Server)
@@ -190,6 +218,7 @@ const resetForm = () => {
     parentId: '',
     colour: '',
   }
+  previousParentId.value = ''
   generalFormRef.value?.restoreValidation()
   testing.value = false
   authPicker.value = 'password'
@@ -223,6 +252,7 @@ watch(
           connectionString: server.uri,
           parentId: server.parentID || '',
         }
+        previousParentId.value = generalForm.value.parentId
         authPicker.value = server.authMethod ?? 'password'
         if (server.oidcConfig) {
           oidcConfig.value = { ...server.oidcConfig }
@@ -247,6 +277,7 @@ watch(
       | undefined
     if (rawData?.parentId) {
       generalForm.value.parentId = rawData.parentId
+      previousParentId.value = rawData.parentId
     }
   },
   { immediate: true },
@@ -397,7 +428,8 @@ const onTestConnection = async () => {
                   v-model:value="generalForm.parentId"
                   :options="groupOptions"
                   key-field="id"
-                  label-field="name" />
+                  label-field="name"
+                  @update:value="onParentChange" />
               </n-form-item-gi>
               <n-form-item-gi
                 :label="$t('serverPane.dialogs.server.colour')"

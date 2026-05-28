@@ -577,6 +577,7 @@ export default {
     dialogs: {
       common: {
         noGroup: 'No Group',
+        newGroup: '+ New group',
       },
       server: {
         newTitle: 'Add Server',
