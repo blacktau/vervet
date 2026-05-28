@@ -33,13 +33,12 @@ func TestClientRegistry_IsConnected(t *testing.T) {
 }
 
 func TestClientRegistry_Disconnect(t *testing.T) {
-	t.Run("returns error for unknown serverID", func(t *testing.T) {
+	t.Run("idempotent for unknown serverID", func(t *testing.T) {
 		reg := NewClientRegistry(nil, nil)
 		reg.Init(context.Background())
 
 		err := reg.Disconnect("unknown")
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "no active connection")
+		assert.NoError(t, err)
 	})
 
 	t.Run("removes client from map even when client is nil", func(t *testing.T) {
