@@ -176,10 +176,10 @@ export const useServerStore = defineStore('server', {
     async createGroup(name: string, parentId?: string) {
       const result = await serversProxy.CreateGroup(name, parentId || '')
       if (!result.isSuccess) {
-        return { success: false, msg: i18nGlobal.t(`errors.${result.errorCode}`) }
+        return { success: false as const, msg: i18nGlobal.t(`errors.${result.errorCode}`) }
       }
       await this.refreshServers(true)
-      return { success: true }
+      return { success: true as const, id: result.data }
     },
     async updateGroup(groupId: string, newName: string, parentId?: string) {
       const group = this.findServerById(groupId)
