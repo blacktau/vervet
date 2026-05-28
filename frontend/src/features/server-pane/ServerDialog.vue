@@ -158,34 +158,31 @@ const onSaveServer = async () => {
 
 const NEW_GROUP_SENTINEL = '__new_group__'
 
+function syntheticGroupNode(id: string, name: string): RegisteredServerNode {
+  return {
+    id,
+    name,
+    isGroup: true,
+    isCluster: false,
+    isSrv: false,
+    children: [],
+    colour: '',
+  }
+}
+
 const groupOptions = computed(() => {
-  const nodes = serverStore.serverTree
-  const options: RegisteredServerNode[] = []
-  for (let i = 0, ln = nodes.length; i < ln; ++i) {
-    const option = filterGroupMap(nodes[i]!)
-    if (!!option) {
-      options.push(option)
+  const realGroups: RegisteredServerNode[] = []
+  for (const node of serverStore.serverTree) {
+    const option = filterGroupMap(node)
+    if (option) {
+      realGroups.push(option)
     }
   }
-  options.splice(0, 0, {
-    name: i18n.t('serverPane.dialogs.common.noGroup'),
-    id: '',
-    isGroup: true,
-    isCluster: false,
-    isSrv: false,
-    children: [],
-    colour: '',
-  })
-  options.splice(0, 0, {
-    name: i18n.t('serverPane.dialogs.common.newGroup'),
-    id: NEW_GROUP_SENTINEL,
-    isGroup: true,
-    isCluster: false,
-    isSrv: false,
-    children: [],
-    colour: '',
-  })
-  return options
+  return [
+    syntheticGroupNode(NEW_GROUP_SENTINEL, i18n.t('serverPane.dialogs.common.newGroup')),
+    syntheticGroupNode('', i18n.t('serverPane.dialogs.common.noGroup')),
+    ...realGroups,
+  ]
 })
 
 const previousParentId = ref('')

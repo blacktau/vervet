@@ -7,6 +7,7 @@ import { DialogType, useDialogStore } from '@/stores/dialog.ts'
 import { type RegisteredServerNode, useServerStore } from '@/features/server-pane/serverStore.ts'
 import { useMessager } from '@/utils/dialog.ts'
 import { filterGroupMap } from '@/features/server-pane/helpers.ts'
+import { asCreatePayload, isEditPayload } from '@/features/server-pane/groupDialog.ts'
 
 const dialogStore = useDialogStore()
 const serverStore = useServerStore()
@@ -39,8 +40,8 @@ const formRules = computed(() => {
   }
 })
 
-const isEditMode = computed(
-  () => ((dialogStore.dialogs[DialogType.Group].data as string) || '').length > 0,
+const isEditMode = computed(() =>
+  isEditPayload(dialogStore.dialogs[DialogType.Group].data),
 )
 
 const onConfirm = async () => {
@@ -68,10 +69,8 @@ const onConfirm = async () => {
     } else {
       const result = await serverStore.createGroup(name, parentId)
       if (result.success) {
-        const data = dialogStore.dialogs[DialogType.Group].data as
-          | { onCreated?: (id: string) => void }
-          | undefined
-        data?.onCreated?.(result.id)
+        const payload = asCreatePayload(dialogStore.dialogs[DialogType.Group].data)
+        payload?.onCreated?.(result.id)
         messager.success(i18n.t('common.dialog.handleSuccess'))
         onClose()
       } else {
@@ -118,20 +117,21 @@ const groupOptions = computed(() => {
 })
 
 watchEffect(() => {
-  if (dialogStore.dialogs[DialogType.Group].visible) {
-    const rawData = dialogStore.dialogs[DialogType.Group].data
-    if (typeof rawData === 'object' && rawData !== null && 'parentId' in rawData) {
-      editGroup.value = ''
-      groupForm.name = ''
-      groupForm.parentId = (rawData as { parentId: string }).parentId
-    } else {
-      const groupId = rawData as string
-      const group = serverStore.findServerById(groupId)
-      editGroup.value = groupId
-      groupForm.name = group?.name || ''
-      groupForm.parentId = group?.parentID
-    }
+  if (!dialogStore.dialogs[DialogType.Group].visible) {
+    return
   }
+  const rawData = dialogStore.dialogs[DialogType.Group].data
+  if (isEditPayload(rawData)) {
+    const group = serverStore.findServerById(rawData)
+    editGroup.value = rawData
+    groupForm.name = group?.name || ''
+    groupForm.parentId = group?.parentID
+    return
+  }
+  const payload = asCreatePayload(rawData)
+  editGroup.value = ''
+  groupForm.name = ''
+  groupForm.parentId = payload?.parentId
 })
 </script>
 
