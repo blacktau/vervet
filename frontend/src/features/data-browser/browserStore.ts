@@ -322,13 +322,19 @@ export const useDataBrowserStore = defineStore('browser', {
           const notifier = useNotifier()
           notifier.warning(i18nGlobal.t('errorTitles.disconnect'), { detail: result.errorDetail })
         }
-        // Always clean up frontend state — backend registry also always cleans up
-        this.connections = this.connections.filter((x) => x.serverID !== serverId)
-        delete this.serverTreeStates[serverId]
-        const tabStore = useTabStore()
-        tabStore.removeTabById(serverId)
       }
+      this._cleanupConnection(serverId)
       return true
+    },
+    // Drop a connection's frontend state without calling the backend. Used by
+    // the backend-emitted "connection-disconnected" event, and as the shared
+    // cleanup path for user-initiated disconnect. Always invoked so that the
+    // tab close button cannot get wedged when the connections list has
+    // drifted from the backend.
+    _cleanupConnection(serverId: string) {
+      this.connections = this.connections.filter((x) => x.serverID !== serverId)
+      delete this.serverTreeStates[serverId]
+      useTabStore().removeTabById(serverId)
     },
     async refreshConnectedServers(force: boolean = false) {
       if (!force && !isEmpty(this.connections)) {

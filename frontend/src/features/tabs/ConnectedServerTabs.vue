@@ -161,7 +161,15 @@ const exThemeVars = computed(() => {
 .value-tab {
   --wails-draggable: none;
   position: relative;
-  border: 1px solic v-bind('exThemeVars.splitColor') !important;
+  border: 1px solid v-bind('exThemeVars.splitColor') !important;
+}
+
+// Pin the close button itself out of the titlebar drag region. Without
+// this Wails occasionally absorbs the first mousedown on the small X
+// hitbox as a window-drag start, swallowing the click.
+:deep(.n-tabs-tab__close) {
+  --wails-draggable: none;
+  pointer-events: auto;
 }
 .value-tab-active {
   background-color: v-bind('themeVars.tabColor') !important;

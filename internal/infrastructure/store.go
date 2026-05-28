@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sync"
 	"vervet/internal/logging"
 )
 
@@ -18,6 +19,7 @@ type Store interface {
 type cfgStore struct {
 	ConfigPath string
 	log        *slog.Logger
+	mu         sync.Mutex
 }
 
 func NewStore(filename string, log *slog.Logger) (Store, error) {
@@ -32,6 +34,9 @@ func NewStore(filename string, log *slog.Logger) (Store, error) {
 }
 
 func (s *cfgStore) Read() ([]byte, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	if _, err := os.Stat(s.ConfigPath); os.IsNotExist(err) {
 		err := os.WriteFile(s.ConfigPath, []byte{}, 0600)
 		if err != nil {
@@ -48,21 +53,46 @@ func (s *cfgStore) Read() ([]byte, error) {
 	return d, nil
 }
 
+// Save writes data atomically: it writes to a sibling temp file, fsyncs,
+// then renames over the target. A mutex serialises concurrent callers so
+// two goroutines cannot interleave truncate+write on the same path.
 func (s *cfgStore) Save(data []byte) error {
-	f, err := os.Create(s.ConfigPath)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	dir := filepath.Dir(s.ConfigPath)
+	tmp, err := os.CreateTemp(dir, filepath.Base(s.ConfigPath)+".tmp-*")
 	if err != nil {
 		return fmt.Errorf("error saving configuration: %w", err)
 	}
-	defer f.Close()
+	tmpPath := tmp.Name()
 
-	if _, err := f.Write(data); err != nil {
-		return fmt.Errorf("error saving configuration: %w", err)
+	cleanup := func() {
+		_ = os.Remove(tmpPath)
 	}
 
-	if err := f.Sync(); err != nil {
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		cleanup()
 		return fmt.Errorf("error saving configuration: %w", err)
 	}
-
+	if err := tmp.Sync(); err != nil {
+		_ = tmp.Close()
+		cleanup()
+		return fmt.Errorf("error saving configuration: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		cleanup()
+		return fmt.Errorf("error saving configuration: %w", err)
+	}
+	if err := os.Chmod(tmpPath, 0600); err != nil {
+		cleanup()
+		return fmt.Errorf("error saving configuration: %w", err)
+	}
+	if err := os.Rename(tmpPath, s.ConfigPath); err != nil {
+		cleanup()
+		return fmt.Errorf("error saving configuration: %w", err)
+	}
 	return nil
 }
 

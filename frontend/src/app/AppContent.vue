@@ -37,16 +37,6 @@ const settingsStore = useSettingsStore()
 const updateStore = useUpdateStore()
 const buildInfoStore = useBuildInfoStore()
 
-runtime.EventsOn('oidc-reauth-required', (serverID: string) => {
-  const server = serverStore.findServerById(serverID)
-  const name = server?.name ?? serverID
-  notification.warning({
-    title: i18n.t('oidc.reAuthTitle'),
-    content: i18n.t('oidc.reAuthMessage', { name }),
-    duration: 10000,
-  })
-})
-
 runtime.EventsOn('config-parse-error', (detail: string) => {
   notification.warning({
     title: i18n.t('errorTitles.configParseError'),
@@ -54,6 +44,15 @@ runtime.EventsOn('config-parse-error', (detail: string) => {
     meta: detail,
     duration: 15000,
   })
+})
+
+// Keep frontend state in sync when the backend drops a connection without
+// the user clicking disconnect (e.g. network loss, server-side timeout).
+// Without this the tab and connection entry persist, and a later click on
+// the tab's close button silently no-ops because browserStore.disconnect
+// short-circuits on a missing connection.
+runtime.EventsOn('connection-disconnected', (serverId: string) => {
+  dataBrowserStore._cleanupConnection(serverId)
 })
 
 const data = reactive({

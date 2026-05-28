@@ -1,3 +1,5 @@
+import { ensurePathSlash } from '../connectionStrings'
+
 export interface ScramAuth {
   username: string
   password: string
@@ -69,15 +71,12 @@ function splitUri(uri: string): UriParts {
 function joinUri(parts: UriParts): string {
   const userinfo = parts.userinfo ? `${parts.userinfo}@` : ''
   const keys = Object.keys(parts.query)
-  // Driver's connstring.Parse requires "/" between host and "?". Insert it
-  // when the host segment has no path of its own.
-  const hostAndPath =
-    keys.length > 0 && parts.hostAndPath.indexOf('/') === -1
-      ? `${parts.hostAndPath}/`
-      : parts.hostAndPath
-  const query =
-    keys.length === 0 ? '' : `?${keys.map((k) => `${k}=${parts.query[k]}`).join('&')}`
-  return `${parts.scheme}${userinfo}${hostAndPath}${query}`
+  const base = `${parts.scheme}${userinfo}${parts.hostAndPath}`
+  if (keys.length === 0) {
+    return base
+  }
+  const query = keys.map((k) => `${k}=${parts.query[k]}`).join('&')
+  return `${ensurePathSlash(base)}?${query}`
 }
 
 function encodeUserinfo(user: string, password?: string): string {
