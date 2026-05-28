@@ -225,6 +225,18 @@ function runScenario(scenario: Scenario) {
   }
 }
 
+describe('connectionString.parseUri scheme case-sensitive', () => {
+  test('rejects uppercase MONGODB:// scheme to match driver', () => {
+    const result = parseUri('MONGODB://host:27017/?authSource=admin')
+    expect(result.success).toBe(false)
+  })
+
+  test('rejects mixed-case MongoDB+SRV:// scheme to match driver', () => {
+    const result = parseUri('MongoDB+SRV://cluster.example.com/')
+    expect(result.success).toBe(false)
+  })
+})
+
 describe('connectionString.setAuthMechanism', () => {
   test('appends authMechanism when URI has no query', () => {
     expect(setAuthMechanism('mongodb://host', 'MONGODB-OIDC'))
