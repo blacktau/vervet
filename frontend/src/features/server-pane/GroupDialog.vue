@@ -66,12 +66,16 @@ const onConfirm = async () => {
         messager.error(msg!)
       }
     } else {
-      const { success, msg } = await serverStore.createGroup(name, parentId)
-      if (success) {
+      const result = await serverStore.createGroup(name, parentId)
+      if (result.success) {
+        const data = dialogStore.dialogs[DialogType.Group].data as
+          | { onCreated?: (id: string) => void }
+          | undefined
+        data?.onCreated?.(result.id)
         messager.success(i18n.t('common.dialog.handleSuccess'))
         onClose()
       } else {
-        messager.error(msg!)
+        messager.error(result.msg!)
       }
     }
   } catch (e) {
