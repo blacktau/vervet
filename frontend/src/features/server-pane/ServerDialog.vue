@@ -1,9 +1,9 @@
 <script lang="ts" setup>
-import { type FormInst, type FormRules, useThemeVars } from 'naive-ui'
+import { NIcon, type FormInst, type FormRules, type TreeSelectRenderLabel, useThemeVars } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, h, nextTick, ref, watch } from 'vue'
 import { every, includes, isEmpty } from 'lodash'
-import { XCircleIcon } from '@heroicons/vue/24/outline'
+import { FolderPlusIcon, XCircleIcon } from '@heroicons/vue/24/outline'
 import { DialogType, useDialogStore } from '@/stores/dialog.ts'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 import { type RegisteredServerNode, useServerStore } from '@/features/server-pane/serverStore.ts'
@@ -168,6 +168,16 @@ function syntheticGroupNode(id: string, name: string): RegisteredServerNode {
     children: [],
     colour: '',
   }
+}
+
+const renderGroupLabel: TreeSelectRenderLabel = ({ option }) => {
+  if (option.id === NEW_GROUP_SENTINEL) {
+    return h('div', { style: 'display: flex; align-items: center; gap: 6px;' }, [
+      h(NIcon, { size: 16 }, { default: () => h(FolderPlusIcon) }),
+      h('span', null, option.name as string),
+    ])
+  }
+  return option.name as string
 }
 
 const groupOptions = computed(() => {
@@ -424,6 +434,7 @@ const onTestConnection = async () => {
                 <n-tree-select
                   v-model:value="generalForm.parentId"
                   :options="groupOptions"
+                  :render-label="renderGroupLabel"
                   key-field="id"
                   label-field="name"
                   @update:value="onParentChange" />
