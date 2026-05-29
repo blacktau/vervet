@@ -577,7 +577,7 @@ export default {
     dialogs: {
       common: {
         noGroup: 'No Group',
-        newGroup: '+ New group',
+        newGroup: 'Add New Group',
       },
       server: {
         newTitle: 'Add Server',
@@ -786,6 +786,7 @@ export default {
     no_database_selected: 'No database selected',
     query_cancelled: 'Query cancelled',
     operation_not_supported: 'Operation not supported by the current query engine',
+    duplicate_group_name: 'A group with this name already exists in this location',
     unknown_error: 'An unexpected error occurred',
     configParseError: 'Your server configuration file could not be read. Your server list may appear empty until the file is repaired or new servers are added.',
     saveFailed: 'Could not save server',
