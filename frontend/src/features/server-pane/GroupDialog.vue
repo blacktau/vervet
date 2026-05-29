@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { useI18n } from 'vue-i18n'
-import { computed, reactive, ref, watchEffect } from 'vue'
+import { computed, reactive, ref, watch, watchEffect } from 'vue'
 import { every, get, includes } from 'lodash'
 import { type FormInst, type FormItemRule } from 'naive-ui'
 import { DialogType, useDialogStore } from '@/stores/dialog.ts'
@@ -23,18 +23,43 @@ const groupForm = reactive<{
 
 const groupFormRef = ref<FormInst | null>(null)
 
+function siblingGroupsAt(parentId: string): RegisteredServerNode[] {
+  if (!parentId) {
+    return serverStore.serverTree.filter((n) => n.isGroup)
+  }
+  const parent = serverStore.findServerById(parentId)
+  return (parent?.children || []).filter((n) => n.isGroup)
+}
+
+function isDuplicateSibling(name: string, parentId: string, excludeId: string): boolean {
+  const target = name.trim().toLowerCase()
+  if (!target) {
+    return false
+  }
+  return siblingGroupsAt(parentId).some(
+    (n) => n.id !== excludeId && n.name.trim().toLowerCase() === target,
+  )
+}
+
 const formRules = computed(() => {
   const requiredMsg = i18n.t('common.dialog.fieldRequired')
   const illegalChars = ['/', '\\']
   return {
     name: [
-      { required: true, message: requiredMsg, trigger: 'input' },
+      { required: true, message: requiredMsg, trigger: ['input', 'blur'] },
       {
         validator: (rule: FormItemRule, value: string) => {
           return every(illegalChars, (c) => !includes(value, c))
         },
         message: i18n.t('common.dialog.illegalCharacters'),
-        trigger: 'input',
+        trigger: ['input', 'blur'],
+      },
+      {
+        validator: (rule: FormItemRule, value: string) => {
+          return !isDuplicateSibling(value, groupForm.parentId || '', editGroup.value)
+        },
+        message: i18n.t('errors.duplicate_group_name'),
+        trigger: ['input', 'blur'],
       },
     ],
   }
@@ -44,16 +69,21 @@ const isEditMode = computed(() =>
   isEditPayload(dialogStore.dialogs[DialogType.Group].data),
 )
 
-const onConfirm = async () => {
+const onConfirm = async (): Promise<boolean> => {
   const messager = useMessager()
   try {
+    let validationError = false
     await groupFormRef.value?.validate((errs) => {
       const err = get(errs, '0.0.message')
       if (err != null) {
-        const messager = useMessager()
+        validationError = true
         messager.error(err)
       }
     })
+
+    if (validationError) {
+      return false
+    }
 
     const { name, parentId } = groupForm
 
@@ -63,23 +93,26 @@ const onConfirm = async () => {
       if (success) {
         messager.success(i18n.t('common.dialog.handleSuccess'))
         onClose()
-      } else {
-        messager.error(msg!)
+        return true
       }
-    } else {
-      const result = await serverStore.createGroup(name, parentId)
-      if (result.success) {
-        const payload = asCreatePayload(dialogStore.dialogs[DialogType.Group].data)
-        payload?.onCreated?.(result.id)
-        messager.success(i18n.t('common.dialog.handleSuccess'))
-        onClose()
-      } else {
-        messager.error(result.msg!)
-      }
+      messager.error(msg!)
+      return false
     }
+
+    const result = await serverStore.createGroup(name, parentId)
+    if (result.success) {
+      const payload = asCreatePayload(dialogStore.dialogs[DialogType.Group].data)
+      payload?.onCreated?.(result.id)
+      messager.success(i18n.t('common.dialog.handleSuccess'))
+      onClose()
+      return true
+    }
+    messager.error(result.msg!)
+    return false
   } catch (e) {
     const err = e as Error
     messager.error(err.message)
+    return false
   }
 }
 
@@ -115,6 +148,16 @@ const groupOptions = computed(() => {
   })
   return options
 })
+
+watch(
+  () => groupForm.parentId,
+  () => {
+    if (!dialogStore.dialogs[DialogType.Group].visible) {
+      return
+    }
+    groupFormRef.value?.validate(undefined, (rule) => rule?.key === 'name').catch(() => {})
+  },
+)
 
 watchEffect(() => {
   if (!dialogStore.dialogs[DialogType.Group].visible) {
