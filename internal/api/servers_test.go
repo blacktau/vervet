@@ -57,8 +57,11 @@ func (m *MockServersProvider) BuildFullConnectionString(id string) (string, erro
 	return m.fullConnString, nil
 }
 
-func (m *MockServersProvider) CreateGroup(parentID, name string) error {
-	return m.err
+func (m *MockServersProvider) CreateGroup(parentID, name string) (string, error) {
+	if m.err != nil {
+		return "", m.err
+	}
+	return "new-group-id", nil
 }
 
 func (m *MockServersProvider) UpdateGroup(groupID, name, parentID string) error {

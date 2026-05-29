@@ -1,9 +1,9 @@
 <script lang="ts" setup>
-import { type FormInst, type FormRules, useThemeVars } from 'naive-ui'
+import { NIcon, type FormInst, type FormRules, type TreeSelectRenderLabel, useThemeVars } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, h, nextTick, ref, watch } from 'vue'
 import { every, includes, isEmpty } from 'lodash'
-import { XCircleIcon } from '@heroicons/vue/24/outline'
+import { FolderPlusIcon, XCircleIcon } from '@heroicons/vue/24/outline'
 import { DialogType, useDialogStore } from '@/stores/dialog.ts'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 import { type RegisteredServerNode, useServerStore } from '@/features/server-pane/serverStore.ts'
@@ -156,26 +156,61 @@ const onSaveServer = async () => {
   onClose()
 }
 
-const groupOptions = computed(() => {
-  const nodes = serverStore.serverTree
-  const options: RegisteredServerNode[] = []
-  for (let i = 0, ln = nodes.length; i < ln; ++i) {
-    const option = filterGroupMap(nodes[i]!)
-    if (!!option) {
-      options.push(option)
-    }
-  }
-  options.splice(0, 0, {
-    name: i18n.t('serverPane.dialogs.common.noGroup'),
-    id: '',
+const NEW_GROUP_SENTINEL = '__new_group__'
+
+function syntheticGroupNode(id: string, name: string): RegisteredServerNode {
+  return {
+    id,
+    name,
     isGroup: true,
     isCluster: false,
     isSrv: false,
     children: [],
     colour: '',
-  })
-  return options
+  }
+}
+
+const renderGroupLabel: TreeSelectRenderLabel = ({ option }) => {
+  if (option.id === NEW_GROUP_SENTINEL) {
+    return h('div', { style: 'display: flex; align-items: center; gap: 6px;' }, [
+      h(NIcon, { size: 16 }, { default: () => h(FolderPlusIcon) }),
+      h('span', null, option.name as string),
+    ])
+  }
+  return option.name as string
+}
+
+const groupOptions = computed(() => {
+  const realGroups: RegisteredServerNode[] = []
+  for (const node of serverStore.serverTree) {
+    const option = filterGroupMap(node)
+    if (option) {
+      realGroups.push(option)
+    }
+  }
+  return [
+    syntheticGroupNode(NEW_GROUP_SENTINEL, i18n.t('serverPane.dialogs.common.newGroup')),
+    syntheticGroupNode('', i18n.t('serverPane.dialogs.common.noGroup')),
+    ...realGroups,
+  ]
 })
+
+const previousParentId = ref('')
+
+function onParentChange(next: string) {
+  if (next === NEW_GROUP_SENTINEL) {
+    const prev = previousParentId.value
+    generalForm.value.parentId = prev
+    dialogStore.showNewDialog(DialogType.Group, {
+      onCreated: (id: string) => {
+        generalForm.value.parentId = id
+        previousParentId.value = id
+      },
+    })
+    return
+  }
+  previousParentId.value = next
+}
 
 const onClose = () => {
   dialogStore.hide(DialogType.Server)
@@ -190,6 +225,7 @@ const resetForm = () => {
     parentId: '',
     colour: '',
   }
+  previousParentId.value = ''
   generalFormRef.value?.restoreValidation()
   testing.value = false
   authPicker.value = 'password'
@@ -223,6 +259,7 @@ watch(
           connectionString: server.uri,
           parentId: server.parentID || '',
         }
+        previousParentId.value = generalForm.value.parentId
         authPicker.value = server.authMethod ?? 'password'
         if (server.oidcConfig) {
           oidcConfig.value = { ...server.oidcConfig }
@@ -247,6 +284,7 @@ watch(
       | undefined
     if (rawData?.parentId) {
       generalForm.value.parentId = rawData.parentId
+      previousParentId.value = rawData.parentId
     }
   },
   { immediate: true },
@@ -396,8 +434,10 @@ const onTestConnection = async () => {
                 <n-tree-select
                   v-model:value="generalForm.parentId"
                   :options="groupOptions"
+                  :render-label="renderGroupLabel"
                   key-field="id"
-                  label-field="name" />
+                  label-field="name"
+                  @update:value="onParentChange" />
               </n-form-item-gi>
               <n-form-item-gi
                 :label="$t('serverPane.dialogs.server.colour')"

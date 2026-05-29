@@ -13,7 +13,7 @@ type ServersProvider interface {
 	UpdateServer(serverID, name, uri, parentID, colour string) error
 	RemoveNode(id string) error
 	GetURI(id string) (string, error)
-	CreateGroup(parentID, name string) error
+	CreateGroup(parentID, name string) (string, error)
 	UpdateGroup(groupID, name, parentID string) error
 	GetServer(id string) (*models.RegisteredServer, error)
 	AddServerWithConfig(parentID, name, colour string, cfg models.ConnectionConfig) error
@@ -64,14 +64,14 @@ func (sp *ServersProxy) GetServer(id string) Result[models.RegisteredServer] {
 	return SuccessResult(*registerServer)
 }
 
-func (sp *ServersProxy) CreateGroup(name, parentID string) EmptyResult {
-	err := sp.sm.CreateGroup(parentID, name)
+func (sp *ServersProxy) CreateGroup(name, parentID string) Result[string] {
+	id, err := sp.sm.CreateGroup(parentID, name)
 	if err != nil {
 		logFail(sp.log, "CreateGroup", err)
-		return Fail(err)
+		return FailResult[string](err)
 	}
 
-	return Success()
+	return SuccessResult(id)
 }
 
 func (sp *ServersProxy) UpdateGroup(groupID, name, parentID string) EmptyResult {

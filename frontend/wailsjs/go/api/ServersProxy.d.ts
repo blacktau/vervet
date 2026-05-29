@@ -3,7 +3,7 @@
 import {api} from '../models';
 import {models} from '../models';
 
-export function CreateGroup(arg1:string,arg2:string):Promise<api.EmptyResult>;
+export function CreateGroup(arg1:string,arg2:string):Promise<api.Result_string_>;
 
 export function ExportServers(arg1:Array<string>,arg2:boolean):Promise<api.Result_string_>;
 

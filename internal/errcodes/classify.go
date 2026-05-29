@@ -8,6 +8,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 
 	"vervet/internal/oidc"
+	"vervet/internal/servers"
 	"vervet/internal/shell"
 )
 
@@ -20,6 +21,10 @@ func ClassifyError(err error) ClassifiedError {
 
 	if errors.Is(err, oidc.ErrLoginCanceled) {
 		return ClassifiedError{Code: OIDCLoginCanceled, Detail: err.Error()}
+	}
+
+	if errors.Is(err, servers.ErrDuplicateGroupName) {
+		return ClassifiedError{Code: DuplicateGroupName, Detail: err.Error()}
 	}
 
 	if errors.Is(err, shell.ErrShellNotFound) {
