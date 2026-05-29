@@ -125,13 +125,13 @@ watchEffect(() => {
     const group = serverStore.findServerById(rawData)
     editGroup.value = rawData
     groupForm.name = group?.name || ''
-    groupForm.parentId = group?.parentID
+    groupForm.parentId = group?.parentID || ''
     return
   }
   const payload = asCreatePayload(rawData)
   editGroup.value = ''
   groupForm.name = ''
-  groupForm.parentId = payload?.parentId
+  groupForm.parentId = payload?.parentId || ''
 })
 </script>
 
