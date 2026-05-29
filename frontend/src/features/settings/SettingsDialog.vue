@@ -24,6 +24,9 @@ const initSettings = async () => {
     loading.value = true
     currentTab.value = dialogStore.getDialogData<string>(DialogType.Settings) || 'general'
     await settingsStore.loadSettings()
+    // Fallback: ensure font dropdowns are populated if the background load at
+    // startup failed or hasn't finished yet (no-op once loaded).
+    void settingsStore.loadFontList()
     previousSettings.value = {
       general: settingsStore.general,
       editor: settingsStore.editor,

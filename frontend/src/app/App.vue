@@ -35,12 +35,16 @@ onMounted(async () => {
   try {
     initializing.value = true
     await settingsStore.loadSettings()
-    await settingsStore.loadFontList()
     await serverStore.refreshServers()
     await browserStore.refreshConnectedServers(true)
   } finally {
     initializing.value = false
   }
+
+  // Enumerating system fonts is expensive (opens+parses every font file) and is
+  // only needed for the settings dialog dropdowns, not for initial render.
+  // Load it in the background so it doesn't gate startup.
+  void settingsStore.loadFontList()
 })
 
 watch(

@@ -6,8 +6,13 @@ import * as settingsProxy from 'wailsjs/go/api/SettingsProxy'
 import { type models } from 'wailsjs/go/models.ts'
 import { useNotifier } from '@/utils/dialog.ts'
 
+// Tracks an in-flight font enumeration so the expensive backend call isn't
+// fired twice when the background startup load and a settings-open race.
+let fontListInFlight: Promise<void> | null = null
+
 type SettingsStore = models.Settings & {
   fontList: models.Font[]
+  fontListLoaded: boolean
   previousVersion?: models.Settings
 }
 
@@ -56,6 +61,7 @@ export const useSettingsStore = defineStore('settings', {
         maxBackups: 5,
       },
       fontList: [],
+      fontListLoaded: false,
     }) as unknown as SettingsStore,
   getters: {
     themeOptions() {
@@ -200,14 +206,25 @@ export const useSettingsStore = defineStore('settings', {
       i18nGlobal.locale = this.currentLanguage
     },
     async loadFontList(): Promise<void> {
-      const result = await settingsProxy.GetAvailableFonts()
-      if (!result.isSuccess) {
-        const notifier = useNotifier()
-        notifier.error(i18nGlobal.t(`errors.${result.errorCode}`), { title: i18nGlobal.t('errorTitles.saveSettings'), detail: result.errorDetail })
-        return
+      if (this.fontListLoaded || fontListInFlight) {
+        return fontListInFlight ?? undefined
       }
+      fontListInFlight = (async () => {
+        try {
+          const result = await settingsProxy.GetAvailableFonts()
+          if (!result.isSuccess) {
+            const notifier = useNotifier()
+            notifier.error(i18nGlobal.t(`errors.${result.errorCode}`), { title: i18nGlobal.t('errorTitles.saveSettings'), detail: result.errorDetail })
+            return
+          }
 
-      this.fontList = result.data
+          this.fontList = result.data
+          this.fontListLoaded = true
+        } finally {
+          fontListInFlight = null
+        }
+      })()
+      return fontListInFlight
     },
     async saveConfiguration(): Promise<boolean> {
       const payload: models.Settings = {
