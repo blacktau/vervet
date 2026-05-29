@@ -1,6 +1,7 @@
 package servers
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -25,6 +26,49 @@ func TestCreateGroup(t *testing.T) {
 		assert.True(t, mockStore.servers[1].IsGroup)
 		assert.Equal(t, "New Group", mockStore.servers[1].Name)
 		assert.Equal(t, "parent", mockStore.servers[1].ParentID)
+	})
+
+	t.Run("duplicate sibling name rejected", func(t *testing.T) {
+		mockStore := &mockServerStore{
+			servers: []models.RegisteredServer{
+				{ID: "g1", Name: "Test Group", IsGroup: true, ParentID: ""},
+			},
+		}
+		sm := newTestServerService(mockStore, &MockConnectionStringsStore{})
+
+		id, err := sm.CreateGroup("", "Test Group")
+
+		assert.Empty(t, id)
+		assert.ErrorIs(t, err, ErrDuplicateGroupName)
+		assert.Len(t, mockStore.servers, 1)
+	})
+
+	t.Run("duplicate sibling name case-insensitive rejected", func(t *testing.T) {
+		mockStore := &mockServerStore{
+			servers: []models.RegisteredServer{
+				{ID: "g1", Name: "Test Group", IsGroup: true, ParentID: ""},
+			},
+		}
+		sm := newTestServerService(mockStore, &MockConnectionStringsStore{})
+
+		_, err := sm.CreateGroup("", "  test group  ")
+
+		assert.True(t, errors.Is(err, ErrDuplicateGroupName))
+	})
+
+	t.Run("same name under different parent allowed", func(t *testing.T) {
+		mockStore := &mockServerStore{
+			servers: []models.RegisteredServer{
+				{ID: "p1", Name: "Parent", IsGroup: true, ParentID: ""},
+				{ID: "g1", Name: "Test Group", IsGroup: true, ParentID: ""},
+			},
+		}
+		sm := newTestServerService(mockStore, &MockConnectionStringsStore{})
+
+		id, err := sm.CreateGroup("p1", "Test Group")
+
+		assert.NoError(t, err)
+		assert.NotEmpty(t, id)
 	})
 }
 
@@ -65,6 +109,34 @@ func TestUpdateGroup(t *testing.T) {
 		err := sm.UpdateGroup("1", "Updated Group", "")
 
 		assert.Error(t, err)
+	})
+
+	t.Run("rename to sibling name rejected", func(t *testing.T) {
+		mockStore := &mockServerStore{
+			servers: []models.RegisteredServer{
+				{ID: "1", Name: "Alpha", IsGroup: true, ParentID: ""},
+				{ID: "2", Name: "Beta", IsGroup: true, ParentID: ""},
+			},
+		}
+		sm := newTestServerService(mockStore, &MockConnectionStringsStore{})
+
+		err := sm.UpdateGroup("2", "Alpha", "")
+
+		assert.ErrorIs(t, err, ErrDuplicateGroupName)
+		assert.Equal(t, "Beta", mockStore.servers[1].Name)
+	})
+
+	t.Run("rename to own name allowed (no-op)", func(t *testing.T) {
+		mockStore := &mockServerStore{
+			servers: []models.RegisteredServer{
+				{ID: "1", Name: "Alpha", IsGroup: true, ParentID: ""},
+			},
+		}
+		sm := newTestServerService(mockStore, &MockConnectionStringsStore{})
+
+		err := sm.UpdateGroup("1", "Alpha", "")
+
+		assert.NoError(t, err)
 	})
 }
 
