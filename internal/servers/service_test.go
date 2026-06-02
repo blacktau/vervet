@@ -410,7 +410,8 @@ func TestBuildFullConnectionString_OIDC_AddsParams(t *testing.T) {
 	u, err := url.Parse(got)
 	require.NoError(t, err)
 	assert.Equal(t, "MONGODB-OIDC", u.Query().Get("authMechanism"))
-	assert.Equal(t, "ALLOWED_HOSTS:*", u.Query().Get("authMechanismProperties"))
+	assert.Equal(t, "$external", u.Query().Get("authSource"))
+	assert.NotContains(t, got, "ALLOWED_HOSTS")
 }
 
 func TestBuildFullConnectionString_OIDC_PreservesUserParams(t *testing.T) {
