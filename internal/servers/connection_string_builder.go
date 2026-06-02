@@ -6,11 +6,15 @@ import (
 )
 
 // buildOIDCURI returns rawURI with authMechanism=MONGODB-OIDC and
-// authMechanismProperties=ALLOWED_HOSTS:* injected into its query string.
-// Existing values for either parameter are preserved (idempotent).
+// authSource=$external injected into its query string. Existing values for
+// either parameter are preserved (idempotent). url.Values.Encode emits the
+// "$" of "$external" as "%24external".
 //
-// The defaults match what internal/clientregistry/registry.go applies at
-// connect time, so the returned URI is usable as-is in mongosh.
+// ALLOWED_HOSTS is deliberately NOT injected: it is a client-side-only OIDC
+// property that the MongoDB OIDC spec forbids in connection strings, and tools
+// such as Compass reject a URI that carries it. Vervet applies ALLOWED_HOSTS:*
+// programmatically at connect time (internal/clientregistry/registry.go), so
+// the copied URI works in external clients without it.
 func buildOIDCURI(rawURI string) (string, error) {
 	u, err := url.Parse(rawURI)
 	if err != nil {
@@ -21,8 +25,8 @@ func buildOIDCURI(rawURI string) (string, error) {
 	if q.Get("authMechanism") == "" {
 		q.Set("authMechanism", "MONGODB-OIDC")
 	}
-	if q.Get("authMechanismProperties") == "" {
-		q.Set("authMechanismProperties", "ALLOWED_HOSTS:*")
+	if q.Get("authSource") == "" {
+		q.Set("authSource", "$external")
 	}
 	u.RawQuery = q.Encode()
 	return u.String(), nil
