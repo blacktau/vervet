@@ -1,12 +1,34 @@
 package oidc
 
 import (
+	"context"
+	"errors"
 	"log/slog"
 	"net"
 	"net/http"
 	"testing"
 	"time"
+
+	"vervet/internal/models"
+
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
+
+// stubStore is a minimal connectionStrings.Store for OIDC callback tests.
+type stubStore struct {
+	cfg models.ConnectionConfig
+}
+
+func (s *stubStore) StoreRegisteredServerURI(string, string) error { return nil }
+func (s *stubStore) GetRegisteredServerURI(string) (string, error) { return "", nil }
+func (s *stubStore) DeleteRegisteredServerURI(string) error        { return nil }
+func (s *stubStore) StoreConnectionConfig(string, models.ConnectionConfig) error {
+	return nil
+}
+func (s *stubStore) GetConnectionConfig(string) (models.ConnectionConfig, error) {
+	return s.cfg, nil
+}
+func (s *stubStore) UpdateRefreshToken(string, string) error { return nil }
 
 func TestGetCachedToken_ReturnsCachedToken(t *testing.T) {
 	tm := NewTokenManager(slog.Default(), nil)
@@ -105,4 +127,34 @@ func TestCloseBrowserServer_AllowsRetry(t *testing.T) {
 		t.Fatalf("port still bound after closeBrowserServer: %v", err)
 	}
 	listener2.Close()
+}
+
+// After Shutdown, the OIDC human callback must not start an interactive
+// browser login. Otherwise closing Vervet while an OIDC connection is dead
+// (no valid cached token, refresh unavailable) triggers the driver's
+// disconnect-time re-auth, popping a login browser during app exit.
+func TestHumanCallback_DoesNotLaunchBrowserAfterShutdown(t *testing.T) {
+	store := &stubStore{cfg: models.ConnectionConfig{AuthMethod: models.AuthOIDC}}
+	tm := NewTokenManager(slog.Default(), store)
+	tm.Init(context.Background())
+
+	browserOpened := false
+	tm.SetOpenBrowser(func(string) { browserOpened = true })
+
+	tm.Shutdown()
+
+	cb := tm.HumanCallback("server-1", &models.OIDCConfig{})
+	_, err := cb(context.Background(), &options.OIDCArgs{
+		IDPInfo: &options.IDPInfo{
+			Issuer:   "https://idp.example.com",
+			ClientID: "client-1",
+		},
+	})
+
+	if !errors.Is(err, ErrShuttingDown) {
+		t.Fatalf("expected ErrShuttingDown, got %v", err)
+	}
+	if browserOpened {
+		t.Fatal("browser login was launched during shutdown")
+	}
 }

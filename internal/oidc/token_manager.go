@@ -21,6 +21,12 @@ import (
 // benign user action, not an error to surface as a failure notification.
 var ErrLoginCanceled = errors.New("OIDC login canceled by user")
 
+// ErrShuttingDown is returned by the OIDC human callback when the application
+// is shutting down. The MongoDB driver invokes the callback during
+// disconnect-time re-authentication; without this guard a dead OIDC
+// connection would pop a browser login while Vervet is closing.
+var ErrShuttingDown = errors.New("OIDC login skipped: application shutting down")
+
 type CachedToken struct {
 	AccessToken  string
 	RefreshToken string
@@ -40,6 +46,7 @@ type TokenManager struct {
 	browserMu    sync.Mutex
 	activeServer *activeCallbackServer
 	canceled     bool
+	shuttingDown bool
 
 	promptMu         sync.Mutex
 	forcePromptOnce  map[string]string
@@ -146,7 +153,16 @@ func (tm *TokenManager) CleanupServer(serverID string) {
 // Shutdown cancels any in-flight browser login and releases its listener.
 // Call this on application exit.
 func (tm *TokenManager) Shutdown() {
+	tm.browserMu.Lock()
+	tm.shuttingDown = true
+	tm.browserMu.Unlock()
 	tm.closeBrowserServer()
+}
+
+func (tm *TokenManager) isShuttingDown() bool {
+	tm.browserMu.Lock()
+	defer tm.browserMu.Unlock()
+	return tm.shuttingDown
 }
 
 // HumanCallback returns the OIDCHumanCallback for the given server.
@@ -184,6 +200,13 @@ func (tm *TokenManager) HumanCallback(serverID string, cfg *models.OIDCConfig) o
 				tm.log.Warn("Token refresh failed, falling back to browser login",
 					slog.String("serverID", serverID), slog.Any("error", refreshErr))
 			}
+		}
+
+		// Don't pop an interactive browser login while the app is closing.
+		// The driver invokes this callback during disconnect-time re-auth; a
+		// dead OIDC connection would otherwise launch a browser on exit.
+		if tm.isShuttingDown() {
+			return nil, ErrShuttingDown
 		}
 
 		// 3. Browser login — resolve provider info from server or user config
