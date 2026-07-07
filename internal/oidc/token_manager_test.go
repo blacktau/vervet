@@ -3,6 +3,7 @@ package oidc
 import (
 	"context"
 	"errors"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -156,5 +157,77 @@ func TestHumanCallback_DoesNotLaunchBrowserAfterShutdown(t *testing.T) {
 	}
 	if browserOpened {
 		t.Fatal("browser login was launched during shutdown")
+	}
+}
+
+func newTestManager() *TokenManager {
+	// Discard logger keeps test output pristine; store is unused on the paths
+	// under test (cached-token, resolveIDPInfo, resolveScopes, MachineCallback).
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	return NewTokenManager(log, nil)
+}
+
+func TestHumanCallback_ReturnsCachedToken(t *testing.T) {
+	tm := newTestManager()
+	exp := time.Now().Add(time.Hour)
+	tm.cacheToken("srv1", &CachedToken{AccessToken: "cached-abc", ExpiresAt: exp})
+
+	cb := tm.HumanCallback("srv1", &models.OIDCConfig{})
+	cred, err := cb(context.Background(), &options.OIDCArgs{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cred.AccessToken != "cached-abc" {
+		t.Errorf("AccessToken = %q, want %q", cred.AccessToken, "cached-abc")
+	}
+	if cred.ExpiresAt == nil || !cred.ExpiresAt.Equal(exp) {
+		t.Errorf("ExpiresAt = %v, want %v", cred.ExpiresAt, exp)
+	}
+}
+
+func TestResolveIDPInfo_ConfigOverridesServer(t *testing.T) {
+	tm := newTestManager()
+	idp := &options.IDPInfo{Issuer: "https://server-issuer", ClientID: "server-cid"}
+
+	// No config override → server values win.
+	url, cid := tm.resolveIDPInfo(idp, &models.OIDCConfig{})
+	if url != "https://server-issuer" || cid != "server-cid" {
+		t.Errorf("got (%q,%q), want server values", url, cid)
+	}
+
+	// Config set → config wins.
+	url, cid = tm.resolveIDPInfo(idp, &models.OIDCConfig{ProviderURL: "https://cfg-issuer", ClientID: "cfg-cid"})
+	if url != "https://cfg-issuer" || cid != "cfg-cid" {
+		t.Errorf("got (%q,%q), want config values", url, cid)
+	}
+}
+
+func TestResolveScopes_Precedence(t *testing.T) {
+	tm := newTestManager()
+
+	// Config scopes win.
+	got := tm.resolveScopes(&options.IDPInfo{RequestScopes: []string{"srv"}}, &models.OIDCConfig{Scopes: []string{"cfg"}})
+	if len(got) != 1 || got[0] != "cfg" {
+		t.Errorf("got %v, want [cfg]", got)
+	}
+
+	// Else server-requested scopes.
+	got = tm.resolveScopes(&options.IDPInfo{RequestScopes: []string{"srv"}}, &models.OIDCConfig{})
+	if len(got) != 1 || got[0] != "srv" {
+		t.Errorf("got %v, want [srv]", got)
+	}
+
+	// Else default openid.
+	got = tm.resolveScopes(nil, nil)
+	if len(got) != 1 || got[0] != "openid" {
+		t.Errorf("got %v, want [openid]", got)
+	}
+}
+
+func TestMachineCallback_NotImplemented(t *testing.T) {
+	tm := newTestManager()
+	cb := tm.MachineCallback("srv1")
+	if _, err := cb(context.Background(), &options.OIDCArgs{}); err == nil {
+		t.Fatal("expected not-implemented error, got nil")
 	}
 }
