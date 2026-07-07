@@ -3,7 +3,7 @@ package export
 import (
 	"fmt"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 func Serialize(docs []bson.M, opts Options) ([]byte, error) {

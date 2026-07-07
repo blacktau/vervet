@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/dop251/goja"
-	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 // execContext holds the dependencies needed by proxy methods to execute

@@ -5,8 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 func TestFlattenDoc_Scalars(t *testing.T) {
@@ -52,7 +51,7 @@ func TestFlattenDoc_ArraysOfObjectsStayAsEJSONString(t *testing.T) {
 }
 
 func TestFlattenDoc_ObjectIDSerializedAsExtJSON(t *testing.T) {
-	oid := primitive.NewObjectID()
+	oid := bson.NewObjectID()
 	doc := bson.M{"_id": oid}
 	pairs, err := flattenDoc(doc)
 	require.NoError(t, err)

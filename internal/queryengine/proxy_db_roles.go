@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/dop251/goja"
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // buildRoleCommand constructs a createRole command doc from a mongosh-style role spec.
@@ -70,7 +70,7 @@ func dbCreateRole(ec *execContext) func(goja.FunctionCall) goja.Value {
 		if err != nil {
 			panic(ec.rt.NewGoError(fmt.Errorf("createRole: %w", err)))
 		}
-		return ec.rt.ToValue(runDBCommand(ec, "createRole", cmd))
+		return toJSValue(ec.rt, runDBCommand(ec, "createRole", cmd))
 	}
 }
 
@@ -82,7 +82,7 @@ func dbDropRole(ec *execContext) func(goja.FunctionCall) goja.Value {
 		}
 		name := call.Arguments[0].String()
 		cmd := bson.D{{Key: "dropRole", Value: name}}
-		return ec.rt.ToValue(runDBCommand(ec, "dropRole", cmd))
+		return toJSValue(ec.rt, runDBCommand(ec, "dropRole", cmd))
 	}
 }
 
@@ -99,7 +99,7 @@ func dbGetRole(ec *execContext) func(goja.FunctionCall) goja.Value {
 		if len(roles) == 0 {
 			return goja.Null()
 		}
-		return ec.rt.ToValue(roles[0])
+		return toJSValue(ec.rt, roles[0])
 	}
 }
 
@@ -113,7 +113,7 @@ func dbGetRoles(ec *execContext) func(goja.FunctionCall) goja.Value {
 		for i, r := range roles {
 			out[i] = r
 		}
-		return ec.rt.ToValue(out)
+		return toJSValue(ec.rt, out)
 	}
 }
 
@@ -128,7 +128,7 @@ func dbUpdateRole(ec *execContext) func(goja.FunctionCall) goja.Value {
 		if err != nil {
 			panic(ec.rt.NewGoError(fmt.Errorf("updateRole: %w", err)))
 		}
-		return ec.rt.ToValue(runDBCommand(ec, "updateRole", cmd))
+		return toJSValue(ec.rt, runDBCommand(ec, "updateRole", cmd))
 	}
 }
 
@@ -141,7 +141,7 @@ func dbGrantPrivilegesToRole(ec *execContext) func(goja.FunctionCall) goja.Value
 		name := call.Arguments[0].String()
 		privs := convertToBson(exportValue(call.Arguments[1]))
 		cmd := bson.D{{Key: "grantPrivilegesToRole", Value: name}, {Key: "privileges", Value: privs}}
-		return ec.rt.ToValue(runDBCommand(ec, "grantPrivilegesToRole", cmd))
+		return toJSValue(ec.rt, runDBCommand(ec, "grantPrivilegesToRole", cmd))
 	}
 }
 
@@ -154,7 +154,7 @@ func dbRevokePrivilegesFromRole(ec *execContext) func(goja.FunctionCall) goja.Va
 		name := call.Arguments[0].String()
 		privs := convertToBson(exportValue(call.Arguments[1]))
 		cmd := bson.D{{Key: "revokePrivilegesFromRole", Value: name}, {Key: "privileges", Value: privs}}
-		return ec.rt.ToValue(runDBCommand(ec, "revokePrivilegesFromRole", cmd))
+		return toJSValue(ec.rt, runDBCommand(ec, "revokePrivilegesFromRole", cmd))
 	}
 }
 
@@ -167,7 +167,7 @@ func dbGrantRolesToRole(ec *execContext) func(goja.FunctionCall) goja.Value {
 		name := call.Arguments[0].String()
 		roles := convertToBson(exportValue(call.Arguments[1]))
 		cmd := bson.D{{Key: "grantRolesToRole", Value: name}, {Key: "roles", Value: roles}}
-		return ec.rt.ToValue(runDBCommand(ec, "grantRolesToRole", cmd))
+		return toJSValue(ec.rt, runDBCommand(ec, "grantRolesToRole", cmd))
 	}
 }
 
@@ -180,7 +180,7 @@ func dbRevokeRolesFromRole(ec *execContext) func(goja.FunctionCall) goja.Value {
 		name := call.Arguments[0].String()
 		roles := convertToBson(exportValue(call.Arguments[1]))
 		cmd := bson.D{{Key: "revokeRolesFromRole", Value: name}, {Key: "roles", Value: roles}}
-		return ec.rt.ToValue(runDBCommand(ec, "revokeRolesFromRole", cmd))
+		return toJSValue(ec.rt, runDBCommand(ec, "revokeRolesFromRole", cmd))
 	}
 }
 
@@ -188,6 +188,6 @@ func dbDropAllRoles(ec *execContext) func(goja.FunctionCall) goja.Value {
 	return func(call goja.FunctionCall) goja.Value {
 		requireClient(ec)
 		cmd := bson.D{{Key: "dropAllRolesFromDatabase", Value: 1}}
-		return ec.rt.ToValue(runDBCommand(ec, "dropAllRoles", cmd))
+		return toJSValue(ec.rt, runDBCommand(ec, "dropAllRoles", cmd))
 	}
 }

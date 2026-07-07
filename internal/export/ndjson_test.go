@@ -6,8 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 func TestSerializeNDJSON_OneLinePerDoc(t *testing.T) {
@@ -35,7 +34,7 @@ func TestSerializeNDJSON_EmptyDocsYieldsEmptyBytes(t *testing.T) {
 }
 
 func TestSerializeNDJSON_PreservesBSONTypes(t *testing.T) {
-	oid := primitive.NewObjectID()
+	oid := bson.NewObjectID()
 	out, err := Serialize([]bson.M{{"_id": oid}}, Options{Format: FormatNDJSON})
 	require.NoError(t, err)
 	assert.Contains(t, string(out), `"$oid"`)

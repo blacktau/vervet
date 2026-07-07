@@ -7,7 +7,7 @@ import (
 	"github.com/dop251/goja"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 func TestToGojaValue_EmptyDocuments(t *testing.T) {
@@ -96,8 +96,8 @@ func TestExportValue_Regex_ConvertsToBSONRegex(t *testing.T) {
 	w, ok := bsonVal.(*bsonWrapper)
 	require.True(t, ok, "expected *bsonWrapper, got %T", bsonVal)
 
-	regex, ok := w.Value.(primitive.Regex)
-	require.True(t, ok, "expected primitive.Regex, got %T", w.Value)
+	regex, ok := w.Value.(bson.Regex)
+	require.True(t, ok, "expected bson.Regex, got %T", w.Value)
 	assert.Equal(t, "foo", regex.Pattern)
 	assert.Equal(t, "i", regex.Options)
 }
@@ -117,7 +117,7 @@ func TestExportValue_NestedRegex_PreservedInDocument(t *testing.T) {
 	w, ok := nameVal["__bsonValue"].(*bsonWrapper)
 	require.True(t, ok)
 
-	regex, ok := w.Value.(primitive.Regex)
+	regex, ok := w.Value.(bson.Regex)
 	require.True(t, ok)
 	assert.Equal(t, "bar", regex.Pattern)
 	assert.Equal(t, "im", regex.Options)
@@ -144,7 +144,7 @@ func TestExportValue_RegexInArray_Preserved(t *testing.T) {
 		require.True(t, ok)
 		w, ok := m["__bsonValue"].(*bsonWrapper)
 		require.True(t, ok)
-		regex, ok := w.Value.(primitive.Regex)
+		regex, ok := w.Value.(bson.Regex)
 		require.True(t, ok)
 		assert.Equal(t, expected.pattern, regex.Pattern)
 		assert.Equal(t, expected.options, regex.Options)

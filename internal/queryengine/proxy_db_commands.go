@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/dop251/goja"
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // dbRunCommand returns a Goja-callable function that executes a command document
@@ -25,7 +25,7 @@ func dbRunCommand(ec *execContext, dbName string) func(goja.FunctionCall) goja.V
 			panic(ec.rt.NewGoError(fmt.Errorf("runCommand: %w", err)))
 		}
 
-		return ec.rt.ToValue(result)
+		return toJSValue(ec.rt, result)
 	}
 }
 
@@ -40,7 +40,7 @@ func dbStats(ec *execContext) func(goja.FunctionCall) goja.Value {
 			panic(ec.rt.NewGoError(fmt.Errorf("stats: %w", err)))
 		}
 
-		return ec.rt.ToValue(result)
+		return toJSValue(ec.rt, result)
 	}
 }
 

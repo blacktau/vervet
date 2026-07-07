@@ -12,7 +12,7 @@ import (
 
 	"vervet/internal/models"
 
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 // stubStore is a minimal connectionStrings.Store for OIDC callback tests.

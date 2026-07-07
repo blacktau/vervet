@@ -14,10 +14,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/mongodb"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 var (
@@ -48,7 +47,7 @@ func TestMain(m *testing.M) {
 		log.Fatalf("failed to get connection string: %v", err)
 	}
 
-	testClient, err = mongo.Connect(ctx, options.Client().ApplyURI(testURI))
+	testClient, err = mongo.Connect(options.Client().ApplyURI(testURI))
 	if err != nil {
 		log.Fatalf("failed to connect to MongoDB: %v", err)
 	}
@@ -107,29 +106,29 @@ func TestIntegration_Issue124_InsertOneWithUUID(t *testing.T) {
 	err = testClient.Database(db).Collection("test-collection").FindOne(ctx, bson.M{}).Decode(&doc)
 	require.NoError(t, err)
 
-	bin, ok := doc["_id"].(primitive.Binary)
-	require.True(t, ok, "expected _id to be primitive.Binary, got %T", doc["_id"])
+	bin, ok := doc["_id"].(bson.Binary)
+	require.True(t, ok, "expected _id to be bson.Binary, got %T", doc["_id"])
 	assert.Equal(t, byte(0x04), bin.Subtype)
 	assert.Len(t, bin.Data, 16)
 	assert.Equal(t, "CustomerOnly", doc["CheckType"])
 	assert.Nil(t, doc["ContactId"])
-	assert.IsType(t, primitive.DateTime(0), doc["CreatedAt"])
+	assert.IsType(t, bson.DateTime(0), doc["CreatedAt"])
 }
 
 // --- BSON type constructor tests ---
 
 func TestIntegration_UUID_NoArgs_GeneratesRandomUUID(t *testing.T) {
 	doc := insertAndReadBack(t, `db.test.insertOne({ _id: UUID() })`)
-	bin, ok := doc["_id"].(primitive.Binary)
-	require.True(t, ok, "expected primitive.Binary, got %T", doc["_id"])
+	bin, ok := doc["_id"].(bson.Binary)
+	require.True(t, ok, "expected bson.Binary, got %T", doc["_id"])
 	assert.Equal(t, byte(0x04), bin.Subtype)
 	assert.Len(t, bin.Data, 16)
 }
 
 func TestIntegration_UUID_WithString_StoresCorrectBytes(t *testing.T) {
 	doc := insertAndReadBack(t, `db.test.insertOne({ _id: UUID("550e8400-e29b-41d4-a716-446655440000") })`)
-	bin, ok := doc["_id"].(primitive.Binary)
-	require.True(t, ok, "expected primitive.Binary, got %T", doc["_id"])
+	bin, ok := doc["_id"].(bson.Binary)
+	require.True(t, ok, "expected bson.Binary, got %T", doc["_id"])
 	assert.Equal(t, byte(0x04), bin.Subtype)
 	assert.Equal(t, "550e8400e29b41d4a716446655440000",
 		fmt.Sprintf("%x", bin.Data))
@@ -137,27 +136,27 @@ func TestIntegration_UUID_WithString_StoresCorrectBytes(t *testing.T) {
 
 func TestIntegration_ObjectId_NoArgs(t *testing.T) {
 	doc := insertAndReadBack(t, `db.test.insertOne({ _id: ObjectId() })`)
-	_, ok := doc["_id"].(primitive.ObjectID)
-	assert.True(t, ok, "expected primitive.ObjectID, got %T", doc["_id"])
+	_, ok := doc["_id"].(bson.ObjectID)
+	assert.True(t, ok, "expected bson.ObjectID, got %T", doc["_id"])
 }
 
 func TestIntegration_ObjectId_WithHex(t *testing.T) {
 	doc := insertAndReadBack(t, `db.test.insertOne({ _id: ObjectId("507f1f77bcf86cd799439011") })`)
-	oid, ok := doc["_id"].(primitive.ObjectID)
-	require.True(t, ok, "expected primitive.ObjectID, got %T", doc["_id"])
+	oid, ok := doc["_id"].(bson.ObjectID)
+	require.True(t, ok, "expected bson.ObjectID, got %T", doc["_id"])
 	assert.Equal(t, "507f1f77bcf86cd799439011", oid.Hex())
 }
 
 func TestIntegration_ISODate_NoArgs(t *testing.T) {
 	doc := insertAndReadBack(t, `db.test.insertOne({ ts: ISODate() })`)
-	_, ok := doc["ts"].(primitive.DateTime)
-	assert.True(t, ok, "expected primitive.DateTime, got %T", doc["ts"])
+	_, ok := doc["ts"].(bson.DateTime)
+	assert.True(t, ok, "expected bson.DateTime, got %T", doc["ts"])
 }
 
 func TestIntegration_ISODate_WithString(t *testing.T) {
 	doc := insertAndReadBack(t, `db.test.insertOne({ ts: ISODate("2024-06-15T12:00:00Z") })`)
-	dt, ok := doc["ts"].(primitive.DateTime)
-	require.True(t, ok, "expected primitive.DateTime, got %T", doc["ts"])
+	dt, ok := doc["ts"].(bson.DateTime)
+	require.True(t, ok, "expected bson.DateTime, got %T", doc["ts"])
 	expected := time.Date(2024, 6, 15, 12, 0, 0, 0, time.UTC)
 	assert.Equal(t, expected.UnixMilli(), int64(dt))
 }
@@ -178,34 +177,34 @@ func TestIntegration_NumberLong(t *testing.T) {
 
 func TestIntegration_NumberDecimal(t *testing.T) {
 	doc := insertAndReadBack(t, `db.test.insertOne({ val: NumberDecimal("123.456") })`)
-	_, ok := doc["val"].(primitive.Decimal128)
-	assert.True(t, ok, "expected primitive.Decimal128, got %T", doc["val"])
+	_, ok := doc["val"].(bson.Decimal128)
+	assert.True(t, ok, "expected bson.Decimal128, got %T", doc["val"])
 }
 
 func TestIntegration_Timestamp(t *testing.T) {
 	doc := insertAndReadBack(t, `db.test.insertOne({ ts: Timestamp(1700000000, 1) })`)
-	ts, ok := doc["ts"].(primitive.Timestamp)
-	require.True(t, ok, "expected primitive.Timestamp, got %T", doc["ts"])
+	ts, ok := doc["ts"].(bson.Timestamp)
+	require.True(t, ok, "expected bson.Timestamp, got %T", doc["ts"])
 	assert.Equal(t, uint32(1700000000), ts.T)
 	assert.Equal(t, uint32(1), ts.I)
 }
 
 func TestIntegration_MinKey(t *testing.T) {
 	doc := insertAndReadBack(t, `db.test.insertOne({ val: MinKey() })`)
-	_, ok := doc["val"].(primitive.MinKey)
-	assert.True(t, ok, "expected primitive.MinKey, got %T", doc["val"])
+	_, ok := doc["val"].(bson.MinKey)
+	assert.True(t, ok, "expected bson.MinKey, got %T", doc["val"])
 }
 
 func TestIntegration_MaxKey(t *testing.T) {
 	doc := insertAndReadBack(t, `db.test.insertOne({ val: MaxKey() })`)
-	_, ok := doc["val"].(primitive.MaxKey)
-	assert.True(t, ok, "expected primitive.MaxKey, got %T", doc["val"])
+	_, ok := doc["val"].(bson.MaxKey)
+	assert.True(t, ok, "expected bson.MaxKey, got %T", doc["val"])
 }
 
 func TestIntegration_BinData(t *testing.T) {
 	doc := insertAndReadBack(t, `db.test.insertOne({ data: BinData(0, "aGVsbG8=") })`)
-	bin, ok := doc["data"].(primitive.Binary)
-	require.True(t, ok, "expected primitive.Binary, got %T", doc["data"])
+	bin, ok := doc["data"].(bson.Binary)
+	require.True(t, ok, "expected bson.Binary, got %T", doc["data"])
 	assert.Equal(t, byte(0x00), bin.Subtype)
 	assert.Equal(t, []byte("hello"), bin.Data)
 }

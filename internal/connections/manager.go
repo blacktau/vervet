@@ -14,9 +14,9 @@ import (
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 const (
@@ -93,7 +93,7 @@ func (cm *ConnectionManager) TestConnection(uri string) (bool, error) {
 	ctx, cancel := context.WithTimeout(cm.ctx, 30*time.Second)
 	defer cancel()
 
-	client, err := mongo.Connect(ctx, clientOptions)
+	client, err := mongo.Connect(clientOptions)
 	if err != nil {
 		return false, fmt.Errorf("failed to connect to database: %w", err)
 	}
@@ -122,7 +122,7 @@ func (cm *ConnectionManager) TestConnectionWithConfig(ctx context.Context, cfg m
 	connectCtx, connectCancel := context.WithTimeout(ctx, 30*time.Second)
 	defer connectCancel()
 
-	client, err := mongo.Connect(connectCtx, clientOptions)
+	client, err := mongo.Connect(clientOptions)
 	if err != nil {
 		return false, fmt.Errorf("failed to connect to database: %w", err)
 	}

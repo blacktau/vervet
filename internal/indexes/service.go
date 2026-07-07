@@ -8,9 +8,9 @@ import (
 	"vervet/internal/logging"
 	"vervet/internal/models"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 // ClientProvider provides access to active MongoDB connections
@@ -162,7 +162,7 @@ func (s *IndexService) EditIndex(serverID, dbName, collectionName string, reques
 		// Same name — must drop first to avoid name conflict
 		oldSpec, captureErr := s.captureIndex(collection, request.OldName)
 
-		_, err = collection.Indexes().DropOne(s.ctx, request.OldName)
+		err = collection.Indexes().DropOne(s.ctx, request.OldName)
 		if err != nil {
 			return fmt.Errorf("failed to drop old index: %w", err)
 		}
@@ -182,7 +182,7 @@ func (s *IndexService) EditIndex(serverID, dbName, collectionName string, reques
 			return fmt.Errorf("failed to create new index: %w", err)
 		}
 
-		_, err = collection.Indexes().DropOne(s.ctx, request.OldName)
+		err = collection.Indexes().DropOne(s.ctx, request.OldName)
 		if err != nil {
 			return fmt.Errorf("new index created but failed to drop old index %q: %w", request.OldName, err)
 		}
@@ -198,7 +198,7 @@ func (s *IndexService) DropIndex(serverID, dbName, collectionName, indexName str
 	}
 
 	collection := client.Database(dbName).Collection(collectionName)
-	_, err = collection.Indexes().DropOne(s.ctx, indexName)
+	err = collection.Indexes().DropOne(s.ctx, indexName)
 	if err != nil {
 		return fmt.Errorf("failed to drop index: %w", err)
 	}

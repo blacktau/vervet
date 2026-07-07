@@ -8,7 +8,7 @@ import (
 
 	"github.com/dop251/goja"
 	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // registerBSONTypes registers mongosh-compatible BSON type constructors as globals
@@ -40,15 +40,15 @@ func registerBSONTypes(rt *goja.Runtime) error {
 	return nil
 }
 
-// bsonObjectId returns a function that creates a primitive.ObjectID.
+// bsonObjectId returns a function that creates a bson.ObjectID.
 // Usage: ObjectId() — new random ID, or ObjectId("hex") — from hex string.
 func bsonObjectId(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(call goja.FunctionCall) goja.Value {
 		if len(call.Arguments) == 0 || goja.IsUndefined(call.Arguments[0]) {
-			return wrapBSONValue(rt, primitive.NewObjectID())
+			return wrapBSONValue(rt, bson.NewObjectID())
 		}
 		hex := call.Arguments[0].String()
-		oid, err := primitive.ObjectIDFromHex(hex)
+		oid, err := bson.ObjectIDFromHex(hex)
 		if err != nil {
 			panic(rt.NewGoError(fmt.Errorf("ObjectId: %w", err)))
 		}
@@ -56,12 +56,12 @@ func bsonObjectId(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	}
 }
 
-// bsonISODate returns a function that creates a primitive.DateTime.
+// bsonISODate returns a function that creates a bson.DateTime.
 // Usage: ISODate() — now, or ISODate("2024-01-15T00:00:00Z") — from ISO string.
 func bsonISODate(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(call goja.FunctionCall) goja.Value {
 		if len(call.Arguments) == 0 || goja.IsUndefined(call.Arguments[0]) {
-			return wrapBSONValue(rt, primitive.NewDateTimeFromTime(time.Now()))
+			return wrapBSONValue(rt, bson.NewDateTimeFromTime(time.Now()))
 		}
 		str := call.Arguments[0].String()
 		t, err := time.Parse(time.RFC3339, str)
@@ -76,7 +76,7 @@ func bsonISODate(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 				}
 			}
 		}
-		return wrapBSONValue(rt, primitive.NewDateTimeFromTime(t))
+		return wrapBSONValue(rt, bson.NewDateTimeFromTime(t))
 	}
 }
 
@@ -181,7 +181,7 @@ func wrapBSONValue(rt *goja.Runtime, val any) goja.Value {
 	return obj
 }
 
-// bsonNumberDecimal returns a function that creates a primitive.Decimal128.
+// bsonNumberDecimal returns a function that creates a bson.Decimal128.
 // Usage: NumberDecimal("123.456").
 func bsonNumberDecimal(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(call goja.FunctionCall) goja.Value {
@@ -189,7 +189,7 @@ func bsonNumberDecimal(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 			panic(rt.NewGoError(fmt.Errorf("NumberDecimal requires a string argument")))
 		}
 		str := call.Arguments[0].String()
-		d, err := primitive.ParseDecimal128(str)
+		d, err := bson.ParseDecimal128(str)
 		if err != nil {
 			panic(rt.NewGoError(fmt.Errorf("NumberDecimal: %w", err)))
 		}
@@ -197,13 +197,13 @@ func bsonNumberDecimal(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	}
 }
 
-// bsonUUID returns a function that creates a primitive.Binary with subtype 4.
+// bsonUUID returns a function that creates a bson.Binary with subtype 4.
 // Usage: UUID() for a random UUID, or UUID("550e8400-e29b-41d4-a716-446655440000") for a specific one.
 func bsonUUID(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(call goja.FunctionCall) goja.Value {
 		if len(call.Arguments) == 0 {
 			id := uuid.New()
-			return wrapBSONValue(rt, primitive.Binary{Subtype: 0x04, Data: id[:]})
+			return wrapBSONValue(rt, bson.Binary{Subtype: 0x04, Data: id[:]})
 		}
 		str := call.Arguments[0].String()
 		// Strip hyphens from UUID string
@@ -220,11 +220,11 @@ func bsonUUID(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 		if len(data) != 16 {
 			panic(rt.NewGoError(fmt.Errorf("UUID: must be 16 bytes, got %d", len(data))))
 		}
-		return wrapBSONValue(rt, primitive.Binary{Subtype: 0x04, Data: data})
+		return wrapBSONValue(rt, bson.Binary{Subtype: 0x04, Data: data})
 	}
 }
 
-// bsonTimestamp returns a function that creates a primitive.Timestamp.
+// bsonTimestamp returns a function that creates a bson.Timestamp.
 // Supports three forms:
 //   - Timestamp(t, i)          — positional: seconds since epoch + increment
 //   - Timestamp({t: <int>, i: <int>}) — object form (mongosh style), both fields optional
@@ -232,7 +232,7 @@ func bsonUUID(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 func bsonTimestamp(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(call goja.FunctionCall) goja.Value {
 		if len(call.Arguments) == 0 || goja.IsUndefined(call.Arguments[0]) {
-			return wrapBSONValue(rt, primitive.Timestamp{
+			return wrapBSONValue(rt, bson.Timestamp{
 				T: uint32(time.Now().Unix()),
 				I: 1,
 			})
@@ -261,7 +261,7 @@ func bsonTimestamp(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 					i = uint32(n)
 				}
 			}
-			return wrapBSONValue(rt, primitive.Timestamp{T: t, I: i})
+			return wrapBSONValue(rt, bson.Timestamp{T: t, I: i})
 		}
 
 		// Positional form: Timestamp(t, i)
@@ -270,27 +270,27 @@ func bsonTimestamp(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 		}
 		t := uint32(call.Arguments[0].ToInteger())
 		i := uint32(call.Arguments[1].ToInteger())
-		return wrapBSONValue(rt, primitive.Timestamp{T: t, I: i})
+		return wrapBSONValue(rt, bson.Timestamp{T: t, I: i})
 	}
 }
 
-// bsonMinKey returns a function that creates a primitive.MinKey.
+// bsonMinKey returns a function that creates a bson.MinKey.
 // Usage: MinKey()
 func bsonMinKey(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(call goja.FunctionCall) goja.Value {
-		return wrapBSONValue(rt, primitive.MinKey{})
+		return wrapBSONValue(rt, bson.MinKey{})
 	}
 }
 
-// bsonMaxKey returns a function that creates a primitive.MaxKey.
+// bsonMaxKey returns a function that creates a bson.MaxKey.
 // Usage: MaxKey()
 func bsonMaxKey(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(call goja.FunctionCall) goja.Value {
-		return wrapBSONValue(rt, primitive.MaxKey{})
+		return wrapBSONValue(rt, bson.MaxKey{})
 	}
 }
 
-// bsonBinData returns a function that creates a primitive.Binary.
+// bsonBinData returns a function that creates a bson.Binary.
 // Usage: BinData(subtype, base64String).
 func bsonBinData(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(call goja.FunctionCall) goja.Value {
@@ -304,6 +304,6 @@ func bsonBinData(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 		if err != nil {
 			panic(rt.NewGoError(fmt.Errorf("BinData: %w", err)))
 		}
-		return wrapBSONValue(rt, primitive.Binary{Subtype: subtype, Data: data})
+		return wrapBSONValue(rt, bson.Binary{Subtype: subtype, Data: data})
 	}
 }

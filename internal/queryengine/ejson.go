@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/dop251/goja"
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // registerEJSON registers the EJSON global object in the Goja runtime,
@@ -91,7 +91,7 @@ func ejsonParse(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 			panic(rt.NewGoError(fmt.Errorf("EJSON.parse: %w", err)))
 		}
 
-		return rt.ToValue(result)
+		return toJSValue(rt, result)
 	}
 }
 
@@ -119,7 +119,7 @@ func ejsonSerialize(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 			panic(rt.NewGoError(fmt.Errorf("EJSON.serialize: %w", err)))
 		}
 
-		return rt.ToValue(result)
+		return toJSValue(rt, result)
 	}
 }
 
@@ -145,6 +145,6 @@ func ejsonDeserialize(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 			panic(rt.NewGoError(fmt.Errorf("EJSON.deserialize: %w", err)))
 		}
 
-		return rt.ToValue(result)
+		return toJSValue(rt, result)
 	}
 }
