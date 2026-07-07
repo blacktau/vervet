@@ -25,14 +25,14 @@ func TestIntegration_CreateRole_GetRole_DropRole(t *testing.T) {
 
 	result, err := engine.ExecuteQuery(ctx, testURI, db, `db.getRole("reader1")`)
 	require.NoError(t, err)
-	assert.Contains(t, result.RawOutput, "reader1")
+	assert.Contains(t, resultText(result), "reader1")
 
 	_, err = engine.ExecuteQuery(ctx, testURI, db, `db.dropRole("reader1")`)
 	require.NoError(t, err)
 
 	result, err = engine.ExecuteQuery(ctx, testURI, db, `db.getRole("reader1")`)
 	require.NoError(t, err)
-	assert.Contains(t, result.RawOutput, "null")
+	assert.Contains(t, resultText(result), "null")
 }
 
 func TestIntegration_GetRoles(t *testing.T) {
@@ -50,8 +50,8 @@ func TestIntegration_GetRoles(t *testing.T) {
 
 	result, err := engine.ExecuteQuery(ctx, testURI, db, `db.getRoles()`)
 	require.NoError(t, err)
-	assert.Contains(t, result.RawOutput, "r1")
-	assert.Contains(t, result.RawOutput, "r2")
+	assert.Contains(t, resultText(result), "r1")
+	assert.Contains(t, resultText(result), "r2")
 }
 
 func TestIntegration_UpdateRole(t *testing.T) {
@@ -70,7 +70,7 @@ func TestIntegration_UpdateRole(t *testing.T) {
 
 	result, err := engine.ExecuteQuery(ctx, testURI, db, `db.getRole("r3")`)
 	require.NoError(t, err)
-	assert.Contains(t, result.RawOutput, "r3")
+	assert.Contains(t, resultText(result), "r3")
 }
 
 func TestIntegration_GrantRevokePrivilegesToRole(t *testing.T) {
@@ -128,6 +128,6 @@ func TestIntegration_DropAllRoles(t *testing.T) {
 
 	result, err := engine.ExecuteQuery(ctx, testURI, db, `db.getRoles()`)
 	require.NoError(t, err)
-	assert.NotContains(t, result.RawOutput, "\"r6\"")
-	assert.NotContains(t, result.RawOutput, "\"r7\"")
+	assert.NotContains(t, resultText(result), "\"r6\"")
+	assert.NotContains(t, resultText(result), "\"r7\"")
 }

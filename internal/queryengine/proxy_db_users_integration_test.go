@@ -25,14 +25,14 @@ func TestIntegration_CreateUser_GetUser_DropUser(t *testing.T) {
 
 	result, err := engine.ExecuteQuery(ctx, testURI, db, `db.getUser("alice")`)
 	require.NoError(t, err)
-	assert.Contains(t, result.RawOutput, "alice")
+	assert.Contains(t, resultText(result), "alice")
 
 	_, err = engine.ExecuteQuery(ctx, testURI, db, `db.dropUser("alice")`)
 	require.NoError(t, err)
 
 	result, err = engine.ExecuteQuery(ctx, testURI, db, `db.getUser("alice")`)
 	require.NoError(t, err)
-	assert.Contains(t, result.RawOutput, "null")
+	assert.Contains(t, resultText(result), "null")
 }
 
 func TestIntegration_GetUsers(t *testing.T) {
@@ -50,8 +50,8 @@ func TestIntegration_GetUsers(t *testing.T) {
 
 	result, err := engine.ExecuteQuery(ctx, testURI, db, `db.getUsers()`)
 	require.NoError(t, err)
-	assert.Contains(t, result.RawOutput, "u1")
-	assert.Contains(t, result.RawOutput, "u2")
+	assert.Contains(t, resultText(result), "u1")
+	assert.Contains(t, resultText(result), "u2")
 }
 
 func TestIntegration_UpdateUser(t *testing.T) {
@@ -70,7 +70,7 @@ func TestIntegration_UpdateUser(t *testing.T) {
 
 	result, err := engine.ExecuteQuery(ctx, testURI, db, `db.getUser("bob")`)
 	require.NoError(t, err)
-	assert.Contains(t, result.RawOutput, "read")
+	assert.Contains(t, resultText(result), "read")
 }
 
 func TestIntegration_ChangeUserPassword(t *testing.T) {
@@ -104,7 +104,7 @@ func TestIntegration_GrantRevokeRolesToUser(t *testing.T) {
 
 	result, err := engine.ExecuteQuery(ctx, testURI, db, `db.getUser("dan")`)
 	require.NoError(t, err)
-	assert.Contains(t, result.RawOutput, "read")
+	assert.Contains(t, resultText(result), "read")
 
 	_, err = engine.ExecuteQuery(ctx, testURI, db, `db.revokeRolesFromUser("dan", [{ role: "read", db: "`+db+`" }])`)
 	require.NoError(t, err)
@@ -128,6 +128,6 @@ func TestIntegration_DropAllUsers(t *testing.T) {
 
 	result, err := engine.ExecuteQuery(ctx, testURI, db, `db.getUsers()`)
 	require.NoError(t, err)
-	assert.NotContains(t, result.RawOutput, "e1")
-	assert.NotContains(t, result.RawOutput, "e2")
+	assert.NotContains(t, resultText(result), "e1")
+	assert.NotContains(t, resultText(result), "e2")
 }

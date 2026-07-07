@@ -25,7 +25,7 @@ func TestIntegration_CollectionStats(t *testing.T) {
 
 	result, err := engine.ExecuteQuery(ctx, testURI, db, `db.test.stats()`)
 	require.NoError(t, err)
-	assert.Contains(t, result.RawOutput, "ns")
+	assert.Contains(t, resultText(result), "ns")
 }
 
 func TestIntegration_CollectionIsCapped_False(t *testing.T) {
@@ -41,7 +41,7 @@ func TestIntegration_CollectionIsCapped_False(t *testing.T) {
 
 	result, err := engine.ExecuteQuery(ctx, testURI, db, `db.test.isCapped()`)
 	require.NoError(t, err)
-	assert.Equal(t, "false", result.RawOutput)
+	assert.Equal(t, "false", resultText(result))
 }
 
 func TestIntegration_CollectionIsCapped_True(t *testing.T) {
@@ -58,7 +58,7 @@ func TestIntegration_CollectionIsCapped_True(t *testing.T) {
 	engine := NewGojaEngine(testClient, 0)
 	result, err := engine.ExecuteQuery(ctx, testURI, db, `db.capped.isCapped()`)
 	require.NoError(t, err)
-	assert.Equal(t, "true", result.RawOutput)
+	assert.Equal(t, "true", resultText(result))
 }
 
 func TestIntegration_CollectionSizeHelpers(t *testing.T) {
@@ -75,7 +75,7 @@ func TestIntegration_CollectionSizeHelpers(t *testing.T) {
 	for _, method := range []string{"dataSize", "storageSize", "totalSize", "totalIndexSize"} {
 		result, err := engine.ExecuteQuery(ctx, testURI, db, `db.test.`+method+`()`)
 		require.NoError(t, err, method)
-		assert.NotEmpty(t, result.RawOutput, method)
+		assert.NotEmpty(t, resultText(result), method)
 	}
 }
 
@@ -92,7 +92,7 @@ func TestIntegration_CollectionGetIndexes(t *testing.T) {
 
 	result, err := engine.ExecuteQuery(ctx, testURI, db, `db.test.getIndexes()`)
 	require.NoError(t, err)
-	assert.Contains(t, result.RawOutput, "_id_")
+	assert.Contains(t, resultText(result), "_id_")
 }
 
 func TestIntegration_CollectionCount(t *testing.T) {
@@ -108,7 +108,7 @@ func TestIntegration_CollectionCount(t *testing.T) {
 
 	result, err := engine.ExecuteQuery(ctx, testURI, db, `db.test.count({})`)
 	require.NoError(t, err)
-	assert.Equal(t, "3", result.RawOutput)
+	assert.Equal(t, "3", resultText(result))
 }
 
 func TestIntegration_CollectionRename(t *testing.T) {
@@ -127,7 +127,7 @@ func TestIntegration_CollectionRename(t *testing.T) {
 
 	result, err := engine.ExecuteQuery(ctx, testURI, db, `db.newname.count({})`)
 	require.NoError(t, err)
-	assert.Equal(t, "1", result.RawOutput)
+	assert.Equal(t, "1", resultText(result))
 }
 
 func TestIntegration_CollectionValidate(t *testing.T) {
@@ -143,7 +143,7 @@ func TestIntegration_CollectionValidate(t *testing.T) {
 
 	result, err := engine.ExecuteQuery(ctx, testURI, db, `db.test.validate()`)
 	require.NoError(t, err)
-	assert.Contains(t, result.RawOutput, "valid")
+	assert.Contains(t, resultText(result), "valid")
 }
 
 func TestIntegration_CollectionFindAndModify_Update(t *testing.T) {
@@ -165,7 +165,7 @@ func TestIntegration_CollectionFindAndModify_Update(t *testing.T) {
 		})
 	`)
 	require.NoError(t, err)
-	assert.Contains(t, result.RawOutput, "new")
+	assert.Contains(t, resultText(result), "new")
 }
 
 func TestIntegration_CollectionFindAndModify_Remove(t *testing.T) {
@@ -184,5 +184,5 @@ func TestIntegration_CollectionFindAndModify_Remove(t *testing.T) {
 
 	result, err := engine.ExecuteQuery(ctx, testURI, db, `db.test.count({})`)
 	require.NoError(t, err)
-	assert.Equal(t, "0", result.RawOutput)
+	assert.Equal(t, "0", resultText(result))
 }
