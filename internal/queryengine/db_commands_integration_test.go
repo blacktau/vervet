@@ -24,6 +24,24 @@ func TestIntegration_RunCommand_Ping(t *testing.T) {
 	assert.Contains(t, result.RawOutput, "ok")
 }
 
+// TestIntegration_RunCommand_PropertyAccess guards the v2 normalizer fix:
+// bson.M gained methods in mongo-driver v2, so goja stopped reflecting command
+// results as JS objects. Accessing a property of the result then returns
+// undefined. normalizeForJS restores plain-object reflection; this asserts the
+// property is actually reachable from JS end-to-end.
+func TestIntegration_RunCommand_PropertyAccess(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	db := dbName(t)
+	defer testClient.Database(db).Drop(ctx)
+
+	engine := NewGojaEngine(testClient, 0)
+	result, err := engine.ExecuteQuery(ctx, testURI, db, `db.runCommand({ ping: 1 }).ok`)
+	require.NoError(t, err)
+	assert.Equal(t, "1", result.RawOutput, "command result property must be reachable from JS, not undefined")
+}
+
 func TestIntegration_RunCommand_CollStats(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
