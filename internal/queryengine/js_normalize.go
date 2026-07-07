@@ -21,6 +21,12 @@ func normalizeForJS(v any) any {
 			out[k] = normalizeForJS(elem)
 		}
 		return out
+	case map[string]any:
+		out := make(map[string]any, len(val))
+		for k, elem := range val {
+			out[k] = normalizeForJS(elem)
+		}
+		return out
 	case bson.D:
 		// ponytail: D is flattened to an object (last-wins on duplicate keys). v1
 		// exposed D as an array to JS, but D is not on the result path (results are
