@@ -249,7 +249,7 @@ func (c *lazyCursor) toGojaObject() goja.Value {
 			panic(rt.NewGoError(err))
 		}
 		for _, doc := range c.results {
-			if _, err := fn(goja.Undefined(), rt.ToValue(doc)); err != nil {
+			if _, err := fn(goja.Undefined(), toJSValue(rt, doc)); err != nil {
 				panic(rt.NewGoError(err))
 			}
 		}
@@ -270,7 +270,7 @@ func (c *lazyCursor) toGojaObject() goja.Value {
 		}
 		mapped := make([]any, len(c.results))
 		for i, doc := range c.results {
-			val, err := fn(goja.Undefined(), rt.ToValue(doc))
+			val, err := fn(goja.Undefined(), toJSValue(rt, doc))
 			if err != nil {
 				panic(rt.NewGoError(err))
 			}
@@ -318,7 +318,7 @@ func (c *lazyCursor) toGojaObject() goja.Value {
 		}
 		doc := c.results[c.index]
 		c.index++
-		return rt.ToValue(doc)
+		return toJSValue(rt, doc)
 	})
 
 	_ = obj.Set("explain", func(call goja.FunctionCall) goja.Value {

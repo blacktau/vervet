@@ -4,9 +4,9 @@ import (
 	"fmt"
 
 	"github.com/dop251/goja"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 // collStatsMap runs the collStats command and returns the result document.
@@ -61,7 +61,7 @@ func setCollectionInfoMethods(obj *goja.Object, ec *execContext, collName string
 		if err != nil {
 			panic(rt.NewGoError(fmt.Errorf("stats: %w", err)))
 		}
-		return rt.ToValue(result)
+		return toJSValue(rt, result)
 	})
 
 	_ = obj.Set("isCapped", func() goja.Value {
@@ -160,7 +160,7 @@ func setCollectionInfoMethods(obj *goja.Object, ec *execContext, collName string
 		if err := ec.client.Database("admin").RunCommand(ec.ctx, cmd).Decode(&result); err != nil {
 			panic(rt.NewGoError(fmt.Errorf("renameCollection: %w", err)))
 		}
-		return rt.ToValue(result)
+		return toJSValue(rt, result)
 	})
 
 	_ = obj.Set("validate", func(call goja.FunctionCall) goja.Value {
@@ -181,7 +181,7 @@ func setCollectionInfoMethods(obj *goja.Object, ec *execContext, collName string
 		if err := ec.client.Database(ec.dbName).RunCommand(ec.ctx, cmd).Decode(&result); err != nil {
 			panic(rt.NewGoError(fmt.Errorf("validate: %w", err)))
 		}
-		return rt.ToValue(result)
+		return toJSValue(rt, result)
 	})
 
 	_ = obj.Set("findAndModify", func(call goja.FunctionCall) goja.Value {
@@ -197,7 +197,7 @@ func setCollectionInfoMethods(obj *goja.Object, ec *execContext, collName string
 		if err != nil {
 			panic(rt.NewGoError(err))
 		}
-		return rt.ToValue(result)
+		return toJSValue(rt, result)
 	})
 }
 

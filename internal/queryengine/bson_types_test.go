@@ -6,8 +6,7 @@ import (
 	"github.com/dop251/goja"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 func setupRuntimeWithBSON(t *testing.T) *goja.Runtime {
@@ -37,8 +36,8 @@ func TestObjectId_NoArgs_ReturnsNewObjectID(t *testing.T) {
 	val, err := rt.RunString(`ObjectId()`)
 	require.NoError(t, err)
 	bsonVal := extractBSONValue(t, val)
-	_, ok := bsonVal.(primitive.ObjectID)
-	assert.True(t, ok, "expected primitive.ObjectID, got %T", bsonVal)
+	_, ok := bsonVal.(bson.ObjectID)
+	assert.True(t, ok, "expected bson.ObjectID, got %T", bsonVal)
 }
 
 func TestObjectId_WithHex_ReturnsCorrectID(t *testing.T) {
@@ -46,7 +45,7 @@ func TestObjectId_WithHex_ReturnsCorrectID(t *testing.T) {
 	val, err := rt.RunString(`ObjectId("507f1f77bcf86cd799439011")`)
 	require.NoError(t, err)
 	bsonVal := extractBSONValue(t, val)
-	oid, ok := bsonVal.(primitive.ObjectID)
+	oid, ok := bsonVal.(bson.ObjectID)
 	require.True(t, ok)
 	assert.Equal(t, "507f1f77bcf86cd799439011", oid.Hex())
 }
@@ -62,8 +61,8 @@ func TestISODate_NoArgs_ReturnsNow(t *testing.T) {
 	val, err := rt.RunString(`ISODate()`)
 	require.NoError(t, err)
 	bsonVal := extractBSONValue(t, val)
-	_, ok := bsonVal.(primitive.DateTime)
-	assert.True(t, ok, "expected primitive.DateTime, got %T", bsonVal)
+	_, ok := bsonVal.(bson.DateTime)
+	assert.True(t, ok, "expected bson.DateTime, got %T", bsonVal)
 }
 
 func TestISODate_WithRFC3339_ReturnsCorrectDate(t *testing.T) {
@@ -71,7 +70,7 @@ func TestISODate_WithRFC3339_ReturnsCorrectDate(t *testing.T) {
 	val, err := rt.RunString(`ISODate("2024-01-15T10:30:00Z")`)
 	require.NoError(t, err)
 	bsonVal := extractBSONValue(t, val)
-	dt, ok := bsonVal.(primitive.DateTime)
+	dt, ok := bsonVal.(bson.DateTime)
 	require.True(t, ok)
 	tm := dt.Time()
 	assert.Equal(t, 2024, tm.Year())
@@ -84,7 +83,7 @@ func TestISODate_DateOnly_Works(t *testing.T) {
 	val, err := rt.RunString(`ISODate("2024-01-15")`)
 	require.NoError(t, err)
 	bsonVal := extractBSONValue(t, val)
-	dt, ok := bsonVal.(primitive.DateTime)
+	dt, ok := bsonVal.(bson.DateTime)
 	require.True(t, ok)
 	assert.Equal(t, 2024, dt.Time().Year())
 }
@@ -148,8 +147,8 @@ func TestNumberDecimal_Valid_ReturnsDecimal128(t *testing.T) {
 	val, err := rt.RunString(`NumberDecimal("123.456")`)
 	require.NoError(t, err)
 	bsonVal := extractBSONValue(t, val)
-	_, ok := bsonVal.(primitive.Decimal128)
-	assert.True(t, ok, "expected primitive.Decimal128, got %T", bsonVal)
+	_, ok := bsonVal.(bson.Decimal128)
+	assert.True(t, ok, "expected bson.Decimal128, got %T", bsonVal)
 }
 
 func TestNumberDecimal_NoArgs_Panics(t *testing.T) {
@@ -163,7 +162,7 @@ func TestUUID_Valid_ReturnsBinary(t *testing.T) {
 	val, err := rt.RunString(`UUID("550e8400-e29b-41d4-a716-446655440000")`)
 	require.NoError(t, err)
 	bsonVal := extractBSONValue(t, val)
-	bin, ok := bsonVal.(primitive.Binary)
+	bin, ok := bsonVal.(bson.Binary)
 	require.True(t, ok)
 	assert.Equal(t, byte(0x04), bin.Subtype)
 	assert.Len(t, bin.Data, 16)
@@ -174,7 +173,7 @@ func TestUUID_NoArgs_GeneratesRandomUUID(t *testing.T) {
 	val, err := rt.RunString(`UUID()`)
 	require.NoError(t, err)
 	bsonVal := extractBSONValue(t, val)
-	bin, ok := bsonVal.(primitive.Binary)
+	bin, ok := bsonVal.(bson.Binary)
 	require.True(t, ok)
 	assert.Equal(t, byte(0x04), bin.Subtype)
 	assert.Len(t, bin.Data, 16)
@@ -183,7 +182,7 @@ func TestUUID_NoArgs_GeneratesRandomUUID(t *testing.T) {
 	val2, err := rt.RunString(`UUID()`)
 	require.NoError(t, err)
 	bsonVal2 := extractBSONValue(t, val2)
-	bin2, ok := bsonVal2.(primitive.Binary)
+	bin2, ok := bsonVal2.(bson.Binary)
 	require.True(t, ok)
 	assert.NotEqual(t, bin.Data, bin2.Data)
 }
@@ -193,7 +192,7 @@ func TestTimestamp_Valid_ReturnsTimestamp(t *testing.T) {
 	val, err := rt.RunString(`Timestamp(1700000000, 1)`)
 	require.NoError(t, err)
 	bsonVal := extractBSONValue(t, val)
-	ts, ok := bsonVal.(primitive.Timestamp)
+	ts, ok := bsonVal.(bson.Timestamp)
 	require.True(t, ok)
 	assert.Equal(t, uint32(1700000000), ts.T)
 	assert.Equal(t, uint32(1), ts.I)
@@ -204,7 +203,7 @@ func TestTimestamp_NoArgs_ReturnsCurrentTime(t *testing.T) {
 	val, err := rt.RunString(`Timestamp()`)
 	require.NoError(t, err)
 	bsonVal := extractBSONValue(t, val)
-	ts, ok := bsonVal.(primitive.Timestamp)
+	ts, ok := bsonVal.(bson.Timestamp)
 	require.True(t, ok)
 	assert.True(t, ts.T > 0, "expected non-zero timestamp")
 	assert.Equal(t, uint32(1), ts.I)
@@ -215,7 +214,7 @@ func TestTimestamp_ObjectForm_ReturnsTimestamp(t *testing.T) {
 	val, err := rt.RunString(`Timestamp({t: 1700000000, i: 5})`)
 	require.NoError(t, err)
 	bsonVal := extractBSONValue(t, val)
-	ts, ok := bsonVal.(primitive.Timestamp)
+	ts, ok := bsonVal.(bson.Timestamp)
 	require.True(t, ok)
 	assert.Equal(t, uint32(1700000000), ts.T)
 	assert.Equal(t, uint32(5), ts.I)
@@ -226,7 +225,7 @@ func TestTimestamp_ObjectForm_DefaultI(t *testing.T) {
 	val, err := rt.RunString(`Timestamp({t: 1700000000})`)
 	require.NoError(t, err)
 	bsonVal := extractBSONValue(t, val)
-	ts, ok := bsonVal.(primitive.Timestamp)
+	ts, ok := bsonVal.(bson.Timestamp)
 	require.True(t, ok)
 	assert.Equal(t, uint32(1700000000), ts.T)
 	assert.Equal(t, uint32(1), ts.I)
@@ -243,8 +242,8 @@ func TestMinKey_ReturnsMinKey(t *testing.T) {
 	val, err := rt.RunString(`MinKey()`)
 	require.NoError(t, err)
 	bsonVal := extractBSONValue(t, val)
-	_, ok := bsonVal.(primitive.MinKey)
-	assert.True(t, ok, "expected primitive.MinKey, got %T", bsonVal)
+	_, ok := bsonVal.(bson.MinKey)
+	assert.True(t, ok, "expected bson.MinKey, got %T", bsonVal)
 }
 
 func TestMaxKey_ReturnsMaxKey(t *testing.T) {
@@ -252,8 +251,8 @@ func TestMaxKey_ReturnsMaxKey(t *testing.T) {
 	val, err := rt.RunString(`MaxKey()`)
 	require.NoError(t, err)
 	bsonVal := extractBSONValue(t, val)
-	_, ok := bsonVal.(primitive.MaxKey)
-	assert.True(t, ok, "expected primitive.MaxKey, got %T", bsonVal)
+	_, ok := bsonVal.(bson.MaxKey)
+	assert.True(t, ok, "expected bson.MaxKey, got %T", bsonVal)
 }
 
 func TestBinData_Valid_ReturnsBinary(t *testing.T) {
@@ -261,7 +260,7 @@ func TestBinData_Valid_ReturnsBinary(t *testing.T) {
 	val, err := rt.RunString(`BinData(0, "aGVsbG8=")`)
 	require.NoError(t, err)
 	bsonVal := extractBSONValue(t, val)
-	bin, ok := bsonVal.(primitive.Binary)
+	bin, ok := bsonVal.(bson.Binary)
 	require.True(t, ok)
 	assert.Equal(t, byte(0), bin.Subtype)
 	assert.Equal(t, []byte("hello"), bin.Data)
@@ -287,8 +286,8 @@ func TestConvertToBson_UnwrapsRegex(t *testing.T) {
 
 	for _, elem := range bsonDoc {
 		if elem.Key == "name" {
-			regex, ok := elem.Value.(primitive.Regex)
-			require.True(t, ok, "expected primitive.Regex, got %T", elem.Value)
+			regex, ok := elem.Value.(bson.Regex)
+			require.True(t, ok, "expected bson.Regex, got %T", elem.Value)
 			assert.Equal(t, "foo", regex.Pattern)
 			assert.Equal(t, "i", regex.Options)
 		}
@@ -318,8 +317,8 @@ func TestDecimal128_IsAliasForNumberDecimal(t *testing.T) {
 	val, err := rt.RunString(`Decimal128("99.99")`)
 	require.NoError(t, err)
 	bsonVal := extractBSONValue(t, val)
-	_, ok := bsonVal.(primitive.Decimal128)
-	assert.True(t, ok, "expected primitive.Decimal128, got %T", bsonVal)
+	_, ok := bsonVal.(bson.Decimal128)
+	assert.True(t, ok, "expected bson.Decimal128, got %T", bsonVal)
 }
 
 func TestDouble_WithNumber_ReturnsFloat64(t *testing.T) {
@@ -376,7 +375,7 @@ func TestConvertToBson_UnwrapsBSONValue(t *testing.T) {
 	for _, elem := range bsonDoc {
 		switch elem.Key {
 		case "_id":
-			oid, ok := elem.Value.(primitive.ObjectID)
+			oid, ok := elem.Value.(bson.ObjectID)
 			require.True(t, ok, "expected ObjectID, got %T", elem.Value)
 			assert.Equal(t, "507f1f77bcf86cd799439011", oid.Hex())
 		case "count":

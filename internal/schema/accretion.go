@@ -8,8 +8,7 @@ import (
 
 	"vervet/internal/models"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 func (a *accumulator) add(doc bson.M) {
@@ -70,7 +69,7 @@ func applyValue(n *fieldNode, v any) {
 		recordNum(ts, float64(val))
 	case float64:
 		recordNum(ts, val)
-	case primitive.DateTime:
+	case bson.DateTime:
 		recordNum(ts, float64(val))
 	case time.Time:
 		recordNum(ts, float64(val.UnixMilli()))
@@ -134,15 +133,15 @@ func bsonTypeName(v any) string {
 		return "long"
 	case float64:
 		return "double"
-	case primitive.Decimal128:
+	case bson.Decimal128:
 		return "decimal"
-	case primitive.ObjectID:
+	case bson.ObjectID:
 		return "objectId"
-	case primitive.DateTime, time.Time:
+	case bson.DateTime, time.Time:
 		return "date"
-	case primitive.Binary:
+	case bson.Binary:
 		return "binary"
-	case primitive.Regex:
+	case bson.Regex:
 		return "regex"
 	case bson.M:
 		return "object"

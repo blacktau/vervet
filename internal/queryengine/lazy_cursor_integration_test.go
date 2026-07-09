@@ -25,7 +25,7 @@ func TestIntegration_Cursor_Explain(t *testing.T) {
 
 	result, err := engine.ExecuteQuery(ctx, testURI, db, `db.test.find({ x: 1 }).explain()`)
 	require.NoError(t, err)
-	assert.Contains(t, result.RawOutput, "queryPlanner")
+	assert.Contains(t, resultText(result), "queryPlanner")
 }
 
 func TestIntegration_Cursor_ExplainWithVerbosity(t *testing.T) {
@@ -42,7 +42,7 @@ func TestIntegration_Cursor_ExplainWithVerbosity(t *testing.T) {
 
 	result, err := engine.ExecuteQuery(ctx, testURI, db, `db.test.find({ x: 1 }).explain("executionStats")`)
 	require.NoError(t, err)
-	assert.Contains(t, result.RawOutput, "executionStats")
+	assert.Contains(t, resultText(result), "executionStats")
 }
 
 func TestIntegration_Cursor_Hint(t *testing.T) {

@@ -5,7 +5,7 @@ import (
 	"vervet/internal/models"
 
 	"github.com/dop251/goja"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // toGojaValue converts a QueryResult into a Goja-native value so scripts
@@ -15,13 +15,13 @@ func toGojaValue(rt *goja.Runtime, result models.QueryResult) goja.Value {
 		return rt.ToValue(result.RawOutput)
 	}
 	if result.Single && len(result.Documents) > 0 {
-		return rt.ToValue(result.Documents[0])
+		return toJSValue(rt, result.Documents[0])
 	}
-	return rt.ToValue(result.Documents)
+	return toJSValue(rt, result.Documents)
 }
 
 // exportArgs converts Goja function call arguments to plain Go values.
-// RegExp objects are converted to primitive.Regex so they survive Export()
+// RegExp objects are converted to bson.Regex so they survive Export()
 // and flow through convertToBson correctly.
 func exportArgs(call goja.FunctionCall) []any {
 	args := make([]any, len(call.Arguments))
@@ -32,7 +32,7 @@ func exportArgs(call goja.FunctionCall) []any {
 }
 
 // exportValue converts a single goja.Value to a Go value, recursively walking
-// objects and arrays to convert RegExp values to wrapped primitive.Regex before
+// objects and arrays to convert RegExp values to wrapped bson.Regex before
 // they are lost to Export().
 func exportValue(val goja.Value) any {
 	if val == nil || goja.IsUndefined(val) || goja.IsNull(val) {
@@ -59,12 +59,12 @@ func exportValue(val goja.Value) any {
 	}
 }
 
-// regexpToBSON converts a goja RegExp object into a BSON-wrapped primitive.Regex.
+// regexpToBSON converts a goja RegExp object into a BSON-wrapped bson.Regex.
 func regexpToBSON(obj *goja.Object) map[string]any {
 	pattern := obj.Get("source").String()
 	flags := obj.Get("flags").String()
 	return map[string]any{
-		"__bsonValue": &bsonWrapper{Value: primitive.Regex{
+		"__bsonValue": &bsonWrapper{Value: bson.Regex{
 			Pattern: pattern,
 			Options: mongoRegexOptions(flags),
 		}},
