@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/dop251/goja"
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // dbGetCollectionNames returns a function: db.getCollectionNames(filter?) → string[]
@@ -58,7 +58,7 @@ func dbGetCollectionInfos(ec *execContext) func(goja.FunctionCall) goja.Value {
 			out[i] = r
 		}
 
-		return ec.rt.ToValue(out)
+		return toJSValue(ec.rt, out)
 	}
 }
 
@@ -114,7 +114,7 @@ func dbCreateView(ec *execContext) func(goja.FunctionCall) goja.Value {
 			panic(ec.rt.NewGoError(fmt.Errorf("createView: %w", err)))
 		}
 
-		return ec.rt.ToValue(result)
+		return toJSValue(ec.rt, result)
 	}
 }
 
@@ -144,6 +144,6 @@ func dbAggregate(ec *execContext) func(goja.FunctionCall) goja.Value {
 			out[i] = r
 		}
 
-		return ec.rt.ToValue(out)
+		return toJSValue(ec.rt, out)
 	}
 }

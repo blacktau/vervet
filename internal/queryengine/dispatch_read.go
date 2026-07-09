@@ -7,15 +7,21 @@ import (
 
 	"vervet/internal/models"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 func dispatchFind(ctx context.Context, coll *mongo.Collection, op CapturedOp) (models.QueryResult, error) {
 	filter := bson.D{}
 	if len(op.Args) > 0 && op.Args[0] != nil {
 		filter = toBsonDoc(op.Args[0])
+	}
+
+	if op.MaxTimeMS > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, time.Duration(op.MaxTimeMS)*time.Millisecond)
+		defer cancel()
 	}
 
 	opts := options.Find()
@@ -43,7 +49,7 @@ func dispatchFind(ctx context.Context, coll *mongo.Collection, op CapturedOp) (m
 }
 
 // applyFindOptions applies the shared cursor-scoped options from op to the given FindOptions.
-func applyFindOptions(opts *options.FindOptions, op CapturedOp) {
+func applyFindOptions(opts *options.FindOptionsBuilder, op CapturedOp) {
 	if op.Limit > 0 {
 		opts.SetLimit(op.Limit)
 	}
@@ -61,9 +67,6 @@ func applyFindOptions(opts *options.FindOptions, op CapturedOp) {
 		} else {
 			opts.SetHint(op.Hint)
 		}
-	}
-	if op.MaxTimeMS > 0 {
-		opts.SetMaxTime(time.Duration(op.MaxTimeMS) * time.Millisecond)
 	}
 	if op.BatchSize > 0 {
 		opts.SetBatchSize(op.BatchSize)
@@ -254,8 +257,8 @@ func dispatchDistinct(ctx context.Context, coll *mongo.Collection, op CapturedOp
 		filter = toBsonDoc(op.Args[1])
 	}
 
-	results, err := coll.Distinct(ctx, field, filter)
-	if err != nil {
+	var results []any
+	if err := coll.Distinct(ctx, field, filter).Decode(&results); err != nil {
 		return models.QueryResult{}, fmt.Errorf("distinct failed: %w", err)
 	}
 

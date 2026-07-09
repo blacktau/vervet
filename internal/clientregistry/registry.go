@@ -10,9 +10,9 @@ import (
 	"vervet/internal/models"
 	"vervet/internal/oidc"
 
-	"go.mongodb.org/mongo-driver/event"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/event"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 type registeredClient struct {
@@ -69,7 +69,7 @@ func (r *ClientRegistry) Connect(serverID, name, uri string) (*mongo.Client, err
 	ctx, cancel := context.WithTimeout(r.ctx, 10*time.Second)
 	defer cancel()
 
-	client, err := mongo.Connect(ctx, clientOptions)
+	client, err := mongo.Connect(clientOptions)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
@@ -137,7 +137,7 @@ func (r *ClientRegistry) ConnectWithConfig(serverID, name string, cfg models.Con
 	ctx, cancel := context.WithTimeout(r.ctx, connectTimeout)
 	defer cancel()
 
-	client, err := mongo.Connect(ctx, clientOptions)
+	client, err := mongo.Connect(clientOptions)
 	if err != nil {
 		if cfg.AuthMethod == models.AuthOIDC {
 			r.tokenManager.CleanupServer(serverID)

@@ -9,7 +9,7 @@ import (
 
 	"vervet/internal/api"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // FileFilter describes a file type filter for the save dialog.

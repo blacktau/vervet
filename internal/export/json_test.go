@@ -6,8 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 func TestSerializeJSON_BasicDocs(t *testing.T) {
@@ -27,7 +26,7 @@ func TestSerializeJSON_BasicDocs(t *testing.T) {
 }
 
 func TestSerializeJSON_PreservesBSONTypesAsExtJSON(t *testing.T) {
-	oid := primitive.NewObjectID()
+	oid := bson.NewObjectID()
 	docs := []bson.M{{"_id": oid, "value": "x"}}
 
 	out, err := Serialize(docs, Options{Format: FormatJSON})

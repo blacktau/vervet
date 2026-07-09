@@ -29,4 +29,3 @@ func nodeError(rt *goja.Runtime, code, msg string) *goja.Object {
 	_ = obj.Set("code", code)
 	return obj
 }
-

@@ -7,8 +7,7 @@ import (
 
 	"vervet/internal/models"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 func TestSample_NilClientReturnsError(t *testing.T) {
@@ -134,8 +133,8 @@ func TestAccretion_NullDistinctFromMissing(t *testing.T) {
 
 func TestAccretion_DateMinMax(t *testing.T) {
 	acc := newAccumulator()
-	t1 := primitive.NewDateTimeFromTime(time.Unix(1000, 0))
-	t2 := primitive.NewDateTimeFromTime(time.Unix(5000, 0))
+	t1 := bson.NewDateTimeFromTime(time.Unix(1000, 0))
+	t2 := bson.NewDateTimeFromTime(time.Unix(5000, 0))
 	acc.add(bson.M{"ts": t1})
 	acc.add(bson.M{"ts": t2})
 	schema := acc.build(2)

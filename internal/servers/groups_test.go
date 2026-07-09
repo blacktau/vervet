@@ -4,8 +4,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"vervet/internal/models"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestCreateGroup(t *testing.T) {

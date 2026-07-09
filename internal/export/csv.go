@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/csv"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 func serializeCSV(docs []bson.M, columns []string, opts CSVOptions) ([]byte, error) {

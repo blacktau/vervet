@@ -9,7 +9,7 @@ import (
 	"time"
 
 	gooidc "github.com/coreos/go-oidc/v3/oidc"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	"golang.org/x/oauth2"
 
 	"vervet/internal/connectionStrings"
@@ -37,10 +37,10 @@ type TokenManager struct {
 	ctx         context.Context
 	log         *slog.Logger
 	store       connectionStrings.Store
-	mu           sync.RWMutex
-	cache        map[string]*CachedToken
-	openBrowser  func(url string)
-	emitAuthURL  func(serverID, url string)
+	mu          sync.RWMutex
+	cache       map[string]*CachedToken
+	openBrowser func(url string)
+	emitAuthURL func(serverID, url string)
 
 	// browserMu protects activeServer — the in-flight OIDC callback HTTP server.
 	browserMu    sync.Mutex
@@ -48,8 +48,8 @@ type TokenManager struct {
 	canceled     bool
 	shuttingDown bool
 
-	promptMu         sync.Mutex
-	forcePromptOnce  map[string]string
+	promptMu        sync.Mutex
+	forcePromptOnce map[string]string
 }
 
 func NewTokenManager(log *slog.Logger, store connectionStrings.Store) *TokenManager {

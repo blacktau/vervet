@@ -21,7 +21,25 @@ func TestIntegration_RunCommand_Ping(t *testing.T) {
 	engine := NewGojaEngine(testClient, 0)
 	result, err := engine.ExecuteQuery(ctx, testURI, db, `db.runCommand({ ping: 1 })`)
 	require.NoError(t, err)
-	assert.Contains(t, result.RawOutput, "ok")
+	assert.Contains(t, resultText(result), "ok")
+}
+
+// TestIntegration_RunCommand_PropertyAccess guards the v2 normalizer fix:
+// bson.M gained methods in mongo-driver v2, so goja stopped reflecting command
+// results as JS objects. Accessing a property of the result then returns
+// undefined. normalizeForJS restores plain-object reflection; this asserts the
+// property is actually reachable from JS end-to-end.
+func TestIntegration_RunCommand_PropertyAccess(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	db := dbName(t)
+	defer testClient.Database(db).Drop(ctx)
+
+	engine := NewGojaEngine(testClient, 0)
+	result, err := engine.ExecuteQuery(ctx, testURI, db, `db.runCommand({ ping: 1 }).ok`)
+	require.NoError(t, err)
+	assert.Equal(t, "1", resultText(result), "command result property must be reachable from JS, not undefined")
 }
 
 func TestIntegration_RunCommand_CollStats(t *testing.T) {
@@ -40,7 +58,7 @@ func TestIntegration_RunCommand_CollStats(t *testing.T) {
 	// Run collStats
 	result, err := engine.ExecuteQuery(ctx, testURI, db, `db.runCommand({ collStats: "test" })`)
 	require.NoError(t, err)
-	assert.Contains(t, result.RawOutput, "ns")
+	assert.Contains(t, resultText(result), "ns")
 }
 
 func TestIntegration_AdminCommand_ListDatabases(t *testing.T) {
@@ -53,7 +71,7 @@ func TestIntegration_AdminCommand_ListDatabases(t *testing.T) {
 	engine := NewGojaEngine(testClient, 0)
 	result, err := engine.ExecuteQuery(ctx, testURI, db, `db.adminCommand({ listDatabases: 1 })`)
 	require.NoError(t, err)
-	assert.Contains(t, result.RawOutput, "databases")
+	assert.Contains(t, resultText(result), "databases")
 }
 
 func TestIntegration_RunCommand_InvalidCommand_Errors(t *testing.T) {
@@ -87,8 +105,8 @@ func TestIntegration_GetCollectionNames(t *testing.T) {
 
 	result, err := engine.ExecuteQuery(ctx, testURI, db, `db.getCollectionNames()`)
 	require.NoError(t, err)
-	assert.Contains(t, result.RawOutput, "alpha")
-	assert.Contains(t, result.RawOutput, "beta")
+	assert.Contains(t, resultText(result), "alpha")
+	assert.Contains(t, resultText(result), "beta")
 }
 
 func TestIntegration_GetCollectionInfos(t *testing.T) {
@@ -104,7 +122,7 @@ func TestIntegration_GetCollectionInfos(t *testing.T) {
 
 	result, err := engine.ExecuteQuery(ctx, testURI, db, `db.getCollectionInfos()`)
 	require.NoError(t, err)
-	assert.Contains(t, result.RawOutput, "infocoll")
+	assert.Contains(t, resultText(result), "infocoll")
 }
 
 func TestIntegration_CreateCollection(t *testing.T) {
@@ -117,7 +135,7 @@ func TestIntegration_CreateCollection(t *testing.T) {
 	engine := NewGojaEngine(testClient, 0)
 	result, err := engine.ExecuteQuery(ctx, testURI, db, `db.createCollection("newcoll")`)
 	require.NoError(t, err)
-	assert.Contains(t, result.RawOutput, "ok")
+	assert.Contains(t, resultText(result), "ok")
 
 	// Verify collection exists
 	names, err := testClient.Database(db).ListCollectionNames(ctx, map[string]any{})
@@ -138,7 +156,7 @@ func TestIntegration_CreateView(t *testing.T) {
 
 	result, err := engine.ExecuteQuery(ctx, testURI, db, `db.createView("myview", "src", [{ $project: { x: 1 } }])`)
 	require.NoError(t, err)
-	assert.Contains(t, result.RawOutput, "ok")
+	assert.Contains(t, resultText(result), "ok")
 
 	infos, err := testClient.Database(db).ListCollectionNames(ctx, map[string]any{"name": "myview"})
 	require.NoError(t, err)
@@ -158,7 +176,7 @@ func TestIntegration_DropDatabase(t *testing.T) {
 
 	result, err := engine.ExecuteQuery(ctx, testURI, db, `db.dropDatabase()`)
 	require.NoError(t, err)
-	assert.Contains(t, result.RawOutput, "ok")
+	assert.Contains(t, resultText(result), "ok")
 }
 
 func TestIntegration_Stats(t *testing.T) {
@@ -174,7 +192,7 @@ func TestIntegration_Stats(t *testing.T) {
 
 	result, err := engine.ExecuteQuery(ctx, testURI, db, `db.stats()`)
 	require.NoError(t, err)
-	assert.Contains(t, result.RawOutput, "collections")
+	assert.Contains(t, resultText(result), "collections")
 }
 
 func TestIntegration_Version(t *testing.T) {
@@ -188,8 +206,8 @@ func TestIntegration_Version(t *testing.T) {
 	result, err := engine.ExecuteQuery(ctx, testURI, db, `db.version()`)
 	require.NoError(t, err)
 	// Should return a version string like "7.0.x"
-	assert.NotEmpty(t, result.RawOutput)
-	assert.Contains(t, result.RawOutput, ".")
+	assert.NotEmpty(t, resultText(result))
+	assert.Contains(t, resultText(result), ".")
 }
 
 func TestIntegration_GetSiblingDB(t *testing.T) {
