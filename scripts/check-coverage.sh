@@ -14,6 +14,11 @@ if [[ -z "$current" ]]; then
   exit 1
 fi
 
+if ! [[ "$baseline" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+  echo "::error::baseline file '$baseline_file' contains invalid value: '$baseline'" >&2
+  exit 1
+fi
+
 awk -v c="$current" -v b="$baseline" 'BEGIN {
   if (c + 0 < b + 0) {
     printf "::error::backend coverage %.1f%% is below the baseline %.1f%%\n", c, b
