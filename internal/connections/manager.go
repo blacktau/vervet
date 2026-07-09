@@ -30,6 +30,10 @@ type ConnectionManager struct {
 	store          connectionStrings.Store
 	serverProvider ServerProvider
 	log            *slog.Logger
+
+	// emit is a seam over runtime.EventsEmit. Wails resolves its emitter from
+	// the context and log.Fatalf's when absent, so tests must replace this.
+	emit func(ctx context.Context, eventName string, optionalData ...interface{})
 }
 
 type ServerProvider interface {
@@ -43,6 +47,7 @@ func NewManager(log *slog.Logger, registry *clientregistry.ClientRegistry, store
 		registry:       registry,
 		store:          store,
 		serverProvider: provider,
+		emit:           runtime.EventsEmit,
 	}
 }
 
@@ -80,7 +85,7 @@ func (cm *ConnectionManager) Connect(serverID string) (models.Connection, error)
 	}
 
 	cm.log.Debug("Successfully connected to MongoDB", slog.String("serverID", serverID))
-	runtime.EventsEmit(cm.ctx, ConnectedEvent, serverID)
+	cm.emit(cm.ctx, ConnectedEvent, serverID)
 
 	return models.Connection{
 		ServerID: serverID,
@@ -143,7 +148,7 @@ func (cm *ConnectionManager) Disconnect(serverID string) error {
 	// Always emit the event: the registry removes the client from its map
 	// even when the underlying driver disconnect fails, so the frontend
 	// must know the connection is gone.
-	runtime.EventsEmit(cm.ctx, DisconnectedEvent, serverID)
+	cm.emit(cm.ctx, DisconnectedEvent, serverID)
 
 	if err != nil {
 		return err
@@ -160,7 +165,7 @@ func (cm *ConnectionManager) DisconnectAll() error {
 	err := cm.registry.DisconnectAll()
 
 	for _, c := range all {
-		runtime.EventsEmit(cm.ctx, DisconnectedEvent, c.ServerID)
+		cm.emit(cm.ctx, DisconnectedEvent, c.ServerID)
 	}
 
 	if err != nil {

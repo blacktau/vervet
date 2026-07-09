@@ -91,17 +91,8 @@ func (s *IndexService) GetIndexes(serverID, dbName, collectionName string) ([]mo
 		{Key: "collStats", Value: collectionName},
 	}).Decode(&collStatsResult)
 	if err == nil {
-		if indexSizes, ok := collStatsResult["indexSizes"].(bson.M); ok {
-			for name, size := range indexSizes {
-				switch v := size.(type) {
-				case int32:
-					sizeMap[name] = int64(v)
-				case int64:
-					sizeMap[name] = v
-				case float64:
-					sizeMap[name] = int64(v)
-				}
-			}
+		for name, size := range indexSizesFrom(collStatsResult["indexSizes"]) {
+			sizeMap[name] = size
 		}
 	}
 
@@ -235,6 +226,37 @@ func (s *IndexService) buildIndexModel(keys []models.IndexKeyField, name string,
 		Keys:    bsonKeys,
 		Options: indexOpts,
 	}
+}
+
+// indexSizesFrom normalises the collStats "indexSizes" sub-document. The driver
+// decodes nested documents as bson.D even when the parent decodes into bson.M,
+// so accept both rather than silently reporting every index as zero bytes.
+func indexSizesFrom(raw any) map[string]int64 {
+	sizes := make(map[string]int64)
+
+	add := func(name string, value any) {
+		switch v := value.(type) {
+		case int32:
+			sizes[name] = int64(v)
+		case int64:
+			sizes[name] = v
+		case float64:
+			sizes[name] = int64(v)
+		}
+	}
+
+	switch doc := raw.(type) {
+	case bson.D:
+		for _, elem := range doc {
+			add(elem.Key, elem.Value)
+		}
+	case bson.M:
+		for name, value := range doc {
+			add(name, value)
+		}
+	}
+
+	return sizes
 }
 
 func (s *IndexService) captureIndex(collection *mongo.Collection, indexName string) (*mongo.IndexModel, error) {
