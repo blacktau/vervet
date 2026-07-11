@@ -29,6 +29,7 @@ go.work.sum
 
 build/bin
 frontend/dist
+frontend/coverage
 test-results
 .worktrees
 .superpowers
