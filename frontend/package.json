@@ -10,6 +10,7 @@
     "lint": "bunx --bun eslint -c ./eslint.config.ts \"./src*/**/*.{ts,js,cjs,mjs,vue}\" && bunx --bun vue-tsc --noEmit --strict",
     "format": "prettier --write \"**/*.{js,ts,vue,scss,html,md,json}\" --ignore-path .gitignore",
     "test": "vitest",
+    "test:ci": "vitest run --coverage",
     "dev": "bunx --bun vite",
     "build": "bunx --bun vue-tsc --noEmit && bunx --bun vite build",
     "preview": "bunx --bun vite preview"
@@ -36,6 +37,7 @@
     "@types/sortablejs": "^1.15.9",
     "@vicons/tabler": "^0.13.0",
     "@vitejs/plugin-vue": "^6.0.7",
+    "@vitest/coverage-v8": "^4.1.10",
     "@vue/eslint-config-prettier": "^10.2.0",
     "@vue/eslint-config-typescript": "^14.9.0",
     "@vue/test-utils": "^2.4.11",
