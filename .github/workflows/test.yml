@@ -1,0 +1,67 @@
+name: Test
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+env:
+  GO_VERSION: '1.25'
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Go tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      # The integration tag is a superset: it compiles the unit tests too.
+      # Without it, coverage reads ~55% and connections/collections/databases/
+      # indexes all look untested. ubuntu-latest ships Docker, so
+      # testcontainers-go works with no extra setup.
+      #
+      # Scoped to ./internal/... deliberately: the root package embeds
+      # frontend/dist, which is gitignored and absent from a CI checkout.
+      - name: Test with coverage
+        run: go test -tags integration -race -coverprofile=cover.out ./internal/...
+
+      - name: Enforce coverage ratchet
+        run: bash scripts/check-coverage.sh cover.out coverage-baseline.txt
+
+  frontend:
+    name: Frontend lint and tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Lint and type-check
+        run: bun run lint
+
+      # CI=true is set by GitHub Actions, which disables vitest's autoUpdate,
+      # so a build cannot rewrite its own coverage gate.
+      - name: Test with coverage
+        run: bun run test:ci
