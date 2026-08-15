@@ -77,7 +77,12 @@ func (c *lazyCursor) setSort(spec any) error {
 
 // execute runs the query against MongoDB and caches the results.
 // Subsequent calls return cached results.
-func (c *lazyCursor) execute() (models.QueryResult, error) {
+//
+// paged is true only for the cursor left as the script's final value, which the
+// UI renders a page at a time. Script-side terminals (toArray, forEach, ...)
+// pass false: mongosh gives them every matching document, and silently
+// truncating to a page turns `find(...).toArray().length` into a wrong answer.
+func (c *lazyCursor) execute(paged bool) (models.QueryResult, error) {
 	if c.resolved {
 		return models.QueryResult{Documents: c.results, PageContext: c.pageCtx}, nil
 	}
@@ -86,7 +91,7 @@ func (c *lazyCursor) execute() (models.QueryResult, error) {
 
 	effSkip := c.skip
 	effLimit := c.limit
-	if pageCtx != nil && c.ec.pageSize > 0 {
+	if paged && pageCtx != nil && c.ec.pageSize > 0 {
 		if c.limit > 0 && c.limit < c.ec.pageSize {
 			effLimit = c.limit
 		} else {
@@ -229,7 +234,7 @@ func (c *lazyCursor) toGojaObject() goja.Value {
 
 	// Terminal methods
 	_ = obj.Set("toArray", func() goja.Value {
-		result, err := c.execute()
+		result, err := c.execute(false)
 		if err != nil {
 			panic(rt.NewGoError(err))
 		}
@@ -244,7 +249,7 @@ func (c *lazyCursor) toGojaObject() goja.Value {
 		if !ok {
 			panic(rt.NewGoError(fmt.Errorf("forEach argument must be a function")))
 		}
-		_, err := c.execute()
+		_, err := c.execute(false)
 		if err != nil {
 			panic(rt.NewGoError(err))
 		}
@@ -264,7 +269,7 @@ func (c *lazyCursor) toGojaObject() goja.Value {
 		if !ok {
 			panic(rt.NewGoError(fmt.Errorf("map argument must be a function")))
 		}
-		_, err := c.execute()
+		_, err := c.execute(false)
 		if err != nil {
 			panic(rt.NewGoError(err))
 		}
@@ -289,18 +294,12 @@ func (c *lazyCursor) toGojaObject() goja.Value {
 		if err != nil {
 			panic(rt.NewGoError(err))
 		}
-		// countDocuments returns {"count": N} as a single document
-		if len(result.Documents) > 0 {
-			if doc, ok := result.Documents[0].(map[string]any); ok {
-				return rt.ToValue(doc["count"])
-			}
-		}
-		return rt.ToValue(0)
+		return toGojaValue(rt, result)
 	})
 
 	_ = obj.Set("hasNext", func() goja.Value {
 		if !c.resolved {
-			if _, err := c.execute(); err != nil {
+			if _, err := c.execute(false); err != nil {
 				panic(rt.NewGoError(err))
 			}
 		}
@@ -309,7 +308,7 @@ func (c *lazyCursor) toGojaObject() goja.Value {
 
 	_ = obj.Set("next", func() goja.Value {
 		if !c.resolved {
-			if _, err := c.execute(); err != nil {
+			if _, err := c.execute(false); err != nil {
 				panic(rt.NewGoError(err))
 			}
 		}

@@ -2,6 +2,7 @@ package queryengine
 
 import (
 	"testing"
+	"time"
 
 	"github.com/dop251/goja"
 	"github.com/stretchr/testify/assert"
@@ -56,23 +57,24 @@ func TestObjectId_InvalidHex_Panics(t *testing.T) {
 	assert.Error(t, err)
 }
 
+// ISODate returns a real JS Date, as mongosh does, so scripts can compare it
+// and call Date methods on it. It exports to Go as a time.Time.
 func TestISODate_NoArgs_ReturnsNow(t *testing.T) {
 	rt := setupRuntimeWithBSON(t)
 	val, err := rt.RunString(`ISODate()`)
 	require.NoError(t, err)
-	bsonVal := extractBSONValue(t, val)
-	_, ok := bsonVal.(bson.DateTime)
-	assert.True(t, ok, "expected bson.DateTime, got %T", bsonVal)
+	tm, ok := val.Export().(time.Time)
+	require.True(t, ok, "expected time.Time, got %T", val.Export())
+	assert.WithinDuration(t, time.Now(), tm, time.Minute)
 }
 
 func TestISODate_WithRFC3339_ReturnsCorrectDate(t *testing.T) {
 	rt := setupRuntimeWithBSON(t)
 	val, err := rt.RunString(`ISODate("2024-01-15T10:30:00Z")`)
 	require.NoError(t, err)
-	bsonVal := extractBSONValue(t, val)
-	dt, ok := bsonVal.(bson.DateTime)
-	require.True(t, ok)
-	tm := dt.Time()
+	tm, ok := val.Export().(time.Time)
+	require.True(t, ok, "expected time.Time, got %T", val.Export())
+	tm = tm.UTC()
 	assert.Equal(t, 2024, tm.Year())
 	assert.Equal(t, 1, int(tm.Month()))
 	assert.Equal(t, 15, tm.Day())
@@ -82,10 +84,20 @@ func TestISODate_DateOnly_Works(t *testing.T) {
 	rt := setupRuntimeWithBSON(t)
 	val, err := rt.RunString(`ISODate("2024-01-15")`)
 	require.NoError(t, err)
-	bsonVal := extractBSONValue(t, val)
-	dt, ok := bsonVal.(bson.DateTime)
-	require.True(t, ok)
-	assert.Equal(t, 2024, dt.Time().Year())
+	tm, ok := val.Export().(time.Time)
+	require.True(t, ok, "expected time.Time, got %T", val.Export())
+	assert.Equal(t, 2024, tm.UTC().Year())
+}
+
+// ISODate must behave as a Date inside the script itself, not just on export.
+func TestISODate_IsUsableAsJSDate(t *testing.T) {
+	rt := setupRuntimeWithBSON(t)
+	val, err := rt.RunString(`
+		const d = ISODate("2024-01-15T10:30:00Z");
+		[d instanceof Date, d.toISOString(), d > ISODate("2024-01-01T00:00:00Z")].join("|")
+	`)
+	require.NoError(t, err)
+	assert.Equal(t, "true|2024-01-15T10:30:00.000Z|true", val.String())
 }
 
 func TestISODate_Invalid_Panics(t *testing.T) {

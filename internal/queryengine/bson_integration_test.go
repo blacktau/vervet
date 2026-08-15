@@ -259,21 +259,38 @@ func TestIntegration_Issue148_DistinctLongs(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Empty(t, result.RawOutput, "distinct result must not be stringified into RawOutput")
-	require.Len(t, result.Documents, 1)
+	require.Len(t, result.Documents, 2, "distinct returns the values themselves, as mongosh does")
 
-	doc, ok := result.Documents[0].(map[string]any)
-	require.True(t, ok, "expected map document, got %T", result.Documents[0])
-
-	values, ok := doc["values"].([]any)
-	require.True(t, ok, "expected values slice, got %T", doc["values"])
-	assert.Len(t, values, 2)
-
-	for _, v := range values {
+	for _, v := range result.Documents {
 		m, ok := v.(map[string]any)
 		require.True(t, ok, "expected EJSON map for long, got %T", v)
 		_, hasLong := m["$numberLong"]
 		assert.True(t, hasLong, "expected $numberLong key, got %v", m)
 	}
+}
+
+// distinct hands a script the bare array mongosh returns, so ids stringify to
+// their digits instead of collapsing to "[object Object]".
+func TestIntegration_Issue148_DistinctLongsInScript(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	db := dbName(t)
+	defer testClient.Database(db).Drop(ctx)
+
+	engine := NewGojaEngine(testClient, 0)
+	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.test.insertMany([
+		{ AField: 1, LongId: NumberLong("7151") },
+		{ AField: 1, LongId: NumberLong("11788") },
+	])`)
+	require.NoError(t, err)
+
+	result, err := engine.ExecuteQuery(ctx, testURI, db, `
+		const ids = db.test.distinct("LongId", { AField: 1 });
+		print(Array.isArray(ids) + ":" + ids.map(v => String(v)).sort().join(","))
+	`)
+	require.NoError(t, err)
+	assert.Equal(t, "true:11788,7151", result.RawOutput)
 }
 
 // --- Write-method results are single objects in scripts, matching mongosh ---
@@ -331,8 +348,10 @@ func TestIntegration_WriteResultsAreObjectsNotArrays(t *testing.T) {
 		{"insertOne", `const r = db.c.insertOne({n: 99}); print(typeof r.acknowledged + ":" + (r.insertedId ? "id" : "nil"))`},
 		{"updateOne", `const r = db.c.updateOne({n:1}, {$set:{n:10}}); print(typeof r.acknowledged + ":" + r.matchedCount)`},
 		{"deleteOne", `const r = db.c.deleteOne({n:10}); print(typeof r.acknowledged + ":" + r.deletedCount)`},
-		{"countDocuments", `const r = db.c.countDocuments({}); print(typeof r.count + ":" + r.count)`},
-		{"distinct", `const r = db.c.distinct("n"); print(Array.isArray(r.values) + ":" + r.values.length)`},
+		// countDocuments and distinct return a number and an array in mongosh,
+		// not documents to read fields off.
+		{"countDocuments", `const r = db.c.countDocuments({}); print(typeof r + ":" + r)`},
+		{"distinct", `const r = db.c.distinct("n"); print(Array.isArray(r) + ":" + r.length)`},
 	}
 
 	for _, tc := range cases {

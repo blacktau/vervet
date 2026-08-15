@@ -11,6 +11,9 @@ import (
 // toGojaValue converts a QueryResult into a Goja-native value so scripts
 // can use query results as real JavaScript data.
 func toGojaValue(rt *goja.Runtime, result models.QueryResult) goja.Value {
+	if result.JSValue != nil {
+		return toJSValue(rt, result.JSValue)
+	}
 	if result.RawOutput != "" {
 		return rt.ToValue(result.RawOutput)
 	}
@@ -52,6 +55,14 @@ func exportValue(val goja.Value) any {
 		// Already-wrapped BSON values pass through as-is
 		if bv := obj.Get("__bsonValue"); bv != nil && !goja.IsUndefined(bv) {
 			return val.Export()
+		}
+		// Reflected Go values (e.g. a bson.Binary from a db command result)
+		// export as themselves; walking their properties would turn them into
+		// a map of fields and methods.
+		if exported := obj.Export(); exported != nil {
+			if _, isMap := exported.(map[string]any); !isMap {
+				return exported
+			}
 		}
 		return exportObject(obj)
 	default:

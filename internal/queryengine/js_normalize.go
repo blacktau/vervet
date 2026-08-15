@@ -59,7 +59,8 @@ func normalizeForJS(v any) any {
 	}
 }
 
-// toJSValue normalizes a driver result value and hands it to the goja runtime.
+// toJSValue normalizes a driver result value and hands it to the goja runtime
+// as the shape a mongosh script expects (see scriptValue).
 func toJSValue(rt *goja.Runtime, v any) goja.Value {
-	return rt.ToValue(normalizeForJS(v))
+	return scriptValue(rt, normalizeForJS(v))
 }

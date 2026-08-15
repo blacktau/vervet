@@ -28,33 +28,47 @@ func CheckMongosh() bool {
 	return err == nil
 }
 
-// wrapQuery wraps the user's query in JavaScript that converts the result to
-// JSON. It handles cursors (via toArray()), plain objects, and falls back to
-// string output for non-serializable results.
+// wrapQuery appends JavaScript that converts the query's value to JSON. It
+// handles cursors (via toArray()), plain objects, and falls back to string
+// output for non-serializable results.
 //
-// The query is placed inside an IIFE with "return" prepended to the last
-// top-level statement, so its value is captured and serialized. The start of
-// the last statement is found by scanning the source while tracking bracket
-// depth, strings, and comments — so multi-line expressions are handled.
+// The value is captured by assigning the last top-level statement to a global.
+// The query itself stays at top level and is NOT wrapped in a function: mongosh
+// evaluates scripts at top level, and wrapping changes their meaning — a script
+// opening with `const db = db.getSiblingDB(name)` throws "Cannot access 'db'
+// before initialization" inside a function body but runs fine at top level.
+//
+// The start of the last statement is found by scanning the source while
+// tracking bracket depth, strings, and comments — so multi-line expressions are
+// handled. When that statement is a declaration or other non-expression, no
+// value is captured and only what the script printed is returned.
 func wrapQuery(query string) string {
-	body := prependReturnToLastStatement(strings.TrimSpace(query))
+	body := prependToLastStatement(strings.TrimSpace(query), resultGlobal+" = ")
 
-	return fmt.Sprintf(`
-const __result = (() => { %s })();
-const __val = (typeof __result?.toArray === 'function') ? __result.toArray() : __result;
-try {
-  const __json = EJSON.stringify(__val, {relaxed: false});
-  print(__json);
-} catch(_e) {
+	return fmt.Sprintf(`%s
+;(function () {
+  const __result = globalThis.%s;
+  if (__result === undefined) { return; }
+  const __val = (__result !== null && typeof __result.toArray === 'function') ? __result.toArray() : __result;
   try {
-    const __json2 = JSON.stringify(__val);
-    print(__json2);
-  } catch(_e2) {
-    print(String(__val));
+    const __json = EJSON.stringify(__val, {relaxed: false});
+    print(__json);
+  } catch(_e) {
+    try {
+      const __json2 = JSON.stringify(__val);
+      print(__json2);
+    } catch(_e2) {
+      print(String(__val));
+    }
   }
+})();
+`, body, resultGlobal)
 }
-`, body)
-}
+
+// resultGlobal holds the query's value between the user's script and the
+// serialising epilogue. It is a globalThis property rather than a declaration
+// so assigning it never collides with the script's own bindings.
+const resultGlobal = "globalThis.__vervetResult"
 
 // Execute runs a one-shot mongosh --eval command against the given URI.
 // The user's query is wrapped in JavaScript that converts the result to JSON.
@@ -107,7 +121,24 @@ func Execute(ctx context.Context, uri string, query string, cfg Config) (models.
 		return models.QueryResult{}, fmt.Errorf("mongosh exited with: %w", err)
 	}
 
-	return parseOutput(stdout.String()), nil
+	return withStderr(parseOutput(stdout.String()), stderr.String()), nil
+}
+
+// withStderr folds mongosh's stderr into the result. Scripts routinely send
+// summaries and warnings there with console.error, and Vervet has a single
+// output pane, so dropping it loses output the user asked for. Structured
+// results are left alone rather than polluted with text.
+func withStderr(result models.QueryResult, stderr string) models.QueryResult {
+	stderr = strings.TrimSpace(stderr)
+	if stderr == "" || len(result.Documents) > 0 {
+		return result
+	}
+	if result.RawOutput == "" {
+		result.RawOutput = stderr
+		return result
+	}
+	result.RawOutput = result.RawOutput + "\n" + stderr
+	return result
 }
 
 // parseOutput attempts to parse mongosh output as JSON documents.

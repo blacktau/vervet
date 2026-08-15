@@ -12,12 +12,12 @@ var skipKeywords = []string{
 	"use ",
 }
 
-// prependReturnToLastStatement inserts "return " at the start of the final
-// top-level statement in src. Bracket depth, strings, and comments are
-// tracked so multi-line expressions and strings containing semicolons don't
-// confuse the scan. If the final statement begins with a skip keyword or a
-// closing brace, the source is returned unchanged.
-func prependReturnToLastStatement(src string) string {
+// prependToLastStatement inserts prefix at the start of the final top-level
+// statement in src. Bracket depth, strings, and comments are tracked so
+// multi-line expressions and strings containing semicolons don't confuse the
+// scan. If the final statement begins with a skip keyword or a brace, the
+// source is returned unchanged and nothing is captured.
+func prependToLastStatement(src, prefix string) string {
 	if src == "" {
 		return src
 	}
@@ -36,7 +36,7 @@ func prependReturnToLastStatement(src string) string {
 		}
 	}
 
-	return src[:start] + "return " + stmt
+	return src[:start] + prefix + stmt
 }
 
 // hasKeywordPrefix reports whether s begins with kw followed by a
@@ -62,9 +62,13 @@ func isIdentChar(c byte) bool {
 
 // lastStatementStart returns the byte offset of the last top-level statement
 // in src. A statement boundary is a semicolon or newline at bracket depth 0,
-// outside any string or comment.
+// outside any string or comment. Trailing comments and blank lines are not
+// statements, so a script ending in a comment block still resolves to the last
+// real statement.
 func lastStatementStart(src string) int {
-	lastBoundary := 0
+	lastStart := 0
+	pending := 0
+	atBoundary := true
 	depth := 0
 	i := 0
 	n := len(src)
@@ -92,6 +96,26 @@ func lastStatementStart(src string) int {
 			}
 			continue
 		}
+
+		if c == ' ' || c == '\t' || c == '\r' {
+			i++
+			continue
+		}
+		if c == '\n' || (c == ';' && depth == 0) {
+			if depth == 0 {
+				pending = i + 1
+				atBoundary = true
+			}
+			i++
+			continue
+		}
+
+		// A meaningful character: it opens a statement if one is pending.
+		if depth == 0 && atBoundary {
+			lastStart = pending
+			atBoundary = false
+		}
+
 		// Strings (single, double, backtick)
 		if c == '\'' || c == '"' || c == '`' {
 			quote := c
@@ -116,25 +140,20 @@ func lastStatementStart(src string) int {
 			if depth > 0 {
 				depth--
 			}
-		case ';', '\n':
-			if depth == 0 {
-				lastBoundary = i + 1
-			}
 		}
 		i++
 	}
 
-	// Advance past any additional whitespace-only / empty lines after the
-	// boundary so we don't end up pointing at blank lines.
-	for lastBoundary < n {
-		c := src[lastBoundary]
+	// Advance past any whitespace between the boundary and the statement.
+	for lastStart < n {
+		c := src[lastStart]
 		if c != ' ' && c != '\t' && c != '\r' && c != '\n' {
 			break
 		}
-		lastBoundary++
+		lastStart++
 	}
-	if lastBoundary > n {
-		lastBoundary = n
+	if lastStart > n {
+		lastStart = n
 	}
-	return lastBoundary
+	return lastStart
 }
