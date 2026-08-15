@@ -30,4 +30,10 @@ type QueryResult struct {
 	// Consumed by the Goja engine so scripts see `result.insertedIds` instead
 	// of `result[0].insertedIds`. Not serialised to the frontend.
 	Single bool `json:"-"`
+	// JSValue overrides what a script sees for operations whose display shape
+	// differs from their mongosh return value — distinct (displayed as a
+	// {values: [...]} document, returned to scripts as a bare array) and the
+	// count methods (displayed as {count: N}, returned as a number).
+	// Not serialised to the frontend.
+	JSValue any `json:"-"`
 }

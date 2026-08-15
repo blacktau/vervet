@@ -58,7 +58,7 @@ func dbGetCollectionInfos(ec *execContext) func(goja.FunctionCall) goja.Value {
 			out[i] = r
 		}
 
-		return toJSValue(ec.rt, out)
+		return withCursorMethods(ec.rt, "aggregate", toJSValue(ec.rt, out))
 	}
 }
 

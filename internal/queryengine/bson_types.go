@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/dop251/goja"
@@ -45,14 +46,14 @@ func registerBSONTypes(rt *goja.Runtime) error {
 func bsonObjectId(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(call goja.FunctionCall) goja.Value {
 		if len(call.Arguments) == 0 || goja.IsUndefined(call.Arguments[0]) {
-			return wrapBSONValue(rt, bson.NewObjectID())
+			return objectIDValue(rt, bson.NewObjectID().Hex())
 		}
 		hex := call.Arguments[0].String()
 		oid, err := bson.ObjectIDFromHex(hex)
 		if err != nil {
 			panic(rt.NewGoError(fmt.Errorf("ObjectId: %w", err)))
 		}
-		return wrapBSONValue(rt, oid)
+		return objectIDValue(rt, oid.Hex())
 	}
 }
 
@@ -61,7 +62,7 @@ func bsonObjectId(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 func bsonISODate(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(call goja.FunctionCall) goja.Value {
 		if len(call.Arguments) == 0 || goja.IsUndefined(call.Arguments[0]) {
-			return wrapBSONValue(rt, bson.NewDateTimeFromTime(time.Now()))
+			return jsDate(rt, time.Now())
 		}
 		str := call.Arguments[0].String()
 		t, err := time.Parse(time.RFC3339, str)
@@ -76,7 +77,7 @@ func bsonISODate(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 				}
 			}
 		}
-		return wrapBSONValue(rt, bson.NewDateTimeFromTime(t))
+		return jsDate(rt, t)
 	}
 }
 
@@ -104,7 +105,7 @@ func bsonNumberInt(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 				n = int32(arg.ToInteger())
 			}
 		}
-		return wrapBSONValue(rt, n)
+		return numberValue(rt, n, int64(n))
 	}
 }
 
@@ -132,7 +133,7 @@ func bsonDouble(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 				n = arg.ToFloat()
 			}
 		}
-		return wrapBSONValue(rt, n)
+		return bsonObject(rt, n, strconv.FormatFloat(n, 'g', -1, 64))
 	}
 }
 
@@ -162,7 +163,7 @@ func bsonNumberLong(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 				n = arg.ToInteger()
 			}
 		}
-		return wrapBSONValue(rt, n)
+		return numberValue(rt, n, n)
 	}
 }
 
@@ -193,7 +194,7 @@ func bsonNumberDecimal(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 		if err != nil {
 			panic(rt.NewGoError(fmt.Errorf("NumberDecimal: %w", err)))
 		}
-		return wrapBSONValue(rt, d)
+		return decimalValue(rt, d.String())
 	}
 }
 
@@ -203,7 +204,7 @@ func bsonUUID(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(call goja.FunctionCall) goja.Value {
 		if len(call.Arguments) == 0 {
 			id := uuid.New()
-			return wrapBSONValue(rt, bson.Binary{Subtype: 0x04, Data: id[:]})
+			return binaryObject(rt, bson.Binary{Subtype: 0x04, Data: id[:]})
 		}
 		str := call.Arguments[0].String()
 		// Strip hyphens from UUID string
@@ -220,7 +221,7 @@ func bsonUUID(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 		if len(data) != 16 {
 			panic(rt.NewGoError(fmt.Errorf("UUID: must be 16 bytes, got %d", len(data))))
 		}
-		return wrapBSONValue(rt, bson.Binary{Subtype: 0x04, Data: data})
+		return binaryObject(rt, bson.Binary{Subtype: 0x04, Data: data})
 	}
 }
 
@@ -232,7 +233,7 @@ func bsonUUID(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 func bsonTimestamp(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(call goja.FunctionCall) goja.Value {
 		if len(call.Arguments) == 0 || goja.IsUndefined(call.Arguments[0]) {
-			return wrapBSONValue(rt, bson.Timestamp{
+			return timestampObject(rt, bson.Timestamp{
 				T: uint32(time.Now().Unix()),
 				I: 1,
 			})
@@ -261,7 +262,7 @@ func bsonTimestamp(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 					i = uint32(n)
 				}
 			}
-			return wrapBSONValue(rt, bson.Timestamp{T: t, I: i})
+			return timestampObject(rt, bson.Timestamp{T: t, I: i})
 		}
 
 		// Positional form: Timestamp(t, i)
@@ -270,7 +271,7 @@ func bsonTimestamp(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 		}
 		t := uint32(call.Arguments[0].ToInteger())
 		i := uint32(call.Arguments[1].ToInteger())
-		return wrapBSONValue(rt, bson.Timestamp{T: t, I: i})
+		return timestampObject(rt, bson.Timestamp{T: t, I: i})
 	}
 }
 
@@ -278,7 +279,7 @@ func bsonTimestamp(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 // Usage: MinKey()
 func bsonMinKey(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(call goja.FunctionCall) goja.Value {
-		return wrapBSONValue(rt, bson.MinKey{})
+		return namedBSONValue(rt, bson.MinKey{}, "MinKey()")
 	}
 }
 
@@ -286,7 +287,7 @@ func bsonMinKey(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 // Usage: MaxKey()
 func bsonMaxKey(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(call goja.FunctionCall) goja.Value {
-		return wrapBSONValue(rt, bson.MaxKey{})
+		return namedBSONValue(rt, bson.MaxKey{}, "MaxKey()")
 	}
 }
 
@@ -304,6 +305,6 @@ func bsonBinData(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 		if err != nil {
 			panic(rt.NewGoError(fmt.Errorf("BinData: %w", err)))
 		}
-		return wrapBSONValue(rt, bson.Binary{Subtype: subtype, Data: data})
+		return binaryObject(rt, bson.Binary{Subtype: subtype, Data: data})
 	}
 }

@@ -18,6 +18,27 @@ var eagerMethods = []string{
 	"createIndex", "createIndexes", "dropIndex", "dropIndexes", "listIndexes",
 }
 
+// arrayCursorMethods are the eager methods mongosh returns a cursor from. They
+// execute immediately here and yield an array, so the cursor terminals scripts
+// chain onto them (`db.c.aggregate([...]).toArray()`) are added to that array.
+var arrayCursorMethods = map[string]bool{
+	"aggregate":   true,
+	"listIndexes": true,
+}
+
+// withCursorMethods adds toArray to an already-materialised array result.
+func withCursorMethods(rt *goja.Runtime, method string, val goja.Value) goja.Value {
+	if !arrayCursorMethods[method] {
+		return val
+	}
+	obj, ok := val.(*goja.Object)
+	if !ok || obj.ClassName() != "Array" {
+		return val
+	}
+	_ = obj.Set("toArray", func() goja.Value { return obj })
+	return obj
+}
+
 // newCollectionProxy creates a Goja object with methods for each supported
 // MongoDB operation. Write methods execute eagerly via dispatch(). find/findOne
 // return a lazyCursor for deferred execution.
@@ -71,7 +92,7 @@ func newCollectionProxy(ec *execContext, collName string) goja.Value {
 			if err != nil {
 				panic(ec.rt.NewGoError(err))
 			}
-			return toGojaValue(ec.rt, result)
+			return withCursorMethods(ec.rt, m, toGojaValue(ec.rt, result))
 		})
 	}
 

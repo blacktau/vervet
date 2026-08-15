@@ -119,7 +119,10 @@ func ejsonSerialize(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 			panic(rt.NewGoError(fmt.Errorf("EJSON.serialize: %w", err)))
 		}
 
-		return toJSValue(rt, result)
+		// Deliberately not toJSValue: serialize's contract is to expose the
+		// Extended JSON form ({$oid: ...}), which toJSValue would convert back
+		// into script values.
+		return rt.ToValue(normalizeForJS(result))
 	}
 }
 
@@ -132,10 +135,9 @@ func ejsonDeserialize(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 			panic(rt.NewGoError(fmt.Errorf("EJSON.deserialize requires a value argument")))
 		}
 
-		raw := call.Arguments[0].Export()
-
-		// Marshal the JS object to JSON, then unmarshal via Extended JSON parser
-		data, err := json.Marshal(raw)
+		// convertToBson first so already-typed script values (ObjectId, Long,
+		// Date wrappers) are understood as well as plain Extended JSON input.
+		data, err := bson.MarshalExtJSON(convertToBson(exportValue(call.Arguments[0])), false, false)
 		if err != nil {
 			panic(rt.NewGoError(fmt.Errorf("EJSON.deserialize: %w", err)))
 		}

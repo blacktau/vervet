@@ -215,6 +215,7 @@ func dispatchCountDocuments(ctx context.Context, coll *mongo.Collection, op Capt
 	result := singleToResult(map[string]any{
 		"count": count,
 	})
+	result.JSValue = count
 	result.OperationType = "countDocuments"
 	return result, nil
 }
@@ -265,6 +266,12 @@ func dispatchDistinct(ctx context.Context, coll *mongo.Collection, op CapturedOp
 	result := singleToResult(map[string]any{
 		"values": results,
 	})
+	// Scripts get the bare array mongosh returns; take it from the converted
+	// document so BSON types keep their Extended JSON form (and become Long,
+	// ObjectId, ... in the script rather than plain numbers).
+	if doc, ok := result.Documents[0].(map[string]any); ok {
+		result.JSValue = doc["values"]
+	}
 	result.OperationType = "distinct"
 	return result, nil
 }
@@ -353,6 +360,7 @@ func dispatchEstimatedDocumentCount(ctx context.Context, coll *mongo.Collection)
 	result := singleToResult(map[string]any{
 		"count": count,
 	})
+	result.JSValue = count
 	result.OperationType = "estimatedDocumentCount"
 	return result, nil
 }
