@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"vervet/internal/api"
-	"vervet/internal/buildinfo"
 	"vervet/internal/clientregistry"
 	"vervet/internal/collections"
 	"vervet/internal/connectionStrings"
@@ -55,7 +54,6 @@ type App struct {
 	CollectionsProxy *api.CollectionsProxy
 	ShellProxy       *api.ShellProxy
 	SystemProxy      *api.SystemProxy
-	BuildInfoProxy   *api.BuildInfoProxy
 	SettingsProxy    *api.SettingsProxy
 	FilesProxy       *api.FilesProxy
 	WorkspacesProxy  *api.WorkspacesProxy
@@ -100,7 +98,6 @@ func NewApp(log *slog.Logger, settingsService settings.Service, version string) 
 	updatesOpener := updates.NewBrowserOpener(nil)
 	updatesService := updates.NewService(log, updates.Config{
 		CurrentVersion: version,
-		Channel:        updates.Channel(buildinfo.Channel()),
 		Settings:       updates.NewSettingsAdapter(settingsService),
 		Emitter:        updatesEmitter,
 	})
@@ -137,7 +134,6 @@ func NewApp(log *slog.Logger, settingsService settings.Service, version string) 
 		CollectionsProxy:   api.NewCollectionsProxy(log, collectionsService),
 		ShellProxy:         api.NewShellProxy(log, queryExecutor),
 		SystemProxy:        api.NewSystemProxy(log, systemService),
-		BuildInfoProxy:     api.NewBuildInfoProxy(log),
 		SettingsProxy:      api.NewSettingsProxy(log, settingsService, fontService, version),
 		FilesProxy:         api.NewFilesProxy(log, filesService),
 		WorkspacesProxy:    api.NewWorkspacesProxy(log, workspaceService, settingsService),
