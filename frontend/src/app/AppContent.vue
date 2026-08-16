@@ -20,7 +20,6 @@ import TitleBar from '@/app/TitleBar.vue'
 import UnifiedContentPane from '@/features/tabs/UnifiedContentPane.vue'
 import WorkspacePane from '@/features/workspaces/WorkspacePane.vue'
 import { useUpdateStore } from '@/features/updates/updateStore'
-import { useBuildInfoStore } from '@/features/buildinfo/buildInfoStore'
 import OIDCAuthUrlDialog from '@/features/oidc/OIDCAuthUrlDialog.vue'
 
 const themeVars = useThemeVars()
@@ -35,7 +34,6 @@ const serverStore = useServerStore()
 const dataBrowserStore = useDataBrowserStore()
 const settingsStore = useSettingsStore()
 const updateStore = useUpdateStore()
-const buildInfoStore = useBuildInfoStore()
 
 runtime.EventsOn('config-parse-error', (detail: string) => {
   notification.warning({
@@ -126,25 +124,17 @@ onMounted(async () => {
   onToggleFullscreen(fullscreen)
   const maximized = await runtime.WindowIsMinimised()
   onToggleMaximize(maximized)
-  await buildInfoStore.load()
-  if (!buildInfoStore.isMSStore) {
-    updateStore.subscribe()
-  }
+  updateStore.subscribe()
 })
 
 onBeforeUnmount(() => {
-  if (!buildInfoStore.isMSStore) {
-    updateStore.unsubscribe()
-  }
+  updateStore.unsubscribe()
 })
 
 watch(
   () => updateStore.available,
   (isAvailable, wasAvailable) => {
     if (!isAvailable || wasAvailable) {
-      return
-    }
-    if (buildInfoStore.isMSStore) {
       return
     }
     notification.info({

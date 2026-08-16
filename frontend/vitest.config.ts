@@ -24,10 +24,12 @@ export default defineConfig({
         // coverage improves and never lowers them. Disabled under CI so a
         // build can't rewrite its own gate.
         autoUpdate: !process.env.CI,
-        statements: 58.01,
+        // Lowered when the fully-covered buildInfoStore was deleted along
+        // with the Microsoft Store distribution; no tests were removed.
+        statements: 57.96,
         branches: 53.08,
-        functions: 55.48,
-        lines: 58.74,
+        functions: 55.37,
+        lines: 58.7,
       },
     },
   },

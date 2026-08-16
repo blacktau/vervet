@@ -18,7 +18,7 @@ Nothing. Vervet has no servers, no analytics, no telemetry, no user accounts, no
 Vervet makes network connections only to:
 
 1. **MongoDB servers you configure.** Vervet connects to the servers you add in the app. It does not connect to any MongoDB server you have not configured.
-2. **The GitHub Releases API** (`api.github.com`), once per update-check interval, to read the public list of Vervet releases. No identifying information is sent. This check is disabled in the Microsoft Store build of Vervet (updates are handled by the Store).
+2. **The GitHub Releases API** (`api.github.com`), once per update-check interval, to read the public list of Vervet releases. No identifying information is sent. This check can be disabled in Settings.
 3. **OIDC identity providers** you configure, when you choose OIDC authentication for a MongoDB server.
 
 Vervet does not contact any server operated by the Vervet maintainers.
