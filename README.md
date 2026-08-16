@@ -23,6 +23,7 @@ cloud.
 - **Query editor** — Monaco-based, with MongoDB syntax highlighting, autocompletion and live syntax validation
 - **Script runner** — run multi-statement mongosh-compatible scripts
 - **Schema browser** — see a collection's inferred field types
+- **Results viewer** — view results as an expandable Table View or as read-only, syntax-highlighted EJSON in the JSON View
 - **Index management** — create, edit and drop indexes
 - **Statistics** — database and collection statistics, including index sizes
 - **Export results** — write query results out to a file

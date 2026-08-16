@@ -32,6 +32,8 @@ features:
     details: Run multi-statement mongosh-compatible scripts, including load() and script-relative file access.
   - title: Schema browser
     details: See the inferred shape of a collection — fields, types and how often each one appears.
+  - title: Results viewer
+    details: View query results as an expandable Table View or as read-only, syntax-highlighted EJSON in the JSON View.
   - title: Index management
     details: Create, edit and drop indexes without leaving the app.
   - title: Statistics
