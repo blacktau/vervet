@@ -23,12 +23,24 @@ This starts the Go backend and Vite dev server together with hot-reload.
 ### Running Tests
 
 ```bash
-# Go tests
+# Go unit tests
 go test ./...
+
+# Go tests including integration tests (requires Docker or Podman)
+go test -tags integration ./internal/...
 
 # Frontend tests (from frontend/)
 cd frontend
 bun run test
+```
+
+Integration tests use testcontainers-go to start a MongoDB container. On
+rootless Podman, set `TESTCONTAINERS_RYUK_DISABLED=true`.
+
+### Building
+
+```bash
+wails build
 ```
 
 ### Linting
@@ -37,6 +49,16 @@ bun run test
 # From frontend/
 bun run lint      # ESLint + type-check
 bun run format    # Prettier
+```
+
+### Docs site
+
+```bash
+cd docs
+bun install
+bun run docs:dev    # local preview
+bun run docs:build  # production build; also the dead-link check
+bun run test        # unit tests
 ```
 
 ## Project Structure

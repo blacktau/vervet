@@ -1,5 +1,6 @@
 ---
 title: Privacy Policy
+outline: deep
 ---
 
 # Vervet Privacy Policy
