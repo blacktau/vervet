@@ -24,7 +24,7 @@ type ConnectionsProvider interface {
 }
 
 type ShellProvider interface {
-	ExecuteQuery(serverID, queryID, dbName, query string) (models.QueryResult, error)
+	ExecuteQuery(serverID, queryID, dbName, query, scriptPath string) (models.QueryResult, error)
 	FetchPage(serverID, dbName string, pc models.PageContext, page, pageSize int64) (models.QueryResult, error)
 	CountForPage(serverID, dbName string, pc models.PageContext) (count int64, estimated bool, err error)
 	CancelQuery(serverID, queryID string)

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
@@ -85,7 +86,11 @@ func (qe *QueryExecutor) unregisterQuery(serverID, queryID string) {
 // Multiple queries may run concurrently against the same server; each is
 // tracked by queryID so it can be cancelled independently.
 // The engine (built-in goja or mongosh) is selected based on the user's settings.
-func (qe *QueryExecutor) ExecuteQuery(serverID, queryID, dbName, query string) (models.QueryResult, error) {
+//
+// scriptPath is the file the query tab was saved to, empty when unsaved. Both
+// engines use it to give the script __dirname and to resolve load() and
+// relative file paths against the script's own directory.
+func (qe *QueryExecutor) ExecuteQuery(serverID, queryID, dbName, query, scriptPath string) (models.QueryResult, error) {
 	queryCtx, cancel := context.WithCancel(qe.ctx)
 	qe.registerQuery(serverID, queryID, cancel)
 
@@ -96,19 +101,28 @@ func (qe *QueryExecutor) ExecuteQuery(serverID, queryID, dbName, query string) (
 
 	cfg, _ := qe.settings.GetSettings()
 	if cfg.Query.QueryEngine == "builtin" {
-		return qe.executeWithGoja(queryCtx, serverID, dbName, query)
+		return qe.executeWithGoja(queryCtx, serverID, dbName, query, scriptPath)
 	}
-	return qe.executeWithMongosh(queryCtx, serverID, dbName, query)
+	return qe.executeWithMongosh(queryCtx, serverID, dbName, query, scriptPath)
 }
 
-func (qe *QueryExecutor) executeWithGoja(ctx context.Context, serverID, dbName, query string) (models.QueryResult, error) {
+// scriptDir is the directory a saved query tab lives in, empty when the tab
+// has never been saved.
+func scriptDir(scriptPath string) string {
+	if scriptPath == "" {
+		return ""
+	}
+	return filepath.Dir(scriptPath)
+}
+
+func (qe *QueryExecutor) executeWithGoja(ctx context.Context, serverID, dbName, query, scriptPath string) (models.QueryResult, error) {
 	client, err := qe.registry.GetClient(serverID)
 	if err != nil {
 		return models.QueryResult{}, fmt.Errorf("no active connection: %w", err)
 	}
 
 	cfg, _ := qe.settings.GetSettings()
-	engine := queryengine.NewGojaEngine(client, int64(cfg.Query.DefaultPageSize))
+	engine := queryengine.NewGojaEngine(client, int64(cfg.Query.DefaultPageSize), scriptPath)
 	result, err := engine.ExecuteQuery(ctx, "", dbName, query)
 	if err != nil {
 		return models.QueryResult{}, err
@@ -117,7 +131,7 @@ func (qe *QueryExecutor) executeWithGoja(ctx context.Context, serverID, dbName, 
 	return result, nil
 }
 
-func (qe *QueryExecutor) executeWithMongosh(ctx context.Context, serverID, dbName, query string) (models.QueryResult, error) {
+func (qe *QueryExecutor) executeWithMongosh(ctx context.Context, serverID, dbName, query, scriptPath string) (models.QueryResult, error) {
 	cfg, err := qe.store.GetConnectionConfig(serverID)
 	if err != nil {
 		return models.QueryResult{}, err
@@ -131,11 +145,14 @@ func (qe *QueryExecutor) executeWithMongosh(ctx context.Context, serverID, dbNam
 		uri = appendDatabase(uri, dbName)
 	}
 
+	shellCfg := qe.cfg
+	shellCfg.ScriptDir = scriptDir(scriptPath)
+
 	var result models.QueryResult
 	if cfg.AuthMethod == models.AuthOIDC {
-		result, err = shell.ExecuteWithOIDC(ctx, uri, query, qe.cfg)
+		result, err = shell.ExecuteWithOIDC(ctx, uri, query, shellCfg)
 	} else {
-		result, err = shell.Execute(ctx, uri, query, qe.cfg)
+		result, err = shell.Execute(ctx, uri, query, shellCfg)
 	}
 
 	if err != nil {
@@ -156,7 +173,7 @@ func (qe *QueryExecutor) FetchPage(serverID, dbName string, pc models.PageContex
 	if err != nil {
 		return models.QueryResult{}, fmt.Errorf("no active connection: %w", err)
 	}
-	engine := queryengine.NewGojaEngine(client, int64(cfg.Query.DefaultPageSize))
+	engine := queryengine.NewGojaEngine(client, int64(cfg.Query.DefaultPageSize), "")
 	return engine.FetchPage(qe.ctx, dbName, pc, page, pageSize)
 }
 
@@ -171,7 +188,7 @@ func (qe *QueryExecutor) CountForPage(serverID, dbName string, pc models.PageCon
 	if err != nil {
 		return 0, false, fmt.Errorf("no active connection: %w", err)
 	}
-	engine := queryengine.NewGojaEngine(client, 0)
+	engine := queryengine.NewGojaEngine(client, 0, "")
 	return engine.CountForPage(qe.ctx, dbName, pc)
 }
 

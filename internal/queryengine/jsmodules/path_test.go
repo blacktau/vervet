@@ -1,6 +1,7 @@
 package jsmodules
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -48,4 +49,19 @@ func TestPath_Sep(t *testing.T) {
 	val, err := rt.RunString(`require('path').sep`)
 	require.NoError(t, err)
 	assert.Equal(t, "/", val.Export())
+}
+
+func TestPath_ResolveUsesBase(t *testing.T) {
+	base := t.TempDir()
+	rt := newTestRuntimeIn(t, base)
+	val, err := rt.RunString(`require('path').resolve('sub', 'f.txt')`)
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(base, "sub", "f.txt"), val.Export())
+}
+
+func TestPath_ResolveAbsoluteIgnoresBase(t *testing.T) {
+	rt := newTestRuntimeIn(t, t.TempDir())
+	val, err := rt.RunString(`require('path').resolve('/etc', 'hosts')`)
+	require.NoError(t, err)
+	assert.Equal(t, "/etc/hosts", val.Export())
 }

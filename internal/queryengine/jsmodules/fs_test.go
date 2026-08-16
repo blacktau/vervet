@@ -205,3 +205,54 @@ func TestFS_ReaddirSync(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{"a", "b"}, val.Export())
 }
+
+func TestFS_RelativePathsResolveAgainstBase(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "data.csv"), []byte("a,b\n"), 0o644))
+
+	rt := newTestRuntimeIn(t, dir)
+	val, err := rt.RunString(`require('fs').readFileSync('data.csv', 'utf8')`)
+	require.NoError(t, err)
+	assert.Equal(t, "a,b\n", val.Export())
+}
+
+func TestFS_AbsolutePathsIgnoreBase(t *testing.T) {
+	base := t.TempDir()
+	other := t.TempDir()
+	p := filepath.Join(other, "x.txt")
+	require.NoError(t, os.WriteFile(p, []byte("elsewhere"), 0o644))
+
+	rt := newTestRuntimeIn(t, base)
+	require.NoError(t, rt.Set("P", p))
+	val, err := rt.RunString(`require('fs').readFileSync(P, 'utf8')`)
+	require.NoError(t, err)
+	assert.Equal(t, "elsewhere", val.Export())
+}
+
+func TestFS_RelativeWriteLandsInBase(t *testing.T) {
+	dir := t.TempDir()
+
+	rt := newTestRuntimeIn(t, dir)
+	_, err := rt.RunString(`require('fs').writeFileSync('out.txt', 'hi')`)
+	require.NoError(t, err)
+
+	data, err := os.ReadFile(filepath.Join(dir, "out.txt"))
+	require.NoError(t, err)
+	assert.Equal(t, "hi", string(data))
+}
+
+// existsSync, statSync, mkdirSync and readdirSync take the same base.
+func TestFS_RelativePathsAcrossOperations(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "seed.txt"), []byte("x"), 0o644))
+
+	rt := newTestRuntimeIn(t, dir)
+	val, err := rt.RunString(`
+		const fs = require('fs');
+		fs.mkdirSync('sub');
+		fs.copyFileSync('seed.txt', 'sub/copy.txt');
+		[fs.existsSync('sub/copy.txt'), fs.statSync('sub/copy.txt').size, fs.readdirSync('sub')];
+	`)
+	require.NoError(t, err)
+	assert.Equal(t, []any{true, int64(1), []string{"copy.txt"}}, val.Export())
+}

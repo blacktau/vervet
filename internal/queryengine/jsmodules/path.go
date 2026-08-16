@@ -8,7 +8,7 @@ import (
 	"github.com/dop251/goja_nodejs/require"
 )
 
-func registerPath(r *require.Registry) {
+func registerPath(r *require.Registry, baseDir string) {
 	r.RegisterNativeModule("path", func(rt *goja.Runtime, m *goja.Object) {
 		exports := m.Get("exports").(*goja.Object)
 		_ = exports.Set("sep", string(filepath.Separator))
@@ -24,7 +24,7 @@ func registerPath(r *require.Registry) {
 			for i, a := range call.Arguments {
 				parts[i] = a.String()
 			}
-			abs, err := filepath.Abs(filepath.Join(parts...))
+			abs, err := filepath.Abs(resolve(baseDir, filepath.Join(parts...)))
 			if err != nil {
 				panic(rt.ToValue(err.Error()))
 			}

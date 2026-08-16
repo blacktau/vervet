@@ -315,6 +315,7 @@ export const useQueryStore = defineStore('query', {
           queryId,
           state.selectedDatabase,
           query,
+          state.filePath ?? '',
         )
 
         if (state.cancelled || state.executionId !== thisExecution) {

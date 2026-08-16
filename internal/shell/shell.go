@@ -20,6 +20,31 @@ var (
 // Config holds settings for mongosh execution.
 type Config struct {
 	Timeout time.Duration
+	// ScriptDir is the directory the query was saved in, empty for an unsaved
+	// tab. The temp script handed to mongosh is written there and mongosh runs
+	// with it as its working directory, so the script's __dirname, load() and
+	// relative paths all point at the user's own directory rather than /tmp.
+	ScriptDir string
+}
+
+// writeQueryFile writes the wrapped query to a temp file in dir (the system
+// temp directory when dir is empty) and returns its path with a cleanup func.
+func writeQueryFile(wrapped, dir string) (string, func(), error) {
+	tmpFile, err := os.CreateTemp(dir, "vervet-query-*.js")
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to create temp file: %w", err)
+	}
+
+	remove := func() { _ = os.Remove(tmpFile.Name()) }
+
+	if _, err := tmpFile.WriteString(wrapped); err != nil {
+		tmpFile.Close()
+		remove()
+		return "", nil, fmt.Errorf("failed to write query file: %w", err)
+	}
+	tmpFile.Close()
+
+	return tmpFile.Name(), remove, nil
 }
 
 // CheckMongosh returns true if mongosh is available in PATH.
@@ -82,22 +107,15 @@ func Execute(ctx context.Context, uri string, query string, cfg Config) (models.
 	ctx, cancel := context.WithTimeout(ctx, cfg.Timeout)
 	defer cancel()
 
-	wrapped := wrapQuery(query)
-
-	tmpFile, err := os.CreateTemp("", "vervet-query-*.js")
+	queryFile, cleanup, err := writeQueryFile(wrapQuery(query), cfg.ScriptDir)
 	if err != nil {
-		return models.QueryResult{}, fmt.Errorf("failed to create temp file: %w", err)
+		return models.QueryResult{}, err
 	}
-	defer os.Remove(tmpFile.Name())
+	defer cleanup()
 
-	if _, err = tmpFile.WriteString(wrapped); err != nil {
-		tmpFile.Close()
-		return models.QueryResult{}, fmt.Errorf("failed to write query file: %w", err)
-	}
-	tmpFile.Close()
-
-	args := buildArgs(uri, tmpFile.Name())
+	args := buildArgs(uri, queryFile)
 	cmd := exec.CommandContext(ctx, "mongosh", args...)
+	cmd.Dir = cfg.ScriptDir
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout

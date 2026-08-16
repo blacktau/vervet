@@ -136,6 +136,7 @@ async function save() {
       crypto.randomUUID(),
       props.dbName,
       query,
+      '',
     )
     if (result.isSuccess) {
       emit('saved')

@@ -24,7 +24,7 @@ func setupScriptData(t *testing.T) (*GojaEngine, string, context.Context) {
 	db := dbName(t)
 	t.Cleanup(func() { testClient.Database(db).Drop(context.Background()) })
 
-	engine := NewGojaEngine(testClient, 10) // small page size: paging must not truncate scripts
+	engine := NewGojaEngine(testClient, 10, "") // small page size: paging must not truncate scripts
 	_, err := engine.ExecuteQuery(ctx, testURI, db, `
 		const docs = [];
 		for (let i = 0; i < 25; i++) {

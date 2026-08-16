@@ -23,20 +23,30 @@ import (
 type GojaEngine struct {
 	client   *mongo.Client
 	pageSize int64
-	registry *require.Registry
+	// scriptPath is the file the query was loaded from, empty for an unsaved
+	// tab. It gives the script __filename/__dirname and fixes the directory
+	// that load() and relative fs paths resolve against.
+	scriptPath string
 }
 
-func NewGojaEngine(client *mongo.Client, pageSize int64) *GojaEngine {
-	registry := require.NewRegistry()
-	jsmodules.RegisterAll(registry)
-	return &GojaEngine{client: client, pageSize: pageSize, registry: registry}
+func NewGojaEngine(client *mongo.Client, pageSize int64, scriptPath string) *GojaEngine {
+	return &GojaEngine{client: client, pageSize: pageSize, scriptPath: scriptPath}
 }
 
 func (e *GojaEngine) ExecuteQuery(ctx context.Context, uri, dbName, query string) (models.QueryResult, error) {
+	scriptPath, baseDir := scriptLocation(e.scriptPath)
+
 	rt := goja.New()
-	e.registry.Enable(rt)
+	// The registry is built per execution because the modules it registers
+	// close over baseDir, which differs from one script to the next.
+	registry := require.NewRegistry()
+	jsmodules.RegisterAll(registry, baseDir)
+	registry.Enable(rt)
 	buffer.Enable(rt)
 	process.Enable(rt)
+	if err := registerScriptEnv(rt, scriptPath, baseDir); err != nil {
+		return models.QueryResult{}, err
+	}
 	ec := &execContext{ctx: ctx, client: e.client, dbName: dbName, rt: rt, pageSize: e.pageSize}
 
 	if err := registerBSONTypes(rt); err != nil {
