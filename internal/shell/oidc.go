@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"os"
 	"os/exec"
 	"time"
 	"vervet/internal/models"
@@ -23,19 +22,11 @@ func ExecuteWithOIDC(ctx context.Context, uri string, query string, cfg Config) 
 	ctx, cancel := context.WithTimeout(ctx, cfg.Timeout)
 	defer cancel()
 
-	wrapped := wrapQuery(query)
-
-	tmpFile, err := os.CreateTemp("", "vervet-query-*.js")
+	queryFile, cleanup, err := writeQueryFile(wrapQuery(query), cfg.ScriptDir)
 	if err != nil {
-		return models.QueryResult{}, fmt.Errorf("failed to create temp file: %w", err)
+		return models.QueryResult{}, err
 	}
-	defer os.Remove(tmpFile.Name())
-
-	if _, err = tmpFile.WriteString(wrapped); err != nil {
-		tmpFile.Close()
-		return models.QueryResult{}, fmt.Errorf("failed to write query file: %w", err)
-	}
-	tmpFile.Close()
+	defer cleanup()
 
 	args := []string{
 		uri,
@@ -43,10 +34,11 @@ func ExecuteWithOIDC(ctx context.Context, uri string, query string, cfg Config) 
 		"--norc",
 		"--authenticationMechanism", "MONGODB-OIDC",
 		"--oidcFlows", "auth-code",
-		"--file", tmpFile.Name(),
+		"--file", queryFile,
 	}
 
 	cmd := exec.CommandContext(ctx, "mongosh", args...)
+	cmd.Dir = cfg.ScriptDir
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout

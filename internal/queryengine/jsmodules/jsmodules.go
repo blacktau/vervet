@@ -4,17 +4,31 @@ package jsmodules
 
 import (
 	"errors"
+	"path/filepath"
 
 	"github.com/dop251/goja"
 	"github.com/dop251/goja_nodejs/require"
 )
 
 // RegisterAll registers fs, path, os, and crypto on the given registry.
-func RegisterAll(r *require.Registry) {
-	registerPath(r)
+// baseDir is the directory relative paths resolve against — the running
+// script's own directory. An empty baseDir leaves relative paths to the
+// process working directory.
+func RegisterAll(r *require.Registry, baseDir string) {
+	registerPath(r, baseDir)
 	registerOS(r)
 	registerCrypto(r)
-	registerFS(r)
+	registerFS(r, baseDir)
+}
+
+// resolve makes a script-supplied path absolute against baseDir. Absolute
+// paths are used as given, so a script can always reach outside its own
+// directory by saying so explicitly.
+func resolve(baseDir, p string) string {
+	if baseDir == "" || filepath.IsAbs(p) {
+		return p
+	}
+	return filepath.Join(baseDir, p)
 }
 
 // nodeError builds a JS Error with a Node-style `code` property.

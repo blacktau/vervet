@@ -9,6 +9,6 @@ export function CheckMongosh():Promise<api.Result_bool_>;
 
 export function CountForPage(arg1:string,arg2:string,arg3:models.PageContext):Promise<api.Result_vervet_internal_api_CountResponse_>;
 
-export function ExecuteQuery(arg1:string,arg2:string,arg3:string,arg4:string):Promise<api.Result_vervet_internal_models_QueryResult_>;
+export function ExecuteQuery(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string):Promise<api.Result_vervet_internal_models_QueryResult_>;
 
 export function FetchPage(arg1:string,arg2:string,arg3:models.PageContext,arg4:number,arg5:number):Promise<api.Result_vervet_internal_models_QueryResult_>;

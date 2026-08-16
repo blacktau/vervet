@@ -18,8 +18,11 @@ func NewShellProxy(log *slog.Logger, provider ShellProvider) *ShellProxy {
 	}
 }
 
-func (sp *ShellProxy) ExecuteQuery(serverID string, queryID string, dbName string, query string) Result[models.QueryResult] {
-	result, err := sp.provider.ExecuteQuery(serverID, queryID, dbName, query)
+// ExecuteQuery runs a query. scriptPath is the file the tab was saved to,
+// empty for an unsaved tab; it fixes the directory the script's load() and
+// relative file paths resolve against.
+func (sp *ShellProxy) ExecuteQuery(serverID string, queryID string, dbName string, query string, scriptPath string) Result[models.QueryResult] {
+	result, err := sp.provider.ExecuteQuery(serverID, queryID, dbName, query, scriptPath)
 	if err != nil {
 		logFail(sp.log, "ExecuteQuery", err)
 		return FailResult[models.QueryResult](err)

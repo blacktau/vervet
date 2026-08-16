@@ -18,7 +18,7 @@ func TestIntegration_RunCommand_Ping(t *testing.T) {
 	db := dbName(t)
 	defer testClient.Database(db).Drop(ctx)
 
-	engine := NewGojaEngine(testClient, 0)
+	engine := NewGojaEngine(testClient, 0, "")
 	result, err := engine.ExecuteQuery(ctx, testURI, db, `db.runCommand({ ping: 1 })`)
 	require.NoError(t, err)
 	assert.Contains(t, resultText(result), "ok")
@@ -36,7 +36,7 @@ func TestIntegration_RunCommand_PropertyAccess(t *testing.T) {
 	db := dbName(t)
 	defer testClient.Database(db).Drop(ctx)
 
-	engine := NewGojaEngine(testClient, 0)
+	engine := NewGojaEngine(testClient, 0, "")
 	result, err := engine.ExecuteQuery(ctx, testURI, db, `db.runCommand({ ping: 1 }).ok`)
 	require.NoError(t, err)
 	assert.Equal(t, "1", resultText(result), "command result property must be reachable from JS, not undefined")
@@ -49,7 +49,7 @@ func TestIntegration_RunCommand_CollStats(t *testing.T) {
 	db := dbName(t)
 	defer testClient.Database(db).Drop(ctx)
 
-	engine := NewGojaEngine(testClient, 0)
+	engine := NewGojaEngine(testClient, 0, "")
 
 	// Create a collection first
 	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.test.insertOne({ x: 1 })`)
@@ -68,7 +68,7 @@ func TestIntegration_AdminCommand_ListDatabases(t *testing.T) {
 	db := dbName(t)
 	defer testClient.Database(db).Drop(ctx)
 
-	engine := NewGojaEngine(testClient, 0)
+	engine := NewGojaEngine(testClient, 0, "")
 	result, err := engine.ExecuteQuery(ctx, testURI, db, `db.adminCommand({ listDatabases: 1 })`)
 	require.NoError(t, err)
 	assert.Contains(t, resultText(result), "databases")
@@ -81,7 +81,7 @@ func TestIntegration_RunCommand_InvalidCommand_Errors(t *testing.T) {
 	db := dbName(t)
 	defer testClient.Database(db).Drop(ctx)
 
-	engine := NewGojaEngine(testClient, 0)
+	engine := NewGojaEngine(testClient, 0, "")
 	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.runCommand({ notARealCommand: 1 })`)
 	assert.Error(t, err)
 }
@@ -95,7 +95,7 @@ func TestIntegration_GetCollectionNames(t *testing.T) {
 	db := dbName(t)
 	defer testClient.Database(db).Drop(ctx)
 
-	engine := NewGojaEngine(testClient, 0)
+	engine := NewGojaEngine(testClient, 0, "")
 
 	// Create two collections
 	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.alpha.insertOne({ x: 1 })`)
@@ -116,7 +116,7 @@ func TestIntegration_GetCollectionInfos(t *testing.T) {
 	db := dbName(t)
 	defer testClient.Database(db).Drop(ctx)
 
-	engine := NewGojaEngine(testClient, 0)
+	engine := NewGojaEngine(testClient, 0, "")
 	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.infocoll.insertOne({ x: 1 })`)
 	require.NoError(t, err)
 
@@ -132,7 +132,7 @@ func TestIntegration_CreateCollection(t *testing.T) {
 	db := dbName(t)
 	defer testClient.Database(db).Drop(ctx)
 
-	engine := NewGojaEngine(testClient, 0)
+	engine := NewGojaEngine(testClient, 0, "")
 	result, err := engine.ExecuteQuery(ctx, testURI, db, `db.createCollection("newcoll")`)
 	require.NoError(t, err)
 	assert.Contains(t, resultText(result), "ok")
@@ -150,7 +150,7 @@ func TestIntegration_CreateView(t *testing.T) {
 	db := dbName(t)
 	defer testClient.Database(db).Drop(ctx)
 
-	engine := NewGojaEngine(testClient, 0)
+	engine := NewGojaEngine(testClient, 0, "")
 	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.src.insertOne({ x: 1, y: 2 })`)
 	require.NoError(t, err)
 
@@ -169,7 +169,7 @@ func TestIntegration_DropDatabase(t *testing.T) {
 
 	db := dbName(t)
 
-	engine := NewGojaEngine(testClient, 0)
+	engine := NewGojaEngine(testClient, 0, "")
 	// Create something so the db exists
 	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.temp.insertOne({ x: 1 })`)
 	require.NoError(t, err)
@@ -186,7 +186,7 @@ func TestIntegration_Stats(t *testing.T) {
 	db := dbName(t)
 	defer testClient.Database(db).Drop(ctx)
 
-	engine := NewGojaEngine(testClient, 0)
+	engine := NewGojaEngine(testClient, 0, "")
 	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.statscoll.insertOne({ x: 1 })`)
 	require.NoError(t, err)
 
@@ -202,7 +202,7 @@ func TestIntegration_Version(t *testing.T) {
 	db := dbName(t)
 	defer testClient.Database(db).Drop(ctx)
 
-	engine := NewGojaEngine(testClient, 0)
+	engine := NewGojaEngine(testClient, 0, "")
 	result, err := engine.ExecuteQuery(ctx, testURI, db, `db.version()`)
 	require.NoError(t, err)
 	// Should return a version string like "7.0.x"
@@ -219,7 +219,7 @@ func TestIntegration_GetSiblingDB(t *testing.T) {
 	defer testClient.Database(db).Drop(ctx)
 	defer testClient.Database(siblingDB).Drop(ctx)
 
-	engine := NewGojaEngine(testClient, 0)
+	engine := NewGojaEngine(testClient, 0, "")
 
 	// Insert into sibling database via getSiblingDB
 	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.getSiblingDB("`+siblingDB+`").crossdb.insertOne({ from: "sibling" })`)
@@ -239,7 +239,7 @@ func TestIntegration_Aggregate_DbLevel(t *testing.T) {
 	db := dbName(t)
 	defer testClient.Database(db).Drop(ctx)
 
-	engine := NewGojaEngine(testClient, 0)
+	engine := NewGojaEngine(testClient, 0, "")
 
 	// db.aggregate with $listLocalSessions or similar db-level pipeline
 	// Use $currentOp-style approach: create data then use $documents (MongoDB 5.1+)

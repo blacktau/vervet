@@ -258,6 +258,7 @@ function handleContextMenuSelect(key: string) {
           crypto.randomUUID(),
           dbName,
           query,
+          '',
         )
         if (result.isSuccess) {
           emit('document-changed')

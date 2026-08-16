@@ -21,7 +21,7 @@ func TestIntegration_FetchPage_RoundTrip(t *testing.T) {
 	db := dbName(t)
 	defer testClient.Database(db).Drop(ctx)
 
-	engine := NewGojaEngine(testClient, 25)
+	engine := NewGojaEngine(testClient, 25, "")
 
 	// Seed 60 docs with monotonic n
 	docs := ""
@@ -70,7 +70,7 @@ func TestIntegration_FetchPage_RespectsUserLimit(t *testing.T) {
 	db := dbName(t)
 	defer testClient.Database(db).Drop(ctx)
 
-	engine := NewGojaEngine(testClient, 25)
+	engine := NewGojaEngine(testClient, 25, "")
 
 	docs := ""
 	for i := 0; i < 100; i++ {

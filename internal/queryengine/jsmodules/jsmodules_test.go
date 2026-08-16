@@ -12,8 +12,14 @@ import (
 
 func newTestRuntime(t *testing.T) *goja.Runtime {
 	t.Helper()
+	return newTestRuntimeIn(t, "")
+}
+
+// newTestRuntimeIn builds a runtime whose relative paths resolve against base.
+func newTestRuntimeIn(t *testing.T, base string) *goja.Runtime {
+	t.Helper()
 	registry := gojarequire.NewRegistry()
-	RegisterAll(registry)
+	RegisterAll(registry, base)
 	rt := goja.New()
 	registry.Enable(rt)
 	buffer.Enable(rt)
