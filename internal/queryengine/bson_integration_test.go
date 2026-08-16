@@ -36,11 +36,6 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		log.Fatalf("failed to start MongoDB container: %v", err)
 	}
-	defer func() {
-		if err := testcontainers.TerminateContainer(mongoContainer); err != nil {
-			log.Printf("failed to terminate container: %v", err)
-		}
-	}()
 
 	testURI, err = mongoContainer.ConnectionString(ctx)
 	if err != nil {
@@ -51,9 +46,19 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		log.Fatalf("failed to connect to MongoDB: %v", err)
 	}
-	defer testClient.Disconnect(ctx)
 
-	os.Exit(m.Run())
+	// Cleanup runs before os.Exit, which executes no deferred calls —
+	// deferring the terminate here leaked a mongo:7 container per run.
+	code := m.Run()
+
+	if err := testClient.Disconnect(ctx); err != nil {
+		log.Printf("failed to disconnect: %v", err)
+	}
+	if err := testcontainers.TerminateContainer(mongoContainer); err != nil {
+		log.Printf("failed to terminate container: %v", err)
+	}
+
+	os.Exit(code)
 }
 
 // dbName returns a unique database name for each test to ensure isolation.
