@@ -10,7 +10,7 @@ hero:
   actions:
     - theme: brand
       text: Download
-      link: /guide/install
+      link: /#download
     - theme: alt
       text: Documentation
       link: /guide/install
@@ -23,7 +23,7 @@ features:
   - title: OIDC authentication
     details: Sign in to servers that use OpenID Connect, alongside standard connection-string authentication.
   - title: Workspaces
-    details: Organise servers and saved queries into workspaces so related work stays together.
+    details: Group folders of saved mongosh scripts on disk into named workspaces, and browse their contents as a file tree.
   - title: Data browser
     details: Navigate servers, databases and collections in a tree view.
   - title: Query editor

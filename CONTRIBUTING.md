@@ -51,6 +51,16 @@ bun run lint      # ESLint + type-check
 bun run format    # Prettier
 ```
 
+### Docs site
+
+```bash
+cd docs
+bun install
+bun run docs:dev    # local preview
+bun run docs:build  # production build; also the dead-link check
+bun run test        # unit tests
+```
+
 ## Project Structure
 
 - **Backend (Go):** `internal/` — organised by domain (`api/`, `servers/`, `connections/`, etc.)

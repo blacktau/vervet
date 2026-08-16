@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  archFromUserAgentData,
   classifyAsset,
   detectArch,
   detectPlatform,
@@ -101,6 +102,21 @@ describe('detectArch', () => {
     // Apple silicon Macs report Intel; the caller falls back to amd64 and
     // still shows the full asset table.
     expect(detectArch('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)')).toBeNull()
+  })
+})
+
+describe('archFromUserAgentData', () => {
+  it('maps arm to arm64', () => {
+    expect(archFromUserAgentData('arm')).toBe('arm64')
+  })
+
+  it('maps x86 to amd64', () => {
+    expect(archFromUserAgentData('x86')).toBe('amd64')
+  })
+
+  it('returns null for anything else, including undefined', () => {
+    expect(archFromUserAgentData('other')).toBeNull()
+    expect(archFromUserAgentData(undefined)).toBeNull()
   })
 })
 

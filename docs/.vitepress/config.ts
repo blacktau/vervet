@@ -12,7 +12,7 @@ export default defineConfig({
     logo: '/logo.svg',
     nav: [
       { text: 'Guide', link: '/guide/install' },
-      { text: 'Download', link: '/guide/install' },
+      { text: 'Download', link: '/#download' },
       { text: 'GitHub', link: 'https://github.com/blacktau/vervet' },
     ],
     sidebar: [

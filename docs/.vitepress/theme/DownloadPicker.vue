@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import {
+  archFromUserAgentData,
   classifyAsset,
   detectArch,
   detectPlatform,
@@ -42,12 +43,34 @@ const grouped = computed(() => {
   return groups
 })
 
+// navigator.userAgentData is Chromium-only (absent on Safari/Firefox), so it
+// isn't in the standard lib.dom types.
+interface NavigatorUAData {
+  getHighEntropyValues(hints: string[]): Promise<{ architecture?: string }>
+}
+
+async function detectArchWithHighEntropyFallback(): Promise<ReturnType<typeof detectArch>> {
+  const uaData = (navigator as Navigator & { userAgentData?: NavigatorUAData }).userAgentData
+  if (uaData) {
+    try {
+      const { architecture } = await uaData.getHighEntropyValues(['architecture'])
+      const arch = archFromUserAgentData(architecture)
+      if (arch) {
+        return arch
+      }
+    } catch {
+      // fall through to userAgent sniffing
+    }
+  }
+  return detectArch(navigator.userAgent)
+}
+
 // ponytail: unauthenticated, uncached GitHub API call (60/hr/IP). If the
 // limit ever bites, bake the asset URLs in at build time and trigger a docs
 // rebuild from the release workflow.
 onMounted(async () => {
   platform.value = detectPlatform(navigator.userAgent)
-  arch.value = detectArch(navigator.userAgent)
+  arch.value = await detectArchWithHighEntropyFallback()
 
   try {
     const response = await fetch(API_URL, { headers: { Accept: 'application/vnd.github+json' } })
@@ -84,7 +107,7 @@ onMounted(async () => {
         <a :href="RELEASES_URL">browse all releases</a>.
       </p>
 
-      <details class="download-all" :open="!best">
+      <details class="download-all" open>
         <summary>All downloads{{ version ? ` (${version})` : '' }}</summary>
         <div v-for="group in grouped" :key="group.platform" class="download-group">
           <h4>{{ group.label }}</h4>

@@ -102,6 +102,16 @@ export function detectArch(userAgent: string): Arch | null {
   return null
 }
 
+export function archFromUserAgentData(architecture: string | undefined): Arch | null {
+  if (architecture === 'arm') {
+    return 'arm64'
+  }
+  if (architecture === 'x86') {
+    return 'amd64'
+  }
+  return null
+}
+
 export function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }

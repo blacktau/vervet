@@ -18,7 +18,7 @@ cloud.
 
 - **Connection management** — connect to multiple servers; connection strings are stored in your OS keyring, never in a config file
 - **OIDC authentication** — sign in to servers that use OpenID Connect
-- **Workspaces** — organise servers and saved queries
+- **Workspaces** — group folders of saved mongosh scripts on disk and browse them as a file tree
 - **Data browser** — navigate servers, databases and collections in a tree view
 - **Query editor** — Monaco-based, with MongoDB syntax highlighting, autocompletion and live syntax validation
 - **Script runner** — run multi-statement mongosh-compatible scripts
