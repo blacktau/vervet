@@ -17,13 +17,26 @@ import (
 
 const ConfigParseErrorEvent = "config-parse-error"
 
+// Disconnector closes an active connection to a server. Implemented by
+// connections.ConnectionManager, which also notifies the frontend.
+type Disconnector interface {
+	Disconnect(serverID string) error
+}
+
 type ServerService struct {
 	ctx               context.Context
 	log               *slog.Logger
 	store             ServerStore
 	connectionStrings connectionStrings.Store
 	tokenManager      *oidc.TokenManager
+	disconnector      Disconnector
 	mu                sync.RWMutex
+}
+
+// SetDisconnector wires the connection manager in after construction — it
+// depends on ServerService, so it cannot be passed to the constructor.
+func (sm *ServerService) SetDisconnector(d Disconnector) {
+	sm.disconnector = d
 }
 
 func NewService(log *slog.Logger, store ServerStore, connectionStrings connectionStrings.Store, tokenManager *oidc.TokenManager) *ServerService {
@@ -260,6 +273,15 @@ func (sm *ServerService) RemoveNode(id string) error {
 	for rid := range removeIDs {
 		removed, _ := findServer(rid, servers)
 		if removed != nil && !removed.IsGroup {
+			// Disconnect before dropping the server's secrets. A live client
+			// for a deleted server can never be closed by name again, and
+			// clearing its OIDC token first would make the driver's
+			// disconnect-time re-auth pop a browser login.
+			if sm.disconnector != nil {
+				if err := sm.disconnector.Disconnect(rid); err != nil {
+					sm.log.Warn("failed to disconnect removed server", slog.String("serverID", rid), slog.Any("error", err))
+				}
+			}
 			if err := sm.connectionStrings.DeleteRegisteredServerURI(rid); err != nil {
 				sm.log.Warn("failed to delete keyring entry for removed server", slog.String("serverID", rid), slog.Any("error", err))
 			}

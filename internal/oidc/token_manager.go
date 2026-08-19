@@ -27,6 +27,11 @@ var ErrLoginCanceled = errors.New("OIDC login canceled by user")
 // connection would pop a browser login while Vervet is closing.
 var ErrShuttingDown = errors.New("OIDC login skipped: application shutting down")
 
+// ErrDisconnecting is returned by the OIDC human callback while a server is
+// being disconnected. The driver re-authenticates during Disconnect; without
+// this guard, closing a tab for a dead OIDC connection pops a browser login.
+var ErrDisconnecting = errors.New("OIDC login skipped: connection is being closed")
+
 type CachedToken struct {
 	AccessToken  string
 	RefreshToken string
@@ -47,6 +52,9 @@ type TokenManager struct {
 	activeServer *activeCallbackServer
 	canceled     bool
 	shuttingDown bool
+	// disconnecting counts in-flight disconnects per server, so nested or
+	// concurrent disconnects don't unsuppress each other.
+	disconnecting map[string]int
 
 	promptMu        sync.Mutex
 	forcePromptOnce map[string]string
@@ -57,6 +65,7 @@ func NewTokenManager(log *slog.Logger, store connectionStrings.Store) *TokenMana
 		log:             log,
 		store:           store,
 		cache:           make(map[string]*CachedToken),
+		disconnecting:   make(map[string]int),
 		forcePromptOnce: make(map[string]string),
 	}
 }
@@ -165,6 +174,32 @@ func (tm *TokenManager) isShuttingDown() bool {
 	return tm.shuttingDown
 }
 
+// SuppressLogin marks a server as disconnecting and returns a release
+// function. While marked, the human callback refuses to launch a browser
+// login: the driver re-authenticates during Disconnect, and a stale OIDC
+// connection would otherwise pop a login window as the connection closes.
+func (tm *TokenManager) SuppressLogin(serverID string) func() {
+	tm.browserMu.Lock()
+	tm.disconnecting[serverID]++
+	tm.browserMu.Unlock()
+
+	return func() {
+		tm.browserMu.Lock()
+		defer tm.browserMu.Unlock()
+		if tm.disconnecting[serverID] <= 1 {
+			delete(tm.disconnecting, serverID)
+			return
+		}
+		tm.disconnecting[serverID]--
+	}
+}
+
+func (tm *TokenManager) isDisconnecting(serverID string) bool {
+	tm.browserMu.Lock()
+	defer tm.browserMu.Unlock()
+	return tm.disconnecting[serverID] > 0
+}
+
 // HumanCallback returns the OIDCHumanCallback for the given server.
 // The callback is invoked by the MongoDB driver during the OIDC handshake.
 // It uses IDPInfo provided by the server (issuer, clientID, scopes),
@@ -207,6 +242,9 @@ func (tm *TokenManager) HumanCallback(serverID string, cfg *models.OIDCConfig) o
 		// dead OIDC connection would otherwise launch a browser on exit.
 		if tm.isShuttingDown() {
 			return nil, ErrShuttingDown
+		}
+		if tm.isDisconnecting(serverID) {
+			return nil, ErrDisconnecting
 		}
 
 		// 3. Browser login — resolve provider info from server or user config

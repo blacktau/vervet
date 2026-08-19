@@ -146,7 +146,7 @@ func (r *ClientRegistry) ConnectWithConfig(serverID, name string, cfg models.Con
 	}
 
 	if err = client.Ping(ctx, nil); err != nil {
-		_ = client.Disconnect(r.ctx)
+		r.disconnectQuietly(client, serverID)
 		if cfg.AuthMethod == models.AuthOIDC {
 			r.tokenManager.CleanupServer(serverID)
 		}
@@ -156,7 +156,7 @@ func (r *ClientRegistry) ConnectWithConfig(serverID, name string, cfg models.Con
 	r.mu.Lock()
 	if _, ok := r.clients[serverID]; ok {
 		r.mu.Unlock()
-		_ = client.Disconnect(r.ctx)
+		r.disconnectQuietly(client, serverID)
 		return nil, fmt.Errorf("already connected to server %s", serverID)
 	}
 	r.clients[serverID] = registeredClient{
@@ -203,6 +203,25 @@ func (r *ClientRegistry) GetAll() []ConnectedClient {
 	return result
 }
 
+// disconnectQuietly tears down a client that never made it into the registry
+// (failed ping, cancelled login, lost connect race) without letting the
+// driver's disconnect-time re-auth pop a browser login for a connect that
+// already failed.
+func (r *ClientRegistry) disconnectQuietly(client *mongo.Client, serverID string) {
+	defer r.suppressOIDCLogin(serverID)()
+	_ = client.Disconnect(r.ctx)
+}
+
+// suppressOIDCLogin stops the driver's disconnect-time re-authentication from
+// launching a browser login for a stale OIDC connection. Returns the release
+// function to defer.
+func (r *ClientRegistry) suppressOIDCLogin(serverID string) func() {
+	if r.tokenManager == nil {
+		return func() {}
+	}
+	return r.tokenManager.SuppressLogin(serverID)
+}
+
 func (r *ClientRegistry) Disconnect(serverID string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -226,6 +245,8 @@ func (r *ClientRegistry) Disconnect(serverID string) error {
 		return nil
 	}
 
+	defer r.suppressOIDCLogin(serverID)()
+
 	if err := rc.client.Disconnect(r.ctx); err != nil {
 		return fmt.Errorf("error during disconnect: %w", err)
 	}
@@ -245,9 +266,12 @@ func (r *ClientRegistry) DisconnectAll() error {
 				slog.String("serverID", id))
 			continue
 		}
-		if err := rc.client.Disconnect(r.ctx); err != nil {
-			lastErr = err
-		}
+		func() {
+			defer r.suppressOIDCLogin(id)()
+			if err := rc.client.Disconnect(r.ctx); err != nil {
+				lastErr = err
+			}
+		}()
 		delete(r.clients, id)
 	}
 
