@@ -280,11 +280,20 @@ const openFile = async () => {
     }
   }
 
-  const content = await queryStore.openFile(props.queryId)
-  if (content !== null && editor.value) {
-    editor.value.setValue(content)
-  }
+  await queryStore.openFile(props.queryId)
 }
+
+// Push loaded file content into the editor. Covers every load path (Ctrl+O and
+// workspace file open), including loads that resolve before the editor exists.
+watch(
+  [() => queryState.value.savedContent, editor],
+  ([saved, editorInstance]) => {
+    if (saved === null || !editorInstance || editorInstance.getValue() === saved) {
+      return
+    }
+    editorInstance.setValue(saved)
+  },
+)
 
 function setResultView(view: 'table' | 'json') {
   queryState.value.resultView = view
