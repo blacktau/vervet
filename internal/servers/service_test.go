@@ -431,3 +431,67 @@ func TestBuildFullConnectionString_OIDC_PreservesUserParams(t *testing.T) {
 	assert.Equal(t, "MONGODB-OIDC", u.Query().Get("authMechanism"))
 	assert.Equal(t, "ENVIRONMENT:azure", u.Query().Get("authMechanismProperties"))
 }
+
+// recordingDisconnector records disconnect calls and the order relative to
+// keyring deletion, so the test can assert we disconnect before wiping secrets.
+type recordingDisconnector struct {
+	disconnected []string
+	onDisconnect func(serverID string)
+}
+
+func (d *recordingDisconnector) Disconnect(serverID string) error {
+	d.disconnected = append(d.disconnected, serverID)
+	if d.onDisconnect != nil {
+		d.onDisconnect(serverID)
+	}
+	return nil
+}
+
+// Deleting a group must disconnect its servers. Otherwise their clients stay
+// live in the registry with no name left to close them by, and their OIDC
+// tokens are cleared before the eventual disconnect — which makes the driver's
+// disconnect-time re-auth pop a browser login.
+func TestRemoveNode_DisconnectsRemovedServers(t *testing.T) {
+	t.Run("group children are disconnected before their secrets are dropped", func(t *testing.T) {
+		mockCSStore := &MockConnectionStringsStore{
+			uris: map[string]string{"2": "mongodb://localhost"},
+		}
+		mockStore := &mockServerStore{
+			servers: []models.RegisteredServer{
+				{ID: "1", Name: "Group 1", IsGroup: true},
+				{ID: "2", Name: "Server 2", ParentID: "1"},
+			},
+		}
+		sm := newTestServerService(mockStore, mockCSStore)
+
+		uriStillPresent := false
+		disconnector := &recordingDisconnector{
+			onDisconnect: func(serverID string) {
+				_, uriStillPresent = mockCSStore.uris[serverID]
+			},
+		}
+		sm.SetDisconnector(disconnector)
+
+		err := sm.RemoveNode("1")
+
+		assert.NoError(t, err)
+		assert.Equal(t, []string{"2"}, disconnector.disconnected, "group child was not disconnected")
+		assert.True(t, uriStillPresent, "disconnect ran after the keyring entry was deleted")
+	})
+
+	t.Run("groups themselves are not disconnected", func(t *testing.T) {
+		mockStore := &mockServerStore{
+			servers: []models.RegisteredServer{
+				{ID: "1", Name: "Group 1", IsGroup: true},
+			},
+		}
+		sm := newTestServerService(mockStore, &MockConnectionStringsStore{})
+		disconnector := &recordingDisconnector{}
+		sm.SetDisconnector(disconnector)
+
+		err := sm.RemoveNode("1")
+
+		assert.NoError(t, err)
+		assert.Empty(t, disconnector.disconnected)
+	})
+}

@@ -231,3 +231,59 @@ func TestMachineCallback_NotImplemented(t *testing.T) {
 		t.Fatal("expected not-implemented error, got nil")
 	}
 }
+
+// While a server is disconnecting, the OIDC human callback must not start an
+// interactive browser login. The driver re-authenticates during Disconnect, so
+// closing a tab for a dead OIDC connection would otherwise pop a login window.
+func TestHumanCallback_DoesNotLaunchBrowserWhileDisconnecting(t *testing.T) {
+	store := &stubStore{cfg: models.ConnectionConfig{AuthMethod: models.AuthOIDC}}
+	tm := NewTokenManager(slog.Default(), store)
+	tm.Init(context.Background())
+
+	browserOpened := false
+	tm.SetOpenBrowser(func(string) { browserOpened = true })
+
+	release := tm.SuppressLogin("server-1")
+
+	cb := tm.HumanCallback("server-1", &models.OIDCConfig{})
+	args := &options.OIDCArgs{
+		IDPInfo: &options.IDPInfo{
+			Issuer:   "https://idp.example.com",
+			ClientID: "client-1",
+		},
+	}
+
+	if _, err := cb(context.Background(), args); !errors.Is(err, ErrDisconnecting) {
+		t.Fatalf("expected ErrDisconnecting, got %v", err)
+	}
+	if browserOpened {
+		t.Fatal("browser login was launched during disconnect")
+	}
+
+	// Other servers are unaffected, and releasing lifts the suppression.
+	if tm.isDisconnecting("server-2") {
+		t.Fatal("suppression leaked to another server")
+	}
+	release()
+	if tm.isDisconnecting("server-1") {
+		t.Fatal("suppression outlived its release")
+	}
+}
+
+// Nested/concurrent disconnects must not unsuppress each other early.
+func TestSuppressLogin_Nested(t *testing.T) {
+	tm := NewTokenManager(slog.Default(), &stubStore{})
+
+	releaseOuter := tm.SuppressLogin("server-1")
+	releaseInner := tm.SuppressLogin("server-1")
+
+	releaseInner()
+	if !tm.isDisconnecting("server-1") {
+		t.Fatal("inner release cleared suppression while outer still held it")
+	}
+
+	releaseOuter()
+	if tm.isDisconnecting("server-1") {
+		t.Fatal("suppression outlived the outer release")
+	}
+}
