@@ -279,3 +279,22 @@ func TestIntegration_ListNamespaces_PropagatesContextError(t *testing.T) {
 	_, _, err := newService(t).listNamespaces(ctx, testClient, db)
 	assert.Error(t, err)
 }
+
+func TestIntegration_GetCollections_ExcludesViews(t *testing.T) {
+	ctx := context.Background()
+	db := "coll_no_views"
+	seedColl(t, db, "base")
+
+	err := testClient.Database(db).RunCommand(ctx, bson.D{
+		{Key: "create", Value: "excluded_view"},
+		{Key: "viewOn", Value: "base"},
+		{Key: "pipeline", Value: bson.A{}},
+	}).Err()
+	require.NoError(t, err)
+
+	names, err := newService(t).GetCollections("srv", db)
+	require.NoError(t, err)
+
+	assert.Contains(t, names, "base")
+	assert.NotContains(t, names, "excluded_view")
+}

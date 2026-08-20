@@ -91,7 +91,9 @@ func (s *CollectionsService) GetCollections(serverID, dbName string) ([]string, 
 	defer cancel()
 
 	db := client.Database(dbName)
-	names, err := db.ListCollectionNames(ctx, bson.D{})
+	// Views are listed under their own tree folder via GetViews; without this
+	// filter they would appear under Collections as well.
+	names, err := db.ListCollectionNames(ctx, bson.D{{Key: "type", Value: bson.D{{Key: "$ne", Value: "view"}}}})
 	if err != nil {
 		return nil, err
 	}
