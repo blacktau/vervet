@@ -18,6 +18,7 @@ type CollectionsProvider interface {
 	CreateCollection(serverID string, dbName string, collectionName string) error
 	RenameCollection(serverID string, dbName string, oldName string, newName string) error
 	DropCollection(serverID string, dbName string, collectionName string) error
+	GetNamespaceInventory(serverID string) (models.NamespaceInventory, error)
 }
 
 type CollectionsProxy struct {
@@ -116,4 +117,13 @@ func (cp *CollectionsProxy) DropCollection(serverID string, dbName string, colle
 		return Fail(err)
 	}
 	return Success()
+}
+
+func (cp *CollectionsProxy) GetNamespaceInventory(serverID string) Result[models.NamespaceInventory] {
+	result, err := cp.provider.GetNamespaceInventory(serverID)
+	if err != nil {
+		logFail(cp.log, "GetNamespaceInventory", err)
+		return FailResult[models.NamespaceInventory](err)
+	}
+	return SuccessResult(result)
 }

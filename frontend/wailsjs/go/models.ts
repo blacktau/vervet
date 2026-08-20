@@ -121,6 +121,12 @@ export namespace api {
 	    errorCode?: string;
 	    errorDetail?: string;
 	}
+	export interface Result_vervet_internal_models_NamespaceInventory_ {
+	    isSuccess: boolean;
+	    data: models.NamespaceInventory;
+	    errorCode?: string;
+	    errorDetail?: string;
+	}
 	export interface Result_vervet_internal_models_QueryResult_ {
 	    isSuccess: boolean;
 	    data: models.QueryResult;
@@ -223,6 +229,11 @@ export namespace models {
 	    sparse: boolean;
 	    ttl?: number;
 	}
+	export interface DatabaseNamespaces {
+	    name: string;
+	    collections: string[];
+	    views: string[];
+	}
 	export interface DirectoryEntry {
 	    name: string;
 	    path: string;
@@ -277,6 +288,10 @@ export namespace models {
 	    fileEnabled: boolean;
 	    maxSizeMB: number;
 	    maxBackups: number;
+	}
+	export interface NamespaceInventory {
+	    serverID: string;
+	    databases: DatabaseNamespaces[];
 	}
 	
 	export interface PageContext {

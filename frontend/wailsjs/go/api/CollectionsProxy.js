@@ -18,6 +18,10 @@ export function GetCollections(arg1, arg2) {
   return window['go']['api']['CollectionsProxy']['GetCollections'](arg1, arg2);
 }
 
+export function GetNamespaceInventory(arg1) {
+  return window['go']['api']['CollectionsProxy']['GetNamespaceInventory'](arg1);
+}
+
 export function GetServerStatistics(arg1) {
   return window['go']['api']['CollectionsProxy']['GetServerStatistics'](arg1);
 }
