@@ -4,7 +4,7 @@ import { useQueryStore } from '@/features/queries/queryStore'
 import { type QueryState } from '@/features/queries/queryStore'
 import { useI18n } from 'vue-i18n'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { ChevronDownIcon } from '@heroicons/vue/24/outline'
+import { ChevronDownIcon, PlusIcon } from '@heroicons/vue/24/outline'
 import { useThemeVars, type DropdownOption } from 'naive-ui'
 import QueryTab from '@/features/queries/QueryTab.vue'
 import IndexTab from '@/features/indexes/IndexTab.vue'
@@ -75,6 +75,15 @@ const unifiedTabs = computed<UnifiedTab[]>(() => {
 })
 
 const hasInnerTabs = computed(() => unifiedTabs.value.length > 0)
+
+function openBlankQuery() {
+  const serverId = tabStore.currentTab?.serverId
+  if (!serverId) {
+    return
+  }
+  // ponytail: no database preselected — the query tab's picker handles it
+  tabStore.openQuery(serverId, '')
+}
 
 const innerTabsRef = ref<HTMLElement | null>(null)
 const isOverflowing = ref(false)
@@ -323,7 +332,20 @@ async function promptSaveBeforeClose(queryId: string, state: QueryState): Promis
       </n-tab-pane>
     </n-tabs>
     <div v-else class="empty-state">
-      <n-empty :description="t('query.emptyState')" />
+      <n-empty :description="t('query.emptyState')">
+        <template #extra>
+          <n-button
+            v-if="tabStore.currentTab"
+            :focusable="false"
+            size="small"
+            @click="openBlankQuery">
+            <template #icon>
+              <n-icon :component="PlusIcon" size="18" />
+            </template>
+            {{ t('query.emptyStateAction') }}
+          </n-button>
+        </template>
+      </n-empty>
     </div>
     <n-dropdown
       trigger="manual"
