@@ -263,3 +263,19 @@ func TestIntegration_GetNamespaceInventory_PropagatesClientError(t *testing.T) {
 	_, err := svc.GetNamespaceInventory("srv")
 	assert.Error(t, err)
 }
+
+// listNamespaces is the function GetNamespaceInventory's per-database
+// tolerance branch wraps: an error here is what triggers the empty-entry
+// fallback. A cancelled context fails ListCollections deterministically,
+// with no timing dependency, unlike trying to fail exactly one database
+// inside a shared-context GetNamespaceInventory call.
+func TestIntegration_ListNamespaces_PropagatesContextError(t *testing.T) {
+	db := "inv_ctx_err"
+	seedColl(t, db, "base")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, _, err := newService(t).listNamespaces(ctx, testClient, db)
+	assert.Error(t, err)
+}
