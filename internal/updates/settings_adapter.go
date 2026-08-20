@@ -5,7 +5,7 @@ import "vervet/internal/models"
 // settingsStore is the minimal subset of settings.Service used here.
 type settingsStore interface {
 	GetSettings() (models.Settings, error)
-	SetSettings(settings *models.Settings) error
+	SetUpdatesState(lastCheckedAt string, dismissedVersion string) error
 }
 
 type SettingsAdapter struct {
@@ -39,8 +39,7 @@ func (a *SettingsAdapter) SetLastCheckedAt(v string) error {
 	if err != nil {
 		return err
 	}
-	s.Updates.LastCheckedAt = v
-	return a.store.SetSettings(&s)
+	return a.store.SetUpdatesState(v, s.Updates.DismissedVersion)
 }
 
 func (a *SettingsAdapter) SetDismissedVersion(v string) error {
@@ -48,6 +47,5 @@ func (a *SettingsAdapter) SetDismissedVersion(v string) error {
 	if err != nil {
 		return err
 	}
-	s.Updates.DismissedVersion = v
-	return a.store.SetSettings(&s)
+	return a.store.SetUpdatesState(s.Updates.LastCheckedAt, v)
 }

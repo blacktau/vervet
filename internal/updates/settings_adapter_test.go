@@ -11,9 +11,10 @@ type fakeSettingsService struct {
 }
 
 func (f *fakeSettingsService) GetSettings() (models.Settings, error) { return f.settings, nil }
-func (f *fakeSettingsService) SetSettings(s *models.Settings) error {
-	f.saved = s
-	f.settings = *s
+func (f *fakeSettingsService) SetUpdatesState(lastCheckedAt string, dismissedVersion string) error {
+	f.settings.Updates.LastCheckedAt = lastCheckedAt
+	f.settings.Updates.DismissedVersion = dismissedVersion
+	f.saved = &f.settings
 	return nil
 }
 

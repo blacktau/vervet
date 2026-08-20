@@ -153,3 +153,36 @@ func TestCheckIfDue_UpdatesLastCheckedOnError(t *testing.T) {
 		t.Fatalf("lastCheckedAt should be updated even on error")
 	}
 }
+
+func TestCheckPeriodic_SkipsStartupFrequency(t *testing.T) {
+	srv := newTestServer(t, "v2026.05.1", "https://example.com/r", "notes")
+	defer srv.Close()
+	settings := &fakeSettings{frequency: FrequencyStartup}
+	emitter := &fakeEmitter{}
+	s := newService(t, srv.URL, settings, emitter, "2026.04.4")
+
+	if err := s.CheckPeriodic(context.Background()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(emitter.events) != 0 {
+		t.Fatalf("startup frequency should not fire from the background timer, got %d events", len(emitter.events))
+	}
+}
+
+func TestCheckPeriodic_EmitsWhenDailyIntervalElapsed(t *testing.T) {
+	srv := newTestServer(t, "v2026.05.1", "https://example.com/r", "notes")
+	defer srv.Close()
+	settings := &fakeSettings{
+		frequency:     FrequencyDaily,
+		lastCheckedAt: "2026-04-12T00:00:00Z", // more than 24h before the fake clock
+	}
+	emitter := &fakeEmitter{}
+	s := newService(t, srv.URL, settings, emitter, "2026.04.4")
+
+	if err := s.CheckPeriodic(context.Background()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(emitter.events) != 1 || emitter.events[0].name != EventUpdateAvailable {
+		t.Fatalf("expected one %s event, got %+v", EventUpdateAvailable, emitter.events)
+	}
+}

@@ -372,3 +372,36 @@ func Test_SettingsService_OnLevelChange(t *testing.T) {
 	}
 	assert.Equal(t, 1, called)
 }
+
+func Test_SetSettings_PreservesUpdateCheckState(t *testing.T) {
+	svc := newTestService(nil, nil)
+
+	current, err := svc.GetSettings()
+	if err != nil {
+		t.Fatalf("GetSettings failed: %v", err)
+	}
+	_ = current
+	if err := svc.SetUpdatesState("2026-08-20T10:00:00Z", "2026.08.2"); err != nil {
+		t.Fatalf("SetUpdatesState failed: %v", err)
+	}
+
+	// Simulate the frontend saving an unrelated setting from a stale snapshot.
+	stale, _ := svc.GetSettings()
+	stale.Updates.LastCheckedAt = ""
+	stale.Updates.DismissedVersion = ""
+	stale.Updates.Frequency = "weekly"
+	if err := svc.SetSettings(&stale); err != nil {
+		t.Fatalf("SetSettings failed: %v", err)
+	}
+
+	got, _ := svc.GetSettings()
+	if got.Updates.LastCheckedAt != "2026-08-20T10:00:00Z" {
+		t.Errorf("lastCheckedAt was clobbered: got %q", got.Updates.LastCheckedAt)
+	}
+	if got.Updates.DismissedVersion != "2026.08.2" {
+		t.Errorf("dismissedVersion was clobbered: got %q", got.Updates.DismissedVersion)
+	}
+	if got.Updates.Frequency != "weekly" {
+		t.Errorf("frequency should still be saved: got %q", got.Updates.Frequency)
+	}
+}
