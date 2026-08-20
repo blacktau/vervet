@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch, type ComponentPublicInstance } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useThemeVars } from 'naive-ui'
 import { CircleStackIcon, EyeIcon } from '@heroicons/vue/24/outline'
@@ -22,6 +22,20 @@ const themeVars = useThemeVars()
 const query = ref('')
 const highlighted = ref(0)
 
+// Row elements, so the highlighted one can be scrolled into view when the
+// keyboard moves it past the edge of the scrolling list.
+const rowRefs = ref<(HTMLElement | null)[]>([])
+
+const setRowRef = (el: Element | ComponentPublicInstance | null, index: number) => {
+  rowRefs.value[index] = el as HTMLElement | null
+}
+
+watch(highlighted, (index) => {
+  nextTick(() => {
+    rowRefs.value[index]?.scrollIntoView({ block: 'nearest' })
+  })
+})
+
 const show = computed({
   get: () => dialogStore.isVisible(DialogType.NamespaceFinder),
   set: (value: boolean) => {
@@ -35,8 +49,11 @@ const status = computed(() => browserStore.getInventoryStatus(tabStore.currentTa
 
 const results = computed(() => searchNamespaces(query.value, browserStore.searchIndex))
 
-watch(results, () => {
+watch(results, (rows) => {
   highlighted.value = 0
+  // Drop refs to rows that no longer exist, so a shrinking result list cannot
+  // leave stale elements behind the highlight index.
+  rowRefs.value.length = rows.length
 })
 
 const iconFor = (row: NamespaceRow) => {
@@ -121,7 +138,9 @@ const onKeydown = (e: KeyboardEvent) => {
         <div
           v-for="(row, index) in results"
           :key="keyFor(row)"
+          :ref="(el) => setRowRef(el, index)"
           :class="['finder-row', { 'finder-row-active': index === highlighted }]"
+          :style="index === highlighted ? { backgroundColor: themeVars.hoverColor } : undefined"
           @click="accept(row)"
           @mouseenter="highlighted = index">
           <n-icon :component="iconFor(row)" size="18" />
@@ -149,8 +168,11 @@ const onKeydown = (e: KeyboardEvent) => {
   cursor: pointer;
 }
 
+// The highlight colour is applied inline on the row rather than here: n-modal
+// teleports its content to body, so the custom property Vue's v-bind() injects
+// on this component's root element never reaches the rendered rows.
 .finder-row-active {
-  background-color: v-bind('themeVars.hoverColor');
+  font-weight: 500;
 }
 
 .finder-name {
