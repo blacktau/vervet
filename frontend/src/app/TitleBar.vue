@@ -9,6 +9,8 @@ import ToolbarControlWidget from '@/features/common/ToolbarControlWidget.vue'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useSettingsStore } from '@/features/settings/settingsStore.ts'
 import { extraTheme } from '@/utils/extraTheme.ts'
+import { useDialogStore } from '@/stores/dialog.ts'
+import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 
 const tabStore = useTabStore()
 const settingsStore = useSettingsStore()
@@ -65,6 +67,16 @@ const onKeyShortCut = (e: KeyboardEvent) => {
         if (!!currentTab) {
           tabStore.closeTab(currentTab.serverId)
         }
+      }
+      break
+    case 'p':
+      if (isCtrlOn && !e.shiftKey) {
+        const browserStore = useDataBrowserStore()
+        if (!browserStore.hasOpenConnections) {
+          break
+        }
+        e.preventDefault()
+        useDialogStore().openNamespaceFinder()
       }
       break
   }
