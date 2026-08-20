@@ -274,7 +274,6 @@ export default {
   },
   indexes: {
     tabLabel: '{collection} indexes',
-    emptyState: 'Right-click a collection to view its indexes',
     toolbar: {
       addIndex: 'Add Index',
       editIndex: 'Edit Index',
@@ -315,7 +314,6 @@ export default {
   },
   schemaBrowser: {
     tabLabel: '{collection} schema',
-    emptyState: 'Right-click a collection to inspect its schema',
     resample: 'Re-sample',
     cancel: 'Cancel',
     retry: 'Retry',
@@ -363,7 +361,6 @@ export default {
     tabLabel: '{collection} statistics',
     databaseTabLabel: '{database} statistics',
     serverTabLabel: '{server} status',
-    emptyState: 'Right-click a server, database, or collection to view its statistics',
     toolbar: {
       refresh: 'Refresh',
     },
@@ -448,7 +445,8 @@ export default {
     },
     database: 'Database',
     selectDatabase: 'Select database...',
-    emptyState: 'Right-click a database or collection to open a query',
+    emptyState: 'No open tabs',
+    emptyStateAction: 'Open Query',
     noResults: 'No documents returned',
     documentCount: '{count} document(s)',
     limitInEffect: 'Limit {limit} in effect — more documents may exist',

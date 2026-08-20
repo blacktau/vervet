@@ -46,6 +46,22 @@ function seedServerTab(serverId: string): ServerTabItem {
   }
 }
 
+describe('tabs.openQuery', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  it('opens a query with no database, for the empty-state action', () => {
+    const tabs = useTabStore()
+    tabs.tabItems = [seedServerTab('s1')]
+
+    const id = tabs.openQuery('s1', '')!
+    expect(id).toBeTruthy()
+    expect(tabs.tabItems[0]!.activeInnerTabId).toBe(id)
+    expect(tabs.tabItems[0]!.queries[0]!.database).toBe('')
+  })
+})
+
 describe('tabs.duplicateQuery', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
