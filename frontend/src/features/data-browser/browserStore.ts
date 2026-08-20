@@ -404,6 +404,34 @@ export const useDataBrowserStore = defineStore('browser', {
       }
     },
 
+    // Expands every ancestor of key in order, awaiting each so an unloaded
+    // branch is fetched on the way down, then selects the target. Used by
+    // global find, where the target is routinely in a branch the user has
+    // never opened.
+    async revealNode(serverId: string, key: string) {
+      const state = this.getOrCreateTreeState(serverId)
+      if (state.treeData.length === 0) {
+        state.treeData = this.buildTreeForServer(serverId)
+      }
+
+      const parts = key.split(':')
+      const ancestorKeys: string[] = []
+      for (let i = 1; i < parts.length; i++) {
+        ancestorKeys.push(parts.slice(0, i).join(':'))
+      }
+
+      for (const ancestorKey of ancestorKeys) {
+        await this.expandNode(serverId, ancestorKey)
+      }
+
+      const missing = ancestorKeys.filter((k) => !state.expandedKeys.includes(k))
+      if (missing.length > 0) {
+        state.expandedKeys = [...state.expandedKeys, ...missing]
+      }
+
+      this.setSelectedKeys([key])
+    },
+
     async disconnectAll() {
       const result = await connectionsProxy.DisconnectAll()
       if (!result.isSuccess) {

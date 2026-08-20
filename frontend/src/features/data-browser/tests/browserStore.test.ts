@@ -338,4 +338,38 @@ describe('browserStore', () => {
       )
     })
   })
+
+  describe('revealNode', () => {
+    test('expands the ancestor chain then selects the target', async () => {
+      const store = useDataBrowserStore()
+      store.connections = [{ serverID: 'server1', name: 'Test Server' }] as never
+      store.getOrCreateTreeState('server1')
+
+      const expanded: string[] = []
+      store.expandNode = vi.fn(async (_serverId: string, key: string) => {
+        expanded.push(key)
+      }) as never
+
+      await store.revealNode('server1', 'server1:db1:Collections:users')
+
+      expect(expanded).toEqual(['server1', 'server1:db1', 'server1:db1:Collections'])
+      expect(store.currentSelectedKeys).toEqual(['server1:db1:Collections:users'])
+    })
+
+    test('selects a database key after expanding only the server', async () => {
+      const store = useDataBrowserStore()
+      store.connections = [{ serverID: 'server1', name: 'Test Server' }] as never
+      store.getOrCreateTreeState('server1')
+
+      const expanded: string[] = []
+      store.expandNode = vi.fn(async (_serverId: string, key: string) => {
+        expanded.push(key)
+      }) as never
+
+      await store.revealNode('server1', 'server1:db1')
+
+      expect(expanded).toEqual(['server1'])
+      expect(store.currentSelectedKeys).toEqual(['server1:db1'])
+    })
+  })
 })
