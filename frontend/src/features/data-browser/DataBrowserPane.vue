@@ -37,8 +37,8 @@ const matchingNodes = computed(() => {
 })
 
 watch(matchingNodes, (matches) => {
-  if (matches.length > 0 && treeRef.value) {
-    treeRef.value.selectedKeys = [matches[0].key as string]
+  if (matches.length > 0) {
+    browserStore.setSelectedKeys([matches[0]!.key as string])
   }
 })
 
@@ -50,7 +50,7 @@ const onFilterKeydown = (e: KeyboardEvent) => {
 
   if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
     e.preventDefault()
-    const currentKey = tree.selectedKeys[0]
+    const currentKey = browserStore.currentSelectedKeys[0]
     const currentIndex = matchingNodes.value.findIndex((n) => n.key === currentKey)
     let nextIndex: number
     if (e.key === 'ArrowDown') {
@@ -58,10 +58,10 @@ const onFilterKeydown = (e: KeyboardEvent) => {
     } else {
       nextIndex = currentIndex > 0 ? currentIndex - 1 : matchingNodes.value.length - 1
     }
-    tree.selectedKeys = [matchingNodes.value[nextIndex].key as string]
+    browserStore.setSelectedKeys([matchingNodes.value[nextIndex]!.key as string])
   } else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
     e.preventDefault()
-    const currentKey = tree.selectedKeys[0]
+    const currentKey = browserStore.currentSelectedKeys[0]
     if (!currentKey) {
       return
     }
@@ -70,7 +70,7 @@ const onFilterKeydown = (e: KeyboardEvent) => {
       tree.toggleExpandKey(currentKey)
     }
   } else if (e.key === 'Enter') {
-    const currentKey = tree.selectedKeys[0]
+    const currentKey = browserStore.currentSelectedKeys[0]
     if (!currentKey) {
       return
     }

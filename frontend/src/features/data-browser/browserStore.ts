@@ -4,6 +4,7 @@ import * as connectionsProxy from 'wailsjs/go/api/ConnectionsProxy'
 import * as collectionsProxy from 'wailsjs/go/api/CollectionsProxy'
 import * as databasesProxy from 'wailsjs/go/api/DatabasesProxy'
 import { useTabStore } from '@/features/tabs/tabs.ts'
+import { useSettingsStore } from '@/features/settings/settingsStore.ts'
 import { useNotifier } from '@/utils/dialog.ts'
 import { i18nGlobal } from '@/i18n'
 import { type models } from 'wailsjs/go/models.ts'
@@ -43,6 +44,7 @@ interface TreeNode extends DataTreeNode {
 interface ServerTreeState {
   expandedKeys: string[]
   loadedKeys: string[]
+  selectedKeys: string[]
   treeData: TreeNode[]
 }
 
@@ -87,6 +89,14 @@ export const useDataBrowserStore = defineStore('browser', {
     },
     getInventoryStatus(): (serverId: string) => InventoryStatus {
       return (serverId: string) => this.inventoryStatus[serverId] ?? 'idle'
+    },
+    currentSelectedKeys(): string[] {
+      const tabStore = useTabStore()
+      const serverId = tabStore.currentTabId
+      if (!serverId) {
+        return []
+      }
+      return this.serverTreeStates[serverId]?.selectedKeys ?? []
     },
     // Flattens the cached database structures into search rows. Derived rather
     // than stored, so every path that already mutates connection.databases —
@@ -140,10 +150,46 @@ export const useDataBrowserStore = defineStore('browser', {
         this.serverTreeStates[serverId] = {
           expandedKeys: [],
           loadedKeys: [],
+          selectedKeys: [],
           treeData: [],
         }
       }
       return this.serverTreeStates[serverId]
+    },
+
+    setSelectedKeys(keys: string[]) {
+      const tabStore = useTabStore()
+      const serverId = tabStore.currentTabId
+      if (!serverId) {
+        return
+      }
+      const state = this.getOrCreateTreeState(serverId)
+      state.selectedKeys = keys
+    },
+
+    // Opens a query tab for a tree key. Lives in the store rather than the tree
+    // component because the global find overlay needs it too.
+    openQueryForKey(key: string, type: DataNodeType) {
+      const tabStore = useTabStore()
+      const parts = key.split(':')
+      const serverId = parts[0]
+      const dbName = parts[1]
+
+      if (type === DataNodeType.Database) {
+        if (serverId && dbName) {
+          tabStore.openQuery(serverId, dbName)
+        }
+        return
+      }
+
+      if (type === DataNodeType.Collection || type === DataNodeType.View) {
+        const name = parts[3]
+        if (serverId && dbName && name) {
+          const settingsStore = useSettingsStore()
+          const queryText = `db.getCollection('${name}').find({}).limit(${settingsStore.query.defaultLimit})`
+          tabStore.openQuery(serverId, dbName, queryText, name)
+        }
+      }
     },
 
     buildTreeForServer(serverId: string): TreeNode[] {

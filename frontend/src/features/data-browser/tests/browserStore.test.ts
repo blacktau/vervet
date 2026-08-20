@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
+import { DataNodeType } from '@/features/data-browser/types.ts'
 import * as databasesProxy from 'wailsjs/go/api/DatabasesProxy'
 import * as collectionsProxy from 'wailsjs/go/api/CollectionsProxy'
 import { api } from 'wailsjs/go/models.ts'
@@ -17,10 +18,20 @@ vi.mock('wailsjs/go/api/CollectionsProxy', () => ({
   GetNamespaceInventory: vi.fn(),
 }))
 
+const openQueryMock = vi.fn()
+
 vi.mock('@/features/tabs/tabs.ts', () => ({
   useTabStore: vi.fn(() => ({
     removeAllTabs: vi.fn(),
     removeTabById: vi.fn(),
+    openQuery: openQueryMock,
+    currentTabId: 'server1',
+  })),
+}))
+
+vi.mock('@/features/settings/settingsStore.ts', () => ({
+  useSettingsStore: vi.fn(() => ({
+    query: { defaultLimit: 42 },
   })),
 }))
 
@@ -290,6 +301,41 @@ describe('browserStore', () => {
       }
       expect(connection.databases.map((d) => d.name)).toEqual(['newDb'])
       expect(store.getInventoryStatus('server1')).toBe('ready')
+    })
+  })
+
+  describe('selection and query opening', () => {
+    test('setSelectedKeys stores keys against the active server', () => {
+      const store = useDataBrowserStore()
+      store.getOrCreateTreeState('server1')
+
+      store.setSelectedKeys(['server1:db1'])
+
+      expect(store.currentSelectedKeys).toEqual(['server1:db1'])
+    })
+
+    test('currentSelectedKeys is empty for a server with no tree state', () => {
+      const store = useDataBrowserStore()
+      expect(store.currentSelectedKeys).toEqual([])
+    })
+
+    test('openQueryForKey opens a database query for a database key', () => {
+      const store = useDataBrowserStore()
+      store.openQueryForKey('server1:db1', DataNodeType.Database)
+
+      expect(openQueryMock).toHaveBeenCalledWith('server1', 'db1')
+    })
+
+    test('openQueryForKey opens a find query for a collection key', () => {
+      const store = useDataBrowserStore()
+      store.openQueryForKey('server1:db1:Collections:users', DataNodeType.Collection)
+
+      expect(openQueryMock).toHaveBeenCalledWith(
+        'server1',
+        'db1',
+        expect.stringContaining("db.getCollection('users').find({})"),
+        'users',
+      )
     })
   })
 })
