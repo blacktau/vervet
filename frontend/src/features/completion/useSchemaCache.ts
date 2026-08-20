@@ -90,11 +90,19 @@ export async function getCollectionNames(
   serverId: string,
   dbName: string,
 ): Promise<string[]> {
-  const result = await collectionsProxy.GetCollections(serverId, dbName)
-  if (result.isSuccess && result.data) {
-    return result.data
+  const [collections, views] = await Promise.all([
+    collectionsProxy.GetCollections(serverId, dbName),
+    collectionsProxy.GetViews(serverId, dbName),
+  ])
+
+  const names: string[] = []
+  if (collections.isSuccess && collections.data) {
+    names.push(...collections.data)
   }
-  return []
+  if (views.isSuccess && views.data) {
+    names.push(...views.data)
+  }
+  return names
 }
 
 export async function getDatabaseNames(serverId: string): Promise<string[]> {

@@ -10,6 +10,8 @@ export function DropCollection(arg1:string,arg2:string,arg3:string):Promise<api.
 
 export function GetCollections(arg1:string,arg2:string):Promise<api.Result___string_>;
 
+export function GetNamespaceInventory(arg1:string):Promise<api.Result_vervet_internal_models_NamespaceInventory_>;
+
 export function GetServerStatistics(arg1:string):Promise<api.Result_map_string_interface____>;
 
 export function GetStatistics(arg1:string,arg2:string,arg3:string):Promise<api.Result_map_string_interface____>;

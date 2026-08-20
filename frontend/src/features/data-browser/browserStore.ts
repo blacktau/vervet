@@ -4,10 +4,14 @@ import * as connectionsProxy from 'wailsjs/go/api/ConnectionsProxy'
 import * as collectionsProxy from 'wailsjs/go/api/CollectionsProxy'
 import * as databasesProxy from 'wailsjs/go/api/DatabasesProxy'
 import { useTabStore } from '@/features/tabs/tabs.ts'
+import { useSettingsStore } from '@/features/settings/settingsStore.ts'
 import { useNotifier } from '@/utils/dialog.ts'
 import { i18nGlobal } from '@/i18n'
 import { type models } from 'wailsjs/go/models.ts'
 import { DataNodeType, type DataTreeNode } from '@/features/data-browser/types.ts'
+import { type NamespaceRow } from '@/features/data-browser/namespaceSearch.ts'
+
+export type InventoryStatus = 'idle' | 'building' | 'ready' | 'error'
 
 type DataBrowserStoreState = {
   connections: models.Connection[]
@@ -40,16 +44,22 @@ interface TreeNode extends DataTreeNode {
 interface ServerTreeState {
   expandedKeys: string[]
   loadedKeys: string[]
+  selectedKeys: string[]
   treeData: TreeNode[]
 }
 
 const FOLDER_COLLECTIONS = 'Collections'
 const FOLDER_VIEWS = 'Views'
 
+// Not reactive state, so it lives outside the Pinia store. Guards against a
+// stale buildInventory response clobbering a newer one when calls overlap.
+const inventoryGenerations = new Map<string, number>()
+
 export const useDataBrowserStore = defineStore('browser', {
   state: () => ({
     connections: [] as ServerConnection[],
     serverTreeStates: {} as Record<string, ServerTreeState>,
+    inventoryStatus: {} as Record<string, InventoryStatus>,
   }),
   getters: {
     hasOpenConnections: (state: DataBrowserStoreState) => {
@@ -77,6 +87,62 @@ export const useDataBrowserStore = defineStore('browser', {
       if (!serverId) return []
       return this.serverTreeStates[serverId]?.expandedKeys ?? []
     },
+    getInventoryStatus(): (serverId: string) => InventoryStatus {
+      return (serverId: string) => this.inventoryStatus[serverId] ?? 'idle'
+    },
+    currentSelectedKeys(): string[] {
+      const tabStore = useTabStore()
+      const serverId = tabStore.currentTabId
+      if (!serverId) {
+        return []
+      }
+      return this.serverTreeStates[serverId]?.selectedKeys ?? []
+    },
+    // Flattens the cached database structures into search rows. Derived rather
+    // than stored, so every path that already mutates connection.databases —
+    // add, drop, rename, refresh — keeps the index correct for free.
+    searchIndex(): NamespaceRow[] {
+      const tabStore = useTabStore()
+      const serverId = tabStore.currentTabId
+      if (!serverId) {
+        return []
+      }
+
+      const connection = this.connections.find((c) => c.serverID === serverId)
+      if (!connection?.databases) {
+        return []
+      }
+
+      const rows: NamespaceRow[] = []
+      for (const database of connection.databases) {
+        rows.push({
+          serverID: serverId,
+          db: database.name,
+          name: database.name,
+          type: DataNodeType.Database,
+          path: database.name,
+        })
+        for (const collection of database.collections) {
+          rows.push({
+            serverID: serverId,
+            db: database.name,
+            name: collection.name,
+            type: DataNodeType.Collection,
+            path: `${database.name}.${collection.name}`,
+          })
+        }
+        for (const view of database.views) {
+          rows.push({
+            serverID: serverId,
+            db: database.name,
+            name: view,
+            type: DataNodeType.View,
+            path: `${database.name}.${view}`,
+          })
+        }
+      }
+      return rows
+    },
   },
   actions: {
     getOrCreateTreeState(serverId: string): ServerTreeState {
@@ -84,10 +150,46 @@ export const useDataBrowserStore = defineStore('browser', {
         this.serverTreeStates[serverId] = {
           expandedKeys: [],
           loadedKeys: [],
+          selectedKeys: [],
           treeData: [],
         }
       }
       return this.serverTreeStates[serverId]
+    },
+
+    setSelectedKeys(keys: string[]) {
+      const tabStore = useTabStore()
+      const serverId = tabStore.currentTabId
+      if (!serverId) {
+        return
+      }
+      const state = this.getOrCreateTreeState(serverId)
+      state.selectedKeys = keys
+    },
+
+    // Opens a query tab for a tree key. Lives in the store rather than the tree
+    // component because the global find overlay needs it too.
+    openQueryForKey(key: string, type: DataNodeType) {
+      const tabStore = useTabStore()
+      const parts = key.split(':')
+      const serverId = parts[0]
+      const dbName = parts[1]
+
+      if (type === DataNodeType.Database) {
+        if (serverId && dbName) {
+          tabStore.openQuery(serverId, dbName)
+        }
+        return
+      }
+
+      if (type === DataNodeType.Collection || type === DataNodeType.View) {
+        const name = parts.slice(3).join(':')
+        if (serverId && dbName && name) {
+          const settingsStore = useSettingsStore()
+          const queryText = `db.getCollection(${JSON.stringify(name)}).find({}).limit(${settingsStore.query.defaultLimit})`
+          tabStore.openQuery(serverId, dbName, queryText, name)
+        }
+      }
     },
 
     buildTreeForServer(serverId: string): TreeNode[] {
@@ -302,6 +404,36 @@ export const useDataBrowserStore = defineStore('browser', {
       }
     },
 
+    // Expands every ancestor of key in order, awaiting each so an unloaded
+    // branch is fetched on the way down, then selects the target. Used by
+    // global find, where the target is routinely in a branch the user has
+    // never opened.
+    async revealNode(serverId: string, key: string) {
+      const state = this.getOrCreateTreeState(serverId)
+      if (state.treeData.length === 0) {
+        state.treeData = this.buildTreeForServer(serverId)
+      }
+
+      const parts = key.split(':')
+      const ancestorKeys: string[] = []
+      for (let i = 1; i < parts.length; i++) {
+        ancestorKeys.push(parts.slice(0, i).join(':'))
+      }
+
+      for (const ancestorKey of ancestorKeys) {
+        await this.expandNode(serverId, ancestorKey)
+      }
+
+      const missing = ancestorKeys.filter(
+        (k) => state.loadedKeys.includes(k) && !state.expandedKeys.includes(k),
+      )
+      if (missing.length > 0) {
+        state.expandedKeys = [...state.expandedKeys, ...missing]
+      }
+
+      this.setSelectedKeys([key])
+    },
+
     async disconnectAll() {
       const result = await connectionsProxy.DisconnectAll()
       if (!result.isSuccess) {
@@ -360,7 +492,10 @@ export const useDataBrowserStore = defineStore('browser', {
 
       const databases = await databasesProxy.GetDatabases(serverId)
       if (databases.isSuccess) {
-        connection.databases = databases.data.map((db) => ({ name: db, collections: [], views: [] }))
+        const existing = connection.databases ?? []
+        connection.databases = databases.data.map(
+          (db) => existing.find((d) => d.name === db) ?? { name: db, collections: [], views: [] },
+        )
         return connection.databases
       }
 
@@ -422,6 +557,41 @@ export const useDataBrowserStore = defineStore('browser', {
       notifier.error(i18nGlobal.t(`errors.${views.errorCode}`), { title: i18nGlobal.t('errorTitles.listViews'), detail: views.errorDetail })
       return []
     },
+    // Fetches the server's whole namespace inventory in one call and merges it
+    // into the cached database structures. Deliberately not awaited by connect:
+    // a large server must not delay the UI.
+    async buildInventory(serverId: string) {
+      const connection = this.connections.find((c) => c.serverID === serverId)
+      if (connection == null) {
+        return
+      }
+
+      const generation = (inventoryGenerations.get(serverId) ?? 0) + 1
+      inventoryGenerations.set(serverId, generation)
+
+      this.inventoryStatus[serverId] = 'building'
+
+      const result = await collectionsProxy.GetNamespaceInventory(serverId)
+
+      // A newer call for the same server started after this one and owns the
+      // outcome now; drop this stale response instead of clobbering it.
+      if (inventoryGenerations.get(serverId) !== generation) {
+        return
+      }
+
+      if (!result.isSuccess) {
+        this.inventoryStatus[serverId] = 'error'
+        return
+      }
+
+      connection.databases = result.data.databases.map((db) => ({
+        name: db.name,
+        collections: (db.collections ?? []).map((name) => ({ name, indexes: [] })),
+        views: db.views ?? [],
+      }))
+
+      this.inventoryStatus[serverId] = 'ready'
+    },
     findDatabase(serverId: string, dbName: string): Database | undefined {
       const connection = this.connections.find((x) => x.serverID === serverId)
       if (connection?.databases != null) {
@@ -463,6 +633,8 @@ export const useDataBrowserStore = defineStore('browser', {
         // Trigger reactivity
         state.treeData = [...state.treeData]
       }
+
+      this.buildInventory(serverId)
     },
     async connect(serverId: string, reload: boolean = false) {
       if (this.isConnected(serverId)) {
@@ -493,6 +665,8 @@ export const useDataBrowserStore = defineStore('browser', {
       }
 
       await this.refreshConnectedServers(true)
+      // Fire and forget: indexing a large server must not block the connect.
+      this.buildInventory(serverId)
       return {
         success: true,
         serverId: serverId,

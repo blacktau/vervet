@@ -4,6 +4,7 @@ package collections
 
 import (
 	"context"
+	"errors"
 	"log"
 	"log/slog"
 	"os"
@@ -17,6 +18,8 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
+
+	"vervet/internal/models"
 )
 
 var testClient *mongo.Client
@@ -217,4 +220,81 @@ func TestIntegration_GetCollections_PropagatesProviderError(t *testing.T) {
 
 	_, err := svc.GetCollections("srv", "any")
 	assert.ErrorIs(t, err, assert.AnError)
+}
+
+func TestIntegration_GetNamespaceInventory_SplitsViewsFromCollections(t *testing.T) {
+	ctx := context.Background()
+	db := "inv_split"
+	seedColl(t, db, "base")
+	seedColl(t, db, "orders")
+
+	err := testClient.Database(db).RunCommand(ctx, bson.D{
+		{Key: "create", Value: "myview"},
+		{Key: "viewOn", Value: "base"},
+		{Key: "pipeline", Value: bson.A{}},
+	}).Err()
+	require.NoError(t, err)
+
+	inv, err := newService(t).GetNamespaceInventory("srv")
+	require.NoError(t, err)
+
+	assert.Equal(t, "srv", inv.ServerID)
+
+	var found *models.DatabaseNamespaces
+	for i := range inv.Databases {
+		if inv.Databases[i].Name == db {
+			found = &inv.Databases[i]
+			break
+		}
+	}
+	require.NotNil(t, found, "database %q missing from inventory", db)
+
+	assert.Contains(t, found.Collections, "base")
+	assert.Contains(t, found.Collections, "orders")
+	assert.NotContains(t, found.Collections, "myview")
+	assert.Equal(t, []string{"myview"}, found.Views)
+	assert.True(t, slices.IsSorted(found.Collections), "want sorted, got %v", found.Collections)
+}
+
+func TestIntegration_GetNamespaceInventory_PropagatesClientError(t *testing.T) {
+	svc := NewCollectionsService(slog.Default(), stubProvider{err: errors.New("no client")})
+	svc.Init(context.Background())
+
+	_, err := svc.GetNamespaceInventory("srv")
+	assert.Error(t, err)
+}
+
+// listNamespaces is the function GetNamespaceInventory's per-database
+// tolerance branch wraps: an error here is what triggers the empty-entry
+// fallback. A cancelled context fails ListCollections deterministically,
+// with no timing dependency, unlike trying to fail exactly one database
+// inside a shared-context GetNamespaceInventory call.
+func TestIntegration_ListNamespaces_PropagatesContextError(t *testing.T) {
+	db := "inv_ctx_err"
+	seedColl(t, db, "base")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, _, err := newService(t).listNamespaces(ctx, testClient, db)
+	assert.Error(t, err)
+}
+
+func TestIntegration_GetCollections_ExcludesViews(t *testing.T) {
+	ctx := context.Background()
+	db := "coll_no_views"
+	seedColl(t, db, "base")
+
+	err := testClient.Database(db).RunCommand(ctx, bson.D{
+		{Key: "create", Value: "excluded_view"},
+		{Key: "viewOn", Value: "base"},
+		{Key: "pipeline", Value: bson.A{}},
+	}).Err()
+	require.NoError(t, err)
+
+	names, err := newService(t).GetCollections("srv", db)
+	require.NoError(t, err)
+
+	assert.Contains(t, names, "base")
+	assert.NotContains(t, names, "excluded_view")
 }

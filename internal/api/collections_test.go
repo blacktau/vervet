@@ -24,6 +24,8 @@ type MockCollectionsProvider struct {
 	createCollectionErr error
 	renameCollectionErr error
 	dropCollectionErr   error
+	inventory           models.NamespaceInventory
+	getInventoryErr     error
 }
 
 func (m *MockCollectionsProvider) GetStatistics(serverID, dbName, collectionName string) (map[string]any, error) {
@@ -78,6 +80,13 @@ func (m *MockCollectionsProvider) RenameCollection(serverID, dbName, oldName, ne
 
 func (m *MockCollectionsProvider) DropCollection(serverID, dbName, collectionName string) error {
 	return m.dropCollectionErr
+}
+
+func (m *MockCollectionsProvider) GetNamespaceInventory(serverID string) (models.NamespaceInventory, error) {
+	if m.getInventoryErr != nil {
+		return models.NamespaceInventory{}, m.getInventoryErr
+	}
+	return m.inventory, nil
 }
 
 func TestCollectionsProxy_GetCollections(t *testing.T) {
@@ -198,6 +207,34 @@ func TestCollectionsProxy_SampleSchema(t *testing.T) {
 		}
 		proxy := NewCollectionsProxy(testLogger(), provider)
 		result := proxy.SampleSchema("1", "db1", "coll1", 100, "req-2")
+		assert.False(t, result.IsSuccess)
+		assert.NotEmpty(t, result.ErrorCode)
+	})
+}
+
+func TestCollectionsProxy_GetNamespaceInventory(t *testing.T) {
+	t.Run("successful get inventory", func(t *testing.T) {
+		provider := &MockCollectionsProvider{
+			inventory: models.NamespaceInventory{
+				ServerID: "1",
+				Databases: []models.DatabaseNamespaces{
+					{Name: "db1", Collections: []string{"users"}, Views: []string{"active"}},
+				},
+			},
+		}
+		proxy := NewCollectionsProxy(testLogger(), provider)
+		result := proxy.GetNamespaceInventory("1")
+		assert.True(t, result.IsSuccess)
+		assert.Len(t, result.Data.Databases, 1)
+		assert.Equal(t, "users", result.Data.Databases[0].Collections[0])
+	})
+
+	t.Run("get inventory error", func(t *testing.T) {
+		provider := &MockCollectionsProvider{
+			getInventoryErr: errors.New("failed"),
+		}
+		proxy := NewCollectionsProxy(testLogger(), provider)
+		result := proxy.GetNamespaceInventory("1")
 		assert.False(t, result.IsSuccess)
 		assert.NotEmpty(t, result.ErrorCode)
 	})

@@ -26,6 +26,7 @@ export const enum DialogType {
   Export = 'export',
   ExportResults = 'exportResults',
   DestructiveConfirm = 'destructiveConfirm',
+  NamespaceFinder = 'namespaceFinder',
 }
 
 export type ServerDialogData = {
@@ -103,6 +104,10 @@ export const useDialogStore = defineStore('dialog', {
         type: DialogMode.New,
       } as DialogState,
       [DialogType.DestructiveConfirm]: {
+        visible: false,
+        type: DialogMode.New,
+      } as DialogState,
+      [DialogType.NamespaceFinder]: {
         visible: false,
         type: DialogMode.New,
       } as DialogState,
@@ -233,6 +238,12 @@ export const useDialogStore = defineStore('dialog', {
     },
     closeExportResultsDialog() {
       this.hide(DialogType.ExportResults)
+    },
+    openNamespaceFinder() {
+      this.showNewDialog(DialogType.NamespaceFinder)
+    },
+    closeNamespaceFinder() {
+      this.hide(DialogType.NamespaceFinder)
     },
   },
   getters: {

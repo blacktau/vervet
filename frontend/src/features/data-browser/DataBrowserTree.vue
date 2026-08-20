@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { h, ref, watch } from 'vue'
+import { h, watch } from 'vue'
 import { NEllipsis, NIcon } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import CollectionIcon from '@/features/icon/CollectionIcon.vue'
@@ -33,29 +33,8 @@ const dialog = useDialog()
 const notifier = useNotifier()
 const { t } = useI18n()
 
-const selectedKeys = ref<string[]>([])
-
 const openQueryForNode = (node: DataTreeNode) => {
-  const nodeKey = node.key as string
-  const parts = nodeKey.split(':')
-
-  if (node.type === DataNodeType.Database) {
-    const serverId = parts[0]
-    const dbName = parts[1]
-    if (serverId && dbName) {
-      tabStore.openQuery(serverId, dbName)
-    }
-  }
-
-  if (node.type === DataNodeType.Collection || node.type === DataNodeType.View) {
-    const serverId = parts[0]
-    const dbName = parts[1]
-    const name = parts[3]
-    if (serverId && dbName && name) {
-      const queryText = `db.getCollection('${name}').find({}).limit(${settingsStore.query.defaultLimit})`
-      tabStore.openQuery(serverId, dbName, queryText, name)
-    }
-  }
+  browserStore.openQueryForKey(node.key as string, node.type)
 }
 
 const toggleExpandKey = (key: string) => {
@@ -69,7 +48,7 @@ const toggleExpandKey = (key: string) => {
   browserStore.handleExpand(keys)
 }
 
-defineExpose({ selectedKeys, openQueryForNode, toggleExpandKey })
+defineExpose({ openQueryForNode, toggleExpandKey })
 
 const renderPrefix = ({ option }: { option: DataTreeNode }) => {
   if (option.type === DataNodeType.Database) {
@@ -339,13 +318,13 @@ watch(
       :pattern="props.filterPattern || undefined"
       :render-label="renderLabel"
       :render-prefix="renderPrefix"
-      :selected-keys="selectedKeys"
+      :selected-keys="browserStore.currentSelectedKeys"
       :show-irrelevant-nodes="!props.filterPattern ? true : false"
       block-line
       block-node
       virtual-scroll
       @update:expanded-keys="browserStore.handleExpand"
-      @update:selected-keys="(keys: string[]) => (selectedKeys = keys)">
+      @update:selected-keys="browserStore.setSelectedKeys">
       <template #empty>
         <n-empty :description="$t('dataBrowser.tree.empty')" />
       </template>
