@@ -13,6 +13,8 @@ vi.mock('wailsjs/go/api/DatabasesProxy', () => ({
 
 vi.mock('wailsjs/go/api/CollectionsProxy', () => ({
   GetCollections: vi.fn(),
+  GetViews: vi.fn(),
+  GetNamespaceInventory: vi.fn(),
 }))
 
 vi.mock('@/features/tabs/tabs.ts', () => ({
@@ -173,6 +175,77 @@ describe('browserStore', () => {
       const result = store.findDatabase('server1', 'nonexistent')
 
       expect(result).toBeUndefined()
+    })
+  })
+
+  describe('buildInventory', () => {
+    const inventoryResult = {
+      isSuccess: true,
+      data: {
+        serverID: 'server1',
+        databases: [
+          { name: 'db1', collections: ['users', 'orders'], views: ['activeUsers'] },
+          { name: 'db2', collections: ['logs'], views: [] },
+        ],
+      },
+    }
+
+    test('populates connection databases from the inventory', async () => {
+      const store = useDataBrowserStore()
+      store.connections = [{ serverID: 'server1', name: 'Test Server' }] as never
+      vi.mocked(collectionsProxy.GetNamespaceInventory).mockResolvedValue(inventoryResult as never)
+
+      await store.buildInventory('server1')
+
+      const connection = store.connections[0] as never as {
+        databases: { name: string; collections: { name: string }[]; views: string[] }[]
+      }
+      expect(connection.databases).toHaveLength(2)
+      expect(connection.databases[0]!.name).toBe('db1')
+      expect(connection.databases[0]!.collections.map((c) => c.name)).toEqual(['users', 'orders'])
+      expect(connection.databases[0]!.views).toEqual(['activeUsers'])
+    })
+
+    test('sets status to ready on success', async () => {
+      const store = useDataBrowserStore()
+      store.connections = [{ serverID: 'server1', name: 'Test Server' }] as never
+      vi.mocked(collectionsProxy.GetNamespaceInventory).mockResolvedValue(inventoryResult as never)
+
+      await store.buildInventory('server1')
+
+      expect(store.getInventoryStatus('server1')).toBe('ready')
+    })
+
+    test('sets status to error and leaves databases untouched on failure', async () => {
+      const store = useDataBrowserStore()
+      store.connections = [{ serverID: 'server1', name: 'Test Server' }] as never
+      vi.mocked(collectionsProxy.GetNamespaceInventory).mockResolvedValue({
+        isSuccess: false,
+        errorCode: 'boom',
+        errorDetail: 'nope',
+      } as never)
+
+      await store.buildInventory('server1')
+
+      expect(store.getInventoryStatus('server1')).toBe('error')
+      expect((store.connections[0] as never as { databases?: unknown }).databases).toBeUndefined()
+    })
+
+    test('serves collections from the inventory cache without a backend call', async () => {
+      const store = useDataBrowserStore()
+      store.connections = [{ serverID: 'server1', name: 'Test Server' }] as never
+      vi.mocked(collectionsProxy.GetNamespaceInventory).mockResolvedValue(inventoryResult as never)
+
+      await store.buildInventory('server1')
+      const collections = await store.getCollectionList('server1', 'db1')
+
+      expect(collectionsProxy.GetCollections).not.toHaveBeenCalled()
+      expect(collections.map((c) => c.name)).toEqual(['users', 'orders'])
+    })
+
+    test('reports an unknown server as idle', () => {
+      const store = useDataBrowserStore()
+      expect(store.getInventoryStatus('nope')).toBe('idle')
     })
   })
 })

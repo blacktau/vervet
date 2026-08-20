@@ -8,6 +8,9 @@ import { useNotifier } from '@/utils/dialog.ts'
 import { i18nGlobal } from '@/i18n'
 import { type models } from 'wailsjs/go/models.ts'
 import { DataNodeType, type DataTreeNode } from '@/features/data-browser/types.ts'
+import { type NamespaceRow } from '@/features/data-browser/namespaceSearch.ts'
+
+export type InventoryStatus = 'idle' | 'building' | 'ready' | 'error'
 
 type DataBrowserStoreState = {
   connections: models.Connection[]
@@ -50,6 +53,7 @@ export const useDataBrowserStore = defineStore('browser', {
   state: () => ({
     connections: [] as ServerConnection[],
     serverTreeStates: {} as Record<string, ServerTreeState>,
+    inventoryStatus: {} as Record<string, InventoryStatus>,
   }),
   getters: {
     hasOpenConnections: (state: DataBrowserStoreState) => {
@@ -76,6 +80,54 @@ export const useDataBrowserStore = defineStore('browser', {
       const serverId = tabStore.currentTabId
       if (!serverId) return []
       return this.serverTreeStates[serverId]?.expandedKeys ?? []
+    },
+    getInventoryStatus(): (serverId: string) => InventoryStatus {
+      return (serverId: string) => this.inventoryStatus[serverId] ?? 'idle'
+    },
+    // Flattens the cached database structures into search rows. Derived rather
+    // than stored, so every path that already mutates connection.databases —
+    // add, drop, rename, refresh — keeps the index correct for free.
+    searchIndex(): NamespaceRow[] {
+      const tabStore = useTabStore()
+      const serverId = tabStore.currentTabId
+      if (!serverId) {
+        return []
+      }
+
+      const connection = this.connections.find((c) => c.serverID === serverId)
+      if (!connection?.databases) {
+        return []
+      }
+
+      const rows: NamespaceRow[] = []
+      for (const database of connection.databases) {
+        rows.push({
+          serverID: serverId,
+          db: database.name,
+          name: database.name,
+          type: DataNodeType.Database,
+          path: database.name,
+        })
+        for (const collection of database.collections) {
+          rows.push({
+            serverID: serverId,
+            db: database.name,
+            name: collection.name,
+            type: DataNodeType.Collection,
+            path: `${database.name}.${collection.name}`,
+          })
+        }
+        for (const view of database.views) {
+          rows.push({
+            serverID: serverId,
+            db: database.name,
+            name: view,
+            type: DataNodeType.View,
+            path: `${database.name}.${view}`,
+          })
+        }
+      }
+      return rows
     },
   },
   actions: {
@@ -422,6 +474,31 @@ export const useDataBrowserStore = defineStore('browser', {
       notifier.error(i18nGlobal.t(`errors.${views.errorCode}`), { title: i18nGlobal.t('errorTitles.listViews'), detail: views.errorDetail })
       return []
     },
+    // Fetches the server's whole namespace inventory in one call and merges it
+    // into the cached database structures. Deliberately not awaited by connect:
+    // a large server must not delay the UI.
+    async buildInventory(serverId: string) {
+      const connection = this.connections.find((c) => c.serverID === serverId)
+      if (connection == null) {
+        return
+      }
+
+      this.inventoryStatus[serverId] = 'building'
+
+      const result = await collectionsProxy.GetNamespaceInventory(serverId)
+      if (!result.isSuccess) {
+        this.inventoryStatus[serverId] = 'error'
+        return
+      }
+
+      connection.databases = result.data.databases.map((db) => ({
+        name: db.name,
+        collections: (db.collections ?? []).map((name) => ({ name, indexes: [] })),
+        views: db.views ?? [],
+      }))
+
+      this.inventoryStatus[serverId] = 'ready'
+    },
     findDatabase(serverId: string, dbName: string): Database | undefined {
       const connection = this.connections.find((x) => x.serverID === serverId)
       if (connection?.databases != null) {
@@ -463,6 +540,8 @@ export const useDataBrowserStore = defineStore('browser', {
         // Trigger reactivity
         state.treeData = [...state.treeData]
       }
+
+      this.buildInventory(serverId)
     },
     async connect(serverId: string, reload: boolean = false) {
       if (this.isConnected(serverId)) {
@@ -493,6 +572,8 @@ export const useDataBrowserStore = defineStore('browser', {
       }
 
       await this.refreshConnectedServers(true)
+      // Fire and forget: indexing a large server must not block the connect.
+      this.buildInventory(serverId)
       return {
         success: true,
         serverId: serverId,
