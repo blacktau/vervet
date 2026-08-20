@@ -5,6 +5,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
+
 	"vervet/internal/api"
 	"vervet/internal/clientregistry"
 	"vervet/internal/collections"
@@ -192,6 +194,31 @@ func (a *App) Startup(ctx context.Context) {
 	a.updatesEmitter.SetContext(ctx)
 	a.updatesOpener.SetContext(ctx)
 	a.UpdatesProxy.Init(ctx)
+
+	go a.runUpdateChecks(ctx)
+}
+
+// updateCheckTick is how often the background timer asks the updates service
+// whether a check is due. The configured frequency (daily/weekly) is enforced
+// by the service itself; this only needs to be finer-grained than that.
+const updateCheckTick = time.Hour
+
+// runUpdateChecks re-checks for updates while the app stays open, so a
+// long-running instance honours the daily/weekly frequency instead of only
+// ever checking at startup.
+func (a *App) runUpdateChecks(ctx context.Context) {
+	ticker := time.NewTicker(updateCheckTick)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if err := a.updatesService.CheckPeriodic(ctx); err != nil {
+				a.log.Warn("periodic update check failed", slog.Any("error", err))
+			}
+		}
+	}
 }
 
 // DomReady is called after front-end resources have been loaded

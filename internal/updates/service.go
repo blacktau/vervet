@@ -128,6 +128,16 @@ func (s *Service) CheckIfDue(ctx context.Context) error {
 	return nil
 }
 
+// CheckPeriodic is the background-timer entry point. Identical to CheckIfDue
+// except that "startup" frequency never fires here - it is startup-only by
+// definition, and isDue() always reports true for it.
+func (s *Service) CheckPeriodic(ctx context.Context) error {
+	if s.settings.GetUpdatesFrequency() == FrequencyStartup {
+		return nil
+	}
+	return s.CheckIfDue(ctx)
+}
+
 func (s *Service) DismissVersion(version string) error {
 	return s.settings.SetDismissedVersion(normalizeVersion(version))
 }

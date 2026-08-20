@@ -20,6 +20,7 @@ type Service interface {
 	Init(ctx context.Context) error
 	GetSettings() (models.Settings, error)
 	SetSettings(settings *models.Settings) error
+	SetUpdatesState(lastCheckedAt string, dismissedVersion string) error
 	RestoreSettings() (*models.Settings, error)
 	GetWindowState() (models.WindowState, error)
 	SaveWindowState(state models.WindowState) error
@@ -88,6 +89,12 @@ func (s *settingsService) SetSettings(settings *models.Settings) error {
 	defer s.mutex.Unlock()
 
 	prev, _ := s.getSettings()
+
+	// The updates service owns these; the frontend round-trips a stale copy of
+	// them on every save, which would wipe a dismissal or roll back the check time.
+	settings.Updates.LastCheckedAt = prev.Updates.LastCheckedAt
+	settings.Updates.DismissedVersion = prev.Updates.DismissedVersion
+
 	if err := s.saveSettings(settings); err != nil {
 		return err
 	}
@@ -95,6 +102,22 @@ func (s *settingsService) SetSettings(settings *models.Settings) error {
 		s.onLevelChange(logging.ParseLevel(settings.Logging.Level))
 	}
 	return nil
+}
+
+// SetUpdatesState writes the update-check bookkeeping fields. These are owned
+// by the updates service, and SetSettings deliberately ignores them, so this is
+// the only way to change them.
+func (s *settingsService) SetUpdatesState(lastCheckedAt string, dismissedVersion string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	current, err := s.getSettings()
+	if err != nil {
+		return err
+	}
+	current.Updates.LastCheckedAt = lastCheckedAt
+	current.Updates.DismissedVersion = dismissedVersion
+	return s.saveSettings(&current)
 }
 
 func (s *settingsService) RestoreSettings() (*models.Settings, error) {
