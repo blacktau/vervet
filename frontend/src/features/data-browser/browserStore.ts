@@ -424,7 +424,9 @@ export const useDataBrowserStore = defineStore('browser', {
         await this.expandNode(serverId, ancestorKey)
       }
 
-      const missing = ancestorKeys.filter((k) => !state.expandedKeys.includes(k))
+      const missing = ancestorKeys.filter(
+        (k) => state.loadedKeys.includes(k) && !state.expandedKeys.includes(k),
+      )
       if (missing.length > 0) {
         state.expandedKeys = [...state.expandedKeys, ...missing]
       }

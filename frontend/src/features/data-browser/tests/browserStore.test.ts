@@ -371,5 +371,46 @@ describe('browserStore', () => {
       expect(expanded).toEqual(['server1'])
       expect(store.currentSelectedKeys).toEqual(['server1:db1'])
     })
+
+    test('failed expansion does not mark a branch expanded', async () => {
+      const store = useDataBrowserStore()
+      store.connections = [{ serverID: 'server1', name: 'Test Server' }] as never
+      store.getOrCreateTreeState('server1')
+
+      // Stub expandNode to do nothing (simulate failed load)
+      store.expandNode = vi.fn(async () => {
+        // Do nothing - leaves loadedKeys empty
+      }) as never
+
+      await store.revealNode('server1', 'server1:db1:Collections:users')
+
+      const state = store.getOrCreateTreeState('server1')
+      // Failed branches should NOT be marked as expanded
+      expect(state.expandedKeys).not.toContain('server1')
+      expect(state.expandedKeys).not.toContain('server1:db1')
+      expect(state.expandedKeys).not.toContain('server1:db1:Collections')
+    })
+
+    test('a previously-loaded but collapsed branch is re-expanded', async () => {
+      const store = useDataBrowserStore()
+      store.connections = [{ serverID: 'server1', name: 'Test Server' }] as never
+      const state = store.getOrCreateTreeState('server1')
+
+      // Pre-populate loadedKeys with ancestor keys, but leave expandedKeys empty
+      state.loadedKeys = ['server1', 'server1:db1', 'server1:db1:Collections']
+      state.expandedKeys = []
+
+      // Stub expandNode to do nothing (the branches are already loaded)
+      store.expandNode = vi.fn(async () => {
+        // Do nothing
+      }) as never
+
+      await store.revealNode('server1', 'server1:db1:Collections:users')
+
+      // Previously-loaded but collapsed branches should be re-expanded
+      expect(state.expandedKeys).toContain('server1')
+      expect(state.expandedKeys).toContain('server1:db1')
+      expect(state.expandedKeys).toContain('server1:db1:Collections')
+    })
   })
 })
