@@ -49,6 +49,10 @@ interface ServerTreeState {
 const FOLDER_COLLECTIONS = 'Collections'
 const FOLDER_VIEWS = 'Views'
 
+// Not reactive state, so it lives outside the Pinia store. Guards against a
+// stale buildInventory response clobbering a newer one when calls overlap.
+const inventoryGenerations = new Map<string, number>()
+
 export const useDataBrowserStore = defineStore('browser', {
   state: () => ({
     connections: [] as ServerConnection[],
@@ -483,9 +487,19 @@ export const useDataBrowserStore = defineStore('browser', {
         return
       }
 
+      const generation = (inventoryGenerations.get(serverId) ?? 0) + 1
+      inventoryGenerations.set(serverId, generation)
+
       this.inventoryStatus[serverId] = 'building'
 
       const result = await collectionsProxy.GetNamespaceInventory(serverId)
+
+      // A newer call for the same server started after this one and owns the
+      // outcome now; drop this stale response instead of clobbering it.
+      if (inventoryGenerations.get(serverId) !== generation) {
+        return
+      }
+
       if (!result.isSuccess) {
         this.inventoryStatus[serverId] = 'error'
         return

@@ -247,5 +247,49 @@ describe('browserStore', () => {
       const store = useDataBrowserStore()
       expect(store.getInventoryStatus('nope')).toBe('idle')
     })
+
+    test('a superseded response does not clobber a newer one', async () => {
+      const store = useDataBrowserStore()
+      store.connections = [{ serverID: 'server1', name: 'Test Server' }] as never
+
+      type Deferred = { promise: Promise<unknown>; resolve: (value: unknown) => void }
+      const deferred = (): Deferred => {
+        let resolve!: (value: unknown) => void
+        const promise = new Promise((res) => {
+          resolve = res
+        })
+        return { promise, resolve }
+      }
+
+      const first = deferred()
+      const second = deferred()
+
+      vi.mocked(collectionsProxy.GetNamespaceInventory)
+        .mockReturnValueOnce(first.promise as never)
+        .mockReturnValueOnce(second.promise as never)
+
+      const firstCall = store.buildInventory('server1')
+      const secondCall = store.buildInventory('server1')
+
+      // Second call resolves first, with the newer data.
+      second.resolve({
+        isSuccess: true,
+        data: { serverID: 'server1', databases: [{ name: 'newDb', collections: ['a'], views: [] }] },
+      })
+      await secondCall
+
+      // First call resolves after, with stale data. It must be dropped.
+      first.resolve({
+        isSuccess: true,
+        data: { serverID: 'server1', databases: [{ name: 'oldDb', collections: [], views: [] }] },
+      })
+      await firstCall
+
+      const connection = store.connections[0] as never as {
+        databases: { name: string }[]
+      }
+      expect(connection.databases.map((d) => d.name)).toEqual(['newDb'])
+      expect(store.getInventoryStatus('server1')).toBe('ready')
+    })
   })
 })
