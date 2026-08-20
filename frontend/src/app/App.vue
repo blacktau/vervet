@@ -18,6 +18,7 @@ import RenameCollectionDialog from '@/features/data-browser/RenameCollectionDial
 import DestructiveConfirmDialog from '@/features/data-browser/DestructiveConfirmDialog.vue'
 import ServerPickerDialog from '@/features/workspaces/ServerPickerDialog.vue'
 import ExportResultsDialog from '@/features/results-export/ExportResultsDialog.vue'
+import NamespaceFinder from '@/features/data-browser/NamespaceFinder.vue'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 import { DialogType, useDialogStore } from '@/stores/dialog.ts'
 
@@ -96,6 +97,7 @@ watch(
         <rename-collection-dialog v-if="dialogStore.isVisible(DialogType.RenameCollection)" />
         <destructive-confirm-dialog v-if="dialogStore.isVisible(DialogType.DestructiveConfirm)" />
         <server-picker-dialog v-if="dialogStore.isVisible(DialogType.ServerPicker)" />
+        <namespace-finder v-if="dialogStore.isVisible(DialogType.NamespaceFinder)" />
         <export-results-dialog
           v-if="dialogStore.isVisible(DialogType.ExportResults)"
           :show="dialogStore.isVisible(DialogType.ExportResults)"

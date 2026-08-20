@@ -205,6 +205,13 @@ export default {
       empty: 'Connect to a server to view its contents',
     },
     filter: 'Filter',
+    finder: {
+      placeholder: 'Search databases, collections and views',
+      indexing: 'Indexing server…',
+      indexError: 'Could not index this server; searching loaded items only',
+      noResults: 'No matches',
+      empty: 'Type to search',
+    },
     contextMenu: {
       addDatabase: 'Add Database...',
       serverStatus: 'Server Status',
