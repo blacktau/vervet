@@ -71,11 +71,11 @@ const onKeyShortCut = (e: KeyboardEvent) => {
       break
     case 'p':
       if (isCtrlOn && !e.shiftKey) {
+        e.preventDefault()
         const browserStore = useDataBrowserStore()
         if (!browserStore.hasOpenConnections) {
           break
         }
-        e.preventDefault()
         useDialogStore().openNamespaceFinder()
       }
       break

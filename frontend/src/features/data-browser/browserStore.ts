@@ -183,10 +183,10 @@ export const useDataBrowserStore = defineStore('browser', {
       }
 
       if (type === DataNodeType.Collection || type === DataNodeType.View) {
-        const name = parts[3]
+        const name = parts.slice(3).join(':')
         if (serverId && dbName && name) {
           const settingsStore = useSettingsStore()
-          const queryText = `db.getCollection('${name}').find({}).limit(${settingsStore.query.defaultLimit})`
+          const queryText = `db.getCollection(${JSON.stringify(name)}).find({}).limit(${settingsStore.query.defaultLimit})`
           tabStore.openQuery(serverId, dbName, queryText, name)
         }
       }
@@ -492,7 +492,10 @@ export const useDataBrowserStore = defineStore('browser', {
 
       const databases = await databasesProxy.GetDatabases(serverId)
       if (databases.isSuccess) {
-        connection.databases = databases.data.map((db) => ({ name: db, collections: [], views: [] }))
+        const existing = connection.databases ?? []
+        connection.databases = databases.data.map(
+          (db) => existing.find((d) => d.name === db) ?? { name: db, collections: [], views: [] },
+        )
         return connection.databases
       }
 

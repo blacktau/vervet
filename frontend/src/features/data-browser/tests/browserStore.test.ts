@@ -70,6 +70,32 @@ describe('browserStore', () => {
       ])
     })
 
+    test('forced reload preserves collections/views for databases still present, drops missing ones', async () => {
+      const store = useDataBrowserStore()
+      store.connections = [
+        {
+          serverID: 'server1',
+          name: 'Test Server',
+          databases: [
+            { name: 'db1', collections: [{ name: 'users', indexes: [] }], views: [{ name: 'v1' }] },
+            { name: 'oldDb', collections: [{ name: 'stale', indexes: [] }], views: [] },
+          ],
+        },
+      ] as never
+
+      vi.mocked(databasesProxy.GetDatabases).mockResolvedValue({
+        isSuccess: true,
+        data: ['db1', 'db2'],
+      } as api.Result___string_)
+
+      const result = await store.getDatabaseList('server1', true)
+
+      expect(result).toEqual([
+        { name: 'db1', collections: [{ name: 'users', indexes: [] }], views: [{ name: 'v1' }] },
+        { name: 'db2', collections: [], views: [] },
+      ])
+    })
+
     test('should return cached databases when not forcing reload', async () => {
       const store = useDataBrowserStore()
       store.connections = [
@@ -333,7 +359,7 @@ describe('browserStore', () => {
       expect(openQueryMock).toHaveBeenCalledWith(
         'server1',
         'db1',
-        expect.stringContaining("db.getCollection('users').find({})"),
+        'db.getCollection("users").find({}).limit(42)',
         'users',
       )
     })
