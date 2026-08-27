@@ -20,6 +20,89 @@ export interface CompletionContext {
   insideQuotes?: boolean
 }
 
+/**
+ * True when the next non-blank character after `i` continues the current
+ * statement rather than starting a new one — leading-dot method chaining:
+ *
+ *   db.users
+ *     .find({})
+ *     .|
+ */
+function continuesOnNextLine(text: string, i: number): boolean {
+  const rest = text.slice(i + 1)
+  return /^\s*\./.test(rest)
+}
+
+/**
+ * Trims everything before the statement the caret sits in.
+ *
+ * The rules below scan backwards with `[\s\S]*`, so without this an earlier
+ * statement's `aggregate(`/`updateOne(` swallows the text down to the caret and
+ * every later query is analysed as that statement's continuation. Scans forward
+ * tracking bracket depth, string state and line comments; a `;` or newline at
+ * depth 0 starts a new statement, so multi-line statements stay intact.
+ *
+ * ponytail: a depth scan, not a JS parser — enough for statement boundaries.
+ */
+function currentStatement(text: string): string {
+  let depth = 0
+  let start = 0
+  let quote: string | null = null
+  let inComment = false
+  let out = ''
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]
+
+    if (inComment) {
+      // Blank the comment out so the caret inside one sees no code.
+      out += ch === '\n' ? ch : ' '
+      if (ch === '\n') {
+        inComment = false
+        if (depth === 0 && !continuesOnNextLine(text, i)) {
+          start = out.length
+        }
+      }
+      continue
+    }
+
+    out += ch
+
+    if (quote) {
+      if (ch === '\\') {
+        out += text[++i] ?? ''
+      } else if (ch === quote) {
+        quote = null
+      } else if (ch === '\n' && quote !== '`') {
+        // An unterminated quote: recover rather than treating the rest as string.
+        quote = null
+        if (depth === 0 && !continuesOnNextLine(text, i)) {
+          start = out.length
+        }
+      }
+      continue
+    }
+
+    if (ch === '/' && text[i + 1] === '/') {
+      inComment = true
+      out = out.slice(0, -1) + ' '
+      continue
+    }
+
+    if (ch === '"' || ch === "'" || ch === '`') {
+      quote = ch
+    } else if (ch === '(' || ch === '[' || ch === '{') {
+      depth++
+    } else if (ch === ')' || ch === ']' || ch === '}') {
+      depth = Math.max(0, depth - 1)
+    } else if ((ch === ';' || ch === '\n') && depth === 0 && !continuesOnNextLine(text, i)) {
+      start = out.length
+    }
+  }
+
+  return out.slice(start)
+}
+
 export function analyzeContext(textBeforeCursor: string): CompletionContext {
   // Normalise every db.getCollection('name') → db.__gc0__, db.__gc1__, ... so all
   // regexes below work unchanged, then restore the real collection name in the
@@ -31,7 +114,7 @@ export function analyzeContext(textBeforeCursor: string): CompletionContext {
     (_match, name: string) => `db.__gc${collectionNames.push(name) - 1}__`,
   )
 
-  const ctx = analyzeContextCore(normalised)
+  const ctx = analyzeContextCore(currentStatement(normalised))
 
   const placeholder = ctx.collection?.match(/^__gc(\d+)__$/)
   if (placeholder) {

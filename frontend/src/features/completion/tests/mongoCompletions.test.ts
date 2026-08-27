@@ -288,3 +288,26 @@ describe('db.getCollection()', () => {
     )
   })
 })
+
+describe('earlier statements', () => {
+  // The context rules scan backwards, so a completed statement above the caret
+  // used to leak into it: an earlier aggregate() turned every later query into
+  // an aggregation-stage list, and a commented-out line was parsed as code.
+  it('suggests fields, not stages, below an aggregate statement', async () => {
+    const labels = await labelsAt('db.orders.aggregate([{ $match: { a: 1 } }])\ndb.users.find({ |')
+    expect(labels).toEqual(expect.arrayContaining(['name', 'age']))
+    expect(labels).not.toContain('$match')
+  })
+
+  it('ignores a commented-out statement', async () => {
+    expect(await labelsAt('// db.orders.aggregate([{ $match: {\ndb.users.|')).toEqual(
+      expect.arrayContaining(['find', 'updateOne']),
+    )
+  })
+
+  it('keeps completing a statement chained across lines', async () => {
+    expect(await labelsAt('db.users\n  .find({})\n  .|')).toEqual(
+      expect.arrayContaining(['limit', 'sort']),
+    )
+  })
+})
