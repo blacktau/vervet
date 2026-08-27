@@ -1,9 +1,20 @@
 import { defineConfig } from 'vitest/config'
 import { fileURLToPath, URL } from 'node:url'
 import vue from '@vitejs/plugin-vue'
+import AutoImport from 'unplugin-auto-import/vite'
+import { NaiveUiResolver } from 'unplugin-vue-components/resolvers'
+import Components from 'unplugin-vue-components/vite'
 
 export default defineConfig({
-  plugins: [vue()],
+  // Mirrors the app's auto-imports so component tests can mount SFCs that rely
+  // on bare `useDialog()` and unimported Naive UI components.
+  plugins: [
+    vue(),
+    AutoImport({
+      imports: [{ 'naive-ui': ['useDialog', 'useMessage', 'useNotification', 'useLoadingBar'] }],
+    }),
+    Components({ resolvers: [NaiveUiResolver()] }),
+  ],
   test: {
     globals: true,
     environment: 'node',
@@ -26,10 +37,16 @@ export default defineConfig({
         autoUpdate: !process.env.CI,
         // Lowered when the fully-covered buildInfoStore was deleted along
         // with the Microsoft Store distribution; no tests were removed.
-        statements: 57.96,
-        branches: 53.08,
-        functions: 55.37,
-        lines: 58.7,
+        //
+        // Lowered again when the Monaco completion harness and the QueryTab
+        // remount tests landed: v8 only reports files a test actually loads, so
+        // mounting QueryTab.vue and importing useMonacoCompletions.ts pulled
+        // ~1200 largely uncovered lines into the denominator for the first
+        // time. Tests were added, not removed — the measured surface grew.
+        statements: 52.3,
+        branches: 48.24,
+        functions: 43.89,
+        lines: 52.6,
       },
     },
   },
