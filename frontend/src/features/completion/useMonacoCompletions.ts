@@ -1,4 +1,6 @@
-import * as monaco from 'monaco-editor'
+// The narrow API entrypoint, not the 'monaco-editor' barrel: the barrel pulls in
+// every basic-language contribution, which headless tests can't tear down cleanly.
+import * as monaco from 'monaco-editor/esm/vs/editor/editor.api'
 import { analyzeContext } from './completionContext'
 import {
   mongoMethods,
@@ -79,7 +81,10 @@ function fieldCompletions(
 let globalProviderRegistered = false
 const editorQueryMap = new WeakMap<monaco.editor.ITextModel, string>()
 
-export function registerMongoCompletions(queryId: string, editorInstance: monaco.editor.IStandaloneCodeEditor): monaco.IDisposable {
+export function registerMongoCompletions(
+  queryId: string,
+  editorInstance: monaco.editor.IStandaloneCodeEditor,
+): monaco.IDisposable {
   const model = editorInstance.getModel()
   if (model) {
     editorQueryMap.set(model, queryId)
@@ -98,46 +103,7 @@ export function registerMongoCompletions(queryId: string, editorInstance: monaco
         if (!modelQueryId) {
           return { suggestions: [] }
         }
-
-        const textBeforeCursor = model.getValueInRange({
-          startLineNumber: 1,
-          startColumn: 1,
-          endLineNumber: position.lineNumber,
-          endColumn: position.column,
-        })
-
-        const ctx = analyzeContext(textBeforeCursor)
-
-        const word = model.getWordUntilPosition(position)
-        let range: monaco.IRange = {
-          startLineNumber: position.lineNumber,
-          endLineNumber: position.lineNumber,
-          startColumn: word.startColumn,
-          endColumn: word.endColumn,
-        }
-
-        // For field names inside quotes, extend the range to cover the full dotted prefix
-        // so the entire typed path gets replaced by the completion
-        if (ctx.type === 'FIELD_NAME' && ctx.insideQuotes && ctx.prefix.includes('.')) {
-          const lineText = model.getLineContent(position.lineNumber)
-          // Find the opening quote before the cursor
-          const textBeforeOnLine = lineText.substring(0, position.column - 1)
-          const lastQuote = Math.max(
-            textBeforeOnLine.lastIndexOf('"'),
-            textBeforeOnLine.lastIndexOf("'"),
-          )
-          if (lastQuote >= 0) {
-            range = {
-              startLineNumber: position.lineNumber,
-              endLineNumber: position.lineNumber,
-              startColumn: lastQuote + 2, // after the quote character (1-indexed)
-              endColumn: position.column,
-            }
-          }
-        }
-
-        const suggestions = await getSuggestions(ctx, range, modelQueryId)
-        return { suggestions }
+        return { suggestions: await provideMongoCompletions(model, position, modelQueryId) }
       },
     })
   }
@@ -149,6 +115,52 @@ export function registerMongoCompletions(queryId: string, editorInstance: monaco
       }
     },
   }
+}
+
+/**
+ * The completion provider's body, split out so tests can drive it with a real
+ * Monaco text model instead of a live editor.
+ */
+export async function provideMongoCompletions(
+  model: monaco.editor.ITextModel,
+  position: monaco.IPosition,
+  queryId: string,
+): Promise<monaco.languages.CompletionItem[]> {
+  const textBeforeCursor = model.getValueInRange({
+    startLineNumber: 1,
+    startColumn: 1,
+    endLineNumber: position.lineNumber,
+    endColumn: position.column,
+  })
+
+  const ctx = analyzeContext(textBeforeCursor)
+
+  const word = model.getWordUntilPosition(position)
+  let range: monaco.IRange = {
+    startLineNumber: position.lineNumber,
+    endLineNumber: position.lineNumber,
+    startColumn: word.startColumn,
+    endColumn: word.endColumn,
+  }
+
+  // For field names inside quotes, extend the range to cover the full dotted prefix
+  // so the entire typed path gets replaced by the completion
+  if (ctx.type === 'FIELD_NAME' && ctx.insideQuotes && ctx.prefix.includes('.')) {
+    const lineText = model.getLineContent(position.lineNumber)
+    // Find the opening quote before the cursor
+    const textBeforeOnLine = lineText.substring(0, position.column - 1)
+    const lastQuote = Math.max(textBeforeOnLine.lastIndexOf('"'), textBeforeOnLine.lastIndexOf("'"))
+    if (lastQuote >= 0) {
+      range = {
+        startLineNumber: position.lineNumber,
+        endLineNumber: position.lineNumber,
+        startColumn: lastQuote + 2, // after the quote character (1-indexed)
+        endColumn: position.column,
+      }
+    }
+  }
+
+  return getSuggestions(ctx, range, queryId)
 }
 
 async function getSuggestions(

@@ -129,6 +129,19 @@ function analyzeContextCore(textBeforeCursor: string): CompletionContext {
     return { type: 'AGG_STAGE', collection: aggAfterStageMatch[1], prefix: '' }
   }
 
+  // db.collection.aggregate([{ | or ([{ $ma| or ([{...}, { | → AGG_STAGE
+  // The caret sits directly after a stage's opening brace. Anything typed past
+  // that brace (a stage's own body) fails the anchor and falls through to the
+  // field/operator rules below, and AGG_EXPRESSION is matched earlier.
+  const aggStageOpenMatch = trimmed.match(/db\.(\w+)\.aggregate\([\s\S]*\{\s*(\$\w*)?$/)
+  if (aggStageOpenMatch) {
+    return {
+      type: 'AGG_STAGE',
+      collection: aggStageOpenMatch[1],
+      prefix: aggStageOpenMatch[2] || '',
+    }
+  }
+
   // Inside braces for field name position: { "partial| or { partial|
   // Matches both quoted and unquoted field name positions
   const quotedFieldMatch = trimmed.match(

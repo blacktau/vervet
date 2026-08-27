@@ -133,7 +133,10 @@ const hasNoResults = computed(
     !queryState.value.loading,
 )
 
-const initialText = queryTabItem.value?.initialText
+// Server tab switches unmount every QueryTab, so restore what the store kept
+// rather than falling back to the default template.
+const storedContent = queryStore.queries[props.queryId]?.currentContent
+const initialText = storedContent ? storedContent : queryTabItem.value?.initialText
 const { container: editorContainer, editor } = useMonacoEditor({
   language: 'javascript',
   value: initialText != null ? initialText : defaultQuery,
@@ -289,6 +292,10 @@ watch(
   [() => queryState.value.savedContent, editor],
   ([saved, editorInstance]) => {
     if (saved === null || !editorInstance || editorInstance.getValue() === saved) {
+      return
+    }
+    // On remount the editor is seeded from currentContent; don't clobber unsaved edits
+    if (queryState.value.isDirty) {
       return
     }
     editorInstance.setValue(saved)
