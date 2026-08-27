@@ -21,23 +21,21 @@ export interface CompletionContext {
 }
 
 export function analyzeContext(textBeforeCursor: string): CompletionContext {
-  // Normalise db.getCollection('name') → db.__gc__ so all regexes below work
-  // unchanged, then restore the real collection name in the result.
-  const gcPlaceholder = '__gc__'
-  let realCollectionName: string | undefined
-  const gcMatch = textBeforeCursor.match(/db\.getCollection\(\s*['"]([^'"]*)['"]\s*\)/)
-  if (gcMatch) {
-    realCollectionName = gcMatch[1]
-    textBeforeCursor = textBeforeCursor.replace(
-      /db\.getCollection\(\s*['"][^'"]*['"]\s*\)/,
-      `db.${gcPlaceholder}`,
-    )
-  }
+  // Normalise every db.getCollection('name') → db.__gc0__, db.__gc1__, ... so all
+  // regexes below work unchanged, then restore the real collection name in the
+  // result. Every occurrence must be rewritten: leaving a later one intact makes
+  // it read as a chained call and mis-detects the context (issue #297).
+  const collectionNames: string[] = []
+  const normalised = textBeforeCursor.replace(
+    /db\.getCollection\(\s*['"]([^'"]*)['"]\s*\)/g,
+    (_match, name: string) => `db.__gc${collectionNames.push(name) - 1}__`,
+  )
 
-  const ctx = analyzeContextCore(textBeforeCursor)
+  const ctx = analyzeContextCore(normalised)
 
-  if (realCollectionName != null && ctx.collection === gcPlaceholder) {
-    ctx.collection = realCollectionName
+  const placeholder = ctx.collection?.match(/^__gc(\d+)__$/)
+  if (placeholder) {
+    ctx.collection = collectionNames[Number(placeholder[1])]
   }
 
   return ctx
