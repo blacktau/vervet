@@ -311,3 +311,52 @@ describe('earlier statements', () => {
     )
   })
 })
+
+describe('nested objects', () => {
+  // Which list is right depends on what owns the enclosing brace, so these
+  // shapes used to resolve to whichever ordered regex matched first.
+  it('suggests fields inside an aggregation $match stage', async () => {
+    const labels = await labelsAt('db.users.aggregate([{ $match: { |')
+    expect(labels).toEqual(expect.arrayContaining(['name', 'age']))
+    expect(labels).not.toContain('$gt')
+  })
+
+  it('suggests query operators, not expressions, inside $match', async () => {
+    const labels = await labelsAt('db.users.aggregate([{ $match: { age: { |')
+    expect(labels).toEqual(expect.arrayContaining(['$gt', '$lt']))
+    expect(labels).not.toContain('$sum')
+  })
+
+  it('suggests fields inside $sort and $project stages', async () => {
+    expect(await labelsAt('db.users.aggregate([{ $sort: { |')).toContain('age')
+    expect(await labelsAt('db.users.aggregate([{ $project: { |')).toContain('name')
+  })
+
+  it('still suggests expressions inside a $group value', async () => {
+    expect(await labelsAt('db.users.aggregate([{ $group: { total: { |')).toEqual(
+      expect.arrayContaining(['$sum', '$avg']),
+    )
+  })
+
+  it('suggests fields inside an update operator, with or without a prefix', async () => {
+    expect(await labelsAt('db.users.updateOne({}, { $set: { |')).toContain('name')
+    expect(await labelsAt('db.users.updateOne({}, { $set: { na|')).toContain('name')
+  })
+
+  it('suggests fields inside $elemMatch', async () => {
+    expect(await labelsAt('db.users.find({ tags: { $elemMatch: { |')).toContain('name')
+  })
+
+  it('keeps suggesting fields after a completed operator object', async () => {
+    const labels = await labelsAt('db.users.find({ age: { $gt: 1 }, |')
+    expect(labels).toEqual(expect.arrayContaining(['name', 'address.city']))
+  })
+
+  it('keeps suggesting fields after two completed operator objects', async () => {
+    expect(await labelsAt('db.users.find({ a: { $gt: 1 }, b: { $lt: 2 }, |')).toContain('name')
+  })
+
+  it('offers nothing inside a string value', async () => {
+    expect(await completionsAt('db.users.find({ name: "ali|')).toEqual([])
+  })
+})

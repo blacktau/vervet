@@ -40,6 +40,12 @@ const carets: [string, string][] = [
   ['USE_DATABASE', 'use '],
   ['USE_DATABASE/prefix', 'use sh'],
   ['EJSON_METHOD', 'EJSON.'],
+  ['FIELD_NAME/agg-match', 'db.users.aggregate([{ $match: { '],
+  ['FIELD_NAME/update-op', 'db.users.updateOne({}, { $set: { '],
+  ['FIELD_NAME/after-op-obj', 'db.users.find({ age: { $gt: 1 }, '],
+  ['FIELD_NAME/elemmatch', 'db.users.find({ tags: { $elemMatch: { '],
+  ['QUERY_OPERATOR/agg-match', 'db.users.aggregate([{ $match: { age: { '],
+  ['STRING_VALUE', 'db.users.find({ name: "ali'],
   ['KEYWORD', ''],
   ['KEYWORD/prefix', 'E'],
 ]
@@ -74,6 +80,8 @@ const multiline: [string, string, string][] = [
   ['update-op', 'db.users.updateOne({}, { ', 'db.users.updateOne(\n  {},\n  {\n    '],
   ['agg-stage', 'db.users.aggregate([{ ', 'db.users.aggregate([\n  {\n    '],
   ['agg-expr', 'db.users.aggregate([{ $group: { t: { ', 'db.users.aggregate([\n  {\n    $group: {\n      t: {\n        '],
+  ['agg-match', 'db.users.aggregate([{ $match: { ', 'db.users.aggregate([\n  {\n    $match: {\n      '],
+  ['update-set', 'db.users.updateOne({}, { $set: { ', 'db.users.updateOne(\n  {},\n  {\n    $set: {\n      '],
   ['method', 'db.users.find({}).', 'db.users\n  .find({})\n  .'],
 ]
 

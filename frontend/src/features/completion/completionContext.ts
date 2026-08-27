@@ -124,14 +124,131 @@ export function analyzeContext(textBeforeCursor: string): CompletionContext {
   return ctx
 }
 
+/** Methods whose second argument is an update document. */
+const UPDATE_METHODS = new Set(['updateOne', 'updateMany', 'findOneAndUpdate'])
+
+interface Frame {
+  open: '{' | '[' | '('
+  /** For '{': the object key that owns it, e.g. `age` or `$match`. */
+  key?: string
+  /** For '(': the method being called, e.g. `find`. */
+  callee?: string
+  /** Top-level commas seen inside this frame — the argument/element index. */
+  commas: number
+}
+
+interface Scan {
+  stack: Frame[]
+  /** Partial word at the caret, or the string contents when inside quotes. */
+  prefix: string
+  insideQuotes: boolean
+  /** The caret sits in a value position: the last token was a `:`. */
+  afterColon: boolean
+}
+
+/**
+ * Walks a statement to the caret, tracking the bracket stack.
+ *
+ * Which list to suggest depends on nesting — `{ $match: { |` wants field names
+ * while `{ age: { |` wants query operators, and they differ only in what owns
+ * the enclosing brace. Ordered regexes can't see that, which is how nested
+ * operator objects came to kill completions for the rest of the document.
+ */
+function scan(text: string): Scan {
+  const stack: Frame[] = []
+  let quote: string | null = null
+  let quoteStart = 0
+  let lastIdent = ''
+  let afterColon = false
+  let word = ''
+
+  const top = () => stack[stack.length - 1]
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]
+
+    if (quote) {
+      if (ch === '\\') {
+        i++
+      } else if (ch === quote) {
+        lastIdent = text.slice(quoteStart, i)
+        quote = null
+      }
+      continue
+    }
+
+    if (ch === '"' || ch === "'" || ch === '`') {
+      quote = ch
+      quoteStart = i + 1
+      word = ''
+      continue
+    }
+
+    if (/[\w$.]/.test(ch)) {
+      word += ch
+      continue
+    }
+
+    if (word) {
+      lastIdent = word
+      word = ''
+    }
+
+    if (ch === '{' || ch === '[') {
+      stack.push({ open: ch, key: afterColon ? lastIdent : undefined, commas: 0 })
+      afterColon = false
+      lastIdent = ''
+    } else if (ch === '(') {
+      stack.push({ open: ch, callee: lastIdent.split('.').pop(), commas: 0 })
+      afterColon = false
+      lastIdent = ''
+    } else if (ch === '}' || ch === ']' || ch === ')') {
+      stack.pop()
+      afterColon = false
+      lastIdent = ''
+    } else if (ch === ',') {
+      const frame = top()
+      if (frame) {
+        frame.commas++
+      }
+      afterColon = false
+      lastIdent = ''
+    } else if (ch === ':') {
+      afterColon = true
+    }
+  }
+
+  return {
+    stack,
+    prefix: quote ? text.slice(quoteStart) : word,
+    insideQuotes: quote !== null,
+    afterColon,
+  }
+}
+
+/** The innermost call the caret sits inside, e.g. `find` in `db.x.find({ |`. */
+function enclosingCall(stack: Frame[]): Frame | undefined {
+  for (let i = stack.length - 1; i >= 0; i--) {
+    if (stack[i].open === '(') {
+      return stack[i]
+    }
+  }
+  return undefined
+}
+
+/**
+ * The aggregation stage the caret is inside, e.g. `$match` — the first frame
+ * below the pipeline array that is owned by a `$`-prefixed key.
+ */
+function enclosingStage(stack: Frame[]): string | undefined {
+  return stack.find((f) => f.key?.startsWith('$'))?.key
+}
+
 function analyzeContextCore(textBeforeCursor: string): CompletionContext {
-  // use <database> — check before trimming so trailing space is preserved
+  // use <database> — checked before trimming so a trailing space is preserved
   const useMatch = textBeforeCursor.match(/(?:^|\n)\s*use\s+(\w*)$/)
   if (useMatch) {
-    return {
-      type: 'USE_DATABASE',
-      prefix: useMatch[1] || '',
-    }
+    return { type: 'USE_DATABASE', prefix: useMatch[1] || '' }
   }
 
   const trimmed = textBeforeCursor.trimEnd()
@@ -146,127 +263,21 @@ function analyzeContextCore(textBeforeCursor: string): CompletionContext {
     }
   }
 
-  // db.collection.updateOne/Many/findOneAndUpdate({  }, {  })
-  const updateMatch = trimmed.match(
-    /db\.(\w+)\.(?:updateOne|updateMany|findOneAndUpdate)\([\s\S]*,\s*\{\s*(\$\w*)?$/,
-  )
-  if (updateMatch) {
-    return {
-      type: 'UPDATE_OPERATOR',
-      collection: updateMatch[1],
-      prefix: updateMatch[2] || '',
-    }
-  }
-
-  // Inside an aggregate stage's value object: { $group: { total: { $sum| or { $project: { x: { $
-  // Must be checked before QUERY_OPERATOR since those regexes would also match inside aggregate.
-  // The key insight: we need at least two nested { after .aggregate( — one for the stage, one for the field value.
-  // We match the last { that isn't closed, and check for a $ prefix there.
-  const aggExpressionMatch = trimmed.match(
-    /db\.(\w+)\.aggregate\([\s\S]*\$\w+\s*:\s*\{[^}]*\{\s*(\$\w*)?$/,
-  )
-  if (aggExpressionMatch) {
-    return {
-      type: 'AGG_EXPRESSION',
-      collection: aggExpressionMatch[1],
-      prefix: aggExpressionMatch[2] || '',
-    }
-  }
-
-  // db.collection.method({ field: { $op| }) → QUERY_OPERATOR (inside nested operator object)
-  const nestedOpMatch = trimmed.match(
-    /db\.(\w+)(?:\.\w+\([^()]*\))*\.\w+\([^)]*(?:\b\w+|"[^"]*")\s*:\s*\{\s*(\$\w*)?$/,
-  )
-  if (nestedOpMatch) {
-    return {
-      type: 'QUERY_OPERATOR',
-      collection: nestedOpMatch[1],
-      prefix: nestedOpMatch[2] || '',
-    }
-  }
-
-  // db.collection.method({ field: | }) → QUERY_OPERATOR
-  // Also matches quoted field keys: { "field.name": | }
-  const fieldValueMatch = trimmed.match(
-    /db\.(\w+)(?:\.\w+\([^()]*\))*\.\w+\(\s*\{[^}]*(?:\b\w+|"[^"]*")\s*:\s*$/,
-  )
-  if (fieldValueMatch) {
-    return {
-      type: 'QUERY_OPERATOR',
-      collection: fieldValueMatch[1],
-      prefix: '',
-    }
-  }
-
-  // db.collection.aggregate([ | ]) → AGG_STAGE (empty pipeline)
-  const aggEmptyMatch = trimmed.match(/db\.(\w+)\.aggregate\(\s*\[\s*$/)
-  if (aggEmptyMatch) {
-    return { type: 'AGG_STAGE', collection: aggEmptyMatch[1], prefix: '' }
-  }
-
-  // db.collection.aggregate([{...}, | ]) → AGG_STAGE (after existing stages)
-  const aggAfterStageMatch = trimmed.match(/db\.(\w+)\.aggregate\([\s\S]*,\s*$/)
-  if (aggAfterStageMatch) {
-    return { type: 'AGG_STAGE', collection: aggAfterStageMatch[1], prefix: '' }
-  }
-
-  // db.collection.aggregate([{ | or ([{ $ma| or ([{...}, { | → AGG_STAGE
-  // The caret sits directly after a stage's opening brace. Anything typed past
-  // that brace (a stage's own body) fails the anchor and falls through to the
-  // field/operator rules below, and AGG_EXPRESSION is matched earlier.
-  const aggStageOpenMatch = trimmed.match(/db\.(\w+)\.aggregate\([\s\S]*\{\s*(\$\w*)?$/)
-  if (aggStageOpenMatch) {
-    return {
-      type: 'AGG_STAGE',
-      collection: aggStageOpenMatch[1],
-      prefix: aggStageOpenMatch[2] || '',
-    }
-  }
-
-  // Inside braces for field name position: { "partial| or { partial|
-  // Matches both quoted and unquoted field name positions
-  const quotedFieldMatch = trimmed.match(
-    /db\.(\w+)(?:\.\w+\([^()]*\))*\.\w+\([^)]*\{\s*(?:[\w."':$\s,]*,\s*)?"([^"]*)$/,
-  )
-  if (quotedFieldMatch) {
-    return {
-      type: 'FIELD_NAME',
-      collection: quotedFieldMatch[1],
-      prefix: quotedFieldMatch[2] || '',
-      insideQuotes: true,
-    }
-  }
-
-  const insideBracesMatch = trimmed.match(
-    /db\.(\w+)(?:\.\w+\([^()]*\))*\.\w+\([^)]*\{\s*(?:[\w."':$\s,]*,\s*)?(\w*)$/,
-  )
-  if (insideBracesMatch) {
-    return {
-      type: 'FIELD_NAME',
-      collection: insideBracesMatch[1],
-      prefix: insideBracesMatch[2] || '',
-      insideQuotes: false,
-    }
+  const braceContext = analyzeBraces(textBeforeCursor)
+  if (braceContext) {
+    return braceContext
   }
 
   // EJSON.| → EJSON_METHOD
   const ejsonMatch = trimmed.match(/EJSON\.(\w*)$/)
   if (ejsonMatch) {
-    return {
-      type: 'EJSON_METHOD',
-      prefix: ejsonMatch[1] || '',
-    }
+    return { type: 'EJSON_METHOD', prefix: ejsonMatch[1] || '' }
   }
 
   // db.collection.method(...).| → CURSOR_METHOD (chained modifiers)
-  // Matches after a closing paren: .find({}).| or .find({}).lim|
-  // Also matches chained: .find({}).sort({}).| or .find({}).limit(10).|
   const cursorMethodMatch = trimmed.match(/\)\s*\.(\w*)$/)
   if (cursorMethodMatch) {
-    return {
-      type: 'CURSOR_METHOD',
-      prefix: cursorMethodMatch[1] || '',
-    }
+    return { type: 'CURSOR_METHOD', prefix: cursorMethodMatch[1] || '' }
   }
 
   // db.collection.| → METHOD_NAME
@@ -282,16 +293,82 @@ function analyzeContextCore(textBeforeCursor: string): CompletionContext {
   // db.| → COLLECTION_NAME
   const collMatch = trimmed.match(/db\.(\w*)$/)
   if (collMatch) {
-    return {
-      type: 'COLLECTION_NAME',
-      prefix: collMatch[1] || '',
-    }
+    return { type: 'COLLECTION_NAME', prefix: collMatch[1] || '' }
   }
 
-  // Default: keyword
   const lastWord = trimmed.match(/(\w*)$/)
-  return {
-    type: 'KEYWORD',
-    prefix: lastWord ? lastWord[1] : '',
+  return { type: 'KEYWORD', prefix: lastWord ? lastWord[1] : '' }
+}
+
+/**
+ * The context for a caret inside a `{` or `[`, decided from the bracket stack.
+ * Returns undefined when the caret isn't inside one, leaving the caller's
+ * simpler tail rules (method names, cursor methods, keywords) to handle it.
+ */
+function analyzeBraces(text: string): CompletionContext | undefined {
+  const { stack, prefix, insideQuotes, afterColon } = scan(text)
+  const frame = stack[stack.length - 1]
+  if (!frame || frame.open === '(') {
+    return undefined
   }
+
+  const call = enclosingCall(stack)
+  const collection = text.match(/\bdb\.(\w+)\b/)?.[1]
+  const inAggregate = stack.some((f) => f.open === '(' && f.callee === 'aggregate')
+  const inUpdateDoc = !!call && UPDATE_METHODS.has(call.callee ?? '') && call.commas >= 1
+  const stage = inAggregate ? enclosingStage(stack) : undefined
+
+  // $match takes a query, not an aggregation expression, and $sort's values are
+  // just 1/-1 — offering expressions in either place suggests the wrong list.
+  const operatorContext = (): CompletionContextType => {
+    if (!inAggregate || stage === '$match') {
+      return 'QUERY_OPERATOR'
+    }
+    if (stage === '$sort') {
+      return 'KEYWORD'
+    }
+    return 'AGG_EXPRESSION'
+  }
+
+  const field = (): CompletionContext => ({
+    type: 'FIELD_NAME',
+    collection,
+    prefix,
+    insideQuotes,
+  })
+
+  // A value position: `{ age: |`. Inside quotes it's a literal, and suggesting
+  // operators there would insert `$gt` into the user's string.
+  if (afterColon) {
+    if (insideQuotes) {
+      return { type: 'KEYWORD', prefix }
+    }
+    const type = operatorContext()
+    return type === 'KEYWORD' ? { type, prefix } : { type, collection, prefix }
+  }
+
+  if (frame.open === '[') {
+    return inAggregate ? { type: 'AGG_STAGE', collection, prefix } : field()
+  }
+
+  // A brace with no owning key: a call argument, or an array element.
+  if (!frame.key) {
+    if (inAggregate && stack[stack.length - 2]?.open === '[') {
+      return { type: 'AGG_STAGE', collection, prefix }
+    }
+    if (inUpdateDoc) {
+      return { type: 'UPDATE_OPERATOR', collection, prefix }
+    }
+    return field()
+  }
+
+  // Owned by an operator or stage name — `{ $match: { |`, `{ $set: { |`,
+  // `{ tags: { $elemMatch: { |` — whose keys are all field paths.
+  if (frame.key.startsWith('$')) {
+    return field()
+  }
+
+  // Owned by a plain field — `{ age: { |` — whose keys are operators.
+  const type = operatorContext()
+  return type === 'KEYWORD' ? { type, prefix } : { type, collection, prefix }
 }
