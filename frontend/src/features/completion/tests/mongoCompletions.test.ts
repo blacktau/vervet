@@ -215,3 +215,148 @@ describe('without a selected database', () => {
     expect(await labelsAt('db.users.|', 'query-unknown')).toContain('find')
   })
 })
+
+describe('db.getCollection()', () => {
+  // Every getCollection() call in the buffer has to be normalised, not just the
+  // first: a leftover one reads as a chained call and the caret's statement is
+  // mis-detected as a cursor context, losing the collection methods (issue #297).
+  const earlier = 'db.getCollection("orders").find({ total: 1 })\n'
+
+  it('suggests collection methods', async () => {
+    expect(await labelsAt('db.getCollection("users").|')).toEqual(
+      expect.arrayContaining(['find', 'updateOne', 'updateMany', 'findOneAndUpdate']),
+    )
+  })
+
+  it('suggests collection methods after an earlier getCollection statement', async () => {
+    expect(await labelsAt(`${earlier}db.getCollection("users").|`)).toEqual(
+      expect.arrayContaining(['find', 'updateOne', 'updateMany', 'findOneAndUpdate']),
+    )
+  })
+
+  it('filters those methods by prefix', async () => {
+    const labels = await labelsAt(`${earlier}db.getCollection("users").up|`)
+    expect(labels).toEqual(expect.arrayContaining(['updateOne', 'updateMany']))
+    expect(labels).not.toContain('find')
+  })
+
+  it('resolves schema fields for the caret statement, not an earlier one', async () => {
+    expect(await labelsAt(`${earlier}db.getCollection("users").find({ |`)).toEqual(
+      expect.arrayContaining(['name', 'age', 'address.city']),
+    )
+  })
+
+  it('suggests query operators', async () => {
+    expect(await labelsAt(`${earlier}db.getCollection("users").find({ age: { |`)).toEqual(
+      expect.arrayContaining(['$gt', '$lt']),
+    )
+  })
+
+  it('suggests update operators', async () => {
+    expect(await labelsAt(`${earlier}db.getCollection("users").updateOne({}, { |`)).toEqual(
+      expect.arrayContaining(['$set', '$inc']),
+    )
+  })
+
+  it('suggests aggregation stages', async () => {
+    expect(await labelsAt(`${earlier}db.getCollection("users").aggregate([{ |`)).toEqual(
+      expect.arrayContaining(['$match', '$group']),
+    )
+  })
+
+  it('suggests aggregation expressions inside a stage value', async () => {
+    expect(
+      await labelsAt(`${earlier}db.getCollection("users").aggregate([{ $group: { total: { |`),
+    ).toEqual(expect.arrayContaining(['$sum', '$avg']))
+  })
+
+  it('suggests cursor methods after a chained call', async () => {
+    expect(await labelsAt(`${earlier}db.getCollection("users").find({}).|`)).toEqual(
+      expect.arrayContaining(['limit', 'sort']),
+    )
+  })
+
+  it('suggests collection names inside a later getCollection argument', async () => {
+    expect(await labelsAt(`${earlier}db.getCollection("|`)).toEqual(
+      expect.arrayContaining(['users', 'orders']),
+    )
+  })
+
+  it('handles single quotes', async () => {
+    expect(await labelsAt("db.getCollection('a').find({})\ndb.getCollection('users').|")).toContain(
+      'updateMany',
+    )
+  })
+})
+
+describe('earlier statements', () => {
+  // The context rules scan backwards, so a completed statement above the caret
+  // used to leak into it: an earlier aggregate() turned every later query into
+  // an aggregation-stage list, and a commented-out line was parsed as code.
+  it('suggests fields, not stages, below an aggregate statement', async () => {
+    const labels = await labelsAt('db.orders.aggregate([{ $match: { a: 1 } }])\ndb.users.find({ |')
+    expect(labels).toEqual(expect.arrayContaining(['name', 'age']))
+    expect(labels).not.toContain('$match')
+  })
+
+  it('ignores a commented-out statement', async () => {
+    expect(await labelsAt('// db.orders.aggregate([{ $match: {\ndb.users.|')).toEqual(
+      expect.arrayContaining(['find', 'updateOne']),
+    )
+  })
+
+  it('keeps completing a statement chained across lines', async () => {
+    expect(await labelsAt('db.users\n  .find({})\n  .|')).toEqual(
+      expect.arrayContaining(['limit', 'sort']),
+    )
+  })
+})
+
+describe('nested objects', () => {
+  // Which list is right depends on what owns the enclosing brace, so these
+  // shapes used to resolve to whichever ordered regex matched first.
+  it('suggests fields inside an aggregation $match stage', async () => {
+    const labels = await labelsAt('db.users.aggregate([{ $match: { |')
+    expect(labels).toEqual(expect.arrayContaining(['name', 'age']))
+    expect(labels).not.toContain('$gt')
+  })
+
+  it('suggests query operators, not expressions, inside $match', async () => {
+    const labels = await labelsAt('db.users.aggregate([{ $match: { age: { |')
+    expect(labels).toEqual(expect.arrayContaining(['$gt', '$lt']))
+    expect(labels).not.toContain('$sum')
+  })
+
+  it('suggests fields inside $sort and $project stages', async () => {
+    expect(await labelsAt('db.users.aggregate([{ $sort: { |')).toContain('age')
+    expect(await labelsAt('db.users.aggregate([{ $project: { |')).toContain('name')
+  })
+
+  it('still suggests expressions inside a $group value', async () => {
+    expect(await labelsAt('db.users.aggregate([{ $group: { total: { |')).toEqual(
+      expect.arrayContaining(['$sum', '$avg']),
+    )
+  })
+
+  it('suggests fields inside an update operator, with or without a prefix', async () => {
+    expect(await labelsAt('db.users.updateOne({}, { $set: { |')).toContain('name')
+    expect(await labelsAt('db.users.updateOne({}, { $set: { na|')).toContain('name')
+  })
+
+  it('suggests fields inside $elemMatch', async () => {
+    expect(await labelsAt('db.users.find({ tags: { $elemMatch: { |')).toContain('name')
+  })
+
+  it('keeps suggesting fields after a completed operator object', async () => {
+    const labels = await labelsAt('db.users.find({ age: { $gt: 1 }, |')
+    expect(labels).toEqual(expect.arrayContaining(['name', 'address.city']))
+  })
+
+  it('keeps suggesting fields after two completed operator objects', async () => {
+    expect(await labelsAt('db.users.find({ a: { $gt: 1 }, b: { $lt: 2 }, |')).toContain('name')
+  })
+
+  it('offers nothing inside a string value', async () => {
+    expect(await completionsAt('db.users.find({ name: "ali|')).toEqual([])
+  })
+})
