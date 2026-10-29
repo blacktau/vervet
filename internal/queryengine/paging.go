@@ -29,10 +29,11 @@ func encodePageDoc(v any) (string, error) {
 // so an omitted projection or sort stays omitted.
 func decodePageDoc(s string) (any, error) {
 	doc, err := unmarshalPageJSON(s)
-	if doc == nil {
+	// Return a bare nil, not a nil bson.D: callers test the result for nil.
+	if err != nil || doc == nil {
 		return nil, err
 	}
-	return doc, err
+	return doc, nil
 }
 
 // encodePageValue renders any cursor value (the hint may be an index name, a
@@ -52,10 +53,10 @@ func encodePageValue(v any) (string, error) {
 // decodePageValue is the inverse of encodePageValue.
 func decodePageValue(s string) (any, error) {
 	doc, err := unmarshalPageJSON(s)
-	if doc == nil {
+	if err != nil || doc == nil {
 		return nil, err
 	}
-	return docField(doc, "v"), err
+	return docField(doc, "v"), nil
 }
 
 // unmarshalPageJSON decodes a PageContext field; "" yields nil.
@@ -215,7 +216,9 @@ func (e *GojaEngine) CountForPage(
 	if err != nil {
 		return 0, estimated, err
 	}
-	count = extractCount(res)
+	// Documents the cursor skips (its own skip(), plus any next() consumed
+	// before it was returned) are not part of the paged result.
+	count = max(extractCount(res)-pc.UserSkip, 0)
 	if pc.UserLimit > 0 && count > pc.UserLimit {
 		count = pc.UserLimit
 	}

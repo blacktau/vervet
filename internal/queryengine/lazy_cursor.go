@@ -28,7 +28,6 @@ type lazyCursor struct {
 	batchSize  int32
 	collation  map[string]any
 	comment    string
-	pageCtx    *models.PageContext
 	opType     string
 }
 
@@ -114,7 +113,6 @@ func (c *lazyCursor) execute(paged bool) (models.QueryResult, error) {
 
 	c.results = result.Documents
 	c.resolved = true
-	c.pageCtx = pageCtx
 	c.opType = result.OperationType
 	result.PageContext = pageCtx
 	return result, nil
@@ -125,15 +123,12 @@ func (c *lazyCursor) execute(paged bool) (models.QueryResult, error) {
 // A cursor read during the script ran unpaged; left as the script's final
 // value it is shown paged like a fresh cursor: the first page comes from the
 // cached documents, and the PageContext skips the ones next() consumed so
-// later pages continue from there.
+// later pages continue from there. A used-up cursor shows an empty result
+// with no pager: a PageContext would re-query (UserLimit 0 means unlimited).
 func (c *lazyCursor) cachedResult(paged bool) (models.QueryResult, error) {
 	remaining := c.results[c.index:]
 	result := models.QueryResult{Documents: remaining, OperationType: c.opType}
-	if !paged {
-		return result, nil
-	}
-	if c.pageCtx != nil {
-		result.PageContext = c.pageCtx
+	if !paged || len(remaining) == 0 {
 		return result, nil
 	}
 	pageCtx, err := c.buildPageContext()
@@ -143,6 +138,7 @@ func (c *lazyCursor) cachedResult(paged bool) (models.QueryResult, error) {
 	consumed := int64(c.index)
 	pageCtx.UserSkip += consumed
 	if pageCtx.UserLimit > 0 {
+		// remaining is non-empty, so the limit was not used up.
 		pageCtx.UserLimit -= consumed
 	}
 	if c.ec.pageSize > 0 && int64(len(remaining)) > c.ec.pageSize {

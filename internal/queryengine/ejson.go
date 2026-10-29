@@ -90,8 +90,9 @@ func ejsonParse(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 			panic(rt.NewGoError(fmt.Errorf("EJSON.parse: %w", err)))
 		}
 
-		// Parsed values are BSON typed, like a document read from MongoDB.
-		return toJSValue(rt, resultDoc(result))
+		// Command mode: BSON types such as ObjectId and Date convert, numbers
+		// stay plain JS numbers, as mongosh returns them.
+		return toJSValue(rt, result)
 	}
 }
 
@@ -147,7 +148,8 @@ func ejsonDeserialize(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 			panic(rt.NewGoError(fmt.Errorf("EJSON.deserialize: %w", err)))
 		}
 
-		// Parsed values are BSON typed, like a document read from MongoDB.
-		return toJSValue(rt, resultDoc(result))
+		// Command mode: BSON types such as ObjectId and Date convert, numbers
+		// stay plain JS numbers, as mongosh returns them.
+		return toJSValue(rt, result)
 	}
 }

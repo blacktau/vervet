@@ -431,3 +431,58 @@ func TestIntegration_FetchPage_CollationSurvivesFrontend(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, `[{"s":"10"},{"s":"33"},{"s":"100"}]`, resultText(page2))
 }
+
+// Paging a cursor the script already read from: a used-up limit gives an empty
+// result with no pager, and the count leaves out skipped and consumed
+// documents.
+func TestIntegration_ReadCursorPagingLimitAndCount(t *testing.T) {
+	ctx, db, _ := keyOrderEngine(t)
+	engine := NewGojaEngine(testClient, 5, "")
+
+	_, err := engine.ExecuteQuery(ctx, testURI, db, `for (var i = 0; i < 30; i++) { db.lc.insertOne({ n: i }); }`)
+	require.NoError(t, err)
+
+	for _, script := range []string{
+		`const c = db.lc.find().limit(3); c.next(); c.next(); c.next(); c`,
+		`const c = db.lc.find(); c.toArray(); c`,
+	} {
+		result, err := engine.ExecuteQuery(ctx, testURI, db, script)
+		require.NoError(t, err, script)
+		assert.Nil(t, result.PageContext, script)
+		assert.Empty(t, result.Documents, script)
+	}
+
+	for script, want := range map[string]int64{
+		`const c = db.lc.find(); c.next(); c`:                     29,
+		`db.lc.find().skip(2)`:                                    28,
+		`const c = db.lc.find().limit(10); c.next(); c.next(); c`: 8,
+		`db.lc.find({ n: { $gte: 10 } }).skip(5)`:                 15,
+	} {
+		result, err := engine.ExecuteQuery(ctx, testURI, db, script)
+		require.NoError(t, err, script)
+		require.NotNil(t, result.PageContext, script)
+		count, _, err := engine.CountForPage(ctx, db, *result.PageContext)
+		require.NoError(t, err, script)
+		assert.Equal(t, want, count, script)
+	}
+}
+
+func TestIntegration_EJSONParseKeepsNumbersPlain(t *testing.T) {
+	ctx, db, engine := keyOrderEngine(t)
+
+	result, err := engine.ExecuteQuery(ctx, testURI, db, `EJSON.parse('{"n": 5000000000}').n + 1`)
+	require.NoError(t, err)
+	assert.Equal(t, "5000000001", resultText(result))
+}
+
+// An unread cursor is shown as its documents even when the script printed.
+func TestIntegration_UnreadCursorShownDespitePrints(t *testing.T) {
+	ctx, db, engine := keyOrderEngine(t)
+
+	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.up.insertOne({ n: 1 })`)
+	require.NoError(t, err)
+
+	result, err := engine.ExecuteQuery(ctx, testURI, db, `var c = db.up.find({}, { _id: 0 }); if (c.hasNext()) { print("found"); } c`)
+	require.NoError(t, err)
+	assert.Equal(t, `[{"n":{"$numberLong":"1"}}]`, resultText(result))
+}
