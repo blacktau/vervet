@@ -4,6 +4,7 @@ package queryengine
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -56,7 +57,7 @@ func TestIntegration_FetchPage_RoundTrip(t *testing.T) {
 
 	// Filtered -> exact count
 	pcF := pc
-	pcF.Filter = map[string]any{"n": map[string]any{"$gte": int64(10)}}
+	pcF.Filter = `{"n":{"$gte":{"$numberLong":"10"}}}`
 	count, est, err = engine.CountForPage(ctx, db, pcF)
 	require.NoError(t, err)
 	assert.False(t, est)
@@ -83,7 +84,7 @@ func TestIntegration_FetchPage_RespectsUserLimit(t *testing.T) {
 	require.NoError(t, err)
 
 	// User limits to 50 — page 1 (0-indexed) should return 25, page 2 empty.
-	pc := models.PageContext{Collection: "capped", Filter: map[string]any{}, UserLimit: 50, Sort: map[string]any{"n": int64(1)}}
+	pc := models.PageContext{Collection: "capped", Filter: `{}`, UserLimit: 50, Sort: `{"n":{"$numberInt":"1"}}`}
 	page1, err := engine.FetchPage(ctx, db, pc, 1, 25)
 	require.NoError(t, err)
 	assert.Len(t, page1.Documents, 25)
@@ -95,4 +96,45 @@ func TestIntegration_FetchPage_RespectsUserLimit(t *testing.T) {
 	count, _, err := engine.CountForPage(ctx, db, pc)
 	require.NoError(t, err)
 	assert.Equal(t, int64(50), count)
+}
+
+// TestIntegration_FetchPage_CompoundSortHint sends the
+// PageContext through JSON, as the frontend does, before each page fetch. A
+// compound sort must give the same order on every page, and a compound hint
+// must still name the index.
+func TestIntegration_FetchPage_CompoundSortHint(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	db := dbName(t)
+	defer testClient.Database(db).Drop(ctx)
+
+	engine := NewGojaEngine(testClient, 5, "")
+	_, err := engine.ExecuteQuery(ctx, testURI, db, `
+		for (var i = 0; i < 20; i++) { db.cs.insertOne({ n: i, g: i % 2, v: i }); }
+		db.cs.createIndex({ g: 1, v: -1 })`)
+	require.NoError(t, err)
+
+	res, err := engine.ExecuteQuery(ctx, testURI, db, `db.cs.find({}, { _id: 0 }).sort({ g: 1, v: -1 }).hint({ g: 1, v: -1 })`)
+	require.NoError(t, err)
+	require.NotNil(t, res.PageContext)
+	wire, err := json.Marshal(res.PageContext)
+	require.NoError(t, err)
+
+	// g ascending, then v descending: evens 18..0, then odds 19..1.
+	want := []int64{18, 16, 14, 12, 10, 8, 6, 4, 2, 0, 19, 17, 15, 13, 11, 9, 7, 5, 3, 1}
+	for round := 0; round < 5; round++ {
+		var got []int64
+		for page := int64(0); page < 4; page++ {
+			var pc models.PageContext
+			require.NoError(t, json.Unmarshal(wire, &pc))
+			r, err := engine.FetchPage(ctx, db, pc, page, 5)
+			require.NoError(t, err)
+			for _, doc := range r.Documents {
+				m, _ := asMap(doc)
+				got = append(got, coerceInt64(plainMap(m["n"])))
+			}
+		}
+		require.Equal(t, want, got)
+	}
 }

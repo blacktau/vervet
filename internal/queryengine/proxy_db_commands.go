@@ -18,7 +18,7 @@ func dbRunCommand(ec *execContext, dbName string) func(goja.FunctionCall) goja.V
 
 		cmdDoc := convertToBson(exportValue(call.Arguments[0]))
 
-		var result bson.M
+		var result bson.D
 		err := ec.client.Database(dbName).RunCommand(ec.ctx, cmdDoc).Decode(&result)
 		if err != nil {
 			panic(ec.rt.NewGoError(fmt.Errorf("runCommand: %w", err)))

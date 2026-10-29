@@ -11,8 +11,10 @@ import (
 // the map type has zero methods (see goja runtime.go: `NumMethod() == 0`). Without
 // this, a bson.M is wrapped as an opaque object exposing "String" instead of its
 // keys. Stripping M/D/A down to method-less map[string]any / []any restores the
-// v1 reflection behaviour. Scalar BSON types (ObjectID, DateTime, ...) reflected
-// identically in v1 and v2, so they pass through untouched.
+// v1 reflection behaviour. bson.D stays a bson.D (with normalized values) so
+// scriptValue can build the JS object in field order. Scalar BSON types
+// (ObjectID, DateTime, ...) reflected identically in v1 and v2, so they pass
+// through untouched.
 func normalizeForJS(v any) any {
 	switch val := v.(type) {
 	case bson.M:
@@ -28,12 +30,9 @@ func normalizeForJS(v any) any {
 		}
 		return out
 	case bson.D:
-		// ponytail: D is flattened to an object (last-wins on duplicate keys). v1
-		// exposed D as an array to JS, but D is not on the result path (results are
-		// bson.M); this branch is defensive.
-		out := make(map[string]any, len(val))
-		for _, e := range val {
-			out[e.Key] = normalizeForJS(e.Value)
+		out := make(bson.D, len(val))
+		for i, e := range val {
+			out[i] = bson.E{Key: e.Key, Value: normalizeForJS(e.Value)}
 		}
 		return out
 	case bson.A:

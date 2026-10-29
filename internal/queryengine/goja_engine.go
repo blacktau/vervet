@@ -127,11 +127,11 @@ func displayValue(v any) any {
 		}
 		return out
 	case bson.D:
-		// The frontend receives JSON objects, so the ordered form is only
-		// needed on the way to MongoDB.
-		out := make(map[string]any, len(val))
-		for _, e := range val {
-			out[e.Key] = displayValue(e.Value)
+		// bson.D encodes to an ordered JSON object, so the frontend shows the
+		// fields in the order the script built them.
+		out := make(bson.D, len(val))
+		for i, e := range val {
+			out[i] = bson.E{Key: e.Key, Value: displayValue(e.Value)}
 		}
 		return out
 	case []any:

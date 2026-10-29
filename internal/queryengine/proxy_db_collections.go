@@ -134,7 +134,7 @@ func dbAggregate(ec *execContext) func(goja.FunctionCall) goja.Value {
 			panic(ec.rt.NewGoError(fmt.Errorf("aggregate: %w", err)))
 		}
 
-		var results []bson.M
+		var results []bson.D
 		if err := cursor.All(ec.ctx, &results); err != nil {
 			panic(ec.rt.NewGoError(fmt.Errorf("aggregate: %w", err)))
 		}

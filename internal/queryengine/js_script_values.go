@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/dop251/goja"
@@ -33,6 +34,19 @@ func scriptValue(rt *goja.Runtime, v any) goja.Value {
 			_ = obj.Set(k, scriptValue(rt, elem))
 		}
 		return obj
+	case bson.D:
+		// Extended JSON wrappers ({$oid: ...}, {$date: {$numberLong: ...}}) are
+		// small; flatten them to maps so ejsonToJS can read them by key.
+		if len(val) > 0 && strings.HasPrefix(val[0].Key, "$") {
+			if converted, ok := ejsonToJS(rt, plainMap(val).(map[string]any)); ok {
+				return converted
+			}
+		}
+		obj := rt.NewObject()
+		for _, e := range val {
+			_ = obj.Set(e.Key, scriptValue(rt, e.Value))
+		}
+		return obj
 	case []any:
 		// NewArray rather than ToValue: a reflected Go slice is not a real JS
 		// Array, so Array.prototype methods and instanceof checks misbehave.
@@ -43,6 +57,26 @@ func scriptValue(rt *goja.Runtime, v any) goja.Value {
 		return rt.NewArray(items...)
 	default:
 		return rt.ToValue(v)
+	}
+}
+
+// plainMap recursively converts bson.D values to map[string]any.
+func plainMap(v any) any {
+	switch val := v.(type) {
+	case bson.D:
+		m := make(map[string]any, len(val))
+		for _, e := range val {
+			m[e.Key] = plainMap(e.Value)
+		}
+		return m
+	case []any:
+		out := make([]any, len(val))
+		for i, elem := range val {
+			out[i] = plainMap(elem)
+		}
+		return out
+	default:
+		return v
 	}
 }
 

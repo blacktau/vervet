@@ -5,7 +5,92 @@ import (
 	"fmt"
 
 	"vervet/internal/models"
+
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
+
+// encodePageDoc renders a cursor's filter/projection/sort/hint document as
+// canonical Extended JSON for a PageContext. Nil encodes as "" (absent).
+func encodePageDoc(v any) (string, error) {
+	if v == nil {
+		return "", nil
+	}
+	doc, ok := asBsonDoc(v)
+	if !ok {
+		return "", fmt.Errorf("expected a document, got %T", v)
+	}
+	data, err := bson.MarshalExtJSON(doc, true, false)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+// decodePageDoc is the inverse of encodePageDoc. "" decodes as nil (absent),
+// so an omitted projection or sort stays omitted.
+func decodePageDoc(s string) (any, error) {
+	if s == "" {
+		return nil, nil
+	}
+	var doc bson.D
+	if err := bson.UnmarshalExtJSON([]byte(s), true, &doc); err != nil {
+		return nil, err
+	}
+	return doc, nil
+}
+
+// newPageContext snapshots a cursor's find parameters for later page fetches.
+func newPageContext(c *lazyCursor) (*models.PageContext, error) {
+	pc := &models.PageContext{
+		Collection: c.collection,
+		Collation:  c.collation,
+		UserLimit:  c.limit,
+		UserSkip:   c.skip,
+		MaxTimeMS:  c.maxTimeMS,
+		Comment:    c.comment,
+	}
+	var err error
+	if pc.Filter, err = encodePageDoc(c.filter); err != nil {
+		return nil, fmt.Errorf("paging filter: %w", err)
+	}
+	if pc.Projection, err = encodePageDoc(c.projection); err != nil {
+		return nil, fmt.Errorf("paging projection: %w", err)
+	}
+	if pc.Sort, err = encodePageDoc(c.sort); err != nil {
+		return nil, fmt.Errorf("paging sort: %w", err)
+	}
+	if name, ok := c.hint.(string); ok {
+		pc.HintName = name
+	} else if pc.Hint, err = encodePageDoc(c.hint); err != nil {
+		return nil, fmt.Errorf("paging hint: %w", err)
+	}
+	return pc, nil
+}
+
+// pageQuery holds a PageContext's documents decoded back into ordered BSON.
+type pageQuery struct {
+	filter, projection, sort, hint any
+}
+
+func decodePageContext(pc models.PageContext) (pageQuery, error) {
+	var q pageQuery
+	var err error
+	if q.filter, err = decodePageDoc(pc.Filter); err != nil {
+		return q, fmt.Errorf("paging filter: %w", err)
+	}
+	if q.projection, err = decodePageDoc(pc.Projection); err != nil {
+		return q, fmt.Errorf("paging projection: %w", err)
+	}
+	if q.sort, err = decodePageDoc(pc.Sort); err != nil {
+		return q, fmt.Errorf("paging sort: %w", err)
+	}
+	if pc.HintName != "" {
+		q.hint = pc.HintName
+	} else if q.hint, err = decodePageDoc(pc.Hint); err != nil {
+		return q, fmt.Errorf("paging hint: %w", err)
+	}
+	return q, nil
+}
 
 // effectivePaging computes the skip/limit to send to MongoDB for a given page.
 // Returns empty=true when the page lies beyond pc.UserLimit (caller should
@@ -36,14 +121,18 @@ func (e *GojaEngine) FetchPage(
 	if empty {
 		return models.QueryResult{Documents: []any{}}, nil
 	}
+	q, err := decodePageContext(pc)
+	if err != nil {
+		return models.QueryResult{}, err
+	}
 	op := CapturedOp{
 		Collection: pc.Collection,
 		Method:     "find",
-		Args:       []any{pc.Filter, pc.Projection},
+		Args:       []any{q.filter, q.projection},
 		Limit:      limit,
 		Skip:       skip,
-		Sort:       pc.Sort,
-		Hint:       pc.Hint,
+		Sort:       q.sort,
+		Hint:       q.hint,
 		Collation:  pc.Collation,
 		MaxTimeMS:  pc.MaxTimeMS,
 		Comment:    pc.Comment,
@@ -59,9 +148,13 @@ func (e *GojaEngine) CountForPage(
 	dbName string,
 	pc models.PageContext,
 ) (count int64, estimated bool, err error) {
+	filter, err := decodePageDoc(pc.Filter)
+	if err != nil {
+		return 0, false, fmt.Errorf("paging filter: %w", err)
+	}
 	method := "countDocuments"
-	args := []any{pc.Filter}
-	if isEmptyFilter(pc.Filter) {
+	args := []any{filter}
+	if isEmptyFilter(filter) {
 		method = "estimatedDocumentCount"
 		args = nil
 		estimated = true
@@ -86,8 +179,11 @@ func isEmptyFilter(f any) bool {
 	if f == nil {
 		return true
 	}
-	if m, ok := asMap(f); ok && len(m) == 0 {
-		return true
+	switch d := f.(type) {
+	case bson.D:
+		return len(d) == 0
+	case map[string]any:
+		return len(d) == 0
 	}
 	return false
 }

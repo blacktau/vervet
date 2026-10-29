@@ -4,6 +4,7 @@ package queryengine
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -85,4 +86,91 @@ func TestIntegration_KeyOrder_InsertedFieldOrder(t *testing.T) {
 	result, err := engine.ExecuteQuery(ctx, testURI, db, `db.f.countDocuments({ mango: { y: 1, x: 2, w: 3 } })`)
 	require.NoError(t, err)
 	assert.Contains(t, resultText(result), "1")
+}
+
+func TestIntegration_KeyOrder_EJSONParseCommand(t *testing.T) {
+	ctx, db, engine := keyOrderEngine(t)
+
+	for i := 0; i < 10; i++ {
+		result, err := engine.ExecuteQuery(ctx, testURI, db, `db.runCommand(EJSON.parse(
+			'{"update": "e", "updates": [{"q": {"k": 1}, "u": {"$set": {"k": 1}}, "upsert": true}], "ordered": false}'
+		)).ok`)
+		require.NoError(t, err)
+		require.Equal(t, "1", resultText(result))
+	}
+}
+
+// Documents a script reads and writes back keep their field order, so a copy
+// is identical and exact embedded-document matches built from it still hit.
+func TestIntegration_KeyOrder_ReadModifyWrite(t *testing.T) {
+	ctx, db, engine := keyOrderEngine(t)
+
+	_, err := engine.ExecuteQuery(ctx, testURI, db,
+		`db.src.insertOne({ _id: 1, zebra: 1, apple: 2, mango: { y: 1, x: 2, w: 3 }, list: [{ q: 1, p: 2 }] })`)
+	require.NoError(t, err)
+
+	for i := 0; i < 10; i++ {
+		_, err = engine.ExecuteQuery(ctx, testURI, db, `
+			db.dst.deleteMany({});
+			db.src.find().forEach(function (d) { db.dst.insertOne(d); });
+			var one = db.src.find({ _id: 1 }).toArray()[0];
+			db.dst.replaceOne({ _id: 1 }, one);
+			var agg = db.src.aggregate([{ $match: {} }]).toArray()[0];
+			db.dst.insertOne(Object.assign({ copy: "agg" }, agg, { _id: 2 }));`)
+		require.NoError(t, err)
+
+		for _, id := range []int32{1, 2} {
+			var raw bson.Raw
+			require.NoError(t, testClient.Database(db).Collection("dst").FindOne(ctx, bson.D{{Key: "_id", Value: id}}).Decode(&raw))
+			var doc bson.D
+			require.NoError(t, bson.Unmarshal(raw, &doc))
+			want := []string{"_id", "zebra", "apple", "mango", "list"}
+			if id == 2 {
+				// The server always moves _id to the front.
+				want = []string{"_id", "copy", "zebra", "apple", "mango", "list"}
+			}
+			require.Equal(t, want, docKeys(doc))
+			mango := docField(doc, "mango").(bson.D)
+			require.Equal(t, []string{"y", "x", "w"}, docKeys(mango))
+		}
+
+		result, err := engine.ExecuteQuery(ctx, testURI, db,
+			`var m = db.src.find().toArray()[0].mango; db.dst.countDocuments({ mango: m })`)
+		require.NoError(t, err)
+		require.Equal(t, "2", resultText(result))
+	}
+}
+
+// Results shown in the UI keep the document's field order, for both query
+// results and plain values a script returns.
+func TestIntegration_KeyOrder_DisplayedResults(t *testing.T) {
+	ctx, db, engine := keyOrderEngine(t)
+
+	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.d.insertOne({ _id: 1, zebra: 1, apple: 2, mango: 3 })`)
+	require.NoError(t, err)
+
+	result, err := engine.ExecuteQuery(ctx, testURI, db, `db.d.find()`)
+	require.NoError(t, err)
+	data, err := json.Marshal(result.Documents)
+	require.NoError(t, err)
+	assert.Equal(t, `[{"_id":{"$numberLong":"1"},"zebra":{"$numberLong":"1"},"apple":{"$numberLong":"2"},"mango":{"$numberLong":"3"}}]`, string(data))
+
+	result, err = engine.ExecuteQuery(ctx, testURI, db, `({ zebra: 1, apple: "a", mango: { y: 1, x: 2 } })`)
+	require.NoError(t, err)
+	data, err = json.Marshal(result.Documents)
+	require.NoError(t, err)
+	assert.Equal(t, `[{"zebra":1,"apple":"a","mango":{"y":1,"x":2}}]`, string(data))
+}
+
+func TestIntegration_KeyOrder_BulkWriteFirstKeyIsOperation(t *testing.T) {
+	ctx, db, engine := keyOrderEngine(t)
+
+	for i := 0; i < 10; i++ {
+		_, err := engine.ExecuteQuery(ctx, testURI, db,
+			`db.bw.bulkWrite([{ insertOne: { document: { n: 1 } }, comment: "ignored" }])`)
+		require.NoError(t, err)
+	}
+	count, err := testClient.Database(db).Collection("bw").CountDocuments(ctx, bson.D{})
+	require.NoError(t, err)
+	assert.Equal(t, int64(10), count)
 }

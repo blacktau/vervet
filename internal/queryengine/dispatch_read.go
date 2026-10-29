@@ -38,7 +38,7 @@ func dispatchFind(ctx context.Context, coll *mongo.Collection, op CapturedOp) (m
 	}
 	defer cursor.Close(ctx)
 
-	var results []bson.M
+	var results []bson.D
 	if err := cursor.All(ctx, &results); err != nil {
 		return models.QueryResult{}, fmt.Errorf("reading cursor: %w", err)
 	}
@@ -187,7 +187,7 @@ func dispatchFindOne(ctx context.Context, coll *mongo.Collection, op CapturedOp)
 		filter = toBsonDoc(op.Args[0])
 	}
 
-	var result bson.M
+	var result bson.D
 	err := coll.FindOne(ctx, filter).Decode(&result)
 	if err == mongo.ErrNoDocuments {
 		return models.QueryResult{Documents: []any{}, OperationType: "findOne"}, nil
@@ -196,7 +196,7 @@ func dispatchFindOne(ctx context.Context, coll *mongo.Collection, op CapturedOp)
 		return models.QueryResult{}, fmt.Errorf("findOne failed: %w", err)
 	}
 
-	result2 := docsToResult([]bson.M{result})
+	result2 := docsToResult([]bson.D{result})
 	result2.OperationType = "findOne"
 	return result2, nil
 }
@@ -233,7 +233,7 @@ func dispatchAggregate(ctx context.Context, coll *mongo.Collection, op CapturedO
 	}
 	defer cursor.Close(ctx)
 
-	var results []bson.M
+	var results []bson.D
 	if err := cursor.All(ctx, &results); err != nil {
 		return models.QueryResult{}, fmt.Errorf("reading aggregate cursor: %w", err)
 	}
@@ -286,7 +286,7 @@ func dispatchFindOneAndDelete(ctx context.Context, coll *mongo.Collection, op Ca
 		filter = toBsonDoc(op.Args[0])
 	}
 
-	var result bson.M
+	var result bson.D
 	err := coll.FindOneAndDelete(ctx, filter).Decode(&result)
 	if err == mongo.ErrNoDocuments {
 		return models.QueryResult{Documents: []any{}, OperationType: "findOneAndDelete"}, nil
@@ -295,7 +295,7 @@ func dispatchFindOneAndDelete(ctx context.Context, coll *mongo.Collection, op Ca
 		return models.QueryResult{}, fmt.Errorf("findOneAndDelete failed: %w", err)
 	}
 
-	r := docsToResult([]bson.M{result})
+	r := docsToResult([]bson.D{result})
 	r.OperationType = "findOneAndDelete"
 	return r, nil
 }
@@ -315,7 +315,7 @@ func dispatchFindOneAndReplace(ctx context.Context, coll *mongo.Collection, op C
 		replacement = toBsonDoc(op.Args[1])
 	}
 
-	var result bson.M
+	var result bson.D
 	err := coll.FindOneAndReplace(ctx, filter, replacement).Decode(&result)
 	if err == mongo.ErrNoDocuments {
 		return models.QueryResult{Documents: []any{}, OperationType: "findOneAndReplace"}, nil
@@ -324,7 +324,7 @@ func dispatchFindOneAndReplace(ctx context.Context, coll *mongo.Collection, op C
 		return models.QueryResult{}, fmt.Errorf("findOneAndReplace failed: %w", err)
 	}
 
-	r := docsToResult([]bson.M{result})
+	r := docsToResult([]bson.D{result})
 	r.OperationType = "findOneAndReplace"
 	return r, nil
 }
@@ -337,7 +337,7 @@ func dispatchFindOneAndUpdate(ctx context.Context, coll *mongo.Collection, op Ca
 	filter := toBsonDoc(op.Args[0])
 	update := convertToBson(op.Args[1])
 
-	var result bson.M
+	var result bson.D
 	err := coll.FindOneAndUpdate(ctx, filter, update).Decode(&result)
 	if err == mongo.ErrNoDocuments {
 		return models.QueryResult{Documents: []any{}, OperationType: "findOneAndUpdate"}, nil
@@ -346,7 +346,7 @@ func dispatchFindOneAndUpdate(ctx context.Context, coll *mongo.Collection, op Ca
 		return models.QueryResult{}, fmt.Errorf("findOneAndUpdate failed: %w", err)
 	}
 
-	r := docsToResult([]bson.M{result})
+	r := docsToResult([]bson.D{result})
 	r.OperationType = "findOneAndUpdate"
 	return r, nil
 }

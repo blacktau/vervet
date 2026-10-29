@@ -125,9 +125,9 @@ func dispatchDropIndexes(ctx context.Context, coll *mongo.Collection, op Capture
 		keys = append(keys, key)
 	}
 
-	var results []bson.M
+	var results []bson.D
 	for _, key := range keys {
-		var r bson.M
+		var r bson.D
 		cmd := bson.D{{Key: "dropIndexes", Value: coll.Name()}, {Key: "index", Value: key}}
 		if err := coll.Database().RunCommand(ctx, cmd).Decode(&r); err != nil {
 			return models.QueryResult{}, fmt.Errorf("dropIndexes failed on '%s': %w", key, err)
@@ -146,7 +146,7 @@ func dispatchListIndexes(ctx context.Context, coll *mongo.Collection) (models.Qu
 		return models.QueryResult{}, fmt.Errorf("listIndexes failed: %w", err)
 	}
 	defer cursor.Close(ctx)
-	var results []bson.M
+	var results []bson.D
 	if err := cursor.All(ctx, &results); err != nil {
 		return models.QueryResult{}, fmt.Errorf("reading listIndexes cursor: %w", err)
 	}

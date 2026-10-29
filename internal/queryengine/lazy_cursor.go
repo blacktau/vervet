@@ -33,22 +33,11 @@ type lazyCursor struct {
 
 // buildPageContext returns a PageContext snapshot of this cursor's find
 // parameters. Returns nil for findOne (not pageable).
-func (c *lazyCursor) buildPageContext() *models.PageContext {
+func (c *lazyCursor) buildPageContext() (*models.PageContext, error) {
 	if c.isFindOne {
-		return nil
+		return nil, nil
 	}
-	return &models.PageContext{
-		Collection: c.collection,
-		Filter:     c.filter,
-		Projection: c.projection,
-		Sort:       c.sort,
-		Hint:       c.hint,
-		Collation:  c.collation,
-		UserLimit:  c.limit,
-		UserSkip:   c.skip,
-		MaxTimeMS:  c.maxTimeMS,
-		Comment:    c.comment,
-	}
+	return newPageContext(c)
 }
 
 func (c *lazyCursor) setLimit(n int64) error {
@@ -87,7 +76,10 @@ func (c *lazyCursor) execute(paged bool) (models.QueryResult, error) {
 		return models.QueryResult{Documents: c.results, PageContext: c.pageCtx}, nil
 	}
 
-	pageCtx := c.buildPageContext()
+	pageCtx, err := c.buildPageContext()
+	if err != nil {
+		return models.QueryResult{}, err
+	}
 
 	effSkip := c.skip
 	effLimit := c.limit
@@ -279,9 +271,9 @@ func (c *lazyCursor) toGojaObject() goja.Value {
 			if err != nil {
 				panic(rt.NewGoError(err))
 			}
-			mapped[i] = val.Export()
+			mapped[i] = val
 		}
-		return rt.ToValue(mapped)
+		return rt.NewArray(mapped...)
 	})
 
 	_ = obj.Set("count", func() goja.Value {

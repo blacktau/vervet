@@ -134,11 +134,13 @@ func convertToBson(v any) any {
 	}
 }
 
-// docsToResult converts bson.M documents into a clean QueryResult by round-tripping
-// through canonical Extended JSON. Canonical mode preserves all BSON type information
+// docsToResult converts documents into a clean QueryResult by round-tripping
+// through canonical Extended JSON. Documents stay bson.D (decoded with
+// bson.D's ordered UnmarshalJSON) so field order survives to the frontend and
+// to scripts that write documents back. Canonical mode preserves all BSON type information
 // (e.g. $numberInt, $numberLong, $numberDouble, $date, $regularExpression) so the
 // frontend can display types correctly.
-func docsToResult(docs []bson.M) models.QueryResult {
+func docsToResult(docs []bson.D) models.QueryResult {
 	if len(docs) == 0 {
 		return models.QueryResult{Documents: []any{}}
 	}
@@ -150,12 +152,12 @@ func docsToResult(docs []bson.M) models.QueryResult {
 			cleaned = append(cleaned, doc)
 			continue
 		}
-		var m map[string]any
-		if err := json.Unmarshal(b, &m); err != nil {
+		var ordered bson.D
+		if err := json.Unmarshal(b, &ordered); err != nil {
 			cleaned = append(cleaned, doc)
 			continue
 		}
-		cleaned = append(cleaned, m)
+		cleaned = append(cleaned, ordered)
 	}
 
 	return models.QueryResult{Documents: cleaned}

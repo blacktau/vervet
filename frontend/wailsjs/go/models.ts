@@ -296,10 +296,11 @@ export namespace models {
 	
 	export interface PageContext {
 	    collection: string;
-	    filter?: any;
-	    projection?: any;
-	    sort?: any;
-	    hint?: any;
+	    filter?: string;
+	    projection?: string;
+	    sort?: string;
+	    hint?: string;
+	    hintName?: string;
 	    collation?: Record<string, any>;
 	    userLimit?: number;
 	    userSkip?: number;

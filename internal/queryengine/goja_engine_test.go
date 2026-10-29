@@ -336,8 +336,7 @@ func TestGojaEngine_RequireFS_RoundTrip(t *testing.T) {
 	res, err := eng.ExecuteQuery(context.Background(), "", "testdb", script)
 	require.NoError(t, err)
 	require.Len(t, res.Documents, 1)
-	doc := res.Documents[0].(map[string]any)
-	assert.Equal(t, "world", doc["hello"])
+	assert.Equal(t, bson.D{{Key: "hello", Value: "world"}, {Key: "n", Value: int64(42)}}, res.Documents[0])
 }
 
 func TestGojaEngine_RequirePath_Join(t *testing.T) {

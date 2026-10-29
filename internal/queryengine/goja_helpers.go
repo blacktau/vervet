@@ -2,6 +2,7 @@ package queryengine
 
 import (
 	"fmt"
+	"reflect"
 	"vervet/internal/models"
 
 	"github.com/dop251/goja"
@@ -22,6 +23,9 @@ func toGojaValue(rt *goja.Runtime, result models.QueryResult) goja.Value {
 	}
 	return toJSValue(rt, result.Documents)
 }
+
+// reflectTypeMap is the type goja exports a plain JS object as.
+var reflectTypeMap = reflect.TypeOf(map[string]any{})
 
 // exportArgs converts Goja function call arguments to plain Go values.
 // RegExp objects are converted to bson.Regex so they survive Export()
@@ -59,11 +63,10 @@ func exportValue(val goja.Value) any {
 		}
 		// Reflected Go values (e.g. a bson.Binary from a db command result)
 		// export as themselves; walking their properties would turn them into
-		// a map of fields and methods.
-		if exported := obj.Export(); exported != nil {
-			if _, isMap := exported.(map[string]any); !isMap {
-				return exported
-			}
+		// a map of fields and methods. ExportType answers this without
+		// exporting the whole subtree, which Export() would do at every level.
+		if obj.ExportType() != reflectTypeMap {
+			return obj.Export()
 		}
 		return exportObject(obj)
 	default:
@@ -95,6 +98,16 @@ func exportObject(obj *goja.Object) bson.D {
 		doc = append(doc, bson.E{Key: key, Value: exportValue(obj.Get(key))})
 	}
 	return doc
+}
+
+// docField returns the value of key in d, or nil when it is absent.
+func docField(d bson.D, key string) any {
+	for _, e := range d {
+		if e.Key == key {
+			return e.Value
+		}
+	}
+	return nil
 }
 
 // asMap returns the fields of an exported document for lookup by name. It
