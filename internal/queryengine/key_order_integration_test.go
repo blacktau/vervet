@@ -5,6 +5,7 @@ package queryengine
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -173,4 +174,113 @@ func TestIntegration_KeyOrder_BulkWriteFirstKeyIsOperation(t *testing.T) {
 	count, err := testClient.Database(db).Collection("bw").CountDocuments(ctx, bson.D{})
 	require.NoError(t, err)
 	assert.Equal(t, int64(10), count)
+}
+
+// Empty arrays must stay arrays in displayed results (the edit dialog saves
+// the displayed document back) and in documents a script copies.
+func TestIntegration_EmptyArraysSurviveResults(t *testing.T) {
+	ctx, db, engine := keyOrderEngine(t)
+
+	_, err := engine.ExecuteQuery(ctx, testURI, db,
+		`db.ea.insertOne({ _id: 1, tags: [], meta: {}, nested: { list: [] } })`)
+	require.NoError(t, err)
+
+	for _, q := range []string{`db.ea.find()`, `db.ea.aggregate([{ $match: {} }])`} {
+		result, err := engine.ExecuteQuery(ctx, testURI, db, q)
+		require.NoError(t, err)
+		assert.Equal(t, `[{"_id":{"$numberLong":"1"},"tags":[],"meta":{},"nested":{"list":[]}}]`, resultText(result), q)
+	}
+
+	_, err = engine.ExecuteQuery(ctx, testURI, db,
+		`db.ea.find().forEach(function (d) { d._id = 2; db.ea.insertOne(d); })`)
+	require.NoError(t, err)
+	var copied bson.D
+	require.NoError(t, testClient.Database(db).Collection("ea").FindOne(ctx, bson.D{{Key: "_id", Value: int64(2)}}).Decode(&copied))
+	assert.Equal(t, bson.A{}, docField(copied, "tags"))
+	assert.Equal(t, bson.D{{Key: "list", Value: bson.A{}}}, docField(copied, "nested"))
+}
+
+// An unpaged cursor never builds a PageContext, so a non-document filter
+// falls back to an empty filter as it always did.
+func TestIntegration_NonDocumentFilter(t *testing.T) {
+	ctx, db, engine := keyOrderEngine(t)
+
+	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.nd.insertMany([{ n: 1 }, { n: 2 }])`)
+	require.NoError(t, err)
+
+	result, err := engine.ExecuteQuery(ctx, testURI, db, `db.nd.find(1).toArray().length`)
+	require.NoError(t, err)
+	assert.Equal(t, "2", resultText(result))
+
+	paged := NewGojaEngine(testClient, 25, "")
+	result, err = paged.ExecuteQuery(ctx, testURI, db, `db.nd.find(1)`)
+	require.NoError(t, err)
+	assert.Len(t, result.Documents, 2)
+}
+
+func TestIntegration_KeyOrder_FindAndModifyReadBack(t *testing.T) {
+	ctx, db, engine := keyOrderEngine(t)
+
+	_, err := engine.ExecuteQuery(ctx, testURI, db,
+		`db.fm.insertOne({ _id: 1, zebra: 1, apple: 2, mango: { y: 1, x: 2 } })`)
+	require.NoError(t, err)
+
+	for i := 0; i < 10; i++ {
+		_, err = engine.ExecuteQuery(ctx, testURI, db, `
+			var d = db.fm.findAndModify({ query: { _id: 1 }, update: { $inc: { n: 1 } }, new: true });
+			db.fm.replaceOne({ _id: 1 }, d);`)
+		require.NoError(t, err)
+
+		var doc bson.D
+		require.NoError(t, testClient.Database(db).Collection("fm").FindOne(ctx, bson.D{}).Decode(&doc))
+		require.Equal(t, []string{"_id", "zebra", "apple", "mango", "n"}, docKeys(doc))
+		require.Equal(t, []string{"y", "x"}, docKeys(docField(doc, "mango").(bson.D)))
+	}
+}
+
+// getCollectionInfos returns each collection's fields in server order. The
+// driver already decodes nested documents (such as a validator) as ordered
+// bson.D, so only the top level of each info document was at risk.
+func TestIntegration_KeyOrder_CollectionInfo(t *testing.T) {
+	ctx, db, engine := keyOrderEngine(t)
+
+	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.runCommand({ create: "val",
+		validator: { $jsonSchema: { properties: { z: { bsonType: "string" }, a: { bsonType: "string" } } } } })`)
+	require.NoError(t, err)
+
+	cursor, err := testClient.Database(db).ListCollections(ctx, bson.D{{Key: "name", Value: "val"}})
+	require.NoError(t, err)
+	var server []bson.D
+	require.NoError(t, cursor.All(ctx, &server))
+	require.Len(t, server, 1)
+	want := strings.Join(docKeys(server[0]), ",")
+
+	for i := 0; i < 10; i++ {
+		result, err := engine.ExecuteQuery(ctx, testURI, db,
+			`Object.keys(db.getCollectionInfos({ name: "val" })[0]).join(",")`)
+		require.NoError(t, err)
+		require.Equal(t, want, resultText(result))
+	}
+}
+
+func TestIntegration_KeyOrder_ExplainMatchesServer(t *testing.T) {
+	ctx, db, engine := keyOrderEngine(t)
+
+	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.ex.insertOne({ n: 1 })`)
+	require.NoError(t, err)
+
+	var server bson.D
+	require.NoError(t, testClient.Database(db).RunCommand(ctx, bson.D{
+		{Key: "explain", Value: bson.D{{Key: "find", Value: "ex"}, {Key: "filter", Value: bson.D{}}}},
+		{Key: "verbosity", Value: "queryPlanner"},
+	}).Decode(&server))
+
+	result, err := engine.ExecuteQuery(ctx, testURI, db, `db.ex.find({}).explain()`)
+	require.NoError(t, err)
+	require.Len(t, result.Documents, 1)
+	// explain() hands its result to the script, so the final value comes back
+	// as the ordered document the script saw.
+	fields, ok := result.Documents[0].(bson.D)
+	require.True(t, ok, "got %T", result.Documents[0])
+	assert.Equal(t, docKeys(server), docKeys(fields))
 }

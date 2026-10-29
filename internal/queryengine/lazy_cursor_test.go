@@ -132,3 +132,18 @@ func TestPageContext_HintByName(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "name_1", q.hint)
 }
+
+func TestPageContext_CarriesBatchSize(t *testing.T) {
+	pc, err := (&lazyCursor{collection: "users", batchSize: 50}).buildPageContext()
+	require.NoError(t, err)
+	assert.Equal(t, int32(50), pc.BatchSize)
+}
+
+// Non-document values fall back to "absent", as dispatch does, instead of
+// failing the query.
+func TestPageContext_NonDocumentFilterIsAbsent(t *testing.T) {
+	pc, err := (&lazyCursor{collection: "users", filter: int64(1), sort: "x"}).buildPageContext()
+	require.NoError(t, err)
+	assert.Empty(t, pc.Filter)
+	assert.Empty(t, pc.Sort)
+}

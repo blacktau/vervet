@@ -171,7 +171,7 @@ func dispatchExplainFind(ctx context.Context, client *mongo.Client, dbName strin
 		{Key: "verbosity", Value: verbosity},
 	}
 
-	var result bson.M
+	var result bson.D
 	if err := client.Database(dbName).RunCommand(ctx, cmd).Decode(&result); err != nil {
 		return models.QueryResult{}, fmt.Errorf("explain failed: %w", err)
 	}
@@ -269,7 +269,7 @@ func dispatchDistinct(ctx context.Context, coll *mongo.Collection, op CapturedOp
 	// Scripts get the bare array mongosh returns; take it from the converted
 	// document so BSON types keep their Extended JSON form (and become Long,
 	// ObjectId, ... in the script rather than plain numbers).
-	if doc, ok := result.Documents[0].(map[string]any); ok {
+	if doc, ok := resultFields(result.Documents[0]); ok {
 		result.JSValue = doc["values"]
 	}
 	result.OperationType = "distinct"

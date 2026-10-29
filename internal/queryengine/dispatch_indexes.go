@@ -73,7 +73,7 @@ func dispatchDropIndex(ctx context.Context, coll *mongo.Collection, op CapturedO
 		return models.QueryResult{}, fmt.Errorf("dropIndex argument must be a string")
 	}
 
-	var result bson.M
+	var result bson.D
 	cmd := bson.D{{Key: "dropIndexes", Value: coll.Name()}, {Key: "index", Value: name}}
 	if err := coll.Database().RunCommand(ctx, cmd).Decode(&result); err != nil {
 		return models.QueryResult{}, fmt.Errorf("dropIndex failed: %w", err)
@@ -87,7 +87,7 @@ func dispatchDropIndex(ctx context.Context, coll *mongo.Collection, op CapturedO
 func dispatchDropIndexes(ctx context.Context, coll *mongo.Collection, op CapturedOp) (models.QueryResult, error) {
 	if len(op.Args) < 1 {
 		// dropIndexes supports deleting all indexes with no arguments
-		var result bson.M
+		var result bson.D
 		cmd := bson.D{{Key: "dropIndexes", Value: coll.Name()}, {Key: "index", Value: "*"}}
 		if err := coll.Database().RunCommand(ctx, cmd).Decode(&result); err != nil {
 			return models.QueryResult{}, fmt.Errorf("dropIndexes failed: %w", err)
@@ -100,7 +100,7 @@ func dispatchDropIndexes(ctx context.Context, coll *mongo.Collection, op Capture
 
 	name, ok := op.Args[0].(string)
 	if ok {
-		var result bson.M
+		var result bson.D
 		cmd := bson.D{{Key: "dropIndexes", Value: coll.Name()}, {Key: "index", Value: name}}
 		if err := coll.Database().RunCommand(ctx, cmd).Decode(&result); err != nil {
 			return models.QueryResult{}, fmt.Errorf("dropIndexes failed: %w", err)

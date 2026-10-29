@@ -10,14 +10,13 @@ import (
 )
 
 // encodePageDoc renders a cursor's filter/projection/sort/hint document as
-// canonical Extended JSON for a PageContext. Nil encodes as "" (absent).
+// canonical Extended JSON for a PageContext. Nil and non-documents encode as
+// "" (absent), matching how dispatch treats them (toBsonDoc yields an empty
+// document), so later pages run the same query as the first.
 func encodePageDoc(v any) (string, error) {
-	if v == nil {
-		return "", nil
-	}
 	doc, ok := asBsonDoc(v)
 	if !ok {
-		return "", fmt.Errorf("expected a document, got %T", v)
+		return "", nil
 	}
 	data, err := bson.MarshalExtJSON(doc, true, false)
 	if err != nil {
@@ -39,14 +38,21 @@ func decodePageDoc(s string) (any, error) {
 	return doc, nil
 }
 
-// newPageContext snapshots a cursor's find parameters for later page fetches.
-func newPageContext(c *lazyCursor) (*models.PageContext, error) {
+// buildPageContext snapshots this cursor's find parameters so the frontend
+// can fetch later pages. Returns nil for findOne (not pageable). A cursor
+// option that should apply to every page must be copied here and applied in
+// FetchPage.
+func (c *lazyCursor) buildPageContext() (*models.PageContext, error) {
+	if c.isFindOne {
+		return nil, nil
+	}
 	pc := &models.PageContext{
 		Collection: c.collection,
 		Collation:  c.collation,
 		UserLimit:  c.limit,
 		UserSkip:   c.skip,
 		MaxTimeMS:  c.maxTimeMS,
+		BatchSize:  c.batchSize,
 		Comment:    c.comment,
 	}
 	var err error
@@ -135,6 +141,7 @@ func (e *GojaEngine) FetchPage(
 		Hint:       q.hint,
 		Collation:  pc.Collation,
 		MaxTimeMS:  pc.MaxTimeMS,
+		BatchSize:  pc.BatchSize,
 		Comment:    pc.Comment,
 	}
 	return dispatch(ctx, e.client, dbName, op)
@@ -192,7 +199,7 @@ func extractCount(r models.QueryResult) int64 {
 	if len(r.Documents) == 0 {
 		return 0
 	}
-	doc, ok := r.Documents[0].(map[string]any)
+	doc, ok := resultFields(r.Documents[0])
 	if !ok {
 		return 0
 	}
@@ -216,9 +223,10 @@ func coerceInt64(v any) int64 {
 		var n int64
 		fmt.Sscanf(x, "%d", &n)
 		return n
-	case map[string]any:
+	case bson.D, map[string]any:
+		m, _ := asMap(x)
 		for _, key := range []string{"$numberLong", "$numberInt", "$numberDouble"} {
-			if s, ok := x[key].(string); ok {
+			if s, ok := m[key].(string); ok {
 				var n int64
 				fmt.Sscanf(s, "%d", &n)
 				return n

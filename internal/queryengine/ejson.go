@@ -1,7 +1,6 @@
 package queryengine
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/dop251/goja"
@@ -108,21 +107,21 @@ func ejsonSerialize(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 		raw := exportValue(call.Arguments[0])
 		bsonDoc := convertToBson(raw)
 
-		// Marshal to Extended JSON, then unmarshal to a generic map
+		// Marshal to Extended JSON, then decode to an ordered generic tree
 		data, err := bson.MarshalExtJSON(bsonDoc, false, false)
 		if err != nil {
 			panic(rt.NewGoError(fmt.Errorf("EJSON.serialize: %w", err)))
 		}
 
-		var result bson.D
-		if err := json.Unmarshal(data, &result); err != nil {
+		result, err := decodeOrderedJSON(data)
+		if err != nil {
 			panic(rt.NewGoError(fmt.Errorf("EJSON.serialize: %w", err)))
 		}
 
 		// Deliberately not toJSValue: serialize's contract is to expose the
 		// Extended JSON form ({$oid: ...}), which toJSValue would convert back
 		// into script values.
-		return plainJSValue(rt, result)
+		return jsValue(rt, result, false)
 	}
 }
 
@@ -148,26 +147,5 @@ func ejsonDeserialize(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 		}
 
 		return toJSValue(rt, result)
-	}
-}
-
-// plainJSValue builds JS objects and arrays from a decoded JSON tree, keeping
-// bson.D field order, without converting Extended JSON wrappers.
-func plainJSValue(rt *goja.Runtime, v any) goja.Value {
-	switch val := v.(type) {
-	case bson.D:
-		obj := rt.NewObject()
-		for _, e := range val {
-			_ = obj.Set(e.Key, plainJSValue(rt, e.Value))
-		}
-		return obj
-	case []any:
-		items := make([]any, len(val))
-		for i, elem := range val {
-			items[i] = plainJSValue(rt, elem)
-		}
-		return rt.NewArray(items...)
-	default:
-		return rt.ToValue(v)
 	}
 }

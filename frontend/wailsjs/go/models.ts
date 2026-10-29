@@ -305,6 +305,7 @@ export namespace models {
 	    userLimit?: number;
 	    userSkip?: number;
 	    maxTimeMS?: number;
+	    batchSize?: number;
 	    comment?: string;
 	}
 	export interface QueryResult {

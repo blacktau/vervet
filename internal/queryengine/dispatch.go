@@ -134,33 +134,28 @@ func convertToBson(v any) any {
 	}
 }
 
-// docsToResult converts documents into a clean QueryResult by round-tripping
-// through canonical Extended JSON. Documents stay bson.D (decoded with
-// bson.D's ordered UnmarshalJSON) so field order survives to the frontend and
-// to scripts that write documents back. Canonical mode preserves all BSON type information
-// (e.g. $numberInt, $numberLong, $numberDouble, $date, $regularExpression) so the
-// frontend can display types correctly.
+// docsToResult converts documents into a QueryResult holding each document's
+// canonical Extended JSON as raw bytes. Canonical mode preserves all BSON type
+// information (e.g. $numberInt, $numberLong, $date, $regularExpression) so the
+// frontend can display types correctly, and the bytes keep field order. Wails
+// sends a json.RawMessage verbatim, so nothing re-encodes it; the script path
+// decodes it with decodeOrderedJSON (see normalizeForJS).
 func docsToResult(docs []bson.D) models.QueryResult {
 	if len(docs) == 0 {
 		return models.QueryResult{Documents: []any{}}
 	}
 
-	cleaned := make([]any, 0, len(docs))
+	out := make([]any, 0, len(docs))
 	for _, doc := range docs {
 		b, err := bson.MarshalExtJSON(doc, true, false)
 		if err != nil {
-			cleaned = append(cleaned, doc)
+			out = append(out, doc)
 			continue
 		}
-		var ordered bson.D
-		if err := json.Unmarshal(b, &ordered); err != nil {
-			cleaned = append(cleaned, doc)
-			continue
-		}
-		cleaned = append(cleaned, ordered)
+		out = append(out, json.RawMessage(b))
 	}
 
-	return models.QueryResult{Documents: cleaned}
+	return models.QueryResult{Documents: out}
 }
 
 // singleToResult wraps a single value as the sole document in a QueryResult.
@@ -176,11 +171,7 @@ func singleToResult(v any) models.QueryResult {
 			return models.QueryResult{Documents: []any{v}, Single: true}
 		}
 	}
-	var m any
-	if err := json.Unmarshal(b, &m); err != nil {
-		return models.QueryResult{Documents: []any{v}, Single: true}
-	}
-	return models.QueryResult{Documents: []any{m}, Single: true}
+	return models.QueryResult{Documents: []any{json.RawMessage(b)}, Single: true}
 }
 
 // updateResultToQueryResult converts a mongo UpdateResult to a QueryResult.

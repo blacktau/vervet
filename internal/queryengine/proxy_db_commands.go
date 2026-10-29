@@ -33,7 +33,7 @@ func dbStats(ec *execContext) func(goja.FunctionCall) goja.Value {
 	return func(call goja.FunctionCall) goja.Value {
 		requireClient(ec)
 
-		var result bson.M
+		var result bson.D
 		err := ec.client.Database(ec.dbName).RunCommand(ec.ctx, bson.D{{Key: "dbStats", Value: 1}}).Decode(&result)
 		if err != nil {
 			panic(ec.rt.NewGoError(fmt.Errorf("stats: %w", err)))

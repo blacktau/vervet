@@ -1,6 +1,7 @@
 package queryengine
 
 import (
+	"encoding/json"
 	"testing"
 	"vervet/internal/models"
 
@@ -197,4 +198,52 @@ func docKeys(doc bson.D) []string {
 		keys[i] = e.Key
 	}
 	return keys
+}
+
+// Empty arrays and objects must survive the result round-trip: the edit dialog
+// saves the displayed document back, so `tags: []` turning into null would
+// write bad data.
+func TestDocsToResult_KeepsEmptyContainers(t *testing.T) {
+	r := docsToResult([]bson.D{{
+		{Key: "tags", Value: bson.A{}},
+		{Key: "meta", Value: bson.D{}},
+		{Key: "nested", Value: bson.D{{Key: "list", Value: bson.A{}}}},
+	}})
+	data, err := json.Marshal(r.Documents)
+	require.NoError(t, err)
+	assert.Equal(t, `[{"tags":[],"meta":{},"nested":{"list":[]}}]`, string(data))
+
+	decoded, err := decodeOrderedJSON(r.Documents[0].(json.RawMessage))
+	require.NoError(t, err)
+	assert.Equal(t, bson.D{
+		{Key: "tags", Value: []any{}},
+		{Key: "meta", Value: bson.D{}},
+		{Key: "nested", Value: bson.D{{Key: "list", Value: []any{}}}},
+	}, decoded)
+}
+
+func TestScriptValue_EmptyArrayIsArray(t *testing.T) {
+	rt := goja.New()
+	require.NoError(t, rt.Set("doc", toJSValue(rt, json.RawMessage(`{"tags":[]}`))))
+	val, err := rt.RunString(`Array.isArray(doc.tags) && doc.tags.length === 0`)
+	require.NoError(t, err)
+	assert.True(t, val.ToBoolean())
+}
+
+// A wrapper is recognised the same way whether it arrives as a map or as an
+// ordered document, wherever its $ key sits.
+func TestScriptValue_WrapperDetectionMatchesForMapAndD(t *testing.T) {
+	rt := goja.New()
+	const hex = "64b7f0c2a1b2c3d4e5f60718"
+	for name, v := range map[string]any{
+		"map":           map[string]any{"$oid": hex},
+		"D":             bson.D{{Key: "$oid", Value: hex}},
+		"map, $ second": map[string]any{"x": 1, "$oid": hex},
+		"D, $ second":   bson.D{{Key: "x", Value: 1}, {Key: "$oid", Value: hex}},
+	} {
+		require.NoError(t, rt.Set("v", scriptValue(rt, v)))
+		got, err := rt.RunString(`typeof v.toHexString === "function" ? v.toHexString() : "not an ObjectId"`)
+		require.NoError(t, err, name)
+		assert.Equal(t, hex, got.String(), name)
+	}
 }

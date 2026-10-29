@@ -51,7 +51,7 @@ func dbGetRole(ec *execContext) func(goja.FunctionCall) goja.Value {
 		name := call.Arguments[0].String()
 		cmd := bson.D{{Key: "rolesInfo", Value: name}}
 		result := runDBCommand(ec, "getRole", cmd)
-		roles, _ := result["roles"].(bson.A)
+		roles, _ := docField(result, "roles").(bson.A)
 		if len(roles) == 0 {
 			return goja.Null()
 		}
@@ -64,7 +64,7 @@ func dbGetRoles(ec *execContext) func(goja.FunctionCall) goja.Value {
 		requireClient(ec)
 		cmd := bson.D{{Key: "rolesInfo", Value: 1}}
 		result := runDBCommand(ec, "getRoles", cmd)
-		roles, _ := result["roles"].(bson.A)
+		roles, _ := docField(result, "roles").(bson.A)
 		out := make([]any, len(roles))
 		for i, r := range roles {
 			out[i] = r

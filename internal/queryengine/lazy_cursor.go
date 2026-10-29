@@ -31,15 +31,6 @@ type lazyCursor struct {
 	pageCtx    *models.PageContext
 }
 
-// buildPageContext returns a PageContext snapshot of this cursor's find
-// parameters. Returns nil for findOne (not pageable).
-func (c *lazyCursor) buildPageContext() (*models.PageContext, error) {
-	if c.isFindOne {
-		return nil, nil
-	}
-	return newPageContext(c)
-}
-
 func (c *lazyCursor) setLimit(n int64) error {
 	if c.resolved {
 		return fmt.Errorf("cursor already executed — cannot set limit")
@@ -76,14 +67,19 @@ func (c *lazyCursor) execute(paged bool) (models.QueryResult, error) {
 		return models.QueryResult{Documents: c.results, PageContext: c.pageCtx}, nil
 	}
 
-	pageCtx, err := c.buildPageContext()
-	if err != nil {
-		return models.QueryResult{}, err
+	// Only a paged result needs a PageContext; script-side terminals would
+	// pay for encoding it and never use it.
+	var pageCtx *models.PageContext
+	if paged {
+		var err error
+		if pageCtx, err = c.buildPageContext(); err != nil {
+			return models.QueryResult{}, err
+		}
 	}
 
 	effSkip := c.skip
 	effLimit := c.limit
-	if paged && pageCtx != nil && c.ec.pageSize > 0 {
+	if pageCtx != nil && c.ec.pageSize > 0 {
 		if c.limit > 0 && c.limit < c.ec.pageSize {
 			effLimit = c.limit
 		} else {

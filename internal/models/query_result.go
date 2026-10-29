@@ -19,6 +19,7 @@ type PageContext struct {
 	UserLimit  int64          `json:"userLimit,omitempty"`
 	UserSkip   int64          `json:"userSkip,omitempty"`
 	MaxTimeMS  int64          `json:"maxTimeMS,omitempty"`
+	BatchSize  int32          `json:"batchSize,omitempty"`
 	Comment    string         `json:"comment,omitempty"`
 }
 

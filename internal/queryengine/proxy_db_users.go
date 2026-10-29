@@ -54,8 +54,8 @@ func buildUpdateCommand(cmdName, name string, updateDoc any) (bson.D, error) {
 	return append(cmd, doc...), nil
 }
 
-func runDBCommand(ec *execContext, methodName string, cmd bson.D) bson.M {
-	var result bson.M
+func runDBCommand(ec *execContext, methodName string, cmd bson.D) bson.D {
+	var result bson.D
 	err := ec.client.Database(ec.dbName).RunCommand(ec.ctx, cmd).Decode(&result)
 	if err != nil {
 		panic(ec.rt.NewGoError(fmt.Errorf("%s: %w", methodName, err)))
@@ -98,7 +98,7 @@ func dbGetUser(ec *execContext) func(goja.FunctionCall) goja.Value {
 		name := call.Arguments[0].String()
 		cmd := bson.D{{Key: "usersInfo", Value: name}}
 		result := runDBCommand(ec, "getUser", cmd)
-		users, _ := result["users"].(bson.A)
+		users, _ := docField(result, "users").(bson.A)
 		if len(users) == 0 {
 			return goja.Null()
 		}
@@ -111,7 +111,7 @@ func dbGetUsers(ec *execContext) func(goja.FunctionCall) goja.Value {
 		requireClient(ec)
 		cmd := bson.D{{Key: "usersInfo", Value: 1}}
 		result := runDBCommand(ec, "getUsers", cmd)
-		users, _ := result["users"].(bson.A)
+		users, _ := docField(result, "users").(bson.A)
 		out := make([]any, len(users))
 		for i, u := range users {
 			out[i] = u

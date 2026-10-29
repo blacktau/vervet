@@ -24,27 +24,39 @@ import (
 // scriptValue converts a normalized (see normalizeForJS) result value into the
 // JavaScript value a mongosh script expects.
 func scriptValue(rt *goja.Runtime, v any) goja.Value {
+	return jsValue(rt, v, true)
+}
+
+// jsValue builds JS objects and arrays from a normalized value tree, keeping
+// bson.D field order. With convertEJSON, Extended JSON wrappers ({$oid: ...},
+// {$date: ...}) become script values; without it they stay plain objects, as
+// EJSON.serialize requires.
+func jsValue(rt *goja.Runtime, v any, convertEJSON bool) goja.Value {
 	switch val := v.(type) {
 	case map[string]any:
-		if converted, ok := ejsonToJS(rt, val); ok {
-			return converted
+		if convertEJSON {
+			if converted, ok := ejsonToJS(rt, val); ok {
+				return converted
+			}
 		}
 		obj := rt.NewObject()
 		for k, elem := range val {
-			_ = obj.Set(k, scriptValue(rt, elem))
+			_ = obj.Set(k, jsValue(rt, elem, convertEJSON))
 		}
 		return obj
 	case bson.D:
-		// Extended JSON wrappers ({$oid: ...}, {$date: {$numberLong: ...}}) are
-		// small; flatten them to maps so ejsonToJS can read them by key.
-		if len(val) > 0 && strings.HasPrefix(val[0].Key, "$") {
-			if converted, ok := ejsonToJS(rt, plainMap(val).(map[string]any)); ok {
+		// Every wrapper key starts with "$", so a document without one cannot
+		// be a wrapper; only then is a lookup map worth building. This gives
+		// the same result as the map case above.
+		if convertEJSON && hasDollarKey(val) {
+			m, _ := asMap(val)
+			if converted, ok := ejsonToJS(rt, m); ok {
 				return converted
 			}
 		}
 		obj := rt.NewObject()
 		for _, e := range val {
-			_ = obj.Set(e.Key, scriptValue(rt, e.Value))
+			_ = obj.Set(e.Key, jsValue(rt, e.Value, convertEJSON))
 		}
 		return obj
 	case []any:
@@ -52,7 +64,7 @@ func scriptValue(rt *goja.Runtime, v any) goja.Value {
 		// Array, so Array.prototype methods and instanceof checks misbehave.
 		items := make([]any, len(val))
 		for i, elem := range val {
-			items[i] = scriptValue(rt, elem)
+			items[i] = jsValue(rt, elem, convertEJSON)
 		}
 		return rt.NewArray(items...)
 	default:
@@ -60,24 +72,13 @@ func scriptValue(rt *goja.Runtime, v any) goja.Value {
 	}
 }
 
-// plainMap recursively converts bson.D values to map[string]any.
-func plainMap(v any) any {
-	switch val := v.(type) {
-	case bson.D:
-		m := make(map[string]any, len(val))
-		for _, e := range val {
-			m[e.Key] = plainMap(e.Value)
+func hasDollarKey(d bson.D) bool {
+	for _, e := range d {
+		if strings.HasPrefix(e.Key, "$") {
+			return true
 		}
-		return m
-	case []any:
-		out := make([]any, len(val))
-		for i, elem := range val {
-			out[i] = plainMap(elem)
-		}
-		return out
-	default:
-		return v
 	}
+	return false
 }
 
 // ejsonToJS converts a single Extended JSON wrapper map into its JavaScript
@@ -254,8 +255,9 @@ func decimalValue(rt *goja.Runtime, s string) goja.Value {
 // string) forms of $date and returns a real JS Date.
 func dateValue(rt *goja.Runtime, v any) goja.Value {
 	switch d := v.(type) {
-	case map[string]any:
-		if ms, ok := d["$numberLong"]; ok {
+	case bson.D, map[string]any:
+		m, _ := asMap(d)
+		if ms, ok := m["$numberLong"]; ok {
 			n, err := strconv.ParseInt(str(ms), 10, 64)
 			if err == nil {
 				return jsDate(rt, time.UnixMilli(n))
@@ -272,7 +274,7 @@ func dateValue(rt *goja.Runtime, v any) goja.Value {
 }
 
 func binaryValue(rt *goja.Runtime, v any) goja.Value {
-	spec, ok := v.(map[string]any)
+	spec, ok := asMap(v)
 	if !ok {
 		return rt.ToValue(v)
 	}
@@ -295,7 +297,7 @@ func uuidString(data []byte) string {
 }
 
 func timestampValue(rt *goja.Runtime, v any) goja.Value {
-	spec, ok := v.(map[string]any)
+	spec, ok := asMap(v)
 	if !ok {
 		return rt.ToValue(v)
 	}
@@ -322,7 +324,7 @@ func toUint64(v any) uint64 {
 
 // regexValue rebuilds a JS RegExp so scripts can call .test() on it.
 func regexValue(rt *goja.Runtime, v any) goja.Value {
-	spec, ok := v.(map[string]any)
+	spec, ok := asMap(v)
 	if !ok {
 		return rt.ToValue(v)
 	}

@@ -131,8 +131,8 @@ func TestIntegration_FetchPage_CompoundSortHint(t *testing.T) {
 			r, err := engine.FetchPage(ctx, db, pc, page, 5)
 			require.NoError(t, err)
 			for _, doc := range r.Documents {
-				m, _ := asMap(doc)
-				got = append(got, coerceInt64(plainMap(m["n"])))
+				m, _ := resultFields(doc)
+				got = append(got, coerceInt64(m["n"]))
 			}
 		}
 		require.Equal(t, want, got)
