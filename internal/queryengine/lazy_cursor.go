@@ -177,7 +177,7 @@ func (c *lazyCursor) toGojaObject() goja.Value {
 
 	_ = obj.Set("sort", func(call goja.FunctionCall) goja.Value {
 		if len(call.Arguments) > 0 {
-			if err := c.setSort(call.Arguments[0].Export()); err != nil {
+			if err := c.setSort(exportValue(call.Arguments[0])); err != nil {
 				panic(rt.NewGoError(err))
 			}
 		}
@@ -189,7 +189,7 @@ func (c *lazyCursor) toGojaObject() goja.Value {
 			panic(rt.NewGoError(fmt.Errorf("cursor already executed — cannot set hint")))
 		}
 		if len(call.Arguments) > 0 {
-			c.hint = call.Arguments[0].Export()
+			c.hint = exportValue(call.Arguments[0])
 		}
 		return obj
 	})
@@ -215,7 +215,7 @@ func (c *lazyCursor) toGojaObject() goja.Value {
 			panic(rt.NewGoError(fmt.Errorf("cursor already executed — cannot set collation")))
 		}
 		if len(call.Arguments) > 0 {
-			spec, ok := call.Arguments[0].Export().(map[string]any)
+			spec, ok := asMap(exportValue(call.Arguments[0]))
 			if !ok {
 				panic(rt.NewGoError(fmt.Errorf("collation argument must be an object")))
 			}

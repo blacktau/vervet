@@ -72,25 +72,44 @@ func dispatch(ctx context.Context, client *mongo.Client, dbName string, op Captu
 	}
 }
 
-// toBsonDoc converts a map[string]any (from goja) to a bson.D, preserving key order.
+// toBsonDoc converts an exported JS object to a bson.D, preserving key order.
+// Anything that is not a document yields an empty bson.D.
 func toBsonDoc(v any) bson.D {
-	m, ok := v.(map[string]any)
-	if !ok {
-		return bson.D{}
-	}
-
-	doc := make(bson.D, 0, len(m))
-	for k, val := range m {
-		doc = append(doc, bson.E{Key: k, Value: convertToBson(val)})
-	}
+	doc, _ := asBsonDoc(v)
 	return doc
 }
 
+// asBsonDoc converts an exported JS object to a bson.D, reporting whether v
+// was a document at all. Plain maps are accepted for values that did not come
+// through exportValue; their order is whatever Go's map iteration yields.
+func asBsonDoc(v any) (bson.D, bool) {
+	switch v.(type) {
+	case bson.D, bson.M, map[string]any:
+	default:
+		return bson.D{}, false
+	}
+	doc, ok := convertToBson(v).(bson.D)
+	if !ok {
+		// A wrapped BSON value (e.g. a regex), not a document.
+		return bson.D{}, false
+	}
+	return doc, true
+}
+
 // convertToBson recursively converts Go values from goja into BSON-compatible types.
-// Maps become bson.D and slices become bson.A. Maps with a __bsonValue key are
+// Documents become bson.D (keeping the order of an incoming bson.D) and slices
+// become bson.A. Maps with a __bsonValue key are
 // unwrapped to their original BSON primitive (ObjectID, DateTime, etc.).
 func convertToBson(v any) any {
 	switch val := v.(type) {
+	case bson.D:
+		doc := make(bson.D, len(val))
+		for i, e := range val {
+			doc[i] = bson.E{Key: e.Key, Value: convertToBson(e.Value)}
+		}
+		return doc
+	case bson.M:
+		return convertToBson(map[string]any(val))
 	case map[string]any:
 		// Check for wrapped BSON values (from registerBSONTypes)
 		if bsonVal, ok := val["__bsonValue"]; ok {

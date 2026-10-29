@@ -86,7 +86,7 @@ func isEmptyFilter(f any) bool {
 	if f == nil {
 		return true
 	}
-	if m, ok := f.(map[string]any); ok && len(m) == 0 {
+	if m, ok := asMap(f); ok && len(m) == 0 {
 		return true
 	}
 	return false

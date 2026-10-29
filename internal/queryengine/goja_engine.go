@@ -126,6 +126,14 @@ func displayValue(v any) any {
 			out[k] = displayValue(elem)
 		}
 		return out
+	case bson.D:
+		// The frontend receives JSON objects, so the ordered form is only
+		// needed on the way to MongoDB.
+		out := make(map[string]any, len(val))
+		for _, e := range val {
+			out[e.Key] = displayValue(e.Value)
+		}
+		return out
 	case []any:
 		out := make([]any, len(val))
 		for i, elem := range val {
@@ -177,7 +185,7 @@ func exportedToResult(raw any) models.QueryResult {
 			docs[i] = displayValue(doc)
 		}
 		return models.QueryResult{Documents: docs}
-	case map[string]any:
+	case bson.D, map[string]any:
 		return models.QueryResult{Documents: []any{displayValue(v)}}
 	case string:
 		return models.QueryResult{RawOutput: v}

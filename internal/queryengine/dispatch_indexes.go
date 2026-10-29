@@ -44,11 +44,11 @@ func dispatchCreateIndexes(ctx context.Context, coll *mongo.Collection, op Captu
 
 	keys := make([]mongo.IndexModel, 0, len(rawKeys))
 	for _, rawKey := range rawKeys {
-		key, ok := rawKey.(map[string]any)
+		key, ok := asBsonDoc(rawKey)
 		if !ok {
 			return models.QueryResult{}, fmt.Errorf("createIndexes key must be an object")
 		}
-		keys = append(keys, mongo.IndexModel{Keys: toBsonDoc(key)})
+		keys = append(keys, mongo.IndexModel{Keys: key})
 	}
 
 	names, err := coll.Indexes().CreateMany(ctx, keys)

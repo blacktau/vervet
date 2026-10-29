@@ -36,7 +36,8 @@ func exportArgs(call goja.FunctionCall) []any {
 
 // exportValue converts a single goja.Value to a Go value, recursively walking
 // objects and arrays to convert RegExp values to wrapped bson.Regex before
-// they are lost to Export().
+// they are lost to Export(). Plain objects become an ordered bson.D (see
+// exportObject); wrapped BSON values stay as their __bsonValue map.
 func exportValue(val goja.Value) any {
 	if val == nil || goja.IsUndefined(val) || goja.IsNull(val) {
 		return val.Export()
@@ -83,14 +84,37 @@ func regexpToBSON(obj *goja.Object) map[string]any {
 }
 
 // exportObject walks a goja Object's own properties, recursively exporting
-// values so nested RegExp objects are preserved.
-func exportObject(obj *goja.Object) map[string]any {
+// values so nested RegExp objects are preserved. It builds a bson.D rather than
+// a map because key order is significant to MongoDB: the first key of a command
+// names the command, and sort specs, index keys and embedded-document matches
+// all depend on field order. goja's Keys() returns properties in insertion order.
+func exportObject(obj *goja.Object) bson.D {
 	keys := obj.Keys()
-	result := make(map[string]any, len(keys))
+	doc := make(bson.D, 0, len(keys))
 	for _, key := range keys {
-		result[key] = exportValue(obj.Get(key))
+		doc = append(doc, bson.E{Key: key, Value: exportValue(obj.Get(key))})
 	}
-	return result
+	return doc
+}
+
+// asMap returns the fields of an exported document for lookup by name. It
+// accepts the bson.D that exportValue produces for plain objects as well as
+// maps, so callers that only read named options need not care which they got.
+func asMap(v any) (map[string]any, bool) {
+	switch d := v.(type) {
+	case bson.D:
+		m := make(map[string]any, len(d))
+		for _, e := range d {
+			m[e.Key] = e.Value
+		}
+		return m, true
+	case bson.M:
+		return map[string]any(d), true
+	case map[string]any:
+		return d, true
+	default:
+		return nil, false
+	}
 }
 
 // exportArray walks a goja Array, recursively exporting each element.

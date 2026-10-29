@@ -168,7 +168,7 @@ func dispatchBulkWrite(ctx context.Context, coll *mongo.Collection, op CapturedO
 
 	writeModels := make([]mongo.WriteModel, 0, len(rawOps))
 	for _, rawOp := range rawOps {
-		opMap, ok := rawOp.(map[string]any)
+		opMap, ok := asMap(rawOp)
 		if !ok {
 			return models.QueryResult{}, fmt.Errorf("bulkWrite operation must be an object")
 		}
@@ -207,7 +207,7 @@ func dispatchDrop(ctx context.Context, coll *mongo.Collection) (models.QueryResu
 // toBulkWriteModel converts a map[string]any (from goja) to a mongo.WriteModel.
 func toBulkWriteModel(opMap map[string]any) (mongo.WriteModel, error) {
 	for opType, v := range opMap {
-		args, ok := v.(map[string]any)
+		args, ok := asMap(v)
 		if !ok {
 			return nil, fmt.Errorf("bulkWrite operation %s must be an object", opType)
 		}

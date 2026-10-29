@@ -10,56 +10,48 @@ import (
 // buildUserCommand constructs a createUser command doc from a mongosh-style user spec.
 // The user doc is spread into the command with "createUser" replacing the "user" field as the command value.
 func buildUserCommand(userDoc any) (bson.D, error) {
-	m, ok := userDoc.(map[string]any)
-	if !ok {
-		if d, ok := userDoc.(bson.D); ok {
-			m = map[string]any{}
-			for _, e := range d {
-				m[e.Key] = e.Value
-			}
-		} else if bm, ok := userDoc.(bson.M); ok {
-			m = map[string]any(bm)
-		} else {
-			return nil, fmt.Errorf("createUser requires a user document")
-		}
-	}
-	name, ok := m["user"].(string)
-	if !ok {
-		return nil, fmt.Errorf("createUser requires a 'user' field")
-	}
-	cmd := bson.D{{Key: "createUser", Value: name}}
-	for k, v := range m {
-		if k == "user" {
-			continue
-		}
-		cmd = append(cmd, bson.E{Key: k, Value: v})
-	}
-	return cmd, nil
+	return buildNamedCommand("createUser", "user", userDoc)
 }
 
 // buildUpdateUserCommand constructs an updateUser command doc.
 func buildUpdateUserCommand(name string, updateDoc any) (bson.D, error) {
-	cmd := bson.D{{Key: "updateUser", Value: name}}
+	return buildUpdateCommand("updateUser", name, updateDoc)
+}
+
+// buildNamedCommand builds a command whose value is taken from the spec's
+// nameField (e.g. createUser from "user"), followed by the spec's remaining
+// fields in their original order.
+func buildNamedCommand(cmdName, nameField string, spec any) (bson.D, error) {
+	doc, ok := asBsonDoc(spec)
+	if !ok {
+		return nil, fmt.Errorf("%s requires a %s document", cmdName, nameField)
+	}
+	cmd := bson.D{{Key: cmdName}}
+	for _, e := range doc {
+		if e.Key == nameField {
+			cmd[0].Value = e.Value
+			continue
+		}
+		cmd = append(cmd, e)
+	}
+	if _, ok := cmd[0].Value.(string); !ok {
+		return nil, fmt.Errorf("%s requires a '%s' field", cmdName, nameField)
+	}
+	return cmd, nil
+}
+
+// buildUpdateCommand builds { cmdName: name, ...updateDoc } keeping the
+// update document's field order.
+func buildUpdateCommand(cmdName, name string, updateDoc any) (bson.D, error) {
+	cmd := bson.D{{Key: cmdName, Value: name}}
 	if updateDoc == nil {
 		return cmd, nil
 	}
-	m, ok := updateDoc.(map[string]any)
+	doc, ok := asBsonDoc(updateDoc)
 	if !ok {
-		if d, ok := updateDoc.(bson.D); ok {
-			m = map[string]any{}
-			for _, e := range d {
-				m[e.Key] = e.Value
-			}
-		} else if bm, ok := updateDoc.(bson.M); ok {
-			m = map[string]any(bm)
-		} else {
-			return nil, fmt.Errorf("updateUser requires an update document")
-		}
+		return nil, fmt.Errorf("%s requires an update document", cmdName)
 	}
-	for k, v := range m {
-		cmd = append(cmd, bson.E{Key: k, Value: v})
-	}
-	return cmd, nil
+	return append(cmd, doc...), nil
 }
 
 func runDBCommand(ec *execContext, methodName string, cmd bson.D) bson.M {

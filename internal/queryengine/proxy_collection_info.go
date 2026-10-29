@@ -127,7 +127,7 @@ func setCollectionInfoMethods(obj *goja.Object, ec *execContext, collName string
 		requireClient(ec)
 		filter := bson.D{}
 		if len(call.Arguments) > 0 {
-			filter = toBsonDoc(call.Arguments[0].Export())
+			filter = toBsonDoc(exportValue(call.Arguments[0]))
 		}
 		count, err := ec.client.Database(ec.dbName).Collection(collName).CountDocuments(ec.ctx, filter)
 		if err != nil {
@@ -167,14 +167,11 @@ func setCollectionInfoMethods(obj *goja.Object, ec *execContext, collName string
 		requireClient(ec)
 		cmd := bson.D{{Key: "validate", Value: collName}}
 		if len(call.Arguments) > 0 {
-			arg := call.Arguments[0].Export()
-			switch v := arg.(type) {
-			case bool:
-				cmd = append(cmd, bson.E{Key: "full", Value: v})
-			case map[string]any:
-				for k, val := range v {
-					cmd = append(cmd, bson.E{Key: k, Value: convertToBson(val)})
-				}
+			arg := exportValue(call.Arguments[0])
+			if full, ok := arg.(bool); ok {
+				cmd = append(cmd, bson.E{Key: "full", Value: full})
+			} else if opts, ok := asBsonDoc(arg); ok {
+				cmd = append(cmd, opts...)
 			}
 		}
 		var result bson.M
@@ -189,7 +186,7 @@ func setCollectionInfoMethods(obj *goja.Object, ec *execContext, collName string
 		if len(call.Arguments) < 1 {
 			panic(rt.NewGoError(fmt.Errorf("findAndModify requires a spec document")))
 		}
-		spec, ok := call.Arguments[0].Export().(map[string]any)
+		spec, ok := asMap(exportValue(call.Arguments[0]))
 		if !ok {
 			panic(rt.NewGoError(fmt.Errorf("findAndModify: spec must be an object")))
 		}

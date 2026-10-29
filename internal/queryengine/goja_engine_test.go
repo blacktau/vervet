@@ -119,7 +119,7 @@ func TestCollectionProxy_Find_CursorOptionsChainingUpdatesState(t *testing.T) {
 	require.NoError(t, err)
 	cursor := extractLazyCursor(val)
 	require.NotNil(t, cursor)
-	assert.Equal(t, map[string]any{"name": int64(1)}, cursor.hint)
+	assert.Equal(t, bson.D{{Key: "name", Value: int64(1)}}, cursor.hint)
 	assert.Equal(t, int64(5000), cursor.maxTimeMS)
 	assert.Equal(t, int32(100), cursor.batchSize)
 	assert.Equal(t, "en", cursor.collation["locale"])

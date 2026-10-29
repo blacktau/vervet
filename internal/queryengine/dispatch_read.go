@@ -26,8 +26,8 @@ func dispatchFind(ctx context.Context, coll *mongo.Collection, op CapturedOp) (m
 
 	opts := options.Find()
 	if len(op.Args) > 1 && op.Args[1] != nil {
-		if projMap, ok := op.Args[1].(map[string]any); ok {
-			opts.SetProjection(toBsonDoc(projMap))
+		if proj, ok := asBsonDoc(op.Args[1]); ok {
+			opts.SetProjection(proj)
 		}
 	}
 	applyFindOptions(opts, op)
@@ -62,8 +62,8 @@ func applyFindOptions(opts *options.FindOptionsBuilder, op CapturedOp) {
 	if op.Hint != nil {
 		if hintStr, ok := op.Hint.(string); ok {
 			opts.SetHint(hintStr)
-		} else if hintMap, ok := op.Hint.(map[string]any); ok {
-			opts.SetHint(toBsonDoc(hintMap))
+		} else if hint, ok := asBsonDoc(op.Hint); ok {
+			opts.SetHint(hint)
 		} else {
 			opts.SetHint(op.Hint)
 		}
@@ -133,8 +133,8 @@ func dispatchExplainFind(ctx context.Context, client *mongo.Client, dbName strin
 		findCmd = append(findCmd, bson.E{Key: "filter", Value: toBsonDoc(op.Args[0])})
 	}
 	if len(op.Args) > 1 && op.Args[1] != nil {
-		if projMap, ok := op.Args[1].(map[string]any); ok {
-			findCmd = append(findCmd, bson.E{Key: "projection", Value: toBsonDoc(projMap)})
+		if proj, ok := asBsonDoc(op.Args[1]); ok {
+			findCmd = append(findCmd, bson.E{Key: "projection", Value: proj})
 		}
 	}
 	if op.Sort != nil {
@@ -147,8 +147,8 @@ func dispatchExplainFind(ctx context.Context, client *mongo.Client, dbName strin
 		findCmd = append(findCmd, bson.E{Key: "skip", Value: op.Skip})
 	}
 	if op.Hint != nil {
-		if hintMap, ok := op.Hint.(map[string]any); ok {
-			findCmd = append(findCmd, bson.E{Key: "hint", Value: toBsonDoc(hintMap)})
+		if hint, ok := asBsonDoc(op.Hint); ok {
+			findCmd = append(findCmd, bson.E{Key: "hint", Value: hint})
 		} else {
 			findCmd = append(findCmd, bson.E{Key: "hint", Value: op.Hint})
 		}

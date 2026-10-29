@@ -16,8 +16,7 @@ func dbRunCommand(ec *execContext, dbName string) func(goja.FunctionCall) goja.V
 			panic(ec.rt.NewGoError(fmt.Errorf("runCommand requires a command document")))
 		}
 
-		cmdRaw := exportValue(call.Arguments[0])
-		cmdDoc := convertToBson(cmdRaw)
+		cmdDoc := convertToBson(exportValue(call.Arguments[0]))
 
 		var result bson.M
 		err := ec.client.Database(dbName).RunCommand(ec.ctx, cmdDoc).Decode(&result)

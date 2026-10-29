@@ -76,9 +76,7 @@ func TestExportArgs_SingleArg(t *testing.T) {
 	call := goja.FunctionCall{Arguments: []goja.Value{rt.ToValue(map[string]any{"name": "bob"})}}
 	args := exportArgs(call)
 	assert.Len(t, args, 1)
-	m, ok := args[0].(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, "bob", m["name"])
+	assert.Equal(t, bson.D{{Key: "name", Value: "bob"}}, args[0])
 }
 
 func TestExportValue_Regex_ConvertsToBSONRegex(t *testing.T) {
@@ -108,8 +106,9 @@ func TestExportValue_NestedRegex_PreservedInDocument(t *testing.T) {
 	require.NoError(t, err)
 
 	exported := exportValue(val)
-	m, ok := exported.(map[string]any)
-	require.True(t, ok, "expected map, got %T", exported)
+	doc, ok := exported.(bson.D)
+	require.True(t, ok, "expected bson.D, got %T", exported)
+	m, _ := asMap(doc)
 
 	nameVal, ok := m["name"].(map[string]any)
 	require.True(t, ok, "expected name to be map, got %T", m["name"])
@@ -156,4 +155,46 @@ func TestMongoRegexOptions_MapsJSFlags(t *testing.T) {
 	assert.Equal(t, "ims", mongoRegexOptions("gimsu"))
 	assert.Equal(t, "", mongoRegexOptions("guy"))
 	assert.Equal(t, "i", mongoRegexOptions("i"))
+}
+
+// TestExportValue_PreservesKeyOrder guards issue #301: MongoDB reads the
+// first key of a command document as the command name, so a randomly ordered
+// map turned { update: ..., updates: [...], ordered: false } into "no such
+// command: 'ordered'".
+func TestExportValue_PreservesKeyOrder(t *testing.T) {
+	rt := goja.New()
+	registerBSONTypes(rt)
+	val, err := rt.RunString(`({
+		update: "coll",
+		updates: [{ q: { a: 1, b: 2, c: 3 }, u: { $set: { z: 1, y: 2, x: 3 } }, upsert: true }],
+		ordered: false,
+		n: NumberLong("5")
+	})`)
+	require.NoError(t, err)
+
+	for i := 0; i < 20; i++ {
+		converted := convertToBson(exportValue(val))
+		doc, ok := converted.(bson.D)
+		require.True(t, ok, "expected bson.D, got %T", converted)
+		require.Len(t, doc, 4)
+		assert.Equal(t, []string{"update", "updates", "ordered", "n"}, docKeys(doc))
+		assert.Equal(t, int64(5), doc[3].Value)
+
+		updates, ok := doc[1].Value.(bson.A)
+		require.True(t, ok)
+		stmt, ok := updates[0].(bson.D)
+		require.True(t, ok)
+		assert.Equal(t, []string{"q", "u", "upsert"}, docKeys(stmt))
+		assert.Equal(t, []string{"a", "b", "c"}, docKeys(stmt[0].Value.(bson.D)))
+		set := stmt[1].Value.(bson.D)[0].Value.(bson.D)
+		assert.Equal(t, []string{"z", "y", "x"}, docKeys(set))
+	}
+}
+
+func docKeys(doc bson.D) []string {
+	keys := make([]string, len(doc))
+	for i, e := range doc {
+		keys[i] = e.Key
+	}
+	return keys
 }
