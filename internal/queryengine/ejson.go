@@ -90,7 +90,8 @@ func ejsonParse(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 			panic(rt.NewGoError(fmt.Errorf("EJSON.parse: %w", err)))
 		}
 
-		return toJSValue(rt, result)
+		// Parsed values are BSON typed, like a document read from MongoDB.
+		return toJSValue(rt, resultDoc(result))
 	}
 }
 
@@ -121,7 +122,7 @@ func ejsonSerialize(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 		// Deliberately not toJSValue: serialize's contract is to expose the
 		// Extended JSON form ({$oid: ...}), which toJSValue would convert back
 		// into script values.
-		return jsValue(rt, result, false)
+		return jsValue(rt, result, jsPlain)
 	}
 }
 
@@ -146,6 +147,7 @@ func ejsonDeserialize(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 			panic(rt.NewGoError(fmt.Errorf("EJSON.deserialize: %w", err)))
 		}
 
-		return toJSValue(rt, result)
+		// Parsed values are BSON typed, like a document read from MongoDB.
+		return toJSValue(rt, resultDoc(result))
 	}
 }

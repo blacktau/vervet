@@ -114,6 +114,9 @@ func docField(d bson.D, key string) any {
 // accepts the bson.D that exportValue produces for plain objects as well as
 // maps, so callers that only read named options need not care which they got.
 func asMap(v any) (map[string]any, bool) {
+	if doc, ok := v.(resultDoc); ok {
+		v = bson.D(doc)
+	}
 	switch d := v.(type) {
 	case bson.D:
 		m := make(map[string]any, len(d))

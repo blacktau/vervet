@@ -304,12 +304,84 @@ func TestIntegration_CursorReadInScriptStaysPaged(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, `[{"n":{"$numberLong":"5"}},{"n":{"$numberLong":"6"}},{"n":{"$numberLong":"7"}},{"n":{"$numberLong":"8"}},{"n":{"$numberLong":"9"}}]`, resultText(page2))
 
-	// After next() has consumed documents, the rest are shown, as in mongosh.
+	// After next() has consumed documents, the rest are shown a page at a
+	// time, continuing after the consumed ones.
 	result, err = engine.ExecuteQuery(ctx, testURI, db, `const d = db.big.find({}, { _id: 0 }).sort({ n: 1 }); d.next(); d.next(); d`)
 	require.NoError(t, err)
-	assert.Nil(t, result.PageContext)
-	assert.Len(t, result.Documents, 10)
-	assert.Equal(t, `[{"n":{"$numberLong":"2"}}]`, resultText(models.QueryResult{Documents: result.Documents[:1]}))
+	require.NotNil(t, result.PageContext)
+	assert.Equal(t, `[{"n":{"$numberLong":"2"}},{"n":{"$numberLong":"3"}},{"n":{"$numberLong":"4"}},{"n":{"$numberLong":"5"}},{"n":{"$numberLong":"6"}}]`, resultText(result))
+	page2, err = engine.FetchPage(ctx, db, *result.PageContext, 1, 5)
+	require.NoError(t, err)
+	assert.Equal(t, `[{"n":{"$numberLong":"7"}},{"n":{"$numberLong":"8"}},{"n":{"$numberLong":"9"}},{"n":{"$numberLong":"10"}},{"n":{"$numberLong":"11"}}]`, resultText(page2))
+}
+
+// Cursor methods continue from where next() left off, as in mongosh, and a
+// script's printed output is not replaced by the cursor it returns.
+func TestIntegration_CursorMethodsContinueAfterNext(t *testing.T) {
+	ctx, db, engine := keyOrderEngine(t)
+
+	_, err := engine.ExecuteQuery(ctx, testURI, db, `for (var i = 0; i < 4; i++) { db.cm.insertOne({ n: i }); }`)
+	require.NoError(t, err)
+
+	for _, tc := range []struct{ script, want string }{
+		{`var c = db.cm.find().sort({ n: 1 }); c.next(); c.toArray().map(function (d) { return d.n; }).join()`, "1,2,3"},
+		{`var c = db.cm.find().sort({ n: 1 }); c.next(); var seen = []; c.forEach(function (d) { seen.push(d.n); }); seen.join()`, "1,2,3"},
+		{`var c = db.cm.find().sort({ n: 1 }); c.next(); c.map(function (d) { return d.n; }).join()`, "1,2,3"},
+		{`var c = db.cm.find().sort({ n: 1 }); c.toArray(); c.hasNext()`, "false"},
+	} {
+		result, err := engine.ExecuteQuery(ctx, testURI, db, tc.script)
+		require.NoError(t, err, tc.script)
+		assert.Equal(t, tc.want, resultText(result), tc.script)
+	}
+
+	result, err := engine.ExecuteQuery(ctx, testURI, db,
+		`var c = db.cm.find().sort({ n: 1 }); while (c.hasNext()) { print(c.next().n); } c`)
+	require.NoError(t, err)
+	assert.Equal(t, "0\n1\n2\n3", result.RawOutput)
+
+	result, err = engine.ExecuteQuery(ctx, testURI, db, `var f = db.cm.findOne({ n: 2 }); f.hasNext(); f`)
+	require.NoError(t, err)
+	assert.Equal(t, "findOne", result.OperationType)
+}
+
+// Values from EJSON.parse and command results keep their BSON types, so they
+// work in queries and writes.
+func TestIntegration_ParsedAndCommandValuesKeepBSONTypes(t *testing.T) {
+	ctx, db, engine := keyOrderEngine(t)
+
+	oid := bson.NewObjectID()
+	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.bt.insertOne(EJSON.parse('{"_id": {"$oid": "`+oid.Hex()+`"}, "at": {"$date": "2026-01-02T03:04:05Z"}, "n": {"$numberLong": "7"}}'))`)
+	require.NoError(t, err)
+	var stored bson.D
+	require.NoError(t, testClient.Database(db).Collection("bt").FindOne(ctx, bson.D{}).Decode(&stored))
+	assert.Equal(t, oid, docField(stored, "_id"))
+	assert.IsType(t, bson.DateTime(0), docField(stored, "at"))
+	assert.Equal(t, int64(7), docField(stored, "n"))
+
+	for _, tc := range []struct{ script, want string }{
+		{`db.runCommand(EJSON.parse('{"find": "bt", "filter": {"_id": {"$oid": "` + oid.Hex() + `"}}}')).cursor.firstBatch.length`, "1"},
+		{`db.runCommand({ find: "bt" }).cursor.firstBatch[0]._id.toHexString()`, oid.Hex()},
+		{`db.runCommand({ find: "bt" }).cursor.firstBatch[0].at instanceof Date`, "true"},
+		{`db.bt.findAndModify({ query: {}, update: { $set: { x: 1 } }, new: true })._id.toHexString()`, oid.Hex()},
+		{`typeof (db.stats().storageSize / 1024)`, "number"},
+		{`var r = db.runCommand({ find: "bt" }); String(db.bt.deleteOne({ _id: r.cursor.firstBatch[0]._id }).deletedCount)`, "1"},
+	} {
+		result, err := engine.ExecuteQuery(ctx, testURI, db, tc.script)
+		require.NoError(t, err, tc.script)
+		assert.Equal(t, tc.want, strings.Trim(resultText(result), `"`), tc.script)
+	}
+}
+
+// Command results display BSON values as Extended JSON, not Go structs (#304).
+func TestIntegration_CommandResultsDisplayBSONTypes(t *testing.T) {
+	ctx, db, engine := keyOrderEngine(t)
+
+	result, err := engine.ExecuteQuery(ctx, testURI, db,
+		`db.runCommand({ update: "u", updates: [{ q: { r: 1 }, u: { $setOnInsert: { _id: UUID("ce9313d1-4caa-45b6-969d-1161e00ad853") } }, upsert: true }] })`)
+	require.NoError(t, err)
+	text := resultText(result)
+	assert.Contains(t, text, `"_id":{"$binary":{"base64":"zpMT0UyqRbaWnRFh4ArYUw==","subType":"04"}}`)
+	assert.NotContains(t, text, "Subtype")
 }
 
 // Write and count results list their fields in the same order on every run.

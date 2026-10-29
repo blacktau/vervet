@@ -61,12 +61,3 @@ func decodeJSONValue(dec *json.Decoder) (any, error) {
 		return nil, fmt.Errorf("unexpected JSON delimiter %v", delim)
 	}
 }
-
-// resultFields returns the top-level fields of a result document for lookup
-// by name.
-func resultFields(v any) (map[string]any, bool) {
-	if doc, ok := v.(resultDoc); ok {
-		return asMap(bson.D(doc))
-	}
-	return asMap(v)
-}

@@ -20,41 +20,55 @@ import (
 // and objects whose toString() is the value. Each wrapper keeps a __bsonValue
 // so it converts straight back to BSON when used in a filter.
 
+// jsMode says how much of a value tree jsValue converts to script values.
+type jsMode int
+
+const (
+	// jsPlain converts no scalars (EJSON.serialize must expose {$oid: ...}).
+	jsPlain jsMode = iota
+	// jsCommand converts BSON types (ObjectId, Date, Binary, ...) but leaves
+	// numbers plain, so arithmetic on command results such as
+	// db.stats().storageSize / 1024 keeps working.
+	jsCommand
+	// jsDocument converts everything, as mongosh does for documents read
+	// from a collection: int64 becomes Long so 64-bit ids keep full precision.
+	jsDocument
+)
+
 // scriptValue converts a normalized (see normalizeForJS) value into the
 // JavaScript value a mongosh script expects.
 func scriptValue(rt *goja.Runtime, v any) goja.Value {
-	return jsValue(rt, v, false)
+	return jsValue(rt, v, jsCommand)
 }
 
 // jsValue builds JS objects and arrays from a value tree, keeping bson.D field
-// order. Inside a resultDoc or resultValues (fromDB), BSON scalars become
-// script values as well; elsewhere, such as command results and
-// EJSON.serialize output, scalars are handed to goja as they are.
-func jsValue(rt *goja.Runtime, v any, fromDB bool) goja.Value {
+// order and converting scalars as mode allows. A resultDoc or resultValues
+// switches to jsDocument for everything inside it.
+func jsValue(rt *goja.Runtime, v any, mode jsMode) goja.Value {
 	switch val := v.(type) {
 	case resultDoc:
-		return jsValue(rt, bson.D(val), true)
+		return jsValue(rt, bson.D(val), jsDocument)
 	case resultValues:
-		return jsValue(rt, bson.A(val), true)
+		return jsValue(rt, bson.A(val), jsDocument)
 	case map[string]any:
 		obj := rt.NewObject()
 		for k, elem := range val {
-			_ = obj.Set(k, jsValue(rt, elem, fromDB))
+			_ = obj.Set(k, jsValue(rt, elem, mode))
 		}
 		return obj
 	case bson.D:
 		obj := rt.NewObject()
 		for _, e := range val {
-			_ = obj.Set(e.Key, jsValue(rt, e.Value, fromDB))
+			_ = obj.Set(e.Key, jsValue(rt, e.Value, mode))
 		}
 		return obj
 	case bson.A:
-		return jsArray(rt, val, fromDB)
+		return jsArray(rt, val, mode)
 	case []any:
-		return jsArray(rt, val, fromDB)
+		return jsArray(rt, val, mode)
 	}
-	if fromDB {
-		if converted, ok := bsonScalarToJS(rt, v); ok {
+	if mode != jsPlain {
+		if converted, ok := bsonScalarToJS(rt, v, mode == jsDocument); ok {
 			return converted
 		}
 	}
@@ -63,27 +77,29 @@ func jsValue(rt *goja.Runtime, v any, fromDB bool) goja.Value {
 
 // jsArray uses NewArray rather than ToValue: a reflected Go slice is not a
 // real JS Array, so Array.prototype methods and instanceof checks misbehave.
-func jsArray(rt *goja.Runtime, val []any, fromDB bool) goja.Value {
+func jsArray(rt *goja.Runtime, val []any, mode jsMode) goja.Value {
 	items := make([]any, len(val))
 	for i, elem := range val {
-		items[i] = jsValue(rt, elem, fromDB)
+		items[i] = jsValue(rt, elem, mode)
 	}
 	return rt.NewArray(items...)
 }
 
-// bsonScalarToJS converts a native BSON value from a document into its
-// mongosh script form. The second return is false for values goja can take
-// as they are (strings, booleans, nil).
-func bsonScalarToJS(rt *goja.Runtime, v any) (goja.Value, bool) {
+// bsonScalarToJS converts a native BSON value into its mongosh script form.
+// Numbers are converted only when numbers is set. The second return is false
+// for values goja can take as they are (strings, booleans, nil, numbers).
+func bsonScalarToJS(rt *goja.Runtime, v any, numbers bool) (goja.Value, bool) {
 	switch x := v.(type) {
+	case int64:
+		if numbers {
+			return longValue(rt, x), true
+		}
+	case int32:
+		if numbers {
+			return rt.ToValue(int64(x)), true
+		}
 	case bson.ObjectID:
 		return objectIDValue(rt, x.Hex()), true
-	case int64:
-		return longValue(rt, x), true
-	case int32:
-		return rt.ToValue(int64(x)), true
-	case float64:
-		return rt.ToValue(x), true
 	case bson.Decimal128:
 		return decimalValue(rt, x.String()), true
 	case bson.DateTime:

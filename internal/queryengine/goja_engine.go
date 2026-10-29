@@ -83,9 +83,10 @@ func (e *GojaEngine) ExecuteQuery(ctx context.Context, uri, dbName, query string
 			return scriptError(out, err)
 		}
 
-		// A lazy cursor left as the final value is shown as its documents,
-		// whether or not the script already read from it.
-		if cursor := extractLazyCursor(val); cursor != nil {
+		// A lazy cursor left as the final value is shown as its documents.
+		// One the script already read from yields to anything it printed
+		// (e.g. `while (c.hasNext()) print(c.next().name); c`).
+		if cursor := extractLazyCursor(val); cursor != nil && (!cursor.resolved || len(out.lines) == 0) {
 			result, retErr = cursor.execute(true)
 			return
 		}

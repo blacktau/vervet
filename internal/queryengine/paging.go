@@ -28,14 +28,11 @@ func encodePageDoc(v any) (string, error) {
 // decodePageDoc is the inverse of encodePageDoc. "" decodes as nil (absent),
 // so an omitted projection or sort stays omitted.
 func decodePageDoc(s string) (any, error) {
-	if s == "" {
-		return nil, nil
-	}
-	var doc bson.D
-	if err := bson.UnmarshalExtJSON([]byte(s), true, &doc); err != nil {
+	doc, err := unmarshalPageJSON(s)
+	if doc == nil {
 		return nil, err
 	}
-	return doc, nil
+	return doc, err
 }
 
 // encodePageValue renders any cursor value (the hint may be an index name, a
@@ -54,6 +51,15 @@ func encodePageValue(v any) (string, error) {
 
 // decodePageValue is the inverse of encodePageValue.
 func decodePageValue(s string) (any, error) {
+	doc, err := unmarshalPageJSON(s)
+	if doc == nil {
+		return nil, err
+	}
+	return docField(doc, "v"), err
+}
+
+// unmarshalPageJSON decodes a PageContext field; "" yields nil.
+func unmarshalPageJSON(s string) (bson.D, error) {
 	if s == "" {
 		return nil, nil
 	}
@@ -61,7 +67,7 @@ func decodePageValue(s string) (any, error) {
 	if err := bson.UnmarshalExtJSON([]byte(s), true, &doc); err != nil {
 		return nil, err
 	}
-	return docField(doc, "v"), nil
+	return doc, nil
 }
 
 // buildPageContext snapshots this cursor's find parameters so the frontend
@@ -233,7 +239,7 @@ func extractCount(r models.QueryResult) int64 {
 	if len(r.Documents) == 0 {
 		return 0
 	}
-	doc, ok := resultFields(r.Documents[0])
+	doc, ok := asMap(r.Documents[0])
 	if !ok {
 		return 0
 	}

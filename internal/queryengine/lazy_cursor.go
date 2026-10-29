@@ -29,6 +29,7 @@ type lazyCursor struct {
 	collation  map[string]any
 	comment    string
 	pageCtx    *models.PageContext
+	opType     string
 }
 
 func (c *lazyCursor) setLimit(n int64) error {
@@ -114,30 +115,52 @@ func (c *lazyCursor) execute(paged bool) (models.QueryResult, error) {
 	c.results = result.Documents
 	c.resolved = true
 	c.pageCtx = pageCtx
+	c.opType = result.OperationType
 	result.PageContext = pageCtx
 	return result, nil
 }
 
-// cachedResult returns an already-executed cursor's results. A cursor read
-// during the script (hasNext, toArray, ...) ran unpaged; left as the script's
-// final value it is shown paged like a fresh cursor, with the first page taken
-// from the cached documents. Once next() has consumed documents it shows the
-// rest, as mongosh does, without a pager: page offsets would not line up.
+// cachedResult returns an already-executed cursor's remaining documents.
+// Script-side reads (paged=false) get everything not yet consumed by next().
+// A cursor read during the script ran unpaged; left as the script's final
+// value it is shown paged like a fresh cursor: the first page comes from the
+// cached documents, and the PageContext skips the ones next() consumed so
+// later pages continue from there.
 func (c *lazyCursor) cachedResult(paged bool) (models.QueryResult, error) {
-	if c.index > 0 {
-		return models.QueryResult{Documents: c.results[c.index:]}, nil
+	remaining := c.results[c.index:]
+	result := models.QueryResult{Documents: remaining, OperationType: c.opType}
+	if !paged {
+		return result, nil
 	}
-	docs, pageCtx := c.results, c.pageCtx
-	if paged && pageCtx == nil {
-		var err error
-		if pageCtx, err = c.buildPageContext(); err != nil {
-			return models.QueryResult{}, err
-		}
-		if pageCtx != nil && c.ec.pageSize > 0 && int64(len(docs)) > c.ec.pageSize {
-			docs = docs[:c.ec.pageSize]
-		}
+	if c.pageCtx != nil {
+		result.PageContext = c.pageCtx
+		return result, nil
 	}
-	return models.QueryResult{Documents: docs, PageContext: pageCtx}, nil
+	pageCtx, err := c.buildPageContext()
+	if err != nil || pageCtx == nil {
+		return result, err
+	}
+	consumed := int64(c.index)
+	pageCtx.UserSkip += consumed
+	if pageCtx.UserLimit > 0 {
+		pageCtx.UserLimit -= consumed
+	}
+	if c.ec.pageSize > 0 && int64(len(remaining)) > c.ec.pageSize {
+		result.Documents = remaining[:c.ec.pageSize]
+	}
+	result.PageContext = pageCtx
+	return result, nil
+}
+
+// consumeRest returns the documents next() has not consumed yet and leaves the
+// cursor exhausted, as toArray/forEach/map do in mongosh.
+func (c *lazyCursor) consumeRest() ([]any, error) {
+	if _, err := c.execute(false); err != nil {
+		return nil, err
+	}
+	rest := c.results[c.index:]
+	c.index = len(c.results)
+	return rest, nil
 }
 
 // explain runs an explain command for this cursor's find/findOne query.
@@ -244,11 +267,11 @@ func (c *lazyCursor) toGojaObject() goja.Value {
 
 	// Terminal methods
 	_ = obj.Set("toArray", func() goja.Value {
-		result, err := c.execute(false)
+		docs, err := c.consumeRest()
 		if err != nil {
 			panic(rt.NewGoError(err))
 		}
-		return toGojaValue(rt, result)
+		return toJSValue(rt, docs)
 	})
 
 	_ = obj.Set("forEach", func(call goja.FunctionCall) goja.Value {
@@ -259,11 +282,11 @@ func (c *lazyCursor) toGojaObject() goja.Value {
 		if !ok {
 			panic(rt.NewGoError(fmt.Errorf("forEach argument must be a function")))
 		}
-		_, err := c.execute(false)
+		docs, err := c.consumeRest()
 		if err != nil {
 			panic(rt.NewGoError(err))
 		}
-		for _, doc := range c.results {
+		for _, doc := range docs {
 			if _, err := fn(goja.Undefined(), toJSValue(rt, doc)); err != nil {
 				panic(rt.NewGoError(err))
 			}
@@ -279,12 +302,12 @@ func (c *lazyCursor) toGojaObject() goja.Value {
 		if !ok {
 			panic(rt.NewGoError(fmt.Errorf("map argument must be a function")))
 		}
-		_, err := c.execute(false)
+		docs, err := c.consumeRest()
 		if err != nil {
 			panic(rt.NewGoError(err))
 		}
-		mapped := make([]any, len(c.results))
-		for i, doc := range c.results {
+		mapped := make([]any, len(docs))
+		for i, doc := range docs {
 			val, err := fn(goja.Undefined(), toJSValue(rt, doc))
 			if err != nil {
 				panic(rt.NewGoError(err))
