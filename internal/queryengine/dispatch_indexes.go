@@ -25,8 +25,8 @@ func dispatchCreateIndex(ctx context.Context, coll *mongo.Collection, op Capture
 		return models.QueryResult{}, fmt.Errorf("createIndex failed: %w", err)
 	}
 
-	result := singleToResult(map[string]any{
-		"name": name,
+	result := singleToResult(bson.D{
+		{Key: "name", Value: name},
 	})
 	result.OperationType = "createIndex"
 	return result, nil
@@ -56,8 +56,8 @@ func dispatchCreateIndexes(ctx context.Context, coll *mongo.Collection, op Captu
 		return models.QueryResult{}, fmt.Errorf("createIndexes failed: %w", err)
 	}
 
-	result := singleToResult(map[string]any{
-		"indexNames": names,
+	result := singleToResult(bson.D{
+		{Key: "indexNames", Value: names},
 	})
 	result.OperationType = "createIndexes"
 	return result, nil

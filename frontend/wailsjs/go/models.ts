@@ -300,8 +300,7 @@ export namespace models {
 	    projection?: string;
 	    sort?: string;
 	    hint?: string;
-	    hintName?: string;
-	    collation?: Record<string, any>;
+	    collation?: string;
 	    userLimit?: number;
 	    userSkip?: number;
 	    maxTimeMS?: number;

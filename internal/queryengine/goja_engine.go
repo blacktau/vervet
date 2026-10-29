@@ -2,7 +2,6 @@ package queryengine
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"reflect"
 	"time"
@@ -84,8 +83,9 @@ func (e *GojaEngine) ExecuteQuery(ctx context.Context, uri, dbName, query string
 			return scriptError(out, err)
 		}
 
-		// Check if return value is an unresolved lazy cursor
-		if cursor := extractLazyCursor(val); cursor != nil && !cursor.resolved {
+		// A lazy cursor left as the final value is shown as its documents,
+		// whether or not the script already read from it.
+		if cursor := extractLazyCursor(val); cursor != nil {
 			result, retErr = cursor.execute(true)
 			return
 		}
@@ -154,11 +154,12 @@ func ejsonScalar(v any) any {
 	if err != nil {
 		return fmt.Sprint(v)
 	}
-	var wrapper map[string]any
-	if err := json.Unmarshal(data, &wrapper); err != nil {
+	wrapper, err := decodeOrderedJSON(data)
+	if err != nil {
 		return fmt.Sprint(v)
 	}
-	return wrapper["v"]
+	// Ordered so multi-field wrappers keep their form, e.g. {$timestamp: {t, i}}.
+	return docField(wrapper.(bson.D), "v")
 }
 
 // scriptError formats a failed script run. Anything the script printed before

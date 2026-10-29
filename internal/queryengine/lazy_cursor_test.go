@@ -127,7 +127,6 @@ func TestPageContext_RoundTripKeepsOrderAndTypes(t *testing.T) {
 func TestPageContext_HintByName(t *testing.T) {
 	pc, err := (&lazyCursor{collection: "users", hint: "name_1"}).buildPageContext()
 	require.NoError(t, err)
-	assert.Equal(t, "name_1", pc.HintName)
 	q, err := decodePageContext(*pc)
 	require.NoError(t, err)
 	assert.Equal(t, "name_1", q.hint)
@@ -146,4 +145,25 @@ func TestPageContext_NonDocumentFilterIsAbsent(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, pc.Filter)
 	assert.Empty(t, pc.Sort)
+}
+
+// Any hint value and the collation's types must reach later pages unchanged.
+func TestPageContext_HintAndCollationRoundTrip(t *testing.T) {
+	c := &lazyCursor{
+		collection: "users",
+		hint:       int64(7),
+		collation:  map[string]any{"locale": "en", "strength": int64(2), "numericOrdering": true},
+	}
+	pc, err := c.buildPageContext()
+	require.NoError(t, err)
+
+	wire, err := json.Marshal(pc)
+	require.NoError(t, err)
+	var back models.PageContext
+	require.NoError(t, json.Unmarshal(wire, &back))
+
+	q, err := decodePageContext(back)
+	require.NoError(t, err)
+	assert.Equal(t, int64(7), q.hint)
+	assert.Equal(t, map[string]any{"locale": "en", "strength": int64(2), "numericOrdering": true}, q.collation)
 }

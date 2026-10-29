@@ -267,8 +267,8 @@ func TestIntegration_Issue148_DistinctLongs(t *testing.T) {
 	require.Len(t, result.Documents, 2, "distinct returns the values themselves, as mongosh does")
 
 	for _, v := range result.Documents {
-		m, ok := v.(map[string]any)
-		require.True(t, ok, "expected EJSON map for long, got %T", v)
+		m, ok := asMap(v)
+		require.True(t, ok, "expected EJSON document for long, got %T", v)
 		_, hasLong := m["$numberLong"]
 		assert.True(t, hasLong, "expected $numberLong key, got %v", m)
 	}

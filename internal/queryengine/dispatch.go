@@ -134,55 +134,53 @@ func convertToBson(v any) any {
 	}
 }
 
-// docsToResult converts documents into a QueryResult holding each document's
-// canonical Extended JSON as raw bytes. Canonical mode preserves all BSON type
-// information (e.g. $numberInt, $numberLong, $date, $regularExpression) so the
-// frontend can display types correctly, and the bytes keep field order. Wails
-// sends a json.RawMessage verbatim, so nothing re-encodes it; the script path
-// decodes it with decodeOrderedJSON (see normalizeForJS).
+// resultDoc is a document read from MongoDB. It stays in driver form (bson.D
+// with native BSON values) everywhere in Go, and becomes canonical Extended
+// JSON only when Wails marshals the result for the frontend. Canonical mode
+// preserves all BSON type information (e.g. $numberInt, $numberLong, $date) so
+// the frontend can display types correctly, and bson.D keeps field order.
+// Scripts convert it straight to JS values (see jsValue).
+type resultDoc bson.D
+
+func (d resultDoc) MarshalJSON() ([]byte, error) {
+	b, err := bson.MarshalExtJSON(bson.D(d), true, false)
+	if err != nil {
+		// Fall back to regular JSON for values Extended JSON cannot encode.
+		return json.Marshal(bson.D(d))
+	}
+	return b, nil
+}
+
+// resultValues is an array of values read from MongoDB (e.g. distinct), which
+// scripts convert the same way as a resultDoc's fields.
+type resultValues bson.A
+
+// docsToResult wraps documents read from MongoDB in a QueryResult.
 func docsToResult(docs []bson.D) models.QueryResult {
-	if len(docs) == 0 {
-		return models.QueryResult{Documents: []any{}}
+	out := make([]any, len(docs))
+	for i, doc := range docs {
+		out[i] = resultDoc(doc)
 	}
-
-	out := make([]any, 0, len(docs))
-	for _, doc := range docs {
-		b, err := bson.MarshalExtJSON(doc, true, false)
-		if err != nil {
-			out = append(out, doc)
-			continue
-		}
-		out = append(out, json.RawMessage(b))
-	}
-
 	return models.QueryResult{Documents: out}
 }
 
-// singleToResult wraps a single value as the sole document in a QueryResult.
-// Uses canonical Extended JSON to preserve BSON type info (e.g. insertedId as $oid).
-// The Single flag tells the Goja engine to hand the unwrapped object to scripts
-// so `result.insertedIds` works instead of `result[0].insertedIds`.
-func singleToResult(v any) models.QueryResult {
-	b, err := bson.MarshalExtJSON(v, true, false)
-	if err != nil {
-		// Fall back to regular JSON for non-BSON types (e.g. plain maps)
-		b, err = json.Marshal(v)
-		if err != nil {
-			return models.QueryResult{Documents: []any{v}, Single: true}
-		}
-	}
-	return models.QueryResult{Documents: []any{json.RawMessage(b)}, Single: true}
+// singleToResult wraps a single document as the sole document in a
+// QueryResult. The Single flag tells the Goja engine to hand the unwrapped
+// object to scripts so `result.insertedIds` works instead of
+// `result[0].insertedIds`. It takes a bson.D so the fields keep a fixed order.
+func singleToResult(doc bson.D) models.QueryResult {
+	return models.QueryResult{Documents: []any{resultDoc(doc)}, Single: true}
 }
 
 // updateResultToQueryResult converts a mongo UpdateResult to a QueryResult.
 func updateResultToQueryResult(res *mongo.UpdateResult) models.QueryResult {
-	result := map[string]any{
-		"acknowledged":  true,
-		"matchedCount":  res.MatchedCount,
-		"modifiedCount": res.ModifiedCount,
+	result := bson.D{
+		{Key: "acknowledged", Value: true},
+		{Key: "matchedCount", Value: res.MatchedCount},
+		{Key: "modifiedCount", Value: res.ModifiedCount},
 	}
 	if res.UpsertedID != nil {
-		result["upsertedId"] = res.UpsertedID
+		result = append(result, bson.E{Key: "upsertedId", Value: res.UpsertedID})
 	}
 	return singleToResult(result)
 }

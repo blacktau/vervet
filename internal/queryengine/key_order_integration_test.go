@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"vervet/internal/models"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -283,4 +285,77 @@ func TestIntegration_KeyOrder_ExplainMatchesServer(t *testing.T) {
 	fields, ok := result.Documents[0].(bson.D)
 	require.True(t, ok, "got %T", result.Documents[0])
 	assert.Equal(t, docKeys(server), docKeys(fields))
+}
+
+// A cursor read during the script and then returned is still shown paged.
+func TestIntegration_CursorReadInScriptStaysPaged(t *testing.T) {
+	ctx, db, _ := keyOrderEngine(t)
+	engine := NewGojaEngine(testClient, 5, "")
+
+	_, err := engine.ExecuteQuery(ctx, testURI, db, `for (var i = 0; i < 12; i++) { db.big.insertOne({ n: i }); }`)
+	require.NoError(t, err)
+
+	result, err := engine.ExecuteQuery(ctx, testURI, db, `const c = db.big.find({}, { _id: 0 }).sort({ n: 1 }); c.hasNext(); c`)
+	require.NoError(t, err)
+	require.NotNil(t, result.PageContext, "the returned cursor must keep its pager")
+	assert.Len(t, result.Documents, 5)
+
+	page2, err := engine.FetchPage(ctx, db, *result.PageContext, 1, 5)
+	require.NoError(t, err)
+	assert.Equal(t, `[{"n":{"$numberLong":"5"}},{"n":{"$numberLong":"6"}},{"n":{"$numberLong":"7"}},{"n":{"$numberLong":"8"}},{"n":{"$numberLong":"9"}}]`, resultText(page2))
+
+	// After next() has consumed documents, the rest are shown, as in mongosh.
+	result, err = engine.ExecuteQuery(ctx, testURI, db, `const d = db.big.find({}, { _id: 0 }).sort({ n: 1 }); d.next(); d.next(); d`)
+	require.NoError(t, err)
+	assert.Nil(t, result.PageContext)
+	assert.Len(t, result.Documents, 10)
+	assert.Equal(t, `[{"n":{"$numberLong":"2"}}]`, resultText(models.QueryResult{Documents: result.Documents[:1]}))
+}
+
+// Write and count results list their fields in the same order on every run.
+func TestIntegration_KeyOrder_WriteResults(t *testing.T) {
+	ctx, db, engine := keyOrderEngine(t)
+
+	want := map[string]string{
+		`db.w.insertOne({ _id: 1 })`:                        `[{"acknowledged":true,"insertedId":{"$numberLong":"1"}}]`,
+		`db.w.updateOne({ _id: 1 }, { $set: { a: 1 } })`:    `[{"acknowledged":true,"matchedCount":{"$numberLong":"1"},"modifiedCount":{"$numberLong":"1"}}]`,
+		`Object.keys(db.w.insertMany([{ _id: 2 }])).join()`: `acknowledged,insertedIds`,
+	}
+	for i := 0; i < 10; i++ {
+		_, err := engine.ExecuteQuery(ctx, testURI, db, `db.w.deleteMany({})`)
+		require.NoError(t, err)
+		for _, q := range []string{
+			`db.w.insertOne({ _id: 1 })`,
+			`db.w.updateOne({ _id: 1 }, { $set: { a: 1 } })`,
+			`Object.keys(db.w.insertMany([{ _id: 2 }])).join()`,
+		} {
+			result, err := engine.ExecuteQuery(ctx, testURI, db, q)
+			require.NoError(t, err)
+			require.Equal(t, want[q], resultText(result), q)
+		}
+	}
+}
+
+// The collation reaches later pages with its types intact, so numeric
+// ordering gives one consistent order across pages.
+func TestIntegration_FetchPage_CollationSurvivesFrontend(t *testing.T) {
+	ctx, db, _ := keyOrderEngine(t)
+	engine := NewGojaEngine(testClient, 3, "")
+
+	_, err := engine.ExecuteQuery(ctx, testURI, db,
+		`["10", "9", "2", "33", "1", "100"].forEach(function (s) { db.coll.insertOne({ s: s }); })`)
+	require.NoError(t, err)
+
+	res, err := engine.ExecuteQuery(ctx, testURI, db,
+		`db.coll.find({}, { _id: 0 }).sort({ s: 1 }).collation({ locale: "en", numericOrdering: true, strength: 2 })`)
+	require.NoError(t, err)
+	require.NotNil(t, res.PageContext)
+	wire, err := json.Marshal(res.PageContext)
+	require.NoError(t, err)
+	var pc models.PageContext
+	require.NoError(t, json.Unmarshal(wire, &pc))
+
+	page2, err := engine.FetchPage(ctx, db, pc, 1, 3)
+	require.NoError(t, err)
+	assert.Equal(t, `[{"s":"10"},{"s":"33"},{"s":"100"}]`, resultText(page2))
 }

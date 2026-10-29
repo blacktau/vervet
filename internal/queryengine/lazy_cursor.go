@@ -64,7 +64,7 @@ func (c *lazyCursor) setSort(spec any) error {
 // truncating to a page turns `find(...).toArray().length` into a wrong answer.
 func (c *lazyCursor) execute(paged bool) (models.QueryResult, error) {
 	if c.resolved {
-		return models.QueryResult{Documents: c.results, PageContext: c.pageCtx}, nil
+		return c.cachedResult(paged)
 	}
 
 	// Only a paged result needs a PageContext; script-side terminals would
@@ -116,6 +116,28 @@ func (c *lazyCursor) execute(paged bool) (models.QueryResult, error) {
 	c.pageCtx = pageCtx
 	result.PageContext = pageCtx
 	return result, nil
+}
+
+// cachedResult returns an already-executed cursor's results. A cursor read
+// during the script (hasNext, toArray, ...) ran unpaged; left as the script's
+// final value it is shown paged like a fresh cursor, with the first page taken
+// from the cached documents. Once next() has consumed documents it shows the
+// rest, as mongosh does, without a pager: page offsets would not line up.
+func (c *lazyCursor) cachedResult(paged bool) (models.QueryResult, error) {
+	if c.index > 0 {
+		return models.QueryResult{Documents: c.results[c.index:]}, nil
+	}
+	docs, pageCtx := c.results, c.pageCtx
+	if paged && pageCtx == nil {
+		var err error
+		if pageCtx, err = c.buildPageContext(); err != nil {
+			return models.QueryResult{}, err
+		}
+		if pageCtx != nil && c.ec.pageSize > 0 && int64(len(docs)) > c.ec.pageSize {
+			docs = docs[:c.ec.pageSize]
+		}
+	}
+	return models.QueryResult{Documents: docs, PageContext: pageCtx}, nil
 }
 
 // explain runs an explain command for this cursor's find/findOne query.

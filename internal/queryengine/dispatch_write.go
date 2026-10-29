@@ -21,9 +21,9 @@ func dispatchInsertOne(ctx context.Context, coll *mongo.Collection, op CapturedO
 		return models.QueryResult{}, fmt.Errorf("insertOne failed: %w", err)
 	}
 
-	result := singleToResult(map[string]any{
-		"acknowledged": true,
-		"insertedId":   res.InsertedID,
+	result := singleToResult(bson.D{
+		{Key: "acknowledged", Value: true},
+		{Key: "insertedId", Value: res.InsertedID},
 	})
 	result.OperationType = "insertOne"
 	result.AffectedCount = 1
@@ -50,9 +50,9 @@ func dispatchInsertMany(ctx context.Context, coll *mongo.Collection, op Captured
 		return models.QueryResult{}, fmt.Errorf("insertMany failed: %w", err)
 	}
 
-	result := singleToResult(map[string]any{
-		"acknowledged": true,
-		"insertedIds":  res.InsertedIDs,
+	result := singleToResult(bson.D{
+		{Key: "acknowledged", Value: true},
+		{Key: "insertedIds", Value: res.InsertedIDs},
 	})
 	result.OperationType = "insertMany"
 	result.AffectedCount = len(res.InsertedIDs)
@@ -108,9 +108,9 @@ func dispatchDeleteOne(ctx context.Context, coll *mongo.Collection, op CapturedO
 		return models.QueryResult{}, fmt.Errorf("deleteOne failed: %w", err)
 	}
 
-	result := singleToResult(map[string]any{
-		"acknowledged": true,
-		"deletedCount": res.DeletedCount,
+	result := singleToResult(bson.D{
+		{Key: "acknowledged", Value: true},
+		{Key: "deletedCount", Value: res.DeletedCount},
 	})
 	result.OperationType = "deleteOne"
 	result.AffectedCount = int(res.DeletedCount)
@@ -128,9 +128,9 @@ func dispatchDeleteMany(ctx context.Context, coll *mongo.Collection, op Captured
 		return models.QueryResult{}, fmt.Errorf("deleteMany failed: %w", err)
 	}
 
-	result := singleToResult(map[string]any{
-		"acknowledged": true,
-		"deletedCount": res.DeletedCount,
+	result := singleToResult(bson.D{
+		{Key: "acknowledged", Value: true},
+		{Key: "deletedCount", Value: res.DeletedCount},
 	})
 	result.OperationType = "deleteMany"
 	result.AffectedCount = int(res.DeletedCount)
@@ -168,7 +168,7 @@ func dispatchBulkWrite(ctx context.Context, coll *mongo.Collection, op CapturedO
 
 	writeModels := make([]mongo.WriteModel, 0, len(rawOps))
 	for _, rawOp := range rawOps {
-		opDoc, ok := rawOp.(bson.D)
+		opDoc, ok := asBsonDoc(rawOp)
 		if !ok {
 			return models.QueryResult{}, fmt.Errorf("bulkWrite operation must be an object")
 		}
@@ -184,13 +184,13 @@ func dispatchBulkWrite(ctx context.Context, coll *mongo.Collection, op CapturedO
 		return models.QueryResult{}, fmt.Errorf("bulkWrite failed: %w", err)
 	}
 
-	result := singleToResult(map[string]any{
-		"acknowledged":  true,
-		"insertedCount": res.InsertedCount,
-		"matchedCount":  res.MatchedCount,
-		"modifiedCount": res.ModifiedCount,
-		"deletedCount":  res.DeletedCount,
-		"upsertedCount": res.UpsertedCount,
+	result := singleToResult(bson.D{
+		{Key: "acknowledged", Value: true},
+		{Key: "insertedCount", Value: res.InsertedCount},
+		{Key: "matchedCount", Value: res.MatchedCount},
+		{Key: "modifiedCount", Value: res.ModifiedCount},
+		{Key: "deletedCount", Value: res.DeletedCount},
+		{Key: "upsertedCount", Value: res.UpsertedCount},
 	})
 	result.OperationType = "bulkWrite"
 	result.AffectedCount = int(res.ModifiedCount + res.InsertedCount + res.DeletedCount)
@@ -212,7 +212,7 @@ func toBulkWriteModel(opDoc bson.D) (mongo.WriteModel, error) {
 		return nil, fmt.Errorf("bulkWrite operation must have a type")
 	}
 	opType := opDoc[0].Key
-	args, ok := opDoc[0].Value.(bson.D)
+	args, ok := opDoc[0].Value.(bson.D) // asBsonDoc converted nested documents too
 	if !ok {
 		return nil, fmt.Errorf("bulkWrite operation %s must be an object", opType)
 	}

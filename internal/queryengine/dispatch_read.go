@@ -212,8 +212,8 @@ func dispatchCountDocuments(ctx context.Context, coll *mongo.Collection, op Capt
 		return models.QueryResult{}, fmt.Errorf("countDocuments failed: %w", err)
 	}
 
-	result := singleToResult(map[string]any{
-		"count": count,
+	result := singleToResult(bson.D{
+		{Key: "count", Value: count},
 	})
 	result.JSValue = count
 	result.OperationType = "countDocuments"
@@ -263,15 +263,12 @@ func dispatchDistinct(ctx context.Context, coll *mongo.Collection, op CapturedOp
 		return models.QueryResult{}, fmt.Errorf("distinct failed: %w", err)
 	}
 
-	result := singleToResult(map[string]any{
-		"values": results,
+	result := singleToResult(bson.D{
+		{Key: "values", Value: results},
 	})
-	// Scripts get the bare array mongosh returns; take it from the converted
-	// document so BSON types keep their Extended JSON form (and become Long,
-	// ObjectId, ... in the script rather than plain numbers).
-	if doc, ok := resultFields(result.Documents[0]); ok {
-		result.JSValue = doc["values"]
-	}
+	// Scripts get the bare array mongosh returns, converted like document
+	// fields (Long, ObjectId, ...) rather than as plain reflected Go values.
+	result.JSValue = resultValues(results)
 	result.OperationType = "distinct"
 	return result, nil
 }
@@ -357,8 +354,8 @@ func dispatchEstimatedDocumentCount(ctx context.Context, coll *mongo.Collection)
 		return models.QueryResult{}, fmt.Errorf("estimatedDocumentCount failed: %w", err)
 	}
 
-	result := singleToResult(map[string]any{
-		"count": count,
+	result := singleToResult(bson.D{
+		{Key: "count", Value: count},
 	})
 	result.JSValue = count
 	result.OperationType = "estimatedDocumentCount"

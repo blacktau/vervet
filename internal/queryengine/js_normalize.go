@@ -1,8 +1,6 @@
 package queryengine
 
 import (
-	"encoding/json"
-
 	"github.com/dop251/goja"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
@@ -31,13 +29,6 @@ func normalizeForJS(v any) any {
 			out[k] = normalizeForJS(elem)
 		}
 		return out
-	case json.RawMessage:
-		// Raw Extended JSON from docsToResult/singleToResult.
-		decoded, err := decodeOrderedJSON(val)
-		if err != nil {
-			return string(val)
-		}
-		return decoded
 	case bson.D:
 		out := make(bson.D, len(val))
 		for i, e := range val {

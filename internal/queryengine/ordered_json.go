@@ -63,15 +63,10 @@ func decodeJSONValue(dec *json.Decoder) (any, error) {
 }
 
 // resultFields returns the top-level fields of a result document for lookup
-// by name, decoding the raw Extended JSON that docsToResult/singleToResult
-// produce.
+// by name.
 func resultFields(v any) (map[string]any, bool) {
-	if raw, ok := v.(json.RawMessage); ok {
-		decoded, err := decodeOrderedJSON(raw)
-		if err != nil {
-			return nil, false
-		}
-		v = decoded
+	if doc, ok := v.(resultDoc); ok {
+		return asMap(bson.D(doc))
 	}
 	return asMap(v)
 }

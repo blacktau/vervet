@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 func TestToGojaValue_EmptyDocuments(t *testing.T) {
@@ -200,9 +201,9 @@ func docKeys(doc bson.D) []string {
 	return keys
 }
 
-// Empty arrays and objects must survive the result round-trip: the edit dialog
-// saves the displayed document back, so `tags: []` turning into null would
-// write bad data.
+// Empty arrays and objects must survive to the UI and to scripts: the edit
+// dialog saves the displayed document back, so `tags: []` turning into null
+// would write bad data.
 func TestDocsToResult_KeepsEmptyContainers(t *testing.T) {
 	r := docsToResult([]bson.D{{
 		{Key: "tags", Value: bson.A{}},
@@ -213,37 +214,43 @@ func TestDocsToResult_KeepsEmptyContainers(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, `[{"tags":[],"meta":{},"nested":{"list":[]}}]`, string(data))
 
-	decoded, err := decodeOrderedJSON(r.Documents[0].(json.RawMessage))
-	require.NoError(t, err)
-	assert.Equal(t, bson.D{
-		{Key: "tags", Value: []any{}},
-		{Key: "meta", Value: bson.D{}},
-		{Key: "nested", Value: bson.D{{Key: "list", Value: []any{}}}},
-	}, decoded)
-}
-
-func TestScriptValue_EmptyArrayIsArray(t *testing.T) {
 	rt := goja.New()
-	require.NoError(t, rt.Set("doc", toJSValue(rt, json.RawMessage(`{"tags":[]}`))))
-	val, err := rt.RunString(`Array.isArray(doc.tags) && doc.tags.length === 0`)
+	require.NoError(t, rt.Set("doc", toJSValue(rt, r.Documents[0])))
+	val, err := rt.RunString(`Array.isArray(doc.tags) && doc.tags.length === 0 && Array.isArray(doc.nested.list) && Object.keys(doc.meta).length === 0`)
 	require.NoError(t, err)
 	assert.True(t, val.ToBoolean())
 }
 
-// A wrapper is recognised the same way whether it arrives as a map or as an
-// ordered document, wherever its $ key sits.
-func TestScriptValue_WrapperDetectionMatchesForMapAndD(t *testing.T) {
-	rt := goja.New()
-	const hex = "64b7f0c2a1b2c3d4e5f60718"
-	for name, v := range map[string]any{
-		"map":           map[string]any{"$oid": hex},
-		"D":             bson.D{{Key: "$oid", Value: hex}},
-		"map, $ second": map[string]any{"x": 1, "$oid": hex},
-		"D, $ second":   bson.D{{Key: "x", Value: 1}, {Key: "$oid", Value: hex}},
-	} {
-		require.NoError(t, rt.Set("v", scriptValue(rt, v)))
-		got, err := rt.RunString(`typeof v.toHexString === "function" ? v.toHexString() : "not an ObjectId"`)
-		require.NoError(t, err, name)
-		assert.Equal(t, hex, got.String(), name)
+// Write and count results are built as bson.D, so their fields come out in a
+// fixed order on every run, in the UI and in Object.keys.
+func TestSingleToResult_FixedFieldOrder(t *testing.T) {
+	r := updateResultToQueryResult(&mongo.UpdateResult{MatchedCount: 1, ModifiedCount: 1, UpsertedID: int32(3)})
+	for i := 0; i < 20; i++ {
+		data, err := json.Marshal(r.Documents)
+		require.NoError(t, err)
+		assert.Equal(t, `[{"acknowledged":true,"matchedCount":{"$numberLong":"1"},"modifiedCount":{"$numberLong":"1"},"upsertedId":{"$numberInt":"3"}}]`, string(data))
+
+		rt := goja.New()
+		require.NoError(t, rt.Set("r", toGojaValue(rt, r)))
+		val, err := rt.RunString(`Object.keys(r).join(",")`)
+		require.NoError(t, err)
+		assert.Equal(t, "acknowledged,matchedCount,modifiedCount,upsertedId", val.String())
 	}
+}
+
+// Script-built values display wrappers with their fields in order.
+func TestDisplayValue_TimestampKeepsFieldOrder(t *testing.T) {
+	v := displayValue(map[string]any{"__bsonValue": &bsonWrapper{Value: bson.Timestamp{T: 5, I: 2}}})
+	data, err := json.Marshal(v)
+	require.NoError(t, err)
+	assert.Equal(t, `{"$timestamp":{"t":5,"i":2}}`, string(data))
+}
+
+// bulkWrite accepts op documents in any form asBsonDoc takes, as before.
+func TestToBulkWriteModel_AcceptsMapOps(t *testing.T) {
+	op, ok := asBsonDoc(map[string]any{"insertOne": map[string]any{"document": map[string]any{"n": int64(1)}}})
+	require.True(t, ok)
+	model, err := toBulkWriteModel(op)
+	require.NoError(t, err)
+	assert.IsType(t, &mongo.InsertOneModel{}, model)
 }

@@ -38,6 +38,32 @@ func decodePageDoc(s string) (any, error) {
 	return doc, nil
 }
 
+// encodePageValue renders any cursor value (the hint may be an index name, a
+// key document or something else) as canonical Extended JSON, wrapped as
+// {"v": value}. Nil encodes as "" (absent).
+func encodePageValue(v any) (string, error) {
+	if v == nil {
+		return "", nil
+	}
+	data, err := bson.MarshalExtJSON(bson.D{{Key: "v", Value: convertToBson(v)}}, true, false)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+// decodePageValue is the inverse of encodePageValue.
+func decodePageValue(s string) (any, error) {
+	if s == "" {
+		return nil, nil
+	}
+	var doc bson.D
+	if err := bson.UnmarshalExtJSON([]byte(s), true, &doc); err != nil {
+		return nil, err
+	}
+	return docField(doc, "v"), nil
+}
+
 // buildPageContext snapshots this cursor's find parameters so the frontend
 // can fetch later pages. Returns nil for findOne (not pageable). A cursor
 // option that should apply to every page must be copied here and applied in
@@ -48,7 +74,6 @@ func (c *lazyCursor) buildPageContext() (*models.PageContext, error) {
 	}
 	pc := &models.PageContext{
 		Collection: c.collection,
-		Collation:  c.collation,
 		UserLimit:  c.limit,
 		UserSkip:   c.skip,
 		MaxTimeMS:  c.maxTimeMS,
@@ -65,17 +90,21 @@ func (c *lazyCursor) buildPageContext() (*models.PageContext, error) {
 	if pc.Sort, err = encodePageDoc(c.sort); err != nil {
 		return nil, fmt.Errorf("paging sort: %w", err)
 	}
-	if name, ok := c.hint.(string); ok {
-		pc.HintName = name
-	} else if pc.Hint, err = encodePageDoc(c.hint); err != nil {
+	if pc.Hint, err = encodePageValue(c.hint); err != nil {
 		return nil, fmt.Errorf("paging hint: %w", err)
+	}
+	if c.collation != nil {
+		if pc.Collation, err = encodePageDoc(c.collation); err != nil {
+			return nil, fmt.Errorf("paging collation: %w", err)
+		}
 	}
 	return pc, nil
 }
 
-// pageQuery holds a PageContext's documents decoded back into ordered BSON.
+// pageQuery holds a PageContext's values decoded back into ordered BSON.
 type pageQuery struct {
 	filter, projection, sort, hint any
+	collation                      map[string]any
 }
 
 func decodePageContext(pc models.PageContext) (pageQuery, error) {
@@ -90,10 +119,15 @@ func decodePageContext(pc models.PageContext) (pageQuery, error) {
 	if q.sort, err = decodePageDoc(pc.Sort); err != nil {
 		return q, fmt.Errorf("paging sort: %w", err)
 	}
-	if pc.HintName != "" {
-		q.hint = pc.HintName
-	} else if q.hint, err = decodePageDoc(pc.Hint); err != nil {
+	if q.hint, err = decodePageValue(pc.Hint); err != nil {
 		return q, fmt.Errorf("paging hint: %w", err)
+	}
+	collation, err := decodePageDoc(pc.Collation)
+	if err != nil {
+		return q, fmt.Errorf("paging collation: %w", err)
+	}
+	if collation != nil {
+		q.collation, _ = asMap(collation)
 	}
 	return q, nil
 }
@@ -139,7 +173,7 @@ func (e *GojaEngine) FetchPage(
 		Skip:       skip,
 		Sort:       q.sort,
 		Hint:       q.hint,
-		Collation:  pc.Collation,
+		Collation:  q.collation,
 		MaxTimeMS:  pc.MaxTimeMS,
 		BatchSize:  pc.BatchSize,
 		Comment:    pc.Comment,
