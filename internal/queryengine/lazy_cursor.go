@@ -21,7 +21,8 @@ type lazyCursor struct {
 	sort       any
 	resolved   bool
 	results    []any
-	index      int // for hasNext/next iteration
+	index      int  // for hasNext/next iteration
+	consumed   bool // next/toArray/forEach/map has read documents
 	isFindOne  bool
 	hint       any
 	maxTimeMS  int64
@@ -156,7 +157,18 @@ func (c *lazyCursor) consumeRest() ([]any, error) {
 	}
 	rest := c.results[c.index:]
 	c.index = len(c.results)
+	c.consumed = true
 	return rest, nil
+}
+
+// yieldsToPrints reports whether, left as the script's final value, this
+// cursor should give way to what the script printed: once the script has
+// consumed documents, or when nothing is left to show. hasNext() alone does
+// not count, so `if (c.hasNext()) print("found"); c` still shows documents,
+// but on an empty result `while (c.hasNext()) ...; print("done"); c` shows
+// the message.
+func (c *lazyCursor) yieldsToPrints() bool {
+	return c.consumed || (c.resolved && c.index >= len(c.results))
 }
 
 // explain runs an explain command for this cursor's find/findOne query.
@@ -346,6 +358,7 @@ func (c *lazyCursor) toGojaObject() goja.Value {
 		}
 		doc := c.results[c.index]
 		c.index++
+		c.consumed = true
 		return toJSValue(rt, doc)
 	})
 

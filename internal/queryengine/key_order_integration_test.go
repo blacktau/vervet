@@ -486,3 +486,19 @@ func TestIntegration_UnreadCursorShownDespitePrints(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, `[{"n":{"$numberLong":"1"}}]`, resultText(result))
 }
+
+// On an empty result, a script's printed message is not replaced by the
+// empty cursor, whichever way the script read it.
+func TestIntegration_PrintsShownForEmptyReadCursor(t *testing.T) {
+	ctx, db, engine := keyOrderEngine(t)
+
+	for _, script := range []string{
+		`var c = db.none.find(); c.forEach(function (d) {}); print("none found"); c`,
+		`var c = db.none.find(); while (c.hasNext()) { c.next(); } print("none found"); c`,
+		`var c = db.none.find(); c.toArray(); print("none found"); c`,
+	} {
+		result, err := engine.ExecuteQuery(ctx, testURI, db, script)
+		require.NoError(t, err, script)
+		assert.Equal(t, "none found", result.RawOutput, script)
+	}
+}
