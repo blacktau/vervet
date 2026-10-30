@@ -314,12 +314,7 @@ function openExport() {
 }
 
 async function handleDocumentChanged() {
-  const editor_val = editor.value
-  if (!editor_val) {
-    return
-  }
-  const query = editor_val.getValue()
-  await queryStore.executeQuery(props.queryId, query)
+  await queryStore.rerunLastQuery(props.queryId)
 }
 
 watch(

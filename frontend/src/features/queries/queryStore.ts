@@ -88,6 +88,8 @@ export interface QueryState {
   runStartedAt: number | null
   /** The limit() from the last executed query, when the result may be truncated */
   activeLimit: number | null
+  /** The query that produced the current results; re-run to refresh them */
+  lastExecutedQuery: LogMessageQuery | null
   /** Lazily computed JSON — only populated when the JSON view is first accessed */
   _rawJsonCache: string | null
   /** Server-side paging state. Populated when the engine returns a PageContext. */
@@ -127,6 +129,7 @@ function createQueryState(database: string): QueryState {
     currentContent: '',
     runStartedAt: null,
     activeLimit: null,
+    lastExecutedQuery: null,
     _rawJsonCache: null,
     pageContext: null,
     page: 0,
@@ -295,6 +298,7 @@ export const useQueryStore = defineStore('query', {
       state.error = ''
       state.selectedDocIndex = 0
       state.activeLimit = parseLimit(query)
+      state.lastExecutedQuery = queryPayload
       state.pageContext = null
       state.page = 0
       state.pageSize = settingsStore.query.defaultPageSize
@@ -452,6 +456,15 @@ export const useQueryStore = defineStore('query', {
       } finally {
         state.loadingCount = false
       }
+    },
+
+    /** Re-run the query that produced the current results, e.g. after editing a document. */
+    async rerunLastQuery(queryId: string) {
+      const last = this.getQueryState(queryId).lastExecutedQuery
+      if (!last) {
+        return
+      }
+      await this.executeQuery(queryId, last)
     },
 
     async cancelQuery(queryId: string) {
