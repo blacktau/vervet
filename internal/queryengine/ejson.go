@@ -112,14 +112,7 @@ func ejsonParse(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 
 		str := call.Arguments[0].String()
 
-		var result bson.D
-		if err := bson.UnmarshalExtJSON([]byte(str), false, &result); err != nil {
-			panic(rt.NewGoError(fmt.Errorf("EJSON.parse: %w", err)))
-		}
-
-		// Command mode: BSON types such as ObjectId and Date convert, numbers
-		// stay plain JS numbers, as mongosh returns them.
-		return toJSValue(rt, result)
+		return parsedExtJSONValue(rt, []byte(str), "EJSON.parse")
 	}
 }
 
@@ -165,18 +158,64 @@ func ejsonDeserialize(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 
 		// convertToBson first so already-typed script values (ObjectId, Long,
 		// Date wrappers) are understood as well as plain Extended JSON input.
-		data, err := bson.MarshalExtJSON(convertToBson(exportValue(call.Arguments[0])), false, false)
+		// Canonical, so a Long stays {$numberLong: ...} and comes back a Long.
+		data, err := bson.MarshalExtJSON(convertToBson(exportValue(call.Arguments[0])), true, false)
 		if err != nil {
 			panic(rt.NewGoError(fmt.Errorf("EJSON.deserialize: %w", err)))
 		}
-
-		var result bson.D
-		if err := bson.UnmarshalExtJSON(data, false, &result); err != nil {
-			panic(rt.NewGoError(fmt.Errorf("EJSON.deserialize: %w", err)))
-		}
-
-		// Command mode: BSON types such as ObjectId and Date convert, numbers
-		// stay plain JS numbers, as mongosh returns them.
-		return toJSValue(rt, result)
+		return parsedExtJSONValue(rt, data, "EJSON.deserialize")
 	}
+}
+
+// parsedExtJSONValue parses Extended JSON into a script value. Command mode
+// converts BSON types such as ObjectId and Date and leaves numbers plain, except
+// that a value written as {$numberLong: ...} is a Long whatever its size: the
+// text says it is a long, so writing it back must store a long.
+func parsedExtJSONValue(rt *goja.Runtime, data []byte, fn string) goja.Value {
+	var result bson.D
+	if err := bson.UnmarshalExtJSON(data, false, &result); err != nil {
+		panic(rt.NewGoError(fmt.Errorf("%s: %w", fn, err)))
+	}
+	raw, err := decodeOrderedJSON(data)
+	if err != nil {
+		panic(rt.NewGoError(fmt.Errorf("%s: %w", fn, err)))
+	}
+	return toJSValue(rt, markExplicitLongs(result, raw))
+}
+
+// explicitLong is an int64 the Extended JSON text wrote as {$numberLong: ...},
+// which bsonScalarToJS always turns into a Long.
+type explicitLong int64
+
+// markExplicitLongs walks the parsed tree alongside the raw JSON tree. The
+// driver decodes both {$numberLong: "7"} and a plain integer beyond int32 as
+// int64; only in the raw tree is the first an object, so that tells them apart.
+func markExplicitLongs(parsed, raw any) any {
+	switch p := parsed.(type) {
+	case bson.D:
+		rawDoc, ok := raw.(bson.D)
+		if !ok {
+			return p
+		}
+		out := make(bson.D, len(p))
+		for i, e := range p {
+			out[i] = bson.E{Key: e.Key, Value: markExplicitLongs(e.Value, docField(rawDoc, e.Key))}
+		}
+		return out
+	case bson.A:
+		rawArr, ok := raw.([]any)
+		if !ok || len(rawArr) != len(p) {
+			return p
+		}
+		out := make(bson.A, len(p))
+		for i, item := range p {
+			out[i] = markExplicitLongs(item, rawArr[i])
+		}
+		return out
+	case int64:
+		if _, ok := raw.(bson.D); ok {
+			return explicitLong(p)
+		}
+	}
+	return parsed
 }

@@ -6,6 +6,7 @@ import (
 	"github.com/dop251/goja"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 func setupEJSONRuntime(t *testing.T) *goja.Runtime {
@@ -41,6 +42,29 @@ func TestEJSON_Stringify_WholeNumbersPrintAsIntegers(t *testing.T) {
 	val, err := rt.RunString(`EJSON.stringify({ ts: 1761782400123, neg: -2147483649, small: 5, frac: 2.5, long: NumberLong("9007199254740993") })`)
 	require.NoError(t, err)
 	assert.Equal(t, `{"ts":1761782400123,"neg":-2147483649,"small":5,"frac":2.5,"long":9007199254740993}`, val.String())
+}
+
+// A value written as $numberLong stays a long whatever its size, while plain
+// JSON integers, even beyond int32, are plain numbers.
+func TestEJSON_ParseAndDeserialize_KeepExplicitLongs(t *testing.T) {
+	rt := setupEJSONRuntime(t)
+	for _, script := range []string{
+		`EJSON.parse('{"l": {"$numberLong": "7"}, "a": [{"$numberLong": "8"}], "n": 7, "ts": 1761782400123}')`,
+		`EJSON.deserialize({ l: { $numberLong: "7" }, a: [NumberLong("8")], n: 7, ts: 1761782400123 })`,
+	} {
+		val, err := rt.RunString(script)
+		require.NoError(t, err)
+		require.NoError(t, rt.Set("v", val))
+		types, err := rt.RunString(`[typeof v.l, typeof v.a[0], typeof v.n, typeof v.ts].join()`)
+		require.NoError(t, err)
+		assert.Equal(t, "object,object,number,number", types.String(), script)
+		assert.Equal(t, bson.D{
+			{Key: "l", Value: int64(7)},
+			{Key: "a", Value: bson.A{int64(8)}},
+			{Key: "n", Value: int32(7)},
+			{Key: "ts", Value: float64(1761782400123)},
+		}, toBsonDoc(exportValue(val)), script)
+	}
 }
 
 func TestEJSON_Stringify_NoArgs_Panics(t *testing.T) {

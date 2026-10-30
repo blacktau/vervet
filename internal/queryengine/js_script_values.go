@@ -89,7 +89,7 @@ func jsArray(rt *goja.Runtime, val []any, mode jsMode) goja.Value {
 
 // bsonScalarToJS converts a native BSON value into its mongosh script form.
 // Numbers are converted only when numbers is set, apart from int64 values
-// beyond ±2^53. The second return is false for values goja can take as they
+// beyond ±2^53 and explicit $numberLong values (see explicitLong). The second return is false for values goja can take as they
 // are (strings, booleans, nil, numbers).
 func bsonScalarToJS(rt *goja.Runtime, v any, numbers bool) (goja.Value, bool) {
 	switch x := v.(type) {
@@ -97,6 +97,8 @@ func bsonScalarToJS(rt *goja.Runtime, v any, numbers bool) (goja.Value, bool) {
 		if numbers || x > maxSafeInteger || x < -maxSafeInteger {
 			return longValue(rt, x), true
 		}
+	case explicitLong:
+		return longValue(rt, int64(x)), true
 	case int32:
 		if numbers {
 			return rt.ToValue(int64(x)), true

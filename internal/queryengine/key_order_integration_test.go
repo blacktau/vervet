@@ -356,9 +356,7 @@ func TestIntegration_ParsedAndCommandValuesKeepBSONTypes(t *testing.T) {
 	require.NoError(t, testClient.Database(db).Collection("bt").FindOne(ctx, bson.D{}).Decode(&stored))
 	assert.Equal(t, oid, docField(stored, "_id"))
 	assert.IsType(t, bson.DateTime(0), docField(stored, "at"))
-	// EJSON.parse gives the script a plain number, as mongosh's relaxed parse
-	// does, so it is stored as an int32 like any other.
-	assert.Equal(t, int32(7), docField(stored, "n"))
+	assert.Equal(t, int64(7), docField(stored, "n"))
 
 	for _, tc := range []struct{ script, want string }{
 		{`db.runCommand(EJSON.parse('{"find": "bt", "filter": {"_id": {"$oid": "` + oid.Hex() + `"}}}')).cursor.firstBatch.length`, "1"},
