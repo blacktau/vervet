@@ -11,6 +11,10 @@ export interface CollectionContext {
   collectionFromTab: boolean
 }
 
+export function formatNamespace(dbName: string, collectionName: string): string {
+  return `${dbName}.${collectionName}`
+}
+
 export function useDocumentContextMenu(collectionContext: Ref<CollectionContext | undefined>) {
   const { t } = useI18n()
   const showMenu = ref(false)

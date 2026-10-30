@@ -93,10 +93,26 @@ function showResults(database: string, collection?: string) {
   const state = useQueryStore().getQueryState(queryId)
   state.documents = [{ _id: 1 }]
   state.resultsDatabase = database
-  state.pageContext = collection ? { collection } : null
+  state.pageContext = collection ? { database, collection } : null
 }
 
 describe('QueryTab collection context', () => {
+  it('allows edits on a tab opened without a collection when the find names one', async () => {
+    const tabStore = useTabStore()
+    queryId = tabStore.openQuery('server-1', 'shop', 'db.orders.find()')!
+    const wrapper = await mountQueryTab(queryId)
+    showResults('shop', 'orders')
+    await flushPromises()
+
+    expect(wrapper.findComponent(TableStub).props('collectionContext')).toEqual({
+      serverId: 'server-1',
+      dbName: 'shop',
+      collectionName: 'orders',
+      collectionFromTab: false,
+    })
+    wrapper.unmount()
+  })
+
   it('targets the database the results were read from', async () => {
     const wrapper = await mountQueryTab(queryId)
     useQueryStore().setDatabase(queryId, 'archive')

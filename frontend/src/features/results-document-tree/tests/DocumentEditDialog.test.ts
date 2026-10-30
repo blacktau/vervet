@@ -66,7 +66,7 @@ describe('DocumentEditDialog target', () => {
   it('names the namespace an edit is saved to', async () => {
     const text = await openDialog({ mode: 'edit', collectionFromTab: false })
     expect(text).toContain('Edit Document in shop.orders')
-    expect(text).not.toContain("tab's collection")
+    expect(text).not.toContain("don't say which collection")
   })
 
   it('names the namespace an insert goes into', async () => {
@@ -76,6 +76,6 @@ describe('DocumentEditDialog target', () => {
 
   it("warns when the collection is the tab's fallback", async () => {
     const text = await openDialog({ mode: 'edit', collectionFromTab: true })
-    expect(text).toContain("changes go to the tab's collection, orders")
+    expect(text).toContain('changes go to shop.orders')
   })
 })

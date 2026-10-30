@@ -5,7 +5,11 @@ import { type DataTableColumns, type DataTableRowKey, useDialog, useThemeVars } 
 import { buildTreeData } from './documentTreeUtils'
 import type { DocumentRow } from './types'
 import { typeColorMapDark, typeColorMapLight } from '@/features/queries/typeColorMap'
-import { useDocumentContextMenu, type CollectionContext } from './useDocumentContextMenu'
+import {
+  formatNamespace,
+  useDocumentContextMenu,
+  type CollectionContext,
+} from './useDocumentContextMenu'
 import { useSettingsStore } from '@/features/settings/settingsStore'
 import { useNotifier } from '@/utils/dialog'
 import { resolveRawValue } from './resolveRawValue'
@@ -242,9 +246,12 @@ function handleContextMenuSelect(key: string) {
     const doc = resolveRawValue(props.documents, row.key) as Record<string, unknown>
     const idDisplay = doc?._id ? JSON.stringify(doc._id) : 'unknown'
     const context = props.collectionContext
-    const namespace = context ? `${context.dbName}.${context.collectionName}` : ''
-    const fromTabNote = context?.collectionFromTab
-      ? `\n\n${t('query.dialogs.collectionFromTab', { collection: context.collectionName })}`
+    if (!context) {
+      return
+    }
+    const namespace = formatNamespace(context.dbName, context.collectionName)
+    const fromTabNote = context.collectionFromTab
+      ? `\n\n${t('query.dialogs.collectionFromTab', { namespace })}`
       : ''
     dialog.warning({
       title: t('query.dialogs.deleteConfirmTitle'),
@@ -252,10 +259,7 @@ function handleContextMenuSelect(key: string) {
       positiveText: t('common.confirm'),
       negativeText: t('common.cancel'),
       onPositiveClick: async () => {
-        if (!props.collectionContext) {
-          return
-        }
-        const { serverId, dbName, collectionName } = props.collectionContext
+        const { serverId, dbName, collectionName } = context
         const filter = `{ _id: ${toJsExpression(doc._id)} }`
         const query = `db.getCollection('${collectionName}').deleteOne(${filter})`
         const result = await shellProxy.ExecuteQuery(

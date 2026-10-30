@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useNotifier } from '@/utils/dialog'
 import { useSettingsStore } from '@/features/settings/settingsStore'
 import { humanizeEjson, toJsExpression } from './humanizeEjson'
+import { formatNamespace } from './useDocumentContextMenu'
 import * as shellProxy from 'wailsjs/go/api/ShellProxy'
 import * as monaco from 'monaco-editor'
 
@@ -32,12 +33,13 @@ const jsonError = ref('')
 const saving = ref(false)
 const documentId = ref<unknown>(null)
 
-const title = computed(() => {
-  const namespace = `${props.dbName}.${props.collectionName}`
-  return props.mode === 'edit'
-    ? t('query.dialogs.editDocumentIn', { namespace })
-    : t('query.dialogs.insertDocumentIn', { namespace })
-})
+const namespace = computed(() => formatNamespace(props.dbName, props.collectionName))
+
+const title = computed(() =>
+  props.mode === 'edit'
+    ? t('query.dialogs.editDocumentIn', { namespace: namespace.value })
+    : t('query.dialogs.insertDocumentIn', { namespace: namespace.value }),
+)
 
 const idDisplay = computed(() => {
   if (!documentId.value) {
@@ -168,7 +170,7 @@ function close() {
     @update:show="emit('update:show', $event)"
   >
     <n-alert v-if="collectionFromTab" type="warning" class="target-note">
-      {{ t('query.dialogs.collectionFromTab', { collection: collectionName }) }}
+      {{ t('query.dialogs.collectionFromTab', { namespace }) }}
     </n-alert>
     <div v-if="mode === 'edit' && idDisplay" class="id-display">
       <n-text depth="3">_id: {{ idDisplay }}</n-text>

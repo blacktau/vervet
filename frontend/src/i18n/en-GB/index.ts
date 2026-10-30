@@ -485,14 +485,13 @@ export default {
     dialogs: {
       viewDocument: 'View Document',
       editDocument: 'Edit Document',
-      insertDocument: 'Insert Document',
       deleteConfirmTitle: 'Delete Document',
       editDocumentIn: 'Edit Document in {namespace}',
       insertDocumentIn: 'Insert Document into {namespace}',
       deleteConfirmContent:
         'Are you sure you want to delete this document from {namespace}? This action cannot be undone.',
       collectionFromTab:
-        "This query's collection isn't known, so changes go to the tab's collection, {collection}.",
+        "These results don't say which collection they came from, so changes go to {namespace}. Check that's where you mean.",
       save: 'Save',
       invalidJson: 'Invalid JSON: {error}',
     },

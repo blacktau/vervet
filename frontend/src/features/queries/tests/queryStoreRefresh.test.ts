@@ -29,7 +29,7 @@ import { useTabStore } from '@/features/tabs/tabs'
 const SERVER_ID = 'srv-1'
 const QUERY_ID = 'q-1'
 const RANGE = { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 12 }
-const PAGE_CONTEXT = { collection: 'c' }
+const PAGE_CONTEXT = { database: 'dbA', collection: 'c' }
 
 const executeQuery = shellProxy.ExecuteQuery as ReturnType<typeof vi.fn>
 const fetchPage = shellProxy.FetchPage as ReturnType<typeof vi.fn>
@@ -108,17 +108,75 @@ describe('queryStore refreshResults', () => {
     expect(countCalls[countCalls.length - 1]![1]).toBe('dbA')
   })
 
-  test('steps back a page when the current page is left empty', async () => {
+  test('reads pages from the database a sibling find ran on', async () => {
+    const store = useQueryStore()
+    store.initQueryState(QUERY_ID, 'dbA')
+    const siblingContext = { database: 'archive', collection: 'c' }
+    executeQuery.mockResolvedValueOnce({
+      isSuccess: true,
+      data: { documents: [{ a: 1 }], operationType: 'find', pageContext: siblingContext },
+    })
+    await store.executeQuery(QUERY_ID, {
+      text: "db.getSiblingDB('archive').c.find()",
+      range: RANGE,
+    })
+    fetchPage.mockResolvedValue(pageOf({ a: 2 }))
+
+    await store.refreshResults(QUERY_ID)
+
+    expect(store.getQueryState(QUERY_ID).resultsDatabase).toBe('archive')
+    expect(fetchPage.mock.calls[0]![1]).toBe('archive')
+  })
+
+  test('clamps to the last page when deletes leave several pages past the end', async () => {
     const store = await runPagedQuery()
     const state = store.getQueryState(QUERY_ID)
-    state.page = 3
+    state.page = 4
+    state.pageSize = 20
+    countForPage.mockResolvedValue({ isSuccess: true, data: { count: 45, estimated: false } })
     fetchPage.mockResolvedValueOnce(pageOf()).mockResolvedValueOnce(pageOf({ a: 9 }))
 
     await store.refreshResults(QUERY_ID)
 
+    expect(fetchPage).toHaveBeenCalledTimes(2)
     expect(fetchPage.mock.calls[1]![3]).toBe(2)
     expect(state.page).toBe(2)
     expect(state.documents).toEqual([{ a: 9 }])
+  })
+
+  test('a pager click made during a refresh wins', async () => {
+    const store = await runPagedQuery()
+    const state = store.getQueryState(QUERY_ID)
+    state.page = 1
+    let resolveRefresh!: (v: unknown) => void
+    fetchPage
+      .mockReturnValueOnce(new Promise((r) => (resolveRefresh = r)))
+      .mockResolvedValueOnce(pageOf({ page: 2 }))
+
+    const refresh = store.refreshResults(QUERY_ID)
+    await store.fetchPage(QUERY_ID, 2, state.pageSize)
+    resolveRefresh(pageOf({ page: 1 }))
+    await refresh
+
+    expect(state.page).toBe(2)
+    expect(state.documents).toEqual([{ page: 2 }])
+  })
+
+  test('a superseded response leaves the newer request loading', async () => {
+    const store = await runPagedQuery()
+    const state = store.getQueryState(QUERY_ID)
+    const resolvers: ((v: unknown) => void)[] = []
+    fetchPage.mockImplementation(() => new Promise((r) => resolvers.push(r)))
+
+    const first = store.fetchPage(QUERY_ID, 1, 25)
+    const second = store.fetchPage(QUERY_ID, 2, 25)
+    resolvers[0]!(pageOf({ page: 1 }))
+    await first
+    expect(state.loadingPage).toBe(true)
+
+    resolvers[1]!(pageOf({ page: 2 }))
+    await second
+    expect(state.loadingPage).toBe(false)
   })
 
   test('leaves unpaged results alone and says to re-run', async () => {
