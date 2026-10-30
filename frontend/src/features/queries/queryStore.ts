@@ -88,12 +88,12 @@ export interface QueryState {
   runStartedAt: number | null
   /** The limit() from the last executed query, when the result may be truncated */
   activeLimit: number | null
-  /** The query that produced the current results; re-run to refresh them */
-  lastExecutedQuery: LogMessageQuery | null
   /** Lazily computed JSON — only populated when the JSON view is first accessed */
   _rawJsonCache: string | null
   /** Server-side paging state. Populated when the engine returns a PageContext. */
   pageContext: PageContext | null
+  /** The database the pageContext was captured against */
+  pageDatabase: string
   page: number
   pageSize: number
   total: number | null
@@ -129,9 +129,9 @@ function createQueryState(database: string): QueryState {
     currentContent: '',
     runStartedAt: null,
     activeLimit: null,
-    lastExecutedQuery: null,
     _rawJsonCache: null,
     pageContext: null,
+    pageDatabase: '',
     page: 0,
     pageSize: 25,
     total: null,
@@ -298,7 +298,6 @@ export const useQueryStore = defineStore('query', {
       state.error = ''
       state.selectedDocIndex = 0
       state.activeLimit = parseLimit(query)
-      state.lastExecutedQuery = queryPayload
       state.pageContext = null
       state.page = 0
       state.pageSize = settingsStore.query.defaultPageSize
@@ -338,6 +337,7 @@ export const useQueryStore = defineStore('query', {
 
           if (data.pageContext) {
             state.pageContext = data.pageContext
+            state.pageDatabase = state.selectedDatabase
             state.page = 0
             void this.fetchCount(queryId)
           }
@@ -409,15 +409,20 @@ export const useQueryStore = defineStore('query', {
       if (!state.pageContext) {
         return
       }
+      const execution = state.executionId
       state.loadingPage = true
       try {
         const result = await shellProxy.FetchPage(
           serverId,
-          state.selectedDatabase,
+          state.pageDatabase,
           state.pageContext,
           page,
           pageSize,
         )
+        // A query started since this request; its results take precedence
+        if (state.executionId !== execution) {
+          return
+        }
         if (result.isSuccess && result.data) {
           state.documents = result.data.documents ?? []
           state.page = page
@@ -442,13 +447,17 @@ export const useQueryStore = defineStore('query', {
       if (!state.pageContext) {
         return
       }
+      const execution = state.executionId
       state.loadingCount = true
       try {
         const result = await shellProxy.CountForPage(
           serverId,
-          state.selectedDatabase,
+          state.pageDatabase,
           state.pageContext,
         )
+        if (state.executionId !== execution) {
+          return
+        }
         if (result.isSuccess && result.data) {
           state.total = result.data.count
           state.totalEstimated = result.data.estimated
@@ -458,13 +467,30 @@ export const useQueryStore = defineStore('query', {
       }
     },
 
-    /** Re-run the query that produced the current results, e.g. after editing a document. */
-    async rerunLastQuery(queryId: string) {
-      const last = this.getQueryState(queryId).lastExecutedQuery
-      if (!last) {
+    /**
+     * Refresh the results after a document was edited, inserted or deleted. Only paged
+     * results can be re-fetched safely; re-running the query text could repeat writes.
+     */
+    async refreshResults(queryId: string) {
+      const state = this.getQueryState(queryId)
+      if (state.loading) {
         return
       }
-      await this.executeQuery(queryId, last)
+      if (!state.pageContext) {
+        this.appendMessage(queryId, {
+          level: 'info',
+          text: i18nGlobal.t('query.messages.resultsStale'),
+        })
+        return
+      }
+      await Promise.all([
+        this.fetchPage(queryId, state.page, state.pageSize),
+        this.fetchCount(queryId),
+      ])
+      // Deleting the last document on the final page leaves it empty
+      if (state.documents.length === 0 && state.page > 0) {
+        await this.fetchPage(queryId, state.page - 1, state.pageSize)
+      }
     },
 
     async cancelQuery(queryId: string) {

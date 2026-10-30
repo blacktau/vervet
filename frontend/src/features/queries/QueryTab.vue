@@ -314,7 +314,7 @@ function openExport() {
 }
 
 async function handleDocumentChanged() {
-  await queryStore.rerunLastQuery(props.queryId)
+  await queryStore.refreshResults(props.queryId)
 }
 
 watch(

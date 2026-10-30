@@ -437,6 +437,7 @@ export default {
       commandResult: 'Command completed in {time}',
       switchedDatabase: 'Switched to database \'{name}\'',
       genericResult: 'Query completed in {time}',
+      resultsStale: 'Document changed. Run the query again to refresh the results.',
       filter: {
         info: 'Info',
         warning: 'Warning',
