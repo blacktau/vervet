@@ -47,12 +47,12 @@ func dbGetCollectionInfos(ec *execContext) func(goja.FunctionCall) goja.Value {
 			panic(ec.rt.NewGoError(fmt.Errorf("getCollectionInfos: %w", err)))
 		}
 
-		var results []bson.M
+		var results []bson.D
 		if err := cursor.All(ec.ctx, &results); err != nil {
 			panic(ec.rt.NewGoError(fmt.Errorf("getCollectionInfos: %w", err)))
 		}
 
-		// Convert []bson.M to []any for Goja
+		// Convert []bson.D to []any for Goja
 		out := make([]any, len(results))
 		for i, r := range results {
 			out[i] = r
@@ -108,7 +108,7 @@ func dbCreateView(ec *execContext) func(goja.FunctionCall) goja.Value {
 			}
 		}
 
-		var result bson.M
+		var result bson.D
 		err := ec.client.Database(ec.dbName).RunCommand(ec.ctx, cmd).Decode(&result)
 		if err != nil {
 			panic(ec.rt.NewGoError(fmt.Errorf("createView: %w", err)))
@@ -134,7 +134,7 @@ func dbAggregate(ec *execContext) func(goja.FunctionCall) goja.Value {
 			panic(ec.rt.NewGoError(fmt.Errorf("aggregate: %w", err)))
 		}
 
-		var results []bson.M
+		var results []bson.D
 		if err := cursor.All(ec.ctx, &results); err != nil {
 			panic(ec.rt.NewGoError(fmt.Errorf("aggregate: %w", err)))
 		}

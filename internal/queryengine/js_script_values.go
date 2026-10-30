@@ -11,100 +11,119 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
-// Query results are round-tripped through canonical Extended JSON (docsToResult)
-// so the frontend can render BSON types. Handing those raw maps to a script means
-// `doc.CustomerId` is `{$numberLong: "42"}` rather than a value, so String(),
-// date comparisons and _id.getTimestamp() all silently misbehave.
+// Documents read from MongoDB reach scripts as resultDoc values holding native
+// driver types. Handing those to goja as reflected Go values means
+// `doc.CustomerId` is an opaque int64 or ObjectID rather than a script value,
+// so String(), date comparisons and _id.getTimestamp() all silently misbehave.
 //
-// scriptValue converts an Extended JSON tree back into the shapes mongosh gives a
-// script: real Dates, and objects whose toString() is the value. Each wrapper
-// keeps a __bsonValue so it converts straight back to BSON when used in a filter.
+// jsValue converts them into the shapes mongosh gives a script: real Dates,
+// and objects whose toString() is the value. Each wrapper keeps a __bsonValue
+// so it converts straight back to BSON when used in a filter.
 
-// scriptValue converts a normalized (see normalizeForJS) result value into the
+// jsMode says how much of a value tree jsValue converts to script values.
+type jsMode int
+
+const (
+	// jsPlain converts no scalars (EJSON.serialize must expose {$oid: ...}).
+	jsPlain jsMode = iota
+	// jsCommand converts BSON types (ObjectId, Date, Binary, ...) but leaves
+	// numbers plain, so arithmetic on command results such as
+	// db.stats().storageSize / 1024 keeps working.
+	jsCommand
+	// jsDocument converts everything, as mongosh does for documents read
+	// from a collection: int64 becomes Long so 64-bit ids keep full precision.
+	jsDocument
+)
+
+// scriptValue converts a normalized (see normalizeForJS) value into the
 // JavaScript value a mongosh script expects.
 func scriptValue(rt *goja.Runtime, v any) goja.Value {
+	return jsValue(rt, v, jsCommand)
+}
+
+// jsValue builds JS objects and arrays from a value tree, keeping bson.D field
+// order and converting scalars as mode allows. A resultDoc or resultValues
+// switches to jsDocument for everything inside it.
+func jsValue(rt *goja.Runtime, v any, mode jsMode) goja.Value {
 	switch val := v.(type) {
+	case resultDoc:
+		return jsValue(rt, bson.D(val), jsDocument)
+	case resultValues:
+		return jsValue(rt, bson.A(val), jsDocument)
 	case map[string]any:
-		if converted, ok := ejsonToJS(rt, val); ok {
-			return converted
-		}
 		obj := rt.NewObject()
 		for k, elem := range val {
-			_ = obj.Set(k, scriptValue(rt, elem))
+			_ = obj.Set(k, jsValue(rt, elem, mode))
 		}
 		return obj
+	case bson.D:
+		obj := rt.NewObject()
+		for _, e := range val {
+			_ = obj.Set(e.Key, jsValue(rt, e.Value, mode))
+		}
+		return obj
+	case bson.A:
+		return jsArray(rt, val, mode)
 	case []any:
-		// NewArray rather than ToValue: a reflected Go slice is not a real JS
-		// Array, so Array.prototype methods and instanceof checks misbehave.
-		items := make([]any, len(val))
-		for i, elem := range val {
-			items[i] = scriptValue(rt, elem)
-		}
-		return rt.NewArray(items...)
-	default:
-		return rt.ToValue(v)
+		return jsArray(rt, val, mode)
 	}
+	if mode != jsPlain {
+		if converted, ok := bsonScalarToJS(rt, v, mode == jsDocument); ok {
+			return converted
+		}
+	}
+	return rt.ToValue(v)
 }
 
-// ejsonToJS converts a single Extended JSON wrapper map into its JavaScript
-// equivalent. The second return is false when the map is an ordinary document.
-func ejsonToJS(rt *goja.Runtime, m map[string]any) (goja.Value, bool) {
-	if len(m) == 0 {
-		return nil, false
+// jsArray uses NewArray rather than ToValue: a reflected Go slice is not a
+// real JS Array, so Array.prototype methods and instanceof checks misbehave.
+func jsArray(rt *goja.Runtime, val []any, mode jsMode) goja.Value {
+	items := make([]any, len(val))
+	for i, elem := range val {
+		items[i] = jsValue(rt, elem, mode)
 	}
+	return rt.NewArray(items...)
+}
 
-	switch {
-	case has(m, "$oid"):
-		return objectIDValue(rt, str(m["$oid"])), true
-	case has(m, "$numberLong"):
-		n, err := strconv.ParseInt(str(m["$numberLong"]), 10, 64)
-		if err != nil {
-			return nil, false
+// bsonScalarToJS converts a native BSON value into its mongosh script form.
+// Numbers are converted only when numbers is set. The second return is false
+// for values goja can take as they are (strings, booleans, nil, numbers).
+func bsonScalarToJS(rt *goja.Runtime, v any, numbers bool) (goja.Value, bool) {
+	switch x := v.(type) {
+	case int64:
+		if numbers {
+			return longValue(rt, x), true
 		}
-		return longValue(rt, n), true
-	case has(m, "$numberInt"):
-		n, err := strconv.ParseInt(str(m["$numberInt"]), 10, 32)
-		if err != nil {
-			return nil, false
+	case int32:
+		if numbers {
+			return rt.ToValue(int64(x)), true
 		}
-		return rt.ToValue(n), true
-	case has(m, "$numberDouble"):
-		return doubleValue(rt, str(m["$numberDouble"])), true
-	case has(m, "$numberDecimal"):
-		return decimalValue(rt, str(m["$numberDecimal"])), true
-	case has(m, "$date"):
-		return dateValue(rt, m["$date"]), true
-	case has(m, "$binary"):
-		return binaryValue(rt, m["$binary"]), true
-	case has(m, "$timestamp"):
-		return timestampValue(rt, m["$timestamp"]), true
-	case has(m, "$regularExpression"):
-		return regexValue(rt, m["$regularExpression"]), true
-	case has(m, "$minKey"):
-		return namedBSONValue(rt, bson.MinKey{}, "MinKey()"), true
-	case has(m, "$maxKey"):
-		return namedBSONValue(rt, bson.MaxKey{}, "MaxKey()"), true
-	case has(m, "$undefined"):
+	case bson.ObjectID:
+		return objectIDValue(rt, x.Hex()), true
+	case bson.Decimal128:
+		return decimalValue(rt, x.String()), true
+	case bson.DateTime:
+		return jsDate(rt, x.Time()), true
+	case bson.Binary:
+		return binaryObject(rt, x), true
+	case bson.Timestamp:
+		return timestampObject(rt, x), true
+	case bson.Regex:
+		return regexObject(rt, x.Pattern, x.Options), true
+	case bson.MinKey:
+		return namedBSONValue(rt, x, "MinKey()"), true
+	case bson.MaxKey:
+		return namedBSONValue(rt, x, "MaxKey()"), true
+	case bson.Undefined:
 		return goja.Undefined(), true
-	case has(m, "$symbol"):
-		return rt.ToValue(str(m["$symbol"])), true
-	case has(m, "$code"):
-		return namedBSONValue(rt, bson.JavaScript(str(m["$code"])), str(m["$code"])), true
+	case bson.Null:
+		return goja.Null(), true
+	case bson.Symbol:
+		return rt.ToValue(string(x)), true
+	case bson.JavaScript:
+		return namedBSONValue(rt, x, string(x)), true
 	}
-
 	return nil, false
-}
-
-func has(m map[string]any, key string) bool {
-	_, ok := m[key]
-	return ok
-}
-
-func str(v any) string {
-	if s, ok := v.(string); ok {
-		return s
-	}
-	return fmt.Sprint(v)
 }
 
 // bsonObject builds the base wrapper: a JS object carrying the Go BSON value in
@@ -192,14 +211,6 @@ func timestampObject(rt *goja.Runtime, ts bson.Timestamp) goja.Value {
 	return obj
 }
 
-func doubleValue(rt *goja.Runtime, s string) goja.Value {
-	f, err := strconv.ParseFloat(s, 64)
-	if err != nil {
-		return rt.ToValue(s)
-	}
-	return rt.ToValue(f)
-}
-
 func decimalValue(rt *goja.Runtime, s string) goja.Value {
 	d, err := bson.ParseDecimal128(s)
 	if err != nil {
@@ -216,85 +227,15 @@ func decimalValue(rt *goja.Runtime, s string) goja.Value {
 	return obj
 }
 
-// dateValue accepts both canonical ({$numberLong: millis}) and relaxed (ISO
-// string) forms of $date and returns a real JS Date.
-func dateValue(rt *goja.Runtime, v any) goja.Value {
-	switch d := v.(type) {
-	case map[string]any:
-		if ms, ok := d["$numberLong"]; ok {
-			n, err := strconv.ParseInt(str(ms), 10, 64)
-			if err == nil {
-				return jsDate(rt, time.UnixMilli(n))
-			}
-		}
-	case string:
-		if t, err := time.Parse(time.RFC3339, d); err == nil {
-			return jsDate(rt, t)
-		}
-	case float64:
-		return jsDate(rt, time.UnixMilli(int64(d)))
-	}
-	return rt.ToValue(v)
-}
-
-func binaryValue(rt *goja.Runtime, v any) goja.Value {
-	spec, ok := v.(map[string]any)
-	if !ok {
-		return rt.ToValue(v)
-	}
-	b64 := str(spec["base64"])
-	data, err := base64.StdEncoding.DecodeString(b64)
-	if err != nil {
-		return rt.ToValue(b64)
-	}
-	subtype := byte(0)
-	if st, err := strconv.ParseUint(str(spec["subType"]), 16, 8); err == nil {
-		subtype = byte(st)
-	}
-	return binaryObject(rt, bson.Binary{Subtype: subtype, Data: data})
-}
-
 // uuidString renders 16 raw bytes in canonical 8-4-4-4-12 form.
 func uuidString(data []byte) string {
 	h := hex.EncodeToString(data)
 	return h[0:8] + "-" + h[8:12] + "-" + h[12:16] + "-" + h[16:20] + "-" + h[20:32]
 }
 
-func timestampValue(rt *goja.Runtime, v any) goja.Value {
-	spec, ok := v.(map[string]any)
-	if !ok {
-		return rt.ToValue(v)
-	}
-	return timestampObject(rt, bson.Timestamp{
-		T: uint32(toUint64(spec["t"])),
-		I: uint32(toUint64(spec["i"])),
-	})
-}
-
-func toUint64(v any) uint64 {
-	switch n := v.(type) {
-	case float64:
-		return uint64(n)
-	case int64:
-		return uint64(n)
-	case string:
-		parsed, err := strconv.ParseUint(n, 10, 64)
-		if err == nil {
-			return parsed
-		}
-	}
-	return 0
-}
-
-// regexValue rebuilds a JS RegExp so scripts can call .test() on it.
-func regexValue(rt *goja.Runtime, v any) goja.Value {
-	spec, ok := v.(map[string]any)
-	if !ok {
-		return rt.ToValue(v)
-	}
-	pattern := str(spec["pattern"])
-	options := str(spec["options"])
-
+// regexObject builds a JS RegExp so scripts can call .test() on it. MongoDB
+// options JS does not support (e.g. x) leave the pattern as a plain string.
+func regexObject(rt *goja.Runtime, pattern, options string) goja.Value {
 	ctor, ok := goja.AssertConstructor(rt.Get("RegExp"))
 	if !ok {
 		return rt.ToValue(pattern)

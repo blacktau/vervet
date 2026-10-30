@@ -2,7 +2,6 @@ package queryengine
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"reflect"
 	"time"
@@ -84,8 +83,9 @@ func (e *GojaEngine) ExecuteQuery(ctx context.Context, uri, dbName, query string
 			return scriptError(out, err)
 		}
 
-		// Check if return value is an unresolved lazy cursor
-		if cursor := extractLazyCursor(val); cursor != nil && !cursor.resolved {
+		// A lazy cursor left as the final value is shown as its documents,
+		// unless it gives way to what the script printed (see showsDocuments).
+		if cursor := extractLazyCursor(val); cursor != nil && cursor.showsDocuments(len(out.lines) > 0) {
 			result, retErr = cursor.execute(true)
 			return
 		}
@@ -126,6 +126,14 @@ func displayValue(v any) any {
 			out[k] = displayValue(elem)
 		}
 		return out
+	case bson.D:
+		// bson.D encodes to an ordered JSON object, so the frontend shows the
+		// fields in the order the script built them.
+		out := make(bson.D, len(val))
+		for i, e := range val {
+			out[i] = bson.E{Key: e.Key, Value: displayValue(e.Value)}
+		}
+		return out
 	case []any:
 		out := make([]any, len(val))
 		for i, elem := range val {
@@ -146,11 +154,12 @@ func ejsonScalar(v any) any {
 	if err != nil {
 		return fmt.Sprint(v)
 	}
-	var wrapper map[string]any
-	if err := json.Unmarshal(data, &wrapper); err != nil {
+	wrapper, err := decodeOrderedJSON(data)
+	if err != nil {
 		return fmt.Sprint(v)
 	}
-	return wrapper["v"]
+	// Ordered so multi-field wrappers keep their form, e.g. {$timestamp: {t, i}}.
+	return docField(wrapper.(bson.D), "v")
 }
 
 // scriptError formats a failed script run. Anything the script printed before
@@ -177,7 +186,7 @@ func exportedToResult(raw any) models.QueryResult {
 			docs[i] = displayValue(doc)
 		}
 		return models.QueryResult{Documents: docs}
-	case map[string]any:
+	case bson.D, map[string]any:
 		return models.QueryResult{Documents: []any{displayValue(v)}}
 	case string:
 		return models.QueryResult{RawOutput: v}

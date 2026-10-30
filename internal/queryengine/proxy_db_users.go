@@ -10,60 +10,52 @@ import (
 // buildUserCommand constructs a createUser command doc from a mongosh-style user spec.
 // The user doc is spread into the command with "createUser" replacing the "user" field as the command value.
 func buildUserCommand(userDoc any) (bson.D, error) {
-	m, ok := userDoc.(map[string]any)
-	if !ok {
-		if d, ok := userDoc.(bson.D); ok {
-			m = map[string]any{}
-			for _, e := range d {
-				m[e.Key] = e.Value
-			}
-		} else if bm, ok := userDoc.(bson.M); ok {
-			m = map[string]any(bm)
-		} else {
-			return nil, fmt.Errorf("createUser requires a user document")
-		}
-	}
-	name, ok := m["user"].(string)
-	if !ok {
-		return nil, fmt.Errorf("createUser requires a 'user' field")
-	}
-	cmd := bson.D{{Key: "createUser", Value: name}}
-	for k, v := range m {
-		if k == "user" {
-			continue
-		}
-		cmd = append(cmd, bson.E{Key: k, Value: v})
-	}
-	return cmd, nil
+	return buildNamedCommand("createUser", "user", userDoc)
 }
 
 // buildUpdateUserCommand constructs an updateUser command doc.
 func buildUpdateUserCommand(name string, updateDoc any) (bson.D, error) {
-	cmd := bson.D{{Key: "updateUser", Value: name}}
-	if updateDoc == nil {
-		return cmd, nil
-	}
-	m, ok := updateDoc.(map[string]any)
+	return buildUpdateCommand("updateUser", name, updateDoc)
+}
+
+// buildNamedCommand builds a command whose value is taken from the spec's
+// nameField (e.g. createUser from "user"), followed by the spec's remaining
+// fields in their original order.
+func buildNamedCommand(cmdName, nameField string, spec any) (bson.D, error) {
+	doc, ok := asBsonDoc(spec)
 	if !ok {
-		if d, ok := updateDoc.(bson.D); ok {
-			m = map[string]any{}
-			for _, e := range d {
-				m[e.Key] = e.Value
-			}
-		} else if bm, ok := updateDoc.(bson.M); ok {
-			m = map[string]any(bm)
-		} else {
-			return nil, fmt.Errorf("updateUser requires an update document")
-		}
+		return nil, fmt.Errorf("%s requires a %s document", cmdName, nameField)
 	}
-	for k, v := range m {
-		cmd = append(cmd, bson.E{Key: k, Value: v})
+	cmd := bson.D{{Key: cmdName}}
+	for _, e := range doc {
+		if e.Key == nameField {
+			cmd[0].Value = e.Value
+			continue
+		}
+		cmd = append(cmd, e)
+	}
+	if _, ok := cmd[0].Value.(string); !ok {
+		return nil, fmt.Errorf("%s requires a '%s' field", cmdName, nameField)
 	}
 	return cmd, nil
 }
 
-func runDBCommand(ec *execContext, methodName string, cmd bson.D) bson.M {
-	var result bson.M
+// buildUpdateCommand builds { cmdName: name, ...updateDoc } keeping the
+// update document's field order.
+func buildUpdateCommand(cmdName, name string, updateDoc any) (bson.D, error) {
+	cmd := bson.D{{Key: cmdName, Value: name}}
+	if updateDoc == nil {
+		return cmd, nil
+	}
+	doc, ok := asBsonDoc(updateDoc)
+	if !ok {
+		return nil, fmt.Errorf("%s requires an update document", cmdName)
+	}
+	return append(cmd, doc...), nil
+}
+
+func runDBCommand(ec *execContext, methodName string, cmd bson.D) bson.D {
+	var result bson.D
 	err := ec.client.Database(ec.dbName).RunCommand(ec.ctx, cmd).Decode(&result)
 	if err != nil {
 		panic(ec.rt.NewGoError(fmt.Errorf("%s: %w", methodName, err)))
@@ -106,7 +98,7 @@ func dbGetUser(ec *execContext) func(goja.FunctionCall) goja.Value {
 		name := call.Arguments[0].String()
 		cmd := bson.D{{Key: "usersInfo", Value: name}}
 		result := runDBCommand(ec, "getUser", cmd)
-		users, _ := result["users"].(bson.A)
+		users, _ := docField(result, "users").(bson.A)
 		if len(users) == 0 {
 			return goja.Null()
 		}
@@ -119,7 +111,7 @@ func dbGetUsers(ec *execContext) func(goja.FunctionCall) goja.Value {
 		requireClient(ec)
 		cmd := bson.D{{Key: "usersInfo", Value: 1}}
 		result := runDBCommand(ec, "getUsers", cmd)
-		users, _ := result["users"].(bson.A)
+		users, _ := docField(result, "users").(bson.A)
 		out := make([]any, len(users))
 		for i, u := range users {
 			out[i] = u

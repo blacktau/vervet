@@ -9,55 +9,11 @@ import (
 
 // buildRoleCommand constructs a createRole command doc from a mongosh-style role spec.
 func buildRoleCommand(roleDoc any) (bson.D, error) {
-	m, ok := roleDoc.(map[string]any)
-	if !ok {
-		if d, ok := roleDoc.(bson.D); ok {
-			m = map[string]any{}
-			for _, e := range d {
-				m[e.Key] = e.Value
-			}
-		} else if bm, ok := roleDoc.(bson.M); ok {
-			m = map[string]any(bm)
-		} else {
-			return nil, fmt.Errorf("createRole requires a role document")
-		}
-	}
-	name, ok := m["role"].(string)
-	if !ok {
-		return nil, fmt.Errorf("createRole requires a 'role' field")
-	}
-	cmd := bson.D{{Key: "createRole", Value: name}}
-	for k, v := range m {
-		if k == "role" {
-			continue
-		}
-		cmd = append(cmd, bson.E{Key: k, Value: v})
-	}
-	return cmd, nil
+	return buildNamedCommand("createRole", "role", roleDoc)
 }
 
 func buildUpdateRoleCommand(name string, updateDoc any) (bson.D, error) {
-	cmd := bson.D{{Key: "updateRole", Value: name}}
-	if updateDoc == nil {
-		return cmd, nil
-	}
-	m, ok := updateDoc.(map[string]any)
-	if !ok {
-		if d, ok := updateDoc.(bson.D); ok {
-			m = map[string]any{}
-			for _, e := range d {
-				m[e.Key] = e.Value
-			}
-		} else if bm, ok := updateDoc.(bson.M); ok {
-			m = map[string]any(bm)
-		} else {
-			return nil, fmt.Errorf("updateRole requires an update document")
-		}
-	}
-	for k, v := range m {
-		cmd = append(cmd, bson.E{Key: k, Value: v})
-	}
-	return cmd, nil
+	return buildUpdateCommand("updateRole", name, updateDoc)
 }
 
 func dbCreateRole(ec *execContext) func(goja.FunctionCall) goja.Value {
@@ -95,7 +51,7 @@ func dbGetRole(ec *execContext) func(goja.FunctionCall) goja.Value {
 		name := call.Arguments[0].String()
 		cmd := bson.D{{Key: "rolesInfo", Value: name}}
 		result := runDBCommand(ec, "getRole", cmd)
-		roles, _ := result["roles"].(bson.A)
+		roles, _ := docField(result, "roles").(bson.A)
 		if len(roles) == 0 {
 			return goja.Null()
 		}
@@ -108,7 +64,7 @@ func dbGetRoles(ec *execContext) func(goja.FunctionCall) goja.Value {
 		requireClient(ec)
 		cmd := bson.D{{Key: "rolesInfo", Value: 1}}
 		result := runDBCommand(ec, "getRoles", cmd)
-		roles, _ := result["roles"].(bson.A)
+		roles, _ := docField(result, "roles").(bson.A)
 		out := make([]any, len(roles))
 		for i, r := range roles {
 			out[i] = r

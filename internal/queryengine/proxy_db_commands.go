@@ -16,10 +16,9 @@ func dbRunCommand(ec *execContext, dbName string) func(goja.FunctionCall) goja.V
 			panic(ec.rt.NewGoError(fmt.Errorf("runCommand requires a command document")))
 		}
 
-		cmdRaw := exportValue(call.Arguments[0])
-		cmdDoc := convertToBson(cmdRaw)
+		cmdDoc := convertToBson(exportValue(call.Arguments[0]))
 
-		var result bson.M
+		var result bson.D
 		err := ec.client.Database(dbName).RunCommand(ec.ctx, cmdDoc).Decode(&result)
 		if err != nil {
 			panic(ec.rt.NewGoError(fmt.Errorf("runCommand: %w", err)))
@@ -34,7 +33,7 @@ func dbStats(ec *execContext) func(goja.FunctionCall) goja.Value {
 	return func(call goja.FunctionCall) goja.Value {
 		requireClient(ec)
 
-		var result bson.M
+		var result bson.D
 		err := ec.client.Database(ec.dbName).RunCommand(ec.ctx, bson.D{{Key: "dbStats", Value: 1}}).Decode(&result)
 		if err != nil {
 			panic(ec.rt.NewGoError(fmt.Errorf("stats: %w", err)))

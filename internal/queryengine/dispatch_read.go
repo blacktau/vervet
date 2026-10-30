@@ -26,8 +26,8 @@ func dispatchFind(ctx context.Context, coll *mongo.Collection, op CapturedOp) (m
 
 	opts := options.Find()
 	if len(op.Args) > 1 && op.Args[1] != nil {
-		if projMap, ok := op.Args[1].(map[string]any); ok {
-			opts.SetProjection(toBsonDoc(projMap))
+		if proj, ok := asBsonDoc(op.Args[1]); ok {
+			opts.SetProjection(proj)
 		}
 	}
 	applyFindOptions(opts, op)
@@ -38,7 +38,7 @@ func dispatchFind(ctx context.Context, coll *mongo.Collection, op CapturedOp) (m
 	}
 	defer cursor.Close(ctx)
 
-	var results []bson.M
+	var results []bson.D
 	if err := cursor.All(ctx, &results); err != nil {
 		return models.QueryResult{}, fmt.Errorf("reading cursor: %w", err)
 	}
@@ -62,8 +62,8 @@ func applyFindOptions(opts *options.FindOptionsBuilder, op CapturedOp) {
 	if op.Hint != nil {
 		if hintStr, ok := op.Hint.(string); ok {
 			opts.SetHint(hintStr)
-		} else if hintMap, ok := op.Hint.(map[string]any); ok {
-			opts.SetHint(toBsonDoc(hintMap))
+		} else if hint, ok := asBsonDoc(op.Hint); ok {
+			opts.SetHint(hint)
 		} else {
 			opts.SetHint(op.Hint)
 		}
@@ -133,8 +133,8 @@ func dispatchExplainFind(ctx context.Context, client *mongo.Client, dbName strin
 		findCmd = append(findCmd, bson.E{Key: "filter", Value: toBsonDoc(op.Args[0])})
 	}
 	if len(op.Args) > 1 && op.Args[1] != nil {
-		if projMap, ok := op.Args[1].(map[string]any); ok {
-			findCmd = append(findCmd, bson.E{Key: "projection", Value: toBsonDoc(projMap)})
+		if proj, ok := asBsonDoc(op.Args[1]); ok {
+			findCmd = append(findCmd, bson.E{Key: "projection", Value: proj})
 		}
 	}
 	if op.Sort != nil {
@@ -147,8 +147,8 @@ func dispatchExplainFind(ctx context.Context, client *mongo.Client, dbName strin
 		findCmd = append(findCmd, bson.E{Key: "skip", Value: op.Skip})
 	}
 	if op.Hint != nil {
-		if hintMap, ok := op.Hint.(map[string]any); ok {
-			findCmd = append(findCmd, bson.E{Key: "hint", Value: toBsonDoc(hintMap)})
+		if hint, ok := asBsonDoc(op.Hint); ok {
+			findCmd = append(findCmd, bson.E{Key: "hint", Value: hint})
 		} else {
 			findCmd = append(findCmd, bson.E{Key: "hint", Value: op.Hint})
 		}
@@ -171,7 +171,7 @@ func dispatchExplainFind(ctx context.Context, client *mongo.Client, dbName strin
 		{Key: "verbosity", Value: verbosity},
 	}
 
-	var result bson.M
+	var result bson.D
 	if err := client.Database(dbName).RunCommand(ctx, cmd).Decode(&result); err != nil {
 		return models.QueryResult{}, fmt.Errorf("explain failed: %w", err)
 	}
@@ -187,7 +187,7 @@ func dispatchFindOne(ctx context.Context, coll *mongo.Collection, op CapturedOp)
 		filter = toBsonDoc(op.Args[0])
 	}
 
-	var result bson.M
+	var result bson.D
 	err := coll.FindOne(ctx, filter).Decode(&result)
 	if err == mongo.ErrNoDocuments {
 		return models.QueryResult{Documents: []any{}, OperationType: "findOne"}, nil
@@ -196,7 +196,7 @@ func dispatchFindOne(ctx context.Context, coll *mongo.Collection, op CapturedOp)
 		return models.QueryResult{}, fmt.Errorf("findOne failed: %w", err)
 	}
 
-	result2 := docsToResult([]bson.M{result})
+	result2 := docsToResult([]bson.D{result})
 	result2.OperationType = "findOne"
 	return result2, nil
 }
@@ -212,8 +212,8 @@ func dispatchCountDocuments(ctx context.Context, coll *mongo.Collection, op Capt
 		return models.QueryResult{}, fmt.Errorf("countDocuments failed: %w", err)
 	}
 
-	result := singleToResult(map[string]any{
-		"count": count,
+	result := singleToResult(bson.D{
+		{Key: "count", Value: count},
 	})
 	result.JSValue = count
 	result.OperationType = "countDocuments"
@@ -233,7 +233,7 @@ func dispatchAggregate(ctx context.Context, coll *mongo.Collection, op CapturedO
 	}
 	defer cursor.Close(ctx)
 
-	var results []bson.M
+	var results []bson.D
 	if err := cursor.All(ctx, &results); err != nil {
 		return models.QueryResult{}, fmt.Errorf("reading aggregate cursor: %w", err)
 	}
@@ -263,15 +263,12 @@ func dispatchDistinct(ctx context.Context, coll *mongo.Collection, op CapturedOp
 		return models.QueryResult{}, fmt.Errorf("distinct failed: %w", err)
 	}
 
-	result := singleToResult(map[string]any{
-		"values": results,
+	result := singleToResult(bson.D{
+		{Key: "values", Value: results},
 	})
-	// Scripts get the bare array mongosh returns; take it from the converted
-	// document so BSON types keep their Extended JSON form (and become Long,
-	// ObjectId, ... in the script rather than plain numbers).
-	if doc, ok := result.Documents[0].(map[string]any); ok {
-		result.JSValue = doc["values"]
-	}
+	// Scripts get the bare array mongosh returns, converted like document
+	// fields (Long, ObjectId, ...) rather than as plain reflected Go values.
+	result.JSValue = resultValues(results)
 	result.OperationType = "distinct"
 	return result, nil
 }
@@ -286,7 +283,7 @@ func dispatchFindOneAndDelete(ctx context.Context, coll *mongo.Collection, op Ca
 		filter = toBsonDoc(op.Args[0])
 	}
 
-	var result bson.M
+	var result bson.D
 	err := coll.FindOneAndDelete(ctx, filter).Decode(&result)
 	if err == mongo.ErrNoDocuments {
 		return models.QueryResult{Documents: []any{}, OperationType: "findOneAndDelete"}, nil
@@ -295,7 +292,7 @@ func dispatchFindOneAndDelete(ctx context.Context, coll *mongo.Collection, op Ca
 		return models.QueryResult{}, fmt.Errorf("findOneAndDelete failed: %w", err)
 	}
 
-	r := docsToResult([]bson.M{result})
+	r := docsToResult([]bson.D{result})
 	r.OperationType = "findOneAndDelete"
 	return r, nil
 }
@@ -315,7 +312,7 @@ func dispatchFindOneAndReplace(ctx context.Context, coll *mongo.Collection, op C
 		replacement = toBsonDoc(op.Args[1])
 	}
 
-	var result bson.M
+	var result bson.D
 	err := coll.FindOneAndReplace(ctx, filter, replacement).Decode(&result)
 	if err == mongo.ErrNoDocuments {
 		return models.QueryResult{Documents: []any{}, OperationType: "findOneAndReplace"}, nil
@@ -324,7 +321,7 @@ func dispatchFindOneAndReplace(ctx context.Context, coll *mongo.Collection, op C
 		return models.QueryResult{}, fmt.Errorf("findOneAndReplace failed: %w", err)
 	}
 
-	r := docsToResult([]bson.M{result})
+	r := docsToResult([]bson.D{result})
 	r.OperationType = "findOneAndReplace"
 	return r, nil
 }
@@ -337,7 +334,7 @@ func dispatchFindOneAndUpdate(ctx context.Context, coll *mongo.Collection, op Ca
 	filter := toBsonDoc(op.Args[0])
 	update := convertToBson(op.Args[1])
 
-	var result bson.M
+	var result bson.D
 	err := coll.FindOneAndUpdate(ctx, filter, update).Decode(&result)
 	if err == mongo.ErrNoDocuments {
 		return models.QueryResult{Documents: []any{}, OperationType: "findOneAndUpdate"}, nil
@@ -346,7 +343,7 @@ func dispatchFindOneAndUpdate(ctx context.Context, coll *mongo.Collection, op Ca
 		return models.QueryResult{}, fmt.Errorf("findOneAndUpdate failed: %w", err)
 	}
 
-	r := docsToResult([]bson.M{result})
+	r := docsToResult([]bson.D{result})
 	r.OperationType = "findOneAndUpdate"
 	return r, nil
 }
@@ -357,8 +354,8 @@ func dispatchEstimatedDocumentCount(ctx context.Context, coll *mongo.Collection)
 		return models.QueryResult{}, fmt.Errorf("estimatedDocumentCount failed: %w", err)
 	}
 
-	result := singleToResult(map[string]any{
-		"count": count,
+	result := singleToResult(bson.D{
+		{Key: "count", Value: count},
 	})
 	result.JSValue = count
 	result.OperationType = "estimatedDocumentCount"

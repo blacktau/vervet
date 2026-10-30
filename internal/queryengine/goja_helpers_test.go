@@ -1,6 +1,7 @@
 package queryengine
 
 import (
+	"encoding/json"
 	"testing"
 	"vervet/internal/models"
 
@@ -8,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 func TestToGojaValue_EmptyDocuments(t *testing.T) {
@@ -76,9 +78,7 @@ func TestExportArgs_SingleArg(t *testing.T) {
 	call := goja.FunctionCall{Arguments: []goja.Value{rt.ToValue(map[string]any{"name": "bob"})}}
 	args := exportArgs(call)
 	assert.Len(t, args, 1)
-	m, ok := args[0].(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, "bob", m["name"])
+	assert.Equal(t, bson.D{{Key: "name", Value: "bob"}}, args[0])
 }
 
 func TestExportValue_Regex_ConvertsToBSONRegex(t *testing.T) {
@@ -108,8 +108,9 @@ func TestExportValue_NestedRegex_PreservedInDocument(t *testing.T) {
 	require.NoError(t, err)
 
 	exported := exportValue(val)
-	m, ok := exported.(map[string]any)
-	require.True(t, ok, "expected map, got %T", exported)
+	doc, ok := exported.(bson.D)
+	require.True(t, ok, "expected bson.D, got %T", exported)
+	m, _ := asMap(doc)
 
 	nameVal, ok := m["name"].(map[string]any)
 	require.True(t, ok, "expected name to be map, got %T", m["name"])
@@ -156,4 +157,100 @@ func TestMongoRegexOptions_MapsJSFlags(t *testing.T) {
 	assert.Equal(t, "ims", mongoRegexOptions("gimsu"))
 	assert.Equal(t, "", mongoRegexOptions("guy"))
 	assert.Equal(t, "i", mongoRegexOptions("i"))
+}
+
+// TestExportValue_PreservesKeyOrder guards issue #301: MongoDB reads the
+// first key of a command document as the command name, so a randomly ordered
+// map turned { update: ..., updates: [...], ordered: false } into "no such
+// command: 'ordered'".
+func TestExportValue_PreservesKeyOrder(t *testing.T) {
+	rt := goja.New()
+	registerBSONTypes(rt)
+	val, err := rt.RunString(`({
+		update: "coll",
+		updates: [{ q: { a: 1, b: 2, c: 3 }, u: { $set: { z: 1, y: 2, x: 3 } }, upsert: true }],
+		ordered: false,
+		n: NumberLong("5")
+	})`)
+	require.NoError(t, err)
+
+	for i := 0; i < 20; i++ {
+		converted := convertToBson(exportValue(val))
+		doc, ok := converted.(bson.D)
+		require.True(t, ok, "expected bson.D, got %T", converted)
+		require.Len(t, doc, 4)
+		assert.Equal(t, []string{"update", "updates", "ordered", "n"}, docKeys(doc))
+		assert.Equal(t, int64(5), doc[3].Value)
+
+		updates, ok := doc[1].Value.(bson.A)
+		require.True(t, ok)
+		stmt, ok := updates[0].(bson.D)
+		require.True(t, ok)
+		assert.Equal(t, []string{"q", "u", "upsert"}, docKeys(stmt))
+		assert.Equal(t, []string{"a", "b", "c"}, docKeys(stmt[0].Value.(bson.D)))
+		set := stmt[1].Value.(bson.D)[0].Value.(bson.D)
+		assert.Equal(t, []string{"z", "y", "x"}, docKeys(set))
+	}
+}
+
+func docKeys(doc bson.D) []string {
+	keys := make([]string, len(doc))
+	for i, e := range doc {
+		keys[i] = e.Key
+	}
+	return keys
+}
+
+// Empty arrays and objects must survive to the UI and to scripts: the edit
+// dialog saves the displayed document back, so `tags: []` turning into null
+// would write bad data.
+func TestDocsToResult_KeepsEmptyContainers(t *testing.T) {
+	r := docsToResult([]bson.D{{
+		{Key: "tags", Value: bson.A{}},
+		{Key: "meta", Value: bson.D{}},
+		{Key: "nested", Value: bson.D{{Key: "list", Value: bson.A{}}}},
+	}})
+	data, err := json.Marshal(r.Documents)
+	require.NoError(t, err)
+	assert.Equal(t, `[{"tags":[],"meta":{},"nested":{"list":[]}}]`, string(data))
+
+	rt := goja.New()
+	require.NoError(t, rt.Set("doc", toJSValue(rt, r.Documents[0])))
+	val, err := rt.RunString(`Array.isArray(doc.tags) && doc.tags.length === 0 && Array.isArray(doc.nested.list) && Object.keys(doc.meta).length === 0`)
+	require.NoError(t, err)
+	assert.True(t, val.ToBoolean())
+}
+
+// Write and count results are built as bson.D, so their fields come out in a
+// fixed order on every run, in the UI and in Object.keys.
+func TestSingleToResult_FixedFieldOrder(t *testing.T) {
+	r := updateResultToQueryResult(&mongo.UpdateResult{MatchedCount: 1, ModifiedCount: 1, UpsertedID: int32(3)})
+	for i := 0; i < 20; i++ {
+		data, err := json.Marshal(r.Documents)
+		require.NoError(t, err)
+		assert.Equal(t, `[{"acknowledged":true,"matchedCount":{"$numberLong":"1"},"modifiedCount":{"$numberLong":"1"},"upsertedId":{"$numberInt":"3"}}]`, string(data))
+
+		rt := goja.New()
+		require.NoError(t, rt.Set("r", toGojaValue(rt, r)))
+		val, err := rt.RunString(`Object.keys(r).join(",")`)
+		require.NoError(t, err)
+		assert.Equal(t, "acknowledged,matchedCount,modifiedCount,upsertedId", val.String())
+	}
+}
+
+// Script-built values display wrappers with their fields in order.
+func TestDisplayValue_TimestampKeepsFieldOrder(t *testing.T) {
+	v := displayValue(map[string]any{"__bsonValue": &bsonWrapper{Value: bson.Timestamp{T: 5, I: 2}}})
+	data, err := json.Marshal(v)
+	require.NoError(t, err)
+	assert.Equal(t, `{"$timestamp":{"t":5,"i":2}}`, string(data))
+}
+
+// bulkWrite accepts op documents in any form asBsonDoc takes, as before.
+func TestToBulkWriteModel_AcceptsMapOps(t *testing.T) {
+	op, ok := asBsonDoc(map[string]any{"insertOne": map[string]any{"document": map[string]any{"n": int64(1)}}})
+	require.True(t, ok)
+	model, err := toBulkWriteModel(op)
+	require.NoError(t, err)
+	assert.IsType(t, &mongo.InsertOneModel{}, model)
 }

@@ -21,9 +21,9 @@ func dispatchInsertOne(ctx context.Context, coll *mongo.Collection, op CapturedO
 		return models.QueryResult{}, fmt.Errorf("insertOne failed: %w", err)
 	}
 
-	result := singleToResult(map[string]any{
-		"acknowledged": true,
-		"insertedId":   res.InsertedID,
+	result := singleToResult(bson.D{
+		{Key: "acknowledged", Value: true},
+		{Key: "insertedId", Value: res.InsertedID},
 	})
 	result.OperationType = "insertOne"
 	result.AffectedCount = 1
@@ -50,9 +50,9 @@ func dispatchInsertMany(ctx context.Context, coll *mongo.Collection, op Captured
 		return models.QueryResult{}, fmt.Errorf("insertMany failed: %w", err)
 	}
 
-	result := singleToResult(map[string]any{
-		"acknowledged": true,
-		"insertedIds":  res.InsertedIDs,
+	result := singleToResult(bson.D{
+		{Key: "acknowledged", Value: true},
+		{Key: "insertedIds", Value: res.InsertedIDs},
 	})
 	result.OperationType = "insertMany"
 	result.AffectedCount = len(res.InsertedIDs)
@@ -108,9 +108,9 @@ func dispatchDeleteOne(ctx context.Context, coll *mongo.Collection, op CapturedO
 		return models.QueryResult{}, fmt.Errorf("deleteOne failed: %w", err)
 	}
 
-	result := singleToResult(map[string]any{
-		"acknowledged": true,
-		"deletedCount": res.DeletedCount,
+	result := singleToResult(bson.D{
+		{Key: "acknowledged", Value: true},
+		{Key: "deletedCount", Value: res.DeletedCount},
 	})
 	result.OperationType = "deleteOne"
 	result.AffectedCount = int(res.DeletedCount)
@@ -128,9 +128,9 @@ func dispatchDeleteMany(ctx context.Context, coll *mongo.Collection, op Captured
 		return models.QueryResult{}, fmt.Errorf("deleteMany failed: %w", err)
 	}
 
-	result := singleToResult(map[string]any{
-		"acknowledged": true,
-		"deletedCount": res.DeletedCount,
+	result := singleToResult(bson.D{
+		{Key: "acknowledged", Value: true},
+		{Key: "deletedCount", Value: res.DeletedCount},
 	})
 	result.OperationType = "deleteMany"
 	result.AffectedCount = int(res.DeletedCount)
@@ -168,11 +168,11 @@ func dispatchBulkWrite(ctx context.Context, coll *mongo.Collection, op CapturedO
 
 	writeModels := make([]mongo.WriteModel, 0, len(rawOps))
 	for _, rawOp := range rawOps {
-		opMap, ok := rawOp.(map[string]any)
+		opDoc, ok := asBsonDoc(rawOp)
 		if !ok {
 			return models.QueryResult{}, fmt.Errorf("bulkWrite operation must be an object")
 		}
-		model, err := toBulkWriteModel(opMap)
+		model, err := toBulkWriteModel(opDoc)
 		if err != nil {
 			return models.QueryResult{}, err
 		}
@@ -184,13 +184,13 @@ func dispatchBulkWrite(ctx context.Context, coll *mongo.Collection, op CapturedO
 		return models.QueryResult{}, fmt.Errorf("bulkWrite failed: %w", err)
 	}
 
-	result := singleToResult(map[string]any{
-		"acknowledged":  true,
-		"insertedCount": res.InsertedCount,
-		"matchedCount":  res.MatchedCount,
-		"modifiedCount": res.ModifiedCount,
-		"deletedCount":  res.DeletedCount,
-		"upsertedCount": res.UpsertedCount,
+	result := singleToResult(bson.D{
+		{Key: "acknowledged", Value: true},
+		{Key: "insertedCount", Value: res.InsertedCount},
+		{Key: "matchedCount", Value: res.MatchedCount},
+		{Key: "modifiedCount", Value: res.ModifiedCount},
+		{Key: "deletedCount", Value: res.DeletedCount},
+		{Key: "upsertedCount", Value: res.UpsertedCount},
 	})
 	result.OperationType = "bulkWrite"
 	result.AffectedCount = int(res.ModifiedCount + res.InsertedCount + res.DeletedCount)
@@ -204,38 +204,41 @@ func dispatchDrop(ctx context.Context, coll *mongo.Collection) (models.QueryResu
 	return models.QueryResult{OperationType: "drop"}, nil
 }
 
-// toBulkWriteModel converts a map[string]any (from goja) to a mongo.WriteModel.
-func toBulkWriteModel(opMap map[string]any) (mongo.WriteModel, error) {
-	for opType, v := range opMap {
-		args, ok := v.(map[string]any)
-		if !ok {
-			return nil, fmt.Errorf("bulkWrite operation %s must be an object", opType)
-		}
-		switch opType {
-		case "insertOne":
-			return mongo.NewInsertOneModel().
-				SetDocument(convertToBson(args["document"])), nil
-		case "updateOne":
-			return mongo.NewUpdateOneModel().
-				SetFilter(toBsonDoc(args["filter"])).
-				SetUpdate(convertToBson(args["update"])), nil
-		case "updateMany":
-			return mongo.NewUpdateManyModel().
-				SetFilter(toBsonDoc(args["filter"])).
-				SetUpdate(convertToBson(args["update"])), nil
-		case "deleteOne":
-			return mongo.NewDeleteOneModel().
-				SetFilter(toBsonDoc(args["filter"])), nil
-		case "deleteMany":
-			return mongo.NewDeleteManyModel().
-				SetFilter(toBsonDoc(args["filter"])), nil
-		case "replaceOne":
-			return mongo.NewReplaceOneModel().
-				SetFilter(toBsonDoc(args["filter"])).
-				SetReplacement(convertToBson(args["replacement"])), nil
-		default:
-			return nil, fmt.Errorf("unknown bulkWrite operation type: %s", opType)
-		}
+// toBulkWriteModel converts a bulkWrite operation ({ insertOne: {...} }) to a
+// mongo.WriteModel. As in mongosh, the operation type is the document's first
+// key; any further keys are ignored.
+func toBulkWriteModel(opDoc bson.D) (mongo.WriteModel, error) {
+	if len(opDoc) == 0 {
+		return nil, fmt.Errorf("bulkWrite operation must have a type")
 	}
-	return nil, fmt.Errorf("bulkWrite operation must have a type")
+	opType := opDoc[0].Key
+	args, ok := opDoc[0].Value.(bson.D) // asBsonDoc converted nested documents too
+	if !ok {
+		return nil, fmt.Errorf("bulkWrite operation %s must be an object", opType)
+	}
+	switch opType {
+	case "insertOne":
+		return mongo.NewInsertOneModel().
+			SetDocument(convertToBson(docField(args, "document"))), nil
+	case "updateOne":
+		return mongo.NewUpdateOneModel().
+			SetFilter(toBsonDoc(docField(args, "filter"))).
+			SetUpdate(convertToBson(docField(args, "update"))), nil
+	case "updateMany":
+		return mongo.NewUpdateManyModel().
+			SetFilter(toBsonDoc(docField(args, "filter"))).
+			SetUpdate(convertToBson(docField(args, "update"))), nil
+	case "deleteOne":
+		return mongo.NewDeleteOneModel().
+			SetFilter(toBsonDoc(docField(args, "filter"))), nil
+	case "deleteMany":
+		return mongo.NewDeleteManyModel().
+			SetFilter(toBsonDoc(docField(args, "filter"))), nil
+	case "replaceOne":
+		return mongo.NewReplaceOneModel().
+			SetFilter(toBsonDoc(docField(args, "filter"))).
+			SetReplacement(convertToBson(docField(args, "replacement"))), nil
+	default:
+		return nil, fmt.Errorf("unknown bulkWrite operation type: %s", opType)
+	}
 }

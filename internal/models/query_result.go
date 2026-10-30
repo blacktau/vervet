@@ -3,17 +3,24 @@ package models
 // PageContext describes a paginated find() so the frontend can request
 // further pages without re-running the user's script. Emitted by the Goja
 // engine when a script's final value resolves to a find() lazy cursor.
+//
+// Filter, Projection, Sort, Hint and Collation hold canonical Extended JSON.
+// The frontend treats them as opaque and hands them back unchanged; a plain
+// JSON object would come back as a Go map, losing both key order (which
+// MongoDB depends on for sort and hint) and BSON types such as ObjectId.
+// Hint is wrapped as {"v": hint} because it may be a name or a document.
 type PageContext struct {
-	Collection string         `json:"collection"`
-	Filter     any            `json:"filter,omitempty"`
-	Projection any            `json:"projection,omitempty"`
-	Sort       any            `json:"sort,omitempty"`
-	Hint       any            `json:"hint,omitempty"`
-	Collation  map[string]any `json:"collation,omitempty"`
-	UserLimit  int64          `json:"userLimit,omitempty"`
-	UserSkip   int64          `json:"userSkip,omitempty"`
-	MaxTimeMS  int64          `json:"maxTimeMS,omitempty"`
-	Comment    string         `json:"comment,omitempty"`
+	Collection string `json:"collection"`
+	Filter     string `json:"filter,omitempty"`
+	Projection string `json:"projection,omitempty"`
+	Sort       string `json:"sort,omitempty"`
+	Hint       string `json:"hint,omitempty"`
+	Collation  string `json:"collation,omitempty"`
+	UserLimit  int64  `json:"userLimit,omitempty"`
+	UserSkip   int64  `json:"userSkip,omitempty"`
+	MaxTimeMS  int64  `json:"maxTimeMS,omitempty"`
+	BatchSize  int32  `json:"batchSize,omitempty"`
+	Comment    string `json:"comment,omitempty"`
 }
 
 // QueryResult holds the parsed output of a query.

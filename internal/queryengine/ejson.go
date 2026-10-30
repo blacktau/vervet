@@ -1,7 +1,6 @@
 package queryengine
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/dop251/goja"
@@ -86,11 +85,13 @@ func ejsonParse(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 
 		str := call.Arguments[0].String()
 
-		var result bson.M
+		var result bson.D
 		if err := bson.UnmarshalExtJSON([]byte(str), false, &result); err != nil {
 			panic(rt.NewGoError(fmt.Errorf("EJSON.parse: %w", err)))
 		}
 
+		// Command mode: BSON types such as ObjectId and Date convert, numbers
+		// stay plain JS numbers, as mongosh returns them.
 		return toJSValue(rt, result)
 	}
 }
@@ -108,21 +109,21 @@ func ejsonSerialize(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 		raw := exportValue(call.Arguments[0])
 		bsonDoc := convertToBson(raw)
 
-		// Marshal to Extended JSON, then unmarshal to a generic map
+		// Marshal to Extended JSON, then decode to an ordered generic tree
 		data, err := bson.MarshalExtJSON(bsonDoc, false, false)
 		if err != nil {
 			panic(rt.NewGoError(fmt.Errorf("EJSON.serialize: %w", err)))
 		}
 
-		var result any
-		if err := json.Unmarshal(data, &result); err != nil {
+		result, err := decodeOrderedJSON(data)
+		if err != nil {
 			panic(rt.NewGoError(fmt.Errorf("EJSON.serialize: %w", err)))
 		}
 
 		// Deliberately not toJSValue: serialize's contract is to expose the
 		// Extended JSON form ({$oid: ...}), which toJSValue would convert back
 		// into script values.
-		return rt.ToValue(normalizeForJS(result))
+		return jsValue(rt, result, jsPlain)
 	}
 }
 
@@ -142,11 +143,13 @@ func ejsonDeserialize(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 			panic(rt.NewGoError(fmt.Errorf("EJSON.deserialize: %w", err)))
 		}
 
-		var result bson.M
+		var result bson.D
 		if err := bson.UnmarshalExtJSON(data, false, &result); err != nil {
 			panic(rt.NewGoError(fmt.Errorf("EJSON.deserialize: %w", err)))
 		}
 
+		// Command mode: BSON types such as ObjectId and Date convert, numbers
+		// stay plain JS numbers, as mongosh returns them.
 		return toJSValue(rt, result)
 	}
 }

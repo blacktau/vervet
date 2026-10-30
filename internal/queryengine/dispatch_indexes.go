@@ -25,8 +25,8 @@ func dispatchCreateIndex(ctx context.Context, coll *mongo.Collection, op Capture
 		return models.QueryResult{}, fmt.Errorf("createIndex failed: %w", err)
 	}
 
-	result := singleToResult(map[string]any{
-		"name": name,
+	result := singleToResult(bson.D{
+		{Key: "name", Value: name},
 	})
 	result.OperationType = "createIndex"
 	return result, nil
@@ -44,11 +44,11 @@ func dispatchCreateIndexes(ctx context.Context, coll *mongo.Collection, op Captu
 
 	keys := make([]mongo.IndexModel, 0, len(rawKeys))
 	for _, rawKey := range rawKeys {
-		key, ok := rawKey.(map[string]any)
+		key, ok := asBsonDoc(rawKey)
 		if !ok {
 			return models.QueryResult{}, fmt.Errorf("createIndexes key must be an object")
 		}
-		keys = append(keys, mongo.IndexModel{Keys: toBsonDoc(key)})
+		keys = append(keys, mongo.IndexModel{Keys: key})
 	}
 
 	names, err := coll.Indexes().CreateMany(ctx, keys)
@@ -56,8 +56,8 @@ func dispatchCreateIndexes(ctx context.Context, coll *mongo.Collection, op Captu
 		return models.QueryResult{}, fmt.Errorf("createIndexes failed: %w", err)
 	}
 
-	result := singleToResult(map[string]any{
-		"indexNames": names,
+	result := singleToResult(bson.D{
+		{Key: "indexNames", Value: names},
 	})
 	result.OperationType = "createIndexes"
 	return result, nil
@@ -73,7 +73,7 @@ func dispatchDropIndex(ctx context.Context, coll *mongo.Collection, op CapturedO
 		return models.QueryResult{}, fmt.Errorf("dropIndex argument must be a string")
 	}
 
-	var result bson.M
+	var result bson.D
 	cmd := bson.D{{Key: "dropIndexes", Value: coll.Name()}, {Key: "index", Value: name}}
 	if err := coll.Database().RunCommand(ctx, cmd).Decode(&result); err != nil {
 		return models.QueryResult{}, fmt.Errorf("dropIndex failed: %w", err)
@@ -87,7 +87,7 @@ func dispatchDropIndex(ctx context.Context, coll *mongo.Collection, op CapturedO
 func dispatchDropIndexes(ctx context.Context, coll *mongo.Collection, op CapturedOp) (models.QueryResult, error) {
 	if len(op.Args) < 1 {
 		// dropIndexes supports deleting all indexes with no arguments
-		var result bson.M
+		var result bson.D
 		cmd := bson.D{{Key: "dropIndexes", Value: coll.Name()}, {Key: "index", Value: "*"}}
 		if err := coll.Database().RunCommand(ctx, cmd).Decode(&result); err != nil {
 			return models.QueryResult{}, fmt.Errorf("dropIndexes failed: %w", err)
@@ -100,7 +100,7 @@ func dispatchDropIndexes(ctx context.Context, coll *mongo.Collection, op Capture
 
 	name, ok := op.Args[0].(string)
 	if ok {
-		var result bson.M
+		var result bson.D
 		cmd := bson.D{{Key: "dropIndexes", Value: coll.Name()}, {Key: "index", Value: name}}
 		if err := coll.Database().RunCommand(ctx, cmd).Decode(&result); err != nil {
 			return models.QueryResult{}, fmt.Errorf("dropIndexes failed: %w", err)
@@ -125,9 +125,9 @@ func dispatchDropIndexes(ctx context.Context, coll *mongo.Collection, op Capture
 		keys = append(keys, key)
 	}
 
-	var results []bson.M
+	var results []bson.D
 	for _, key := range keys {
-		var r bson.M
+		var r bson.D
 		cmd := bson.D{{Key: "dropIndexes", Value: coll.Name()}, {Key: "index", Value: key}}
 		if err := coll.Database().RunCommand(ctx, cmd).Decode(&r); err != nil {
 			return models.QueryResult{}, fmt.Errorf("dropIndexes failed on '%s': %w", key, err)
@@ -146,7 +146,7 @@ func dispatchListIndexes(ctx context.Context, coll *mongo.Collection) (models.Qu
 		return models.QueryResult{}, fmt.Errorf("listIndexes failed: %w", err)
 	}
 	defer cursor.Close(ctx)
-	var results []bson.M
+	var results []bson.D
 	if err := cursor.All(ctx, &results); err != nil {
 		return models.QueryResult{}, fmt.Errorf("reading listIndexes cursor: %w", err)
 	}

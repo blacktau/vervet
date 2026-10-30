@@ -9,13 +9,13 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
-// collStatsMap runs the collStats command and returns the result document.
-func collStatsMap(ec *execContext, collName string, scale int) (bson.M, error) {
+// collStatsDoc runs the collStats command and returns the result document.
+func collStatsDoc(ec *execContext, collName string, scale int) (bson.D, error) {
 	cmd := bson.D{{Key: "collStats", Value: collName}}
 	if scale > 0 {
 		cmd = append(cmd, bson.E{Key: "scale", Value: scale})
 	}
-	var result bson.M
+	var result bson.D
 	if err := ec.client.Database(ec.dbName).RunCommand(ec.ctx, cmd).Decode(&result); err != nil {
 		return nil, err
 	}
@@ -24,11 +24,11 @@ func collStatsMap(ec *execContext, collName string, scale int) (bson.M, error) {
 
 // collStatsField runs collStats and returns a single numeric field from the result.
 func collStatsField(ec *execContext, collName, field string) (any, error) {
-	stats, err := collStatsMap(ec, collName, 0)
+	stats, err := collStatsDoc(ec, collName, 0)
 	if err != nil {
 		return nil, err
 	}
-	return stats[field], nil
+	return docField(stats, field), nil
 }
 
 // setCollectionInfoMethods attaches info/stats/legacy methods to a collection proxy object.
@@ -57,7 +57,7 @@ func setCollectionInfoMethods(obj *goja.Object, ec *execContext, collName string
 				}
 			}
 		}
-		result, err := collStatsMap(ec, collName, scale)
+		result, err := collStatsDoc(ec, collName, scale)
 		if err != nil {
 			panic(rt.NewGoError(fmt.Errorf("stats: %w", err)))
 		}
@@ -66,11 +66,11 @@ func setCollectionInfoMethods(obj *goja.Object, ec *execContext, collName string
 
 	_ = obj.Set("isCapped", func() goja.Value {
 		requireClient(ec)
-		stats, err := collStatsMap(ec, collName, 0)
+		stats, err := collStatsDoc(ec, collName, 0)
 		if err != nil {
 			panic(rt.NewGoError(fmt.Errorf("isCapped: %w", err)))
 		}
-		if v, ok := stats["capped"].(bool); ok {
+		if v, ok := docField(stats, "capped").(bool); ok {
 			return rt.ToValue(v)
 		}
 		return rt.ToValue(false)
@@ -105,11 +105,11 @@ func setCollectionInfoMethods(obj *goja.Object, ec *execContext, collName string
 
 	_ = obj.Set("totalSize", func() goja.Value {
 		requireClient(ec)
-		stats, err := collStatsMap(ec, collName, 0)
+		stats, err := collStatsDoc(ec, collName, 0)
 		if err != nil {
 			panic(rt.NewGoError(fmt.Errorf("totalSize: %w", err)))
 		}
-		total := toInt64(stats["storageSize"]) + toInt64(stats["totalIndexSize"])
+		total := toInt64(docField(stats, "storageSize")) + toInt64(docField(stats, "totalIndexSize"))
 		return rt.ToValue(total)
 	})
 
@@ -127,7 +127,7 @@ func setCollectionInfoMethods(obj *goja.Object, ec *execContext, collName string
 		requireClient(ec)
 		filter := bson.D{}
 		if len(call.Arguments) > 0 {
-			filter = toBsonDoc(call.Arguments[0].Export())
+			filter = toBsonDoc(exportValue(call.Arguments[0]))
 		}
 		count, err := ec.client.Database(ec.dbName).Collection(collName).CountDocuments(ec.ctx, filter)
 		if err != nil {
@@ -156,7 +156,7 @@ func setCollectionInfoMethods(obj *goja.Object, ec *execContext, collName string
 			{Key: "to", Value: ec.dbName + "." + newName},
 			{Key: "dropTarget", Value: dropTarget},
 		}
-		var result bson.M
+		var result bson.D
 		if err := ec.client.Database("admin").RunCommand(ec.ctx, cmd).Decode(&result); err != nil {
 			panic(rt.NewGoError(fmt.Errorf("renameCollection: %w", err)))
 		}
@@ -167,17 +167,14 @@ func setCollectionInfoMethods(obj *goja.Object, ec *execContext, collName string
 		requireClient(ec)
 		cmd := bson.D{{Key: "validate", Value: collName}}
 		if len(call.Arguments) > 0 {
-			arg := call.Arguments[0].Export()
-			switch v := arg.(type) {
-			case bool:
-				cmd = append(cmd, bson.E{Key: "full", Value: v})
-			case map[string]any:
-				for k, val := range v {
-					cmd = append(cmd, bson.E{Key: k, Value: convertToBson(val)})
-				}
+			arg := exportValue(call.Arguments[0])
+			if full, ok := arg.(bool); ok {
+				cmd = append(cmd, bson.E{Key: "full", Value: full})
+			} else if opts, ok := asBsonDoc(arg); ok {
+				cmd = append(cmd, opts...)
 			}
 		}
-		var result bson.M
+		var result bson.D
 		if err := ec.client.Database(ec.dbName).RunCommand(ec.ctx, cmd).Decode(&result); err != nil {
 			panic(rt.NewGoError(fmt.Errorf("validate: %w", err)))
 		}
@@ -189,7 +186,7 @@ func setCollectionInfoMethods(obj *goja.Object, ec *execContext, collName string
 		if len(call.Arguments) < 1 {
 			panic(rt.NewGoError(fmt.Errorf("findAndModify requires a spec document")))
 		}
-		spec, ok := call.Arguments[0].Export().(map[string]any)
+		spec, ok := asMap(exportValue(call.Arguments[0]))
 		if !ok {
 			panic(rt.NewGoError(fmt.Errorf("findAndModify: spec must be an object")))
 		}
@@ -217,7 +214,7 @@ func toInt64(v any) int64 {
 
 // runFindAndModify executes the legacy findAndModify operation against the named collection.
 // Delegates to FindOneAndDelete when spec.remove is truthy, otherwise FindOneAndUpdate.
-func runFindAndModify(ec *execContext, collName string, spec map[string]any) (bson.M, error) {
+func runFindAndModify(ec *execContext, collName string, spec map[string]any) (bson.D, error) {
 	coll := ec.client.Database(ec.dbName).Collection(collName)
 	filter := bson.D{}
 	if q, ok := spec["query"]; ok && q != nil {
@@ -241,7 +238,7 @@ func runFindAndModify(ec *execContext, collName string, spec map[string]any) (bs
 		if fields, ok := spec["fields"]; ok && fields != nil {
 			opts.SetProjection(toBsonDoc(fields))
 		}
-		var result bson.M
+		var result bson.D
 		err := coll.FindOneAndDelete(ec.ctx, filter, opts).Decode(&result)
 		if err == mongo.ErrNoDocuments {
 			return nil, nil
@@ -273,7 +270,7 @@ func runFindAndModify(ec *execContext, collName string, spec map[string]any) (bs
 		opts.SetProjection(toBsonDoc(fields))
 	}
 
-	var result bson.M
+	var result bson.D
 	err := coll.FindOneAndUpdate(ec.ctx, filter, convertToBson(update), opts).Decode(&result)
 	if err == mongo.ErrNoDocuments {
 		return nil, nil

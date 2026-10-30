@@ -5,7 +5,139 @@ import (
 	"fmt"
 
 	"vervet/internal/models"
+
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
+
+// encodePageDoc renders a cursor's filter/projection/sort/hint document as
+// canonical Extended JSON for a PageContext. Nil and non-documents encode as
+// "" (absent), matching how dispatch treats them (toBsonDoc yields an empty
+// document), so later pages run the same query as the first.
+func encodePageDoc(v any) (string, error) {
+	doc, ok := asBsonDoc(v)
+	if !ok {
+		return "", nil
+	}
+	data, err := bson.MarshalExtJSON(doc, true, false)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+// decodePageDoc is the inverse of encodePageDoc. "" decodes as nil (absent),
+// so an omitted projection or sort stays omitted.
+func decodePageDoc(s string) (any, error) {
+	doc, err := unmarshalPageJSON(s)
+	// Return a bare nil, not a nil bson.D: callers test the result for nil.
+	if err != nil || doc == nil {
+		return nil, err
+	}
+	return doc, nil
+}
+
+// encodePageValue renders any cursor value (the hint may be an index name, a
+// key document or something else) as canonical Extended JSON, wrapped as
+// {"v": value}. Nil encodes as "" (absent).
+func encodePageValue(v any) (string, error) {
+	if v == nil {
+		return "", nil
+	}
+	data, err := bson.MarshalExtJSON(bson.D{{Key: "v", Value: convertToBson(v)}}, true, false)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+// decodePageValue is the inverse of encodePageValue.
+func decodePageValue(s string) (any, error) {
+	doc, err := unmarshalPageJSON(s)
+	if err != nil || doc == nil {
+		return nil, err
+	}
+	return docField(doc, "v"), nil
+}
+
+// unmarshalPageJSON decodes a PageContext field; "" yields nil.
+func unmarshalPageJSON(s string) (bson.D, error) {
+	if s == "" {
+		return nil, nil
+	}
+	var doc bson.D
+	if err := bson.UnmarshalExtJSON([]byte(s), true, &doc); err != nil {
+		return nil, err
+	}
+	return doc, nil
+}
+
+// buildPageContext snapshots this cursor's find parameters so the frontend
+// can fetch later pages. Returns nil for findOne (not pageable). A cursor
+// option that should apply to every page must be copied here and applied in
+// FetchPage.
+func (c *lazyCursor) buildPageContext() (*models.PageContext, error) {
+	if c.isFindOne {
+		return nil, nil
+	}
+	pc := &models.PageContext{
+		Collection: c.collection,
+		UserLimit:  c.limit,
+		UserSkip:   c.skip,
+		MaxTimeMS:  c.maxTimeMS,
+		BatchSize:  c.batchSize,
+		Comment:    c.comment,
+	}
+	var err error
+	if pc.Filter, err = encodePageDoc(c.filter); err != nil {
+		return nil, fmt.Errorf("paging filter: %w", err)
+	}
+	if pc.Projection, err = encodePageDoc(c.projection); err != nil {
+		return nil, fmt.Errorf("paging projection: %w", err)
+	}
+	if pc.Sort, err = encodePageDoc(c.sort); err != nil {
+		return nil, fmt.Errorf("paging sort: %w", err)
+	}
+	if pc.Hint, err = encodePageValue(c.hint); err != nil {
+		return nil, fmt.Errorf("paging hint: %w", err)
+	}
+	if c.collation != nil {
+		if pc.Collation, err = encodePageDoc(c.collation); err != nil {
+			return nil, fmt.Errorf("paging collation: %w", err)
+		}
+	}
+	return pc, nil
+}
+
+// pageQuery holds a PageContext's values decoded back into ordered BSON.
+type pageQuery struct {
+	filter, projection, sort, hint any
+	collation                      map[string]any
+}
+
+func decodePageContext(pc models.PageContext) (pageQuery, error) {
+	var q pageQuery
+	var err error
+	if q.filter, err = decodePageDoc(pc.Filter); err != nil {
+		return q, fmt.Errorf("paging filter: %w", err)
+	}
+	if q.projection, err = decodePageDoc(pc.Projection); err != nil {
+		return q, fmt.Errorf("paging projection: %w", err)
+	}
+	if q.sort, err = decodePageDoc(pc.Sort); err != nil {
+		return q, fmt.Errorf("paging sort: %w", err)
+	}
+	if q.hint, err = decodePageValue(pc.Hint); err != nil {
+		return q, fmt.Errorf("paging hint: %w", err)
+	}
+	collation, err := decodePageDoc(pc.Collation)
+	if err != nil {
+		return q, fmt.Errorf("paging collation: %w", err)
+	}
+	if collation != nil {
+		q.collation, _ = asMap(collation)
+	}
+	return q, nil
+}
 
 // effectivePaging computes the skip/limit to send to MongoDB for a given page.
 // Returns empty=true when the page lies beyond pc.UserLimit (caller should
@@ -36,32 +168,42 @@ func (e *GojaEngine) FetchPage(
 	if empty {
 		return models.QueryResult{Documents: []any{}}, nil
 	}
+	q, err := decodePageContext(pc)
+	if err != nil {
+		return models.QueryResult{}, err
+	}
 	op := CapturedOp{
 		Collection: pc.Collection,
 		Method:     "find",
-		Args:       []any{pc.Filter, pc.Projection},
+		Args:       []any{q.filter, q.projection},
 		Limit:      limit,
 		Skip:       skip,
-		Sort:       pc.Sort,
-		Hint:       pc.Hint,
-		Collation:  pc.Collation,
+		Sort:       q.sort,
+		Hint:       q.hint,
+		Collation:  q.collation,
 		MaxTimeMS:  pc.MaxTimeMS,
+		BatchSize:  pc.BatchSize,
 		Comment:    pc.Comment,
 	}
 	return dispatch(ctx, e.client, dbName, op)
 }
 
-// CountForPage returns a total-row count for a PageContext. When the filter is
-// empty/nil, returns estimatedDocumentCount with estimated=true. Otherwise
-// returns countDocuments(filter), capped by pc.UserLimit if set.
+// CountForPage returns a total-row count for a PageContext: estimatedDocumentCount
+// (with estimated=true) when the filter is empty/nil, countDocuments(filter)
+// otherwise. Either way, pc.UserSkip is then subtracted (floored at 0) and the
+// result is capped by pc.UserLimit if set.
 func (e *GojaEngine) CountForPage(
 	ctx context.Context,
 	dbName string,
 	pc models.PageContext,
 ) (count int64, estimated bool, err error) {
+	filter, err := decodePageDoc(pc.Filter)
+	if err != nil {
+		return 0, false, fmt.Errorf("paging filter: %w", err)
+	}
 	method := "countDocuments"
-	args := []any{pc.Filter}
-	if isEmptyFilter(pc.Filter) {
+	args := []any{filter}
+	if isEmptyFilter(filter) {
 		method = "estimatedDocumentCount"
 		args = nil
 		estimated = true
@@ -75,7 +217,9 @@ func (e *GojaEngine) CountForPage(
 	if err != nil {
 		return 0, estimated, err
 	}
-	count = extractCount(res)
+	// Documents the cursor skips (its own skip(), plus any next() consumed
+	// before it was returned) are not part of the paged result.
+	count = max(extractCount(res)-pc.UserSkip, 0)
 	if pc.UserLimit > 0 && count > pc.UserLimit {
 		count = pc.UserLimit
 	}
@@ -86,8 +230,11 @@ func isEmptyFilter(f any) bool {
 	if f == nil {
 		return true
 	}
-	if m, ok := f.(map[string]any); ok && len(m) == 0 {
-		return true
+	switch d := f.(type) {
+	case bson.D:
+		return len(d) == 0
+	case map[string]any:
+		return len(d) == 0
 	}
 	return false
 }
@@ -96,7 +243,7 @@ func extractCount(r models.QueryResult) int64 {
 	if len(r.Documents) == 0 {
 		return 0
 	}
-	doc, ok := r.Documents[0].(map[string]any)
+	doc, ok := asMap(r.Documents[0])
 	if !ok {
 		return 0
 	}
@@ -120,9 +267,10 @@ func coerceInt64(v any) int64 {
 		var n int64
 		fmt.Sscanf(x, "%d", &n)
 		return n
-	case map[string]any:
+	case bson.D, map[string]any:
+		m, _ := asMap(x)
 		for _, key := range []string{"$numberLong", "$numberInt", "$numberDouble"} {
-			if s, ok := x[key].(string); ok {
+			if s, ok := m[key].(string); ok {
 				var n int64
 				fmt.Sscanf(s, "%d", &n)
 				return n

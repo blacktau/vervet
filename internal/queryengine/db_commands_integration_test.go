@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 func TestIntegration_RunCommand_Ping(t *testing.T) {
@@ -59,6 +60,41 @@ func TestIntegration_RunCommand_CollStats(t *testing.T) {
 	result, err := engine.ExecuteQuery(ctx, testURI, db, `db.runCommand({ collStats: "test" })`)
 	require.NoError(t, err)
 	assert.Contains(t, resultText(result), "ns")
+}
+
+// TestIntegration_RunCommand_UpdateWithOptions reproduces issue #301: a
+// multi-key command document must reach the server with the command name
+// first, or MongoDB rejects it as "no such command" for whichever key landed
+// first.
+func TestIntegration_RunCommand_UpdateWithOptions(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	db := dbName(t)
+	defer testClient.Database(db).Drop(ctx)
+
+	engine := NewGojaEngine(testClient, 0, "")
+	script := `
+var rows = [
+    { TestId: NumberLong("1904"), Reference: "WmZt4qFxCT" },
+    { TestId: NumberLong("2163"), Reference: "Y0dbJouozf" },
+    { TestId: NumberLong("3335"), Reference: "Y7zODBedPc" }
+];
+var updates = rows.map(function (row) {
+    return { q: { Reference: row.Reference }, u: { $setOnInsert: { _id: UUID(), TestId: row.TestId, State: "Pending" } }, upsert: true };
+});
+db.runCommand({ update: "upserts", updates: updates, ordered: false, bypassDocumentValidation: false }).n`
+	// Repeated because a random key order can put "update" first by chance.
+	// The upserts are idempotent, so n stays 3 (matched or upserted).
+	for i := 0; i < 10; i++ {
+		result, err := engine.ExecuteQuery(ctx, testURI, db, script)
+		require.NoError(t, err)
+		require.Equal(t, "3", resultText(result))
+	}
+
+	count, err := testClient.Database(db).Collection("upserts").CountDocuments(ctx, bson.D{})
+	require.NoError(t, err)
+	assert.Equal(t, int64(3), count)
 }
 
 func TestIntegration_AdminCommand_ListDatabases(t *testing.T) {
