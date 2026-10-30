@@ -491,7 +491,7 @@ export default {
       deleteConfirmContent:
         'Are you sure you want to delete this document from {namespace}? This action cannot be undone.',
       collectionFromTab:
-        "These results don't say which collection they came from, so changes go to {namespace}. Check that's where you mean.",
+        "These results don't say which database and collection they came from, so changes go to {namespace}. Check that's where you mean.",
       save: 'Save',
       invalidJson: 'Invalid JSON: {error}',
     },

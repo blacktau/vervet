@@ -89,14 +89,25 @@ beforeEach(() => {
   queryId = tabStore.openQuery('server-1', 'shop', 'db.orders.find()', 'orders')!
 })
 
-function showResults(database: string, collection?: string) {
+function showResults(database: string, collection?: string, projection?: string) {
   const state = useQueryStore().getQueryState(queryId)
   state.documents = [{ _id: 1 }]
   state.resultsDatabase = database
-  state.pageContext = collection ? { database, collection } : null
+  state.pageContext = collection ? { database, collection, projection } : null
 }
 
 describe('QueryTab collection context', () => {
+  it('turns off edit, but not insert or delete, for a projected find', async () => {
+    const wrapper = await mountQueryTab(queryId)
+    showResults('shop', 'orders', '{"name":{"$numberInt":"1"}}')
+    await flushPromises()
+
+    const context = wrapper.findComponent(TableStub).props('collectionContext')
+    expect(context.canEdit).toBe(false)
+    expect(context.dbName).toBe('shop')
+    wrapper.unmount()
+  })
+
   it('allows edits on a tab opened without a collection when the find names one', async () => {
     const tabStore = useTabStore()
     queryId = tabStore.openQuery('server-1', 'shop', 'db.orders.find()')!
@@ -109,6 +120,7 @@ describe('QueryTab collection context', () => {
       dbName: 'shop',
       collectionName: 'orders',
       collectionFromTab: false,
+      canEdit: true,
     })
     wrapper.unmount()
   })
@@ -124,6 +136,7 @@ describe('QueryTab collection context', () => {
       dbName: 'archive',
       collectionName: 'orders',
       collectionFromTab: true,
+      canEdit: true,
     })
     wrapper.unmount()
   })

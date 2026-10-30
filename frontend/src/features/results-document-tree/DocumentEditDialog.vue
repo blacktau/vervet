@@ -128,11 +128,12 @@ async function save() {
   saving.value = true
   try {
     let query: string
+    const collection = JSON.stringify(props.collectionName)
     if (props.mode === 'edit') {
       const filter = `{ _id: ${toJsExpression(documentId.value)} }`
-      query = `db.getCollection('${props.collectionName}').replaceOne(${filter}, ${jsBody})`
+      query = `db.getCollection(${collection}).replaceOne(${filter}, ${jsBody})`
     } else {
-      query = `db.getCollection('${props.collectionName}').insertOne(${jsBody})`
+      query = `db.getCollection(${collection}).insertOne(${jsBody})`
     }
 
     const result = await shellProxy.ExecuteQuery(

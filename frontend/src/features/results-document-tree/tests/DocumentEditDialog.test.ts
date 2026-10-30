@@ -8,6 +8,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
 import naive from 'naive-ui'
 import enGB from '@/i18n/en-GB'
+import * as shellProxy from 'wailsjs/go/api/ShellProxy'
 
 vi.mock('monaco-editor', () => ({
   editor: {
@@ -23,7 +24,9 @@ vi.mock('monaco-editor', () => ({
   KeyCode: { KeyS: 49 },
 }))
 
-vi.mock('wailsjs/go/api/ShellProxy', () => ({ ExecuteQuery: vi.fn() }))
+vi.mock('wailsjs/go/api/ShellProxy', () => ({
+  ExecuteQuery: vi.fn(async () => ({ isSuccess: true })),
+}))
 
 vi.mock('@/utils/dialog', () => ({
   useNotifier: () => ({ error: vi.fn() }),
@@ -33,7 +36,11 @@ const i18n = createI18n({ legacy: false, locale: 'en-GB', messages: { 'en-GB': e
 
 let wrapper: VueWrapper | undefined
 
-async function openDialog(props: { mode: 'edit' | 'insert'; collectionFromTab?: boolean }) {
+async function openDialog(props: {
+  mode: 'edit' | 'insert'
+  collectionFromTab?: boolean
+  collectionName?: string
+}) {
   const DocumentEditDialog = (await import('../DocumentEditDialog.vue')).default
   wrapper = mount(DocumentEditDialog, {
     props: {
@@ -78,4 +85,21 @@ describe('DocumentEditDialog target', () => {
     const text = await openDialog({ mode: 'edit', collectionFromTab: true })
     expect(text).toContain('changes go to shop.orders')
   })
+})
+
+describe('DocumentEditDialog save', () => {
+  it.each(['edit', 'insert'] as const)(
+    'quotes the collection name safely in the %s script',
+    async (mode) => {
+      await openDialog({ mode, collectionName: "o'brien" })
+      const save = [...document.body.querySelectorAll('button')].find(
+        (b) => b.textContent?.trim() === 'Save',
+      )
+      save!.click()
+      await flushPromises()
+
+      const script = vi.mocked(shellProxy.ExecuteQuery).mock.lastCall![3]
+      expect(script).toContain(`db.getCollection("o'brien").`)
+    },
+  )
 })

@@ -48,8 +48,8 @@ type CountResponse struct {
 
 // FetchPage fetches a single page of documents using a previously captured
 // PageContext. The frontend calls this when the user navigates the pager.
-func (sp *ShellProxy) FetchPage(serverID, dbName string, pc models.PageContext, page, pageSize int64) Result[models.QueryResult] {
-	res, err := sp.provider.FetchPage(serverID, dbName, pc, page, pageSize)
+func (sp *ShellProxy) FetchPage(serverID string, pc models.PageContext, page, pageSize int64) Result[models.QueryResult] {
+	res, err := sp.provider.FetchPage(serverID, pc, page, pageSize)
 	if err != nil {
 		logFail(sp.log, "FetchPage", err)
 		return FailResult[models.QueryResult](err)
@@ -59,8 +59,8 @@ func (sp *ShellProxy) FetchPage(serverID, dbName string, pc models.PageContext, 
 
 // CountForPage returns the total row count for a PageContext. Filter-empty
 // queries return an estimated count; filtered queries return an exact count.
-func (sp *ShellProxy) CountForPage(serverID, dbName string, pc models.PageContext) Result[CountResponse] {
-	count, estimated, err := sp.provider.CountForPage(serverID, dbName, pc)
+func (sp *ShellProxy) CountForPage(serverID string, pc models.PageContext) Result[CountResponse] {
+	count, estimated, err := sp.provider.CountForPage(serverID, pc)
 	if err != nil {
 		logFail(sp.log, "CountForPage", err)
 		return FailResult[CountResponse](err)

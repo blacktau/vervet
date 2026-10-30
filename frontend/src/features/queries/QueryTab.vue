@@ -72,7 +72,9 @@ const collectionContext = computed<CollectionContext | undefined>(() => {
   const dbName = queryState.value.resultsDatabase
   // Edits must target where the results came from, not the tab's starting
   // database or a collection the query didn't read
-  const pagedCollection = queryState.value.pageContext?.collection
+  const pageContext = queryState.value.pageContext
+  const pagedCollection = pageContext?.collection
+  const projection = pageContext?.projection
   const collectionName = pagedCollection ?? item?.collectionName
   if (!collectionName || !tab || !dbName) {
     return undefined
@@ -82,6 +84,7 @@ const collectionContext = computed<CollectionContext | undefined>(() => {
     dbName,
     collectionName,
     collectionFromTab: !pagedCollection,
+    canEdit: !projection || projection === '{}',
   }
 })
 

@@ -1,6 +1,7 @@
 package queryengine
 
 import (
+	"context"
 	"testing"
 
 	"vervet/internal/models"
@@ -58,4 +59,12 @@ func TestExtractCount(t *testing.T) {
 	r = models.QueryResult{Documents: []any{map[string]any{"count": float64(7)}}}
 	assert.Equal(t, int64(7), extractCount(r))
 	assert.Equal(t, int64(0), extractCount(models.QueryResult{}))
+}
+
+func TestFetchPage_RequiresDatabase(t *testing.T) {
+	engine := NewGojaEngine(nil, 25, "")
+	_, err := engine.FetchPage(context.Background(), models.PageContext{Collection: "c"}, 0, 25)
+	assert.ErrorIs(t, err, errNoPageDatabase)
+	_, _, err = engine.CountForPage(context.Background(), models.PageContext{Collection: "c"})
+	assert.ErrorIs(t, err, errNoPageDatabase)
 }

@@ -261,7 +261,7 @@ function handleContextMenuSelect(key: string) {
       onPositiveClick: async () => {
         const { serverId, dbName, collectionName } = context
         const filter = `{ _id: ${toJsExpression(doc._id)} }`
-        const query = `db.getCollection('${collectionName}').deleteOne(${filter})`
+        const query = `db.getCollection(${JSON.stringify(collectionName)}).deleteOne(${filter})`
         const result = await shellProxy.ExecuteQuery(
           serverId,
           crypto.randomUUID(),
@@ -428,7 +428,7 @@ function rowClassName(row: DocumentRow): string {
       <DocumentViewDialog
         v-model:show="showViewDialog"
         :document="viewDocument"
-        :can-edit="!!collectionContext"
+        :can-edit="!!collectionContext?.canEdit"
         @edit="switchToEdit" />
       <DocumentEditDialog
         v-if="collectionContext"

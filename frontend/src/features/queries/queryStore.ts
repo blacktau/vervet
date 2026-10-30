@@ -103,6 +103,9 @@ export interface QueryState {
   /** Latest page and count requests; older responses are discarded */
   pageRequestId: number
   countRequestId: number
+  /** The page the latest page request asked for, which may not have arrived yet */
+  requestedPage: number
+  requestedPageSize: number
 }
 
 interface QueryStoreState {
@@ -144,6 +147,8 @@ function createQueryState(database: string): QueryState {
     loadingCount: false,
     pageRequestId: 0,
     countRequestId: 0,
+    requestedPage: 0,
+    requestedPageSize: 25,
   }
 }
 
@@ -314,6 +319,8 @@ export const useQueryStore = defineStore('query', {
       state.loadingCount = false
       state.pageRequestId = 0
       state.countRequestId = 0
+      state.requestedPage = 0
+      state.requestedPageSize = state.pageSize
       this.appendMessage(queryId, {
         level: 'info',
         text: i18nGlobal.t('query.messages.executing'),
@@ -421,15 +428,11 @@ export const useQueryStore = defineStore('query', {
       }
       const requestId = ++nextRequestId
       state.pageRequestId = requestId
+      state.requestedPage = page
+      state.requestedPageSize = pageSize
       state.loadingPage = true
       try {
-        const result = await shellProxy.FetchPage(
-          serverId,
-          state.resultsDatabase,
-          state.pageContext,
-          page,
-          pageSize,
-        )
+        const result = await shellProxy.FetchPage(serverId, state.pageContext, page, pageSize)
         // A newer page request or query has taken over
         if (state.pageRequestId !== requestId) {
           return
@@ -440,6 +443,8 @@ export const useQueryStore = defineStore('query', {
           state.pageSize = pageSize
           state._rawJsonCache = null
         } else {
+          state.requestedPage = state.page
+          state.requestedPageSize = state.pageSize
           const notifier = useNotifier()
           notifier.error(result.errorDetail || result.errorCode || 'Failed to fetch page')
         }
@@ -450,32 +455,31 @@ export const useQueryStore = defineStore('query', {
       }
     },
 
-    async fetchCount(queryId: string) {
+    /** Returns true when a fresh count was stored. */
+    async fetchCount(queryId: string): Promise<boolean> {
       const tabStore = useTabStore()
       const serverId = tabStore.currentTabId
       if (!serverId) {
-        return
+        return false
       }
       const state = this.getQueryState(queryId)
       if (!state.pageContext) {
-        return
+        return false
       }
       const requestId = ++nextRequestId
       state.countRequestId = requestId
       state.loadingCount = true
       try {
-        const result = await shellProxy.CountForPage(
-          serverId,
-          state.resultsDatabase,
-          state.pageContext,
-        )
+        const result = await shellProxy.CountForPage(serverId, state.pageContext)
         if (state.countRequestId !== requestId) {
-          return
+          return false
         }
-        if (result.isSuccess && result.data) {
-          state.total = result.data.count
-          state.totalEstimated = result.data.estimated
+        if (!result.isSuccess || !result.data) {
+          return false
         }
+        state.total = result.data.count
+        state.totalEstimated = result.data.estimated
+        return true
       } finally {
         if (state.countRequestId === requestId) {
           state.loadingCount = false
@@ -499,18 +503,21 @@ export const useQueryStore = defineStore('query', {
         })
         return
       }
-      await Promise.all([
-        this.fetchPage(queryId, state.page, state.pageSize),
-        this.fetchCount(queryId),
-      ])
-      // Deletes can leave the current page, or several, past the end
-      if (state.total === null) {
+      const pageRequestBefore = state.pageRequestId
+      const counted = await this.fetchCount(queryId)
+      // A pager click during the count was sent after the change, so it's already fresh
+      if (state.pageRequestId !== pageRequestBefore) {
         return
       }
-      const lastPage = Math.max(Math.ceil(state.total / state.pageSize) - 1, 0)
-      if (state.page > lastPage) {
-        await this.fetchPage(queryId, lastPage, state.pageSize)
+      // Use the page last asked for: a click whose response hasn't arrived still counts
+      const pageSize = state.requestedPageSize
+      let page = state.requestedPage
+      // Deletes can leave the page, or several, past the end. Clamp before fetching
+      // so an empty page never shows; without a fresh count, keep the page.
+      if (counted && state.total !== null) {
+        page = Math.min(page, Math.max(Math.ceil(state.total / pageSize) - 1, 0))
       }
+      await this.fetchPage(queryId, page, pageSize)
     },
 
     async cancelQuery(queryId: string) {

@@ -164,7 +164,7 @@ func (qe *QueryExecutor) executeWithMongosh(ctx context.Context, serverID, dbNam
 
 // FetchPage fetches a single page for a previously captured PageContext using
 // the builtin engine. Returns ErrPagingUnsupported when mongosh is selected.
-func (qe *QueryExecutor) FetchPage(serverID, dbName string, pc models.PageContext, page, pageSize int64) (models.QueryResult, error) {
+func (qe *QueryExecutor) FetchPage(serverID string, pc models.PageContext, page, pageSize int64) (models.QueryResult, error) {
 	cfg, _ := qe.settings.GetSettings()
 	if cfg.Query.QueryEngine != "builtin" {
 		return models.QueryResult{}, ErrPagingUnsupported
@@ -174,12 +174,12 @@ func (qe *QueryExecutor) FetchPage(serverID, dbName string, pc models.PageContex
 		return models.QueryResult{}, fmt.Errorf("no active connection: %w", err)
 	}
 	engine := queryengine.NewGojaEngine(client, int64(cfg.Query.DefaultPageSize), "")
-	return engine.FetchPage(qe.ctx, dbName, pc, page, pageSize)
+	return engine.FetchPage(qe.ctx, pc, page, pageSize)
 }
 
 // CountForPage returns the row count for a PageContext using the builtin
 // engine. Returns ErrPagingUnsupported when mongosh is selected.
-func (qe *QueryExecutor) CountForPage(serverID, dbName string, pc models.PageContext) (int64, bool, error) {
+func (qe *QueryExecutor) CountForPage(serverID string, pc models.PageContext) (int64, bool, error) {
 	cfg, _ := qe.settings.GetSettings()
 	if cfg.Query.QueryEngine != "builtin" {
 		return 0, false, ErrPagingUnsupported
@@ -189,7 +189,7 @@ func (qe *QueryExecutor) CountForPage(serverID, dbName string, pc models.PageCon
 		return 0, false, fmt.Errorf("no active connection: %w", err)
 	}
 	engine := queryengine.NewGojaEngine(client, 0, "")
-	return engine.CountForPage(qe.ctx, dbName, pc)
+	return engine.CountForPage(qe.ctx, pc)
 }
 
 // CancelQuery cancels the in-flight query identified by (serverID, queryID).

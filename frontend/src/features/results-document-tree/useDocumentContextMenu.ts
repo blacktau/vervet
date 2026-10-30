@@ -9,6 +9,8 @@ export interface CollectionContext {
   collectionName: string
   /** The query's own collection is unknown, so collectionName is the tab's */
   collectionFromTab: boolean
+  /** False when the results hide fields: replacing would delete them */
+  canEdit: boolean
 }
 
 export function formatNamespace(dbName: string, collectionName: string): string {
@@ -45,11 +47,11 @@ export function useDocumentContextMenu(collectionContext: Ref<CollectionContext 
         { label: t('query.contextMenu.viewDocument'), key: 'viewDocument' },
       ]
 
+      if (collectionContext.value?.canEdit) {
+        options.push({ label: t('query.contextMenu.editDocument'), key: 'editDocument' })
+      }
       if (collectionContext.value) {
-        options.push(
-          { label: t('query.contextMenu.editDocument'), key: 'editDocument' },
-          { label: t('query.contextMenu.insertDocument'), key: 'insertDocument' },
-        )
+        options.push({ label: t('query.contextMenu.insertDocument'), key: 'insertDocument' })
       }
 
       options.push(

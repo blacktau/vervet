@@ -23,7 +23,7 @@ vi.mock('@/utils/dialog', () => ({
 }))
 
 import * as shellProxy from 'wailsjs/go/api/ShellProxy'
-import { useQueryStore } from '@/features/queries/queryStore'
+import { useQueryStore, type QueryState } from '@/features/queries/queryStore'
 import { useTabStore } from '@/features/tabs/tabs'
 
 const SERVER_ID = 'srv-1'
@@ -37,6 +37,14 @@ const countForPage = shellProxy.CountForPage as ReturnType<typeof vi.fn>
 
 function pageOf(...docs: unknown[]) {
   return { isSuccess: true, data: { documents: docs } }
+}
+
+/** Put the results on a page as if the pager had loaded it. */
+function showPage(state: QueryState, page: number, pageSize: number) {
+  state.page = page
+  state.pageSize = pageSize
+  state.requestedPage = page
+  state.requestedPageSize = pageSize
 }
 
 async function runPagedQuery() {
@@ -81,15 +89,14 @@ describe('queryStore refreshResults', () => {
   test('re-fetches the current page and count without replaying the query', async () => {
     const store = await runPagedQuery()
     const state = store.getQueryState(QUERY_ID)
-    state.page = 2
-    state.pageSize = 20
+    showPage(state, 2, 20)
     fetchPage.mockResolvedValue(pageOf({ a: 2 }))
     countForPage.mockClear()
 
     await store.refreshResults(QUERY_ID)
 
     expect(executeQuery).toHaveBeenCalledTimes(1)
-    expect(fetchPage).toHaveBeenCalledWith(SERVER_ID, 'dbA', PAGE_CONTEXT, 2, 20)
+    expect(fetchPage).toHaveBeenCalledWith(SERVER_ID, PAGE_CONTEXT, 2, 20)
     expect(countForPage).toHaveBeenCalledTimes(1)
     expect(state.documents).toEqual([{ a: 2 }])
     expect(state.page).toBe(2)
@@ -103,9 +110,10 @@ describe('queryStore refreshResults', () => {
 
     await store.refreshResults(QUERY_ID)
 
-    expect(fetchPage.mock.calls[0]![1]).toBe('dbA')
+    expect(fetchPage.mock.calls[0]![1].database).toBe('dbA')
     const countCalls = countForPage.mock.calls
-    expect(countCalls[countCalls.length - 1]![1]).toBe('dbA')
+    expect(countCalls[countCalls.length - 1]![1].database).toBe('dbA')
+    expect(store.getQueryState(QUERY_ID).resultsDatabase).toBe('dbA')
   })
 
   test('reads pages from the database a sibling find ran on', async () => {
@@ -125,39 +133,75 @@ describe('queryStore refreshResults', () => {
     await store.refreshResults(QUERY_ID)
 
     expect(store.getQueryState(QUERY_ID).resultsDatabase).toBe('archive')
-    expect(fetchPage.mock.calls[0]![1]).toBe('archive')
+    expect(fetchPage.mock.calls[0]![1]).toEqual(siblingContext)
   })
 
   test('clamps to the last page when deletes leave several pages past the end', async () => {
     const store = await runPagedQuery()
     const state = store.getQueryState(QUERY_ID)
-    state.page = 4
-    state.pageSize = 20
+    showPage(state, 4, 20)
     countForPage.mockResolvedValue({ isSuccess: true, data: { count: 45, estimated: false } })
-    fetchPage.mockResolvedValueOnce(pageOf()).mockResolvedValueOnce(pageOf({ a: 9 }))
+    fetchPage.mockResolvedValue(pageOf({ a: 9 }))
 
     await store.refreshResults(QUERY_ID)
 
-    expect(fetchPage).toHaveBeenCalledTimes(2)
-    expect(fetchPage.mock.calls[1]![3]).toBe(2)
+    // Clamped before fetching, so the empty page is never requested or shown
+    expect(fetchPage).toHaveBeenCalledTimes(1)
+    expect(fetchPage.mock.calls[0]![2]).toBe(2)
     expect(state.page).toBe(2)
     expect(state.documents).toEqual([{ a: 9 }])
+  })
+
+  test('keeps the page when the count fails, rather than clamping on a stale total', async () => {
+    const store = await runPagedQuery()
+    const state = store.getQueryState(QUERY_ID)
+    showPage(state, 2, 20)
+    state.total = 30 // from before the change: would clamp page 2 to page 1
+    countForPage.mockResolvedValue({ isSuccess: false, errorCode: 'boom' })
+    fetchPage.mockResolvedValue(pageOf({ a: 9 }))
+
+    await store.refreshResults(QUERY_ID)
+
+    expect(fetchPage.mock.calls[0]![2]).toBe(2)
+    expect(state.page).toBe(2)
+  })
+
+  test('refreshes the page a pending pager click asked for', async () => {
+    const store = await runPagedQuery()
+    const state = store.getQueryState(QUERY_ID)
+    showPage(state, 1, 25)
+    countForPage.mockResolvedValue({ isSuccess: true, data: { count: 200, estimated: false } })
+    let resolveClick!: (v: unknown) => void
+    fetchPage
+      .mockReturnValueOnce(new Promise((r) => (resolveClick = r)))
+      .mockResolvedValueOnce(pageOf({ page: 3, fresh: true }))
+
+    // Click page 3; the save finishes before that page arrives
+    const click = store.fetchPage(QUERY_ID, 3, 25)
+    await store.refreshResults(QUERY_ID)
+    resolveClick(pageOf({ page: 3, fresh: false }))
+    await click
+
+    expect(fetchPage.mock.calls[1]![2]).toBe(3)
+    expect(state.page).toBe(3)
+    expect(state.documents).toEqual([{ page: 3, fresh: true }])
   })
 
   test('a pager click made during a refresh wins', async () => {
     const store = await runPagedQuery()
     const state = store.getQueryState(QUERY_ID)
-    state.page = 1
-    let resolveRefresh!: (v: unknown) => void
-    fetchPage
-      .mockReturnValueOnce(new Promise((r) => (resolveRefresh = r)))
-      .mockResolvedValueOnce(pageOf({ page: 2 }))
+    showPage(state, 1, 25)
+    let resolveCount!: (v: unknown) => void
+    countForPage.mockReturnValueOnce(new Promise((r) => (resolveCount = r)))
+    fetchPage.mockResolvedValue(pageOf({ page: 2 }))
 
     const refresh = store.refreshResults(QUERY_ID)
-    await store.fetchPage(QUERY_ID, 2, state.pageSize)
-    resolveRefresh(pageOf({ page: 1 }))
+    await store.fetchPage(QUERY_ID, 2, 25)
+    resolveCount({ isSuccess: true, data: { count: 60, estimated: false } })
     await refresh
 
+    // The click was sent after the change, so the refresh doesn't fetch again
+    expect(fetchPage).toHaveBeenCalledTimes(1)
     expect(state.page).toBe(2)
     expect(state.documents).toEqual([{ page: 2 }])
   })
@@ -211,7 +255,7 @@ describe('queryStore refreshResults', () => {
     const store = await runPagedQuery()
     let resolvePage!: (v: unknown) => void
     fetchPage.mockReturnValueOnce(new Promise((r) => (resolvePage = r)))
-    const refresh = store.refreshResults(QUERY_ID)
+    const pending = store.fetchPage(QUERY_ID, 1, 25)
 
     executeQuery.mockResolvedValueOnce({
       isSuccess: true,
@@ -219,7 +263,7 @@ describe('queryStore refreshResults', () => {
     })
     await store.executeQuery(QUERY_ID, { text: 'db.c.find({ x: 1 })', range: RANGE })
     resolvePage(pageOf({ stale: true }))
-    await refresh
+    await pending
 
     expect(store.getQueryState(QUERY_ID).documents).toEqual([{ fresh: true }])
   })

@@ -30,14 +30,14 @@ func (m *MockShellProvider) CheckMongosh() bool {
 
 func (m *MockShellProvider) CloseAll() {}
 
-func (m *MockShellProvider) FetchPage(serverID, dbName string, pc models.PageContext, page, pageSize int64) (models.QueryResult, error) {
+func (m *MockShellProvider) FetchPage(serverID string, pc models.PageContext, page, pageSize int64) (models.QueryResult, error) {
 	if m.executeErr != nil {
 		return models.QueryResult{}, m.executeErr
 	}
 	return m.queryResult, nil
 }
 
-func (m *MockShellProvider) CountForPage(serverID, dbName string, pc models.PageContext) (int64, bool, error) {
+func (m *MockShellProvider) CountForPage(serverID string, pc models.PageContext) (int64, bool, error) {
 	if m.executeErr != nil {
 		return 0, false, m.executeErr
 	}
@@ -81,7 +81,7 @@ func TestShellProxy_FetchPage(t *testing.T) {
 			queryResult: models.QueryResult{Documents: []any{map[string]any{"x": int64(1)}}},
 		}
 		proxy := NewShellProxy(testLogger(), provider)
-		result := proxy.FetchPage("1", "db1", models.PageContext{Collection: "c"}, 0, 25)
+		result := proxy.FetchPage("1", models.PageContext{Database: "db1", Collection: "c"}, 0, 25)
 		assert.True(t, result.IsSuccess)
 		assert.Len(t, result.Data.Documents, 1)
 	})
@@ -89,7 +89,7 @@ func TestShellProxy_FetchPage(t *testing.T) {
 	t.Run("error", func(t *testing.T) {
 		provider := &MockShellProvider{executeErr: errors.New("boom")}
 		proxy := NewShellProxy(testLogger(), provider)
-		result := proxy.FetchPage("1", "db1", models.PageContext{Collection: "c"}, 0, 25)
+		result := proxy.FetchPage("1", models.PageContext{Database: "db1", Collection: "c"}, 0, 25)
 		assert.False(t, result.IsSuccess)
 	})
 }
@@ -98,14 +98,14 @@ func TestShellProxy_CountForPage(t *testing.T) {
 	t.Run("successful count", func(t *testing.T) {
 		provider := &MockShellProvider{}
 		proxy := NewShellProxy(testLogger(), provider)
-		result := proxy.CountForPage("1", "db1", models.PageContext{Collection: "c"})
+		result := proxy.CountForPage("1", models.PageContext{Database: "db1", Collection: "c"})
 		assert.True(t, result.IsSuccess)
 	})
 
 	t.Run("error", func(t *testing.T) {
 		provider := &MockShellProvider{executeErr: errors.New("boom")}
 		proxy := NewShellProxy(testLogger(), provider)
-		result := proxy.CountForPage("1", "db1", models.PageContext{Collection: "c"})
+		result := proxy.CountForPage("1", models.PageContext{Database: "db1", Collection: "c"})
 		assert.False(t, result.IsSuccess)
 	})
 }

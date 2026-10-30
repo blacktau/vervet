@@ -45,12 +45,12 @@ func TestIntegration_FetchPage_RoundTrip(t *testing.T) {
 	pc := *res.PageContext
 
 	// Page 2 (0-indexed) -> last 10
-	page2, err := engine.FetchPage(ctx, db, pc, 2, 25)
+	page2, err := engine.FetchPage(ctx, pc, 2, 25)
 	require.NoError(t, err)
 	assert.Len(t, page2.Documents, 10)
 
 	// Empty filter -> estimated count
-	count, est, err := engine.CountForPage(ctx, db, pc)
+	count, est, err := engine.CountForPage(ctx, pc)
 	require.NoError(t, err)
 	assert.Equal(t, int64(60), count)
 	assert.True(t, est)
@@ -58,7 +58,7 @@ func TestIntegration_FetchPage_RoundTrip(t *testing.T) {
 	// Filtered -> exact count
 	pcF := pc
 	pcF.Filter = `{"n":{"$gte":{"$numberLong":"10"}}}`
-	count, est, err = engine.CountForPage(ctx, db, pcF)
+	count, est, err = engine.CountForPage(ctx, pcF)
 	require.NoError(t, err)
 	assert.False(t, est)
 	assert.Equal(t, int64(50), count)
@@ -84,16 +84,16 @@ func TestIntegration_FetchPage_RespectsUserLimit(t *testing.T) {
 	require.NoError(t, err)
 
 	// User limits to 50 — page 1 (0-indexed) should return 25, page 2 empty.
-	pc := models.PageContext{Collection: "capped", Filter: `{}`, UserLimit: 50, Sort: `{"n":{"$numberInt":"1"}}`}
-	page1, err := engine.FetchPage(ctx, db, pc, 1, 25)
+	pc := models.PageContext{Database: db, Collection: "capped", Filter: `{}`, UserLimit: 50, Sort: `{"n":{"$numberInt":"1"}}`}
+	page1, err := engine.FetchPage(ctx, pc, 1, 25)
 	require.NoError(t, err)
 	assert.Len(t, page1.Documents, 25)
 
-	page2, err := engine.FetchPage(ctx, db, pc, 2, 25)
+	page2, err := engine.FetchPage(ctx, pc, 2, 25)
 	require.NoError(t, err)
 	assert.Len(t, page2.Documents, 0)
 
-	count, _, err := engine.CountForPage(ctx, db, pc)
+	count, _, err := engine.CountForPage(ctx, pc)
 	require.NoError(t, err)
 	assert.Equal(t, int64(50), count)
 }
@@ -128,7 +128,7 @@ func TestIntegration_FetchPage_CompoundSortHint(t *testing.T) {
 		for page := int64(0); page < 4; page++ {
 			var pc models.PageContext
 			require.NoError(t, json.Unmarshal(wire, &pc))
-			r, err := engine.FetchPage(ctx, db, pc, page, 5)
+			r, err := engine.FetchPage(ctx, pc, page, 5)
 			require.NoError(t, err)
 			for _, doc := range r.Documents {
 				m, _ := asMap(doc)
@@ -172,11 +172,11 @@ func TestIntegration_FetchPage_SiblingDatabase(t *testing.T) {
 	assert.Equal(t, sibling, res.PageContext.Database)
 	assert.Len(t, res.Documents, 25, "sibling finds are paged like any other")
 
-	page1, err := engine.FetchPage(ctx, db, *res.PageContext, 1, 25)
+	page1, err := engine.FetchPage(ctx, *res.PageContext, 1, 25)
 	require.NoError(t, err)
 	assert.Len(t, page1.Documents, 5)
 
-	count, _, err := engine.CountForPage(ctx, db, *res.PageContext)
+	count, _, err := engine.CountForPage(ctx, *res.PageContext)
 	require.NoError(t, err)
 	assert.Equal(t, int64(30), count)
 }

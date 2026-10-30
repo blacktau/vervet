@@ -2,6 +2,7 @@ package queryengine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"vervet/internal/models"
@@ -109,14 +110,9 @@ func (c *lazyCursor) buildPageContext() (*models.PageContext, error) {
 	return pc, nil
 }
 
-// pageDatabase is the database a PageContext's find ran against. Contexts
-// from before Database was recorded fall back to the caller's database.
-func pageDatabase(pc models.PageContext, dbName string) string {
-	if pc.Database != "" {
-		return pc.Database
-	}
-	return dbName
-}
+// errNoPageDatabase guards against a PageContext built without its database,
+// which would otherwise page from whatever database the caller assumed.
+var errNoPageDatabase = errors.New("page context has no database")
 
 // pageQuery holds a PageContext's values decoded back into ordered BSON.
 type pageQuery struct {
@@ -170,10 +166,12 @@ func effectivePaging(pc models.PageContext, page, pageSize int64) (skip, limit i
 // captured PageContext. Stateless: each call is a fresh dispatch.
 func (e *GojaEngine) FetchPage(
 	ctx context.Context,
-	dbName string,
 	pc models.PageContext,
 	page, pageSize int64,
 ) (models.QueryResult, error) {
+	if pc.Database == "" {
+		return models.QueryResult{}, errNoPageDatabase
+	}
 	skip, limit, empty := effectivePaging(pc, page, pageSize)
 	if empty {
 		return models.QueryResult{Documents: []any{}}, nil
@@ -195,7 +193,7 @@ func (e *GojaEngine) FetchPage(
 		BatchSize:  pc.BatchSize,
 		Comment:    pc.Comment,
 	}
-	return dispatch(ctx, e.client, pageDatabase(pc, dbName), op)
+	return dispatch(ctx, e.client, pc.Database, op)
 }
 
 // CountForPage returns a total-row count for a PageContext: estimatedDocumentCount
@@ -204,9 +202,11 @@ func (e *GojaEngine) FetchPage(
 // result is capped by pc.UserLimit if set.
 func (e *GojaEngine) CountForPage(
 	ctx context.Context,
-	dbName string,
 	pc models.PageContext,
 ) (count int64, estimated bool, err error) {
+	if pc.Database == "" {
+		return 0, false, errNoPageDatabase
+	}
 	filter, err := decodePageDoc(pc.Filter)
 	if err != nil {
 		return 0, false, fmt.Errorf("paging filter: %w", err)
@@ -223,7 +223,7 @@ func (e *GojaEngine) CountForPage(
 		Method:     method,
 		Args:       args,
 	}
-	res, err := dispatch(ctx, e.client, pageDatabase(pc, dbName), op)
+	res, err := dispatch(ctx, e.client, pc.Database, op)
 	if err != nil {
 		return 0, estimated, err
 	}
