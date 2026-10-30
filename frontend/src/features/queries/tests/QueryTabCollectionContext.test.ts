@@ -137,7 +137,8 @@ describe('QueryTab collection context', () => {
       dbName: 'archive',
       collectionName: 'orders',
       collectionFromTab: true,
-      canEdit: true,
+      // Not a paged find, so nothing says the documents are whole
+      canEdit: false,
     })
     wrapper.unmount()
   })

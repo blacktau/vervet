@@ -84,7 +84,10 @@ const collectionContext = computed<CollectionContext | undefined>(() => {
     dbName,
     collectionName,
     collectionFromTab: !pagedCollection,
-    canEdit: !projection || projection === '{}',
+    // Saving replaces the whole document, so only results known to be whole
+    // documents can be edited. Until results carry their namespace (#313),
+    // that's a paged find with no projection.
+    canEdit: !!pagedCollection && (!projection || projection === '{}'),
   }
 })
 
