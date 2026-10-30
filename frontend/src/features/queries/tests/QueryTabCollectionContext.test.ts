@@ -11,6 +11,7 @@ import { createI18n } from 'vue-i18n'
 import naive, { NDialogProvider } from 'naive-ui'
 import { useTabStore } from '@/features/tabs/tabs'
 import { useQueryStore } from '@/features/queries/queryStore'
+import * as shellProxy from 'wailsjs/go/api/ShellProxy'
 
 vi.mock('@/features/queries/useMonacoEditor', () => ({
   useMonacoEditor: () => ({
@@ -159,6 +160,27 @@ describe('QueryTab collection context', () => {
     const context = wrapper.findComponent(TableStub).props('collectionContext')
     expect(context.collectionName).toBe('customers')
     expect(context.collectionFromTab).toBe(false)
+    wrapper.unmount()
+  })
+})
+
+describe('QueryTab pager', () => {
+  it('keeps a pending page-size change when a page is clicked', async () => {
+    vi.mocked(shellProxy.FetchPage).mockResolvedValue({
+      isSuccess: true,
+      data: { documents: [{ _id: 1 }] },
+    } as never)
+    const wrapper = await mountQueryTab(queryId)
+    showResults('shop', 'orders')
+    const state = useQueryStore().getQueryState(queryId)
+    state.pageSize = 25
+    state.requestedPageSize = 50 // a page-size change whose response hasn't arrived
+    await flushPromises()
+
+    wrapper.findComponent(TableStub).vm.$emit('update:page', 3)
+    await flushPromises()
+
+    expect(vi.mocked(shellProxy.FetchPage).mock.lastCall!.slice(2)).toEqual([3, 50])
     wrapper.unmount()
   })
 })

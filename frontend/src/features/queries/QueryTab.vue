@@ -661,7 +661,7 @@ watch(
                   :total-estimated="queryState.totalEstimated"
                   :loading-page="queryState.loadingPage"
                   :loading-count="queryState.loadingCount"
-                  @update:page="(p: number) => queryStore.fetchPage(props.queryId, p, queryState.pageSize)"
+                  @update:page="(p: number) => queryStore.fetchPage(props.queryId, p, queryState.requestedPageSize)"
                   @update:page-size="(s: number) => queryStore.fetchPage(props.queryId, 0, s)"
                   @document-changed="handleDocumentChanged"
                   @export-requested="openExport" />

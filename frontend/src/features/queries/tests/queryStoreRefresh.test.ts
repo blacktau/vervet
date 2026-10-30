@@ -166,6 +166,52 @@ describe('queryStore refreshResults', () => {
     expect(state.page).toBe(2)
   })
 
+  test('still refreshes the page when the count throws', async () => {
+    const store = await runPagedQuery()
+    const state = store.getQueryState(QUERY_ID)
+    showPage(state, 1, 25)
+    countForPage.mockRejectedValue(new Error('connection lost'))
+    fetchPage.mockResolvedValue(pageOf({ a: 3 }))
+
+    await store.refreshResults(QUERY_ID)
+
+    expect(fetchPage.mock.calls[0]![2]).toBe(1)
+    expect(state.documents).toEqual([{ a: 3 }])
+    expect(state.loadingCount).toBe(false)
+  })
+
+  test('a page fetch that throws is reported and leaves the page alone', async () => {
+    const store = await runPagedQuery()
+    const state = store.getQueryState(QUERY_ID)
+    showPage(state, 1, 25)
+    fetchPage.mockRejectedValue(new Error('connection lost'))
+
+    await store.fetchPage(QUERY_ID, 2, 25)
+
+    expect(state.page).toBe(1)
+    expect(state.requestedPage).toBe(1)
+    expect(state.loadingPage).toBe(false)
+  })
+
+  test('clamps a pager click made during the count when the change emptied its page', async () => {
+    const store = await runPagedQuery()
+    const state = store.getQueryState(QUERY_ID)
+    showPage(state, 1, 25)
+    let resolveCount!: (v: unknown) => void
+    countForPage.mockReturnValueOnce(new Promise((r) => (resolveCount = r)))
+    fetchPage.mockResolvedValueOnce(pageOf()).mockResolvedValueOnce(pageOf({ page: 1 }))
+
+    const refresh = store.refreshResults(QUERY_ID)
+    await store.fetchPage(QUERY_ID, 2, 25)
+    // The delete left 50 documents: pages 0 and 1
+    resolveCount({ isSuccess: true, data: { count: 50, estimated: false } })
+    await refresh
+
+    expect(fetchPage.mock.calls[1]![2]).toBe(1)
+    expect(state.page).toBe(1)
+    expect(state.documents).toEqual([{ page: 1 }])
+  })
+
   test('refreshes the page a pending pager click asked for', async () => {
     const store = await runPagedQuery()
     const state = store.getQueryState(QUERY_ID)

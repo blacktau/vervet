@@ -448,6 +448,12 @@ export const useQueryStore = defineStore('query', {
           const notifier = useNotifier()
           notifier.error(result.errorDetail || result.errorCode || 'Failed to fetch page')
         }
+      } catch (e) {
+        if (state.pageRequestId === requestId) {
+          state.requestedPage = state.page
+          state.requestedPageSize = state.pageSize
+          useNotifier().error(String(e))
+        }
       } finally {
         if (state.pageRequestId === requestId) {
           state.loadingPage = false
@@ -480,6 +486,9 @@ export const useQueryStore = defineStore('query', {
         state.total = result.data.count
         state.totalEstimated = result.data.estimated
         return true
+      } catch {
+        // The count is advisory: the pager keeps its previous total
+        return false
       } finally {
         if (state.countRequestId === requestId) {
           state.loadingCount = false
@@ -505,10 +514,6 @@ export const useQueryStore = defineStore('query', {
       }
       const pageRequestBefore = state.pageRequestId
       const counted = await this.fetchCount(queryId)
-      // A pager click during the count was sent after the change, so it's already fresh
-      if (state.pageRequestId !== pageRequestBefore) {
-        return
-      }
       // Use the page last asked for: a click whose response hasn't arrived still counts
       const pageSize = state.requestedPageSize
       let page = state.requestedPage
@@ -516,6 +521,12 @@ export const useQueryStore = defineStore('query', {
       // so an empty page never shows; without a fresh count, keep the page.
       if (counted && state.total !== null) {
         page = Math.min(page, Math.max(Math.ceil(state.total / pageSize) - 1, 0))
+      }
+      // A pager click during the count was sent after the change, so it's already
+      // fresh, unless it asked for a page the change has emptied
+      const clickedDuringCount = state.pageRequestId !== pageRequestBefore
+      if (clickedDuringCount && page === state.requestedPage) {
+        return
       }
       await this.fetchPage(queryId, page, pageSize)
     },

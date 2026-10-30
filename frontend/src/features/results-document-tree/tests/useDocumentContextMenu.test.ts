@@ -3,11 +3,15 @@ import { ref } from 'vue'
 
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 
-import { useDocumentContextMenu, type CollectionContext } from '../useDocumentContextMenu'
+import {
+  hasDocumentId,
+  useDocumentContextMenu,
+  type CollectionContext,
+} from '../useDocumentContextMenu'
 import type { DocumentRow } from '../types'
 
-function rootMenuKeys(context: CollectionContext | undefined): string[] {
-  const menu = useDocumentContextMenu(ref(context))
+function rootMenuKeys(context: CollectionContext | undefined, hasId = true): string[] {
+  const menu = useDocumentContextMenu(ref(context), () => hasId)
   menu.openMenu(
     { isDocRoot: true } as DocumentRow,
     {
@@ -44,5 +48,26 @@ describe('useDocumentContextMenu', () => {
     const keys = rootMenuKeys(undefined)
     expect(keys).not.toContain('insertDocument')
     expect(keys).not.toContain('deleteDocument')
+  })
+
+  it('hides edit and delete, but keeps insert, for a document without an _id', () => {
+    const keys = rootMenuKeys(context, false)
+    expect(keys).not.toContain('editDocument')
+    expect(keys).not.toContain('deleteDocument')
+    expect(keys).toContain('insertDocument')
+  })
+})
+
+describe('hasDocumentId', () => {
+  it.each([
+    [{ _id: 1 }, true],
+    [{ _id: 0 }, true],
+    [{ _id: '' }, true],
+    [{ _id: null }, false],
+    [{ name: 'a' }, false],
+    [null, false],
+    ['text', false],
+  ])('%j → %s', (doc, expected) => {
+    expect(hasDocumentId(doc)).toBe(expected)
   })
 })

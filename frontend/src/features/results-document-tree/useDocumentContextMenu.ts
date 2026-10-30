@@ -17,7 +17,19 @@ export function formatNamespace(dbName: string, collectionName: string): string 
   return `${dbName}.${collectionName}`
 }
 
-export function useDocumentContextMenu(collectionContext: Ref<CollectionContext | undefined>) {
+/** Edit and delete target a document by _id; without one they'd match nothing, or the wrong one. */
+export function hasDocumentId(doc: unknown): boolean {
+  if (typeof doc !== 'object' || doc === null) {
+    return false
+  }
+  const id = (doc as Record<string, unknown>)._id
+  return id !== undefined && id !== null
+}
+
+export function useDocumentContextMenu(
+  collectionContext: Ref<CollectionContext | undefined>,
+  rowHasId: (row: DocumentRow) => boolean = () => true,
+) {
   const { t } = useI18n()
   const showMenu = ref(false)
   const menuX = ref(0)
@@ -43,11 +55,12 @@ export function useDocumentContextMenu(collectionContext: Ref<CollectionContext 
     }
 
     if (targetRow.value.isDocRoot) {
+      const targetable = rowHasId(targetRow.value)
       const options: DropdownOption[] = [
         { label: t('query.contextMenu.viewDocument'), key: 'viewDocument' },
       ]
 
-      if (collectionContext.value?.canEdit) {
+      if (collectionContext.value?.canEdit && targetable) {
         options.push({ label: t('query.contextMenu.editDocument'), key: 'editDocument' })
       }
       if (collectionContext.value) {
@@ -60,7 +73,7 @@ export function useDocumentContextMenu(collectionContext: Ref<CollectionContext 
         { label: t('export.contextMenu'), key: 'exportResults' },
       )
 
-      if (collectionContext.value) {
+      if (collectionContext.value && targetable) {
         options.push(
           { type: 'divider', key: 'd2' },
           { label: t('query.contextMenu.deleteDocument'), key: 'deleteDocument' },
