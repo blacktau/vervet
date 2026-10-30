@@ -92,8 +92,8 @@ export interface QueryState {
   _rawJsonCache: string | null
   /** Server-side paging state. Populated when the engine returns a PageContext. */
   pageContext: PageContext | null
-  /** The database the pageContext was captured against */
-  pageDatabase: string
+  /** The database the current results were read from */
+  resultsDatabase: string
   page: number
   pageSize: number
   total: number | null
@@ -131,7 +131,7 @@ function createQueryState(database: string): QueryState {
     activeLimit: null,
     _rawJsonCache: null,
     pageContext: null,
-    pageDatabase: '',
+    resultsDatabase: '',
     page: 0,
     pageSize: 25,
     total: null,
@@ -293,6 +293,7 @@ export const useQueryStore = defineStore('query', {
       state.cancelled = false
       state.executionId = thisExecution
       state.documents = []
+      state.resultsDatabase = state.selectedDatabase
       state._rawJsonCache = null
       state.rawOutput = ''
       state.error = ''
@@ -337,7 +338,6 @@ export const useQueryStore = defineStore('query', {
 
           if (data.pageContext) {
             state.pageContext = data.pageContext
-            state.pageDatabase = state.selectedDatabase
             state.page = 0
             void this.fetchCount(queryId)
           }
@@ -414,7 +414,7 @@ export const useQueryStore = defineStore('query', {
       try {
         const result = await shellProxy.FetchPage(
           serverId,
-          state.pageDatabase,
+          state.resultsDatabase,
           state.pageContext,
           page,
           pageSize,
@@ -452,7 +452,7 @@ export const useQueryStore = defineStore('query', {
       try {
         const result = await shellProxy.CountForPage(
           serverId,
-          state.pageDatabase,
+          state.resultsDatabase,
           state.pageContext,
         )
         if (state.executionId !== execution) {

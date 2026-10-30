@@ -65,6 +65,19 @@ describe('queryStore refreshResults', () => {
     countForPage.mockResolvedValue({ isSuccess: true, data: { count: 60, estimated: false } })
   })
 
+  test('records the database the results were read from', async () => {
+    const store = await runPagedQuery()
+    executeQuery.mockResolvedValueOnce({
+      isSuccess: true,
+      data: { documents: [{ a: 1 }], operationType: 'aggregate' },
+    })
+    await store.executeQuery(QUERY_ID, { text: 'use dbC\ndb.c.aggregate([])', range: RANGE })
+
+    expect(store.getQueryState(QUERY_ID).resultsDatabase).toBe('dbC')
+    store.setDatabase(QUERY_ID, 'dbB')
+    expect(store.getQueryState(QUERY_ID).resultsDatabase).toBe('dbC')
+  })
+
   test('re-fetches the current page and count without replaying the query', async () => {
     const store = await runPagedQuery()
     const state = store.getQueryState(QUERY_ID)

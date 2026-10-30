@@ -69,13 +69,16 @@ const queryTabItem = computed(() => {
 const collectionContext = computed<CollectionContext | undefined>(() => {
   const item = queryTabItem.value
   const tab = tabStore.currentTab
-  if (!item?.collectionName || !tab) {
+  const dbName = queryState.value.resultsDatabase
+  if (!item?.collectionName || !tab || !dbName) {
     return undefined
   }
+  // Edits must target where the results came from, not the tab's starting
+  // database or a collection the query didn't read
   return {
     serverId: tab.serverId,
-    dbName: item.database,
-    collectionName: item.collectionName,
+    dbName,
+    collectionName: queryState.value.pageContext?.collection ?? item.collectionName,
   }
 })
 
