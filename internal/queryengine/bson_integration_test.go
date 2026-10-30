@@ -180,6 +180,42 @@ func TestIntegration_NumberLong(t *testing.T) {
 	assert.Equal(t, int64(9007199254740993), val)
 }
 
+// Plain JS numbers are typed as js-bson types them: int32 when they fit,
+// double otherwise (issue #305).
+func TestIntegration_PlainNumbersStoreAsInt32OrDouble(t *testing.T) {
+	doc := insertAndReadBack(t, `db.test.insertOne({ small: 5, neg: -2147483648, big: 2147483648, frac: 2.5 })`)
+	assert.Equal(t, int32(5), doc["small"])
+	assert.Equal(t, int32(-2147483648), doc["neg"])
+	assert.Equal(t, float64(2147483648), doc["big"])
+	assert.Equal(t, 2.5, doc["frac"])
+}
+
+// Reading a document and writing it back must not turn its NumberInt fields
+// into longs (issue #305). A whole-number double comes back as int32, the
+// same limitation mongosh has: the script sees it as a plain number.
+func TestIntegration_ReadModifyWriteKeepsNumberTypes(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	db := dbName(t)
+	defer testClient.Database(db).Drop(ctx)
+
+	engine := NewGojaEngine(testClient, 0, "")
+	_, err := engine.ExecuteQuery(ctx, testURI, db,
+		`db.src.insertOne({ _id: 1, i: NumberInt(5), d: Double(2), f: 2.5, l: NumberLong("7") })`)
+	require.NoError(t, err)
+	_, err = engine.ExecuteQuery(ctx, testURI, db,
+		`db.src.find().forEach(function (doc) { db.dst.insertOne(doc); })`)
+	require.NoError(t, err)
+
+	var doc bson.M
+	require.NoError(t, testClient.Database(db).Collection("dst").FindOne(ctx, bson.M{}).Decode(&doc))
+	assert.Equal(t, int32(1), doc["_id"])
+	assert.Equal(t, int32(5), doc["i"])
+	assert.Equal(t, int32(2), doc["d"])
+	assert.Equal(t, 2.5, doc["f"])
+	assert.Equal(t, int64(7), doc["l"])
+}
+
 func TestIntegration_NumberDecimal(t *testing.T) {
 	doc := insertAndReadBack(t, `db.test.insertOne({ val: NumberDecimal("123.456") })`)
 	_, ok := doc["val"].(bson.Decimal128)

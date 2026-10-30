@@ -1,6 +1,7 @@
 package queryengine
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -369,6 +370,16 @@ func TestDouble_InvalidString_Panics(t *testing.T) {
 	rt := setupRuntimeWithBSON(t)
 	_, err := rt.RunString(`Double("not-a-number")`)
 	assert.Error(t, err)
+}
+
+func TestConvertToBson_TypesPlainIntegersLikeJsBson(t *testing.T) {
+	assert.Equal(t, int32(5), convertToBson(int64(5)))
+	assert.Equal(t, int32(math.MaxInt32), convertToBson(int64(math.MaxInt32)))
+	assert.Equal(t, int32(math.MinInt32), convertToBson(int64(math.MinInt32)))
+	assert.Equal(t, float64(math.MaxInt32+1), convertToBson(int64(math.MaxInt32+1)))
+	assert.Equal(t, float64(math.MinInt32-1), convertToBson(int64(math.MinInt32-1)))
+	assert.Equal(t, bson.D{{Key: "n", Value: int32(1)}}, convertToBson(bson.D{{Key: "n", Value: int64(1)}}))
+	assert.Equal(t, bson.A{int32(1), 2.5}, convertToBson([]any{int64(1), 2.5}))
 }
 
 // Test that BSON values survive convertToBson roundtrip
