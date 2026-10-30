@@ -74,7 +74,7 @@ func TestLazyCursor_BuildPageContext_Find(t *testing.T) {
 	assert.Equal(t, "shop", pc.Database)
 	assert.Equal(t, "users", pc.Collection)
 	assert.JSONEq(t, `{"status":"active"}`, pc.Filter)
-	assert.JSONEq(t, `{"name":{"$numberInt":"1"}}`, pc.Projection)
+	assert.JSONEq(t, `{"name":{"$numberLong":"1"}}`, pc.Projection)
 	assert.Equal(t, int64(100), pc.UserLimit)
 	assert.Equal(t, int64(5), pc.UserSkip)
 	assert.Equal(t, int64(3000), pc.MaxTimeMS)
@@ -121,8 +121,8 @@ func TestPageContext_RoundTripKeepsOrderAndTypes(t *testing.T) {
 		q, err := decodePageContext(back)
 		require.NoError(t, err)
 		assert.Equal(t, bson.D{{Key: "owner", Value: oid}}, q.filter)
-		assert.Equal(t, bson.D{{Key: "z", Value: int32(1)}, {Key: "a", Value: int32(-1)}, {Key: "m", Value: int32(1)}}, q.sort)
-		assert.Equal(t, bson.D{{Key: "z", Value: int32(1)}, {Key: "a", Value: int32(1)}}, q.hint)
+		assert.Equal(t, bson.D{{Key: "z", Value: int64(1)}, {Key: "a", Value: int64(-1)}, {Key: "m", Value: int64(1)}}, q.sort)
+		assert.Equal(t, bson.D{{Key: "z", Value: int64(1)}, {Key: "a", Value: int64(1)}}, q.hint)
 		assert.Nil(t, q.projection)
 	}
 }
@@ -150,8 +150,7 @@ func TestPageContext_NonDocumentFilterIsAbsent(t *testing.T) {
 	assert.Empty(t, pc.Sort)
 }
 
-// Any hint value and the collation must reach later pages, with script
-// integers typed as int32 (see jsIntegerToBson).
+// Any hint value and the collation's types must reach later pages unchanged.
 func TestPageContext_HintAndCollationRoundTrip(t *testing.T) {
 	c := &lazyCursor{
 		ec:         &execContext{},
@@ -169,6 +168,6 @@ func TestPageContext_HintAndCollationRoundTrip(t *testing.T) {
 
 	q, err := decodePageContext(back)
 	require.NoError(t, err)
-	assert.Equal(t, int32(7), q.hint)
-	assert.Equal(t, map[string]any{"locale": "en", "strength": int32(2), "numericOrdering": true}, q.collation)
+	assert.Equal(t, int64(7), q.hint)
+	assert.Equal(t, map[string]any{"locale": "en", "strength": int64(2), "numericOrdering": true}, q.collation)
 }

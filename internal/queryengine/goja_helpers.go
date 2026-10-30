@@ -2,6 +2,7 @@ package queryengine
 
 import (
 	"fmt"
+	"math"
 	"reflect"
 	"vervet/internal/models"
 
@@ -48,7 +49,7 @@ func exportValue(val goja.Value) any {
 	}
 	obj, ok := val.(*goja.Object)
 	if !ok {
-		return val.Export()
+		return scriptNumber(val.Export())
 	}
 
 	switch obj.ClassName() {
@@ -72,6 +73,27 @@ func exportValue(val goja.Value) any {
 	default:
 		return val.Export()
 	}
+}
+
+// scriptNumber types a JS number the way js-bson (and so mongosh) does: int32
+// when it is a whole number that fits, double otherwise. goja exports whole
+// numbers as int64, which would store a plain 5 as a long, so a script that
+// reads a NumberInt and writes it back would change its type. This happens only
+// here, where a value leaves the script: an int64 elsewhere is a real long
+// (a NumberLong, or a value the driver decoded) and convertToBson keeps it.
+func scriptNumber(v any) any {
+	switch n := v.(type) {
+	case int64:
+		if n >= math.MinInt32 && n <= math.MaxInt32 {
+			return int32(n)
+		}
+		return float64(n)
+	case float64:
+		if n == math.Trunc(n) && n >= math.MinInt32 && n <= math.MaxInt32 && !(n == 0 && math.Signbit(n)) {
+			return int32(n)
+		}
+	}
+	return v
 }
 
 // regexpToBSON converts a goja RegExp object into a BSON-wrapped bson.Regex.

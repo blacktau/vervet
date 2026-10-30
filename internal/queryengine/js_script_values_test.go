@@ -96,6 +96,14 @@ func TestScriptValue_CommandResultScalarsStayPlain(t *testing.T) {
 	assert.Equal(t, int64(4), val.Export())
 }
 
+// Arithmetic on a Long is numeric when it fits in a JS number, and string
+// contexts keep a larger one's exact digits.
+func TestScriptValue_LongArithmetic(t *testing.T) {
+	assert.Equal(t, int64(2309826), evalWithValue(t, int64(2309825), `doc.v + 1`).Export())
+	assert.Equal(t, true, evalWithValue(t, int64(2309825), `doc.v > 2309824 && doc.v == 2309825`).Export())
+	assert.Equal(t, "id 9007199254740993", evalWithValue(t, int64(9007199254740993), `"id " + doc.v`).Export())
+}
+
 // A server long too large for a JS number (a cursor id, say) reaches the
 // script as a Long, so it goes back to the server exactly and still a long.
 func TestScriptValue_CommandResultLongBeyondSafeIntegerStaysLong(t *testing.T) {

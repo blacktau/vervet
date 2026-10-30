@@ -96,7 +96,13 @@ func (e *GojaEngine) ExecuteQuery(ctx context.Context, uri, dbName, query string
 		}
 
 		if raw := exportValue(val); raw != nil {
-			result = exportedToResult(raw)
+			switch raw.(type) {
+			case int32, float64:
+				// A number shows as JS prints it (5000000001, not 5.000000001e+09).
+				result = models.QueryResult{RawOutput: val.String()}
+			default:
+				result = exportedToResult(raw)
+			}
 		} else if val != nil && !goja.IsUndefined(val) && goja.IsNull(val) {
 			result = models.QueryResult{RawOutput: "null"}
 		}

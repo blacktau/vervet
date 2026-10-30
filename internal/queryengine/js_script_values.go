@@ -186,10 +186,19 @@ func longValue(rt *goja.Runtime, n int64) goja.Value {
 }
 
 // numberValue wraps an integral BSON number (int32 or int64), keeping the Go
-// type for the trip back to BSON while stringifying to plain digits.
+// type for the trip back to BSON while stringifying to plain digits. valueOf
+// makes arithmetic numeric (id + 1 is a sum, not "<id>1") when the value fits
+// in a JS number; beyond ±2^53 it returns the object, so string contexts fall
+// back to toString's exact digits instead of a rounded number.
 func numberValue(rt *goja.Runtime, val any, n int64) goja.Value {
 	obj := bsonObject(rt, val, strconv.FormatInt(n, 10))
 	_ = obj.Set("toNumber", func() float64 { return float64(n) })
+	_ = obj.Set("valueOf", func(call goja.FunctionCall) goja.Value {
+		if n > maxSafeInteger || n < -maxSafeInteger {
+			return call.This
+		}
+		return rt.ToValue(float64(n))
+	})
 	return obj
 }
 

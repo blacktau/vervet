@@ -91,6 +91,22 @@ func TestEJSON_Parse_ExplicitLongWithRepeatedKey(t *testing.T) {
 	assert.Equal(t, int64(7), doc[len(doc)-1].Value)
 }
 
+// A plain JSON integer is a plain number at any size; only $numberLong is a Long.
+func TestEJSON_Parse_LargePlainIntegerStaysNumber(t *testing.T) {
+	rt := setupEJSONRuntime(t)
+	val, err := rt.RunString(`var v = EJSON.parse('{"a": 10000000000000000}'); typeof v.a + " " + (v.a + 1)`)
+	require.NoError(t, err)
+	assert.Equal(t, "number 10000000000000000", val.String())
+}
+
+// Long values inside a wrapper are written as plain numbers there.
+func TestEJSON_Deserialize_LongsInsideTimestamp(t *testing.T) {
+	rt := setupEJSONRuntime(t)
+	val, err := rt.RunString(`EJSON.deserialize({ ts: { $timestamp: { t: NumberLong(5), i: NumberLong(1) } } })`)
+	require.NoError(t, err)
+	assert.Equal(t, bson.Timestamp{T: 5, I: 1}, docField(toBsonDoc(exportValue(val)), "ts"))
+}
+
 func TestEJSON_Stringify_NoArgs_Panics(t *testing.T) {
 	rt := setupEJSONRuntime(t)
 	_, err := rt.RunString(`EJSON.stringify()`)

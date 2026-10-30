@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"strings"
 
 	"github.com/dop251/goja"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -43,7 +44,7 @@ func ejsonStringify(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 		}
 
 		raw := exportValue(call.Arguments[0])
-		bsonDoc := relaxedWholeNumbers(convertToBson(raw))
+		bsonDoc := relaxedExtJSONTree(convertToBson(raw), false)
 
 		// Check for indent (third argument, like JSON.stringify)
 		indent := ""
@@ -77,51 +78,37 @@ func ejsonStringify(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	}
 }
 
-// relaxedWholeNumbers turns whole-number doubles into int64 so relaxed Extended
-// JSON prints them as plain integers, as mongosh does (1761782400123, not
-// 1.761782400123E+12). Only whole numbers within ±2^53 change, and -0
-// stays a double so its sign survives.
-func relaxedWholeNumbers(v any) any {
+// relaxedExtJSONTree prepares a BSON tree for relaxed Extended JSON. Whole-number
+// doubles within ±2^53 become int64 so they print as plain integers, as mongosh
+// does (1761782400123, not 1.761782400123E+12); -0 stays a double so its sign
+// survives. With spellLongs, each int64 already in the tree (a Long) is written
+// as {$numberLong: ...}, which the parser reads back as a long rather than an
+// int32, except inside wrappers such as $timestamp, which take plain numbers.
+func relaxedExtJSONTree(v any, spellLongs bool) any {
 	switch val := v.(type) {
 	case bson.D:
+		if len(val) > 0 && strings.HasPrefix(val[0].Key, "$") {
+			spellLongs = false
+		}
 		doc := make(bson.D, len(val))
 		for i, e := range val {
-			doc[i] = bson.E{Key: e.Key, Value: relaxedWholeNumbers(e.Value)}
+			doc[i] = bson.E{Key: e.Key, Value: relaxedExtJSONTree(e.Value, spellLongs)}
 		}
 		return doc
 	case bson.A:
 		arr := make(bson.A, len(val))
 		for i, item := range val {
-			arr[i] = relaxedWholeNumbers(item)
+			arr[i] = relaxedExtJSONTree(item, spellLongs)
 		}
 		return arr
+	case int64:
+		if spellLongs {
+			return bson.D{{Key: "$numberLong", Value: strconv.FormatInt(val, 10)}}
+		}
 	case float64:
 		if val == math.Trunc(val) && math.Abs(val) <= maxSafeInteger && !(val == 0 && math.Signbit(val)) {
 			return int64(val)
 		}
-	}
-	return v
-}
-
-// longsAsExtJSON spells each int64 (a Long, after convertToBson) as a
-// {$numberLong: ...} document, which relaxed Extended JSON would otherwise
-// write as a plain number and the parser read back as an int32.
-func longsAsExtJSON(v any) any {
-	switch val := v.(type) {
-	case bson.D:
-		doc := make(bson.D, len(val))
-		for i, e := range val {
-			doc[i] = bson.E{Key: e.Key, Value: longsAsExtJSON(e.Value)}
-		}
-		return doc
-	case bson.A:
-		arr := make(bson.A, len(val))
-		for i, item := range val {
-			arr[i] = longsAsExtJSON(item)
-		}
-		return arr
-	case int64:
-		return bson.D{{Key: "$numberLong", Value: strconv.FormatInt(val, 10)}}
 	}
 	return v
 }
@@ -183,9 +170,8 @@ func ejsonDeserialize(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 		// convertToBson first so already-typed script values (ObjectId, Long,
 		// Date wrappers) are understood as well as plain Extended JSON input.
 		// Relaxed, because the parser rejects canonical {$numberInt: ...} inside
-		// wrappers such as $timestamp and $date; longsAsExtJSON keeps a Long a
-		// Long all the same.
-		data, err := bson.MarshalExtJSON(relaxedWholeNumbers(longsAsExtJSON(convertToBson(exportValue(call.Arguments[0])))), false, false)
+		// wrappers such as $timestamp and $date.
+		data, err := bson.MarshalExtJSON(relaxedExtJSONTree(convertToBson(exportValue(call.Arguments[0])), true), false, false)
 		if err != nil {
 			panic(rt.NewGoError(fmt.Errorf("EJSON.deserialize: %w", err)))
 		}
@@ -216,6 +202,8 @@ type explicitLong int64
 // markExplicitLongs walks the parsed tree alongside the raw JSON tree. The
 // driver decodes both {$numberLong: "7"} and a plain integer beyond int32 as
 // int64; only in the raw tree is the first an object, so that tells them apart.
+// A plain integer becomes a float64, so it reaches the script as a plain number
+// at any size, as js-bson's relaxed parse gives it.
 func markExplicitLongs(parsed, raw any) any {
 	switch p := parsed.(type) {
 	case bson.D:
@@ -244,6 +232,7 @@ func markExplicitLongs(parsed, raw any) any {
 		if _, ok := raw.(bson.D); ok {
 			return explicitLong(p)
 		}
+		return float64(p)
 	}
 	return parsed
 }

@@ -372,15 +372,27 @@ func TestDouble_InvalidString_Panics(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestConvertToBson_TypesPlainIntegersLikeJsBson(t *testing.T) {
-	assert.Equal(t, int32(5), convertToBson(int64(5)))
-	assert.Equal(t, int32(math.MaxInt32), convertToBson(int64(math.MaxInt32)))
-	assert.Equal(t, int32(math.MinInt32), convertToBson(int64(math.MinInt32)))
-	assert.Equal(t, float64(math.MaxInt32+1), convertToBson(int64(math.MaxInt32+1)))
-	assert.Equal(t, float64(math.MinInt32-1), convertToBson(int64(math.MinInt32-1)))
-	assert.Equal(t, bson.D{{Key: "n", Value: int32(1)}}, convertToBson(bson.D{{Key: "n", Value: int64(1)}}))
-	assert.Equal(t, bson.A{int32(1), 2.5}, convertToBson([]any{int64(1), 2.5}))
-	assert.Equal(t, bson.A{int32(1), 2.5}, convertToBson(bson.A{int64(1), 2.5}))
+// Script numbers are typed as js-bson types them when they leave the script.
+func TestExportValue_TypesScriptNumbersLikeJsBson(t *testing.T) {
+	rt := goja.New()
+	val, err := rt.RunString(`[5, 2147483647, -2147483648, 2147483648, -2147483649, 2.5, 4 / 2, -0, { n: 1, a: [7] }]`)
+	require.NoError(t, err)
+	assert.Equal(t, bson.A{
+		int32(5), int32(math.MaxInt32), int32(math.MinInt32),
+		float64(math.MaxInt32 + 1), float64(math.MinInt32 - 1),
+		2.5, int32(2), math.Copysign(0, -1),
+		bson.D{{Key: "n", Value: int32(1)}, {Key: "a", Value: bson.A{int32(7)}}},
+	}, convertToBson(exportValue(val)))
+}
+
+// convertToBson keeps the types it is given: an int64 there is a real long
+// (a NumberLong, or a value the driver decoded, e.g. a filter decoded from a
+// PageContext), and must not be retyped.
+func TestConvertToBson_KeepsLongs(t *testing.T) {
+	big := int64(9007199254740993)
+	assert.Equal(t, bson.D{{Key: "n", Value: big}}, convertToBson(bson.D{{Key: "n", Value: big}}))
+	assert.Equal(t, bson.A{int64(1), big}, convertToBson(bson.A{int64(1), big}))
+	assert.Equal(t, bson.A{int64(1)}, convertToBson([]any{int64(1)}))
 }
 
 // Test that BSON values survive convertToBson roundtrip

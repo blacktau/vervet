@@ -45,11 +45,11 @@ func TestCollectionProxy_FindAndModify_RequiresSpec(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestToInt64(t *testing.T) {
-	assert.Equal(t, int64(5), toInt64(int64(5)))
-	assert.Equal(t, int64(5), toInt64(int32(5)))
-	assert.Equal(t, int64(5), toInt64(int(5)))
-	assert.Equal(t, int64(5), toInt64(float64(5.7)))
-	assert.Equal(t, int64(0), toInt64("not a number"))
-	assert.Equal(t, int64(0), toInt64(nil))
+func TestCoerceInt64_CoversCollStatsAndCollationValues(t *testing.T) {
+	assert.Equal(t, int64(5), coerceInt64(int64(5)))
+	assert.Equal(t, int64(5), coerceInt64(int32(5)))
+	assert.Equal(t, int64(5), coerceInt64(int(5)))
+	assert.Equal(t, int64(5), coerceInt64(float64(5.7)))
+	assert.Equal(t, int64(0), coerceInt64("not a number"))
+	assert.Equal(t, int64(0), coerceInt64(nil))
 }

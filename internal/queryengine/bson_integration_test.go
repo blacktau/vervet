@@ -246,6 +246,44 @@ func TestIntegration_CommandReturnedDocumentsKeepLongs(t *testing.T) {
 	}
 }
 
+// Later pages and the count run the same filter as page 1: a long in the
+// filter keeps its exact value and type through the PageContext round trip.
+func TestIntegration_PagedFilterKeepsLongs(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	db := dbName(t)
+	defer testClient.Database(db).Drop(ctx)
+
+	engine := NewGojaEngine(testClient, 2, "")
+	_, err := engine.ExecuteQuery(ctx, testURI, db, `
+		for (var i = 0; i < 5; i++) { db.p.insertOne({ k: NumberLong("9007199254740993"), i: i }); }
+		db.p.insertOne({ k: NumberLong("9007199254740992"), i: 99 })`)
+	require.NoError(t, err)
+
+	result, err := engine.ExecuteQuery(ctx, testURI, db, `db.p.find({ k: NumberLong("9007199254740993") }, { _id: 0, k: 0 }).sort({ i: 1 })`)
+	require.NoError(t, err)
+	require.NotNil(t, result.PageContext)
+	count, _, err := engine.CountForPage(ctx, *result.PageContext)
+	require.NoError(t, err)
+	assert.Equal(t, int64(5), count)
+	page3, err := engine.FetchPage(ctx, *result.PageContext, 2, 2)
+	require.NoError(t, err)
+	assert.Equal(t, `[{"i":{"$numberInt":"4"}}]`, resultText(page3))
+}
+
+// findAndModify with no matching document returns null, as in mongosh.
+func TestIntegration_FindAndModifyNoMatchIsNull(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	db := dbName(t)
+	defer testClient.Database(db).Drop(ctx)
+
+	engine := NewGojaEngine(testClient, 0, "")
+	result, err := engine.ExecuteQuery(ctx, testURI, db, `String(db.none.findAndModify({ query: { _id: 1 }, update: { $set: { a: 1 } } }))`)
+	require.NoError(t, err)
+	assert.Equal(t, "null", result.RawOutput)
+}
+
 // A server long beyond ±2^53 keeps its exact value and type through a script
 // (review of #314): EJSON.parse values, and cursor ids passed to getMore.
 func TestIntegration_LongsBeyondSafeIntegerRoundTrip(t *testing.T) {

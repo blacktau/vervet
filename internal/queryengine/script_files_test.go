@@ -73,7 +73,7 @@ func TestGojaEngine_Load_SharesGlobalsAndReturnsTrue(t *testing.T) {
 		[returned, HELPER_CONST, helperLet, helperVar, helperFn()]
 	`)
 	require.NoError(t, err)
-	assert.Equal(t, []any{true, int64(7), int64(8), int64(9), int64(10)}, res.Documents)
+	assert.Equal(t, []any{true, int32(7), int32(8), int32(9), int32(10)}, res.Documents)
 }
 
 // A loaded file resolves its own load() calls the same way the top-level
