@@ -2,6 +2,7 @@ package queryengine
 
 import (
 	"testing"
+	"time"
 
 	"github.com/dop251/goja"
 	"github.com/stretchr/testify/assert"
@@ -65,6 +66,29 @@ func TestEJSON_ParseAndDeserialize_KeepExplicitLongs(t *testing.T) {
 			{Key: "ts", Value: float64(1761782400123)},
 		}, toBsonDoc(exportValue(val)), script)
 	}
+}
+
+// Numbers inside wrappers such as $timestamp and $date must reach the parser in
+// a form it accepts there.
+func TestEJSON_Deserialize_NumbersInsideWrappers(t *testing.T) {
+	rt := setupEJSONRuntime(t)
+	val, err := rt.RunString(`EJSON.deserialize({ ts: { $timestamp: { t: 1, i: 2 } }, d: { $date: 1700000000000 } })`)
+	require.NoError(t, err)
+	doc := toBsonDoc(exportValue(val))
+	assert.Equal(t, bson.Timestamp{T: 1, I: 2}, docField(doc, "ts"))
+	d, ok := docField(doc, "d").(time.Time)
+	require.True(t, ok, "expected a Date, got %T", docField(doc, "d"))
+	assert.Equal(t, int64(1700000000000), d.UnixMilli())
+}
+
+// Repeated keys are matched by position, not by name.
+func TestEJSON_Parse_ExplicitLongWithRepeatedKey(t *testing.T) {
+	rt := setupEJSONRuntime(t)
+	val, err := rt.RunString(`EJSON.parse('{"a": 5, "a": {"$numberLong": "7"}}')`)
+	require.NoError(t, err)
+	doc := toBsonDoc(exportValue(val))
+	require.NotEmpty(t, doc)
+	assert.Equal(t, int64(7), doc[len(doc)-1].Value)
 }
 
 func TestEJSON_Stringify_NoArgs_Panics(t *testing.T) {

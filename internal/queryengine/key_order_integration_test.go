@@ -162,7 +162,7 @@ func TestIntegration_KeyOrder_DisplayedResults(t *testing.T) {
 	require.NoError(t, err)
 	data, err = json.Marshal(result.Documents)
 	require.NoError(t, err)
-	assert.Equal(t, `[{"zebra":{"$numberInt":"1"},"apple":"a","mango":{"y":{"$numberInt":"1"},"x":{"$numberInt":"2"}}}]`, string(data))
+	assert.Equal(t, `[{"zebra":1,"apple":"a","mango":{"y":1,"x":2}}]`, string(data))
 }
 
 func TestIntegration_KeyOrder_BulkWriteFirstKeyIsOperation(t *testing.T) {
@@ -187,10 +187,15 @@ func TestIntegration_EmptyArraysSurviveResults(t *testing.T) {
 		`db.ea.insertOne({ _id: 1, tags: [], meta: {}, nested: { list: [] } })`)
 	require.NoError(t, err)
 
-	for _, q := range []string{`db.ea.find()`, `db.ea.aggregate([{ $match: {} }])`} {
+	// The aggregate result passes through the script, where an int32 is a
+	// plain number, so its _id is shown untyped.
+	for q, want := range map[string]string{
+		`db.ea.find()`:                      `[{"_id":{"$numberInt":"1"},"tags":[],"meta":{},"nested":{"list":[]}}]`,
+		`db.ea.aggregate([{ $match: {} }])`: `[{"_id":1,"tags":[],"meta":{},"nested":{"list":[]}}]`,
+	} {
 		result, err := engine.ExecuteQuery(ctx, testURI, db, q)
 		require.NoError(t, err)
-		assert.Equal(t, `[{"_id":{"$numberInt":"1"},"tags":[],"meta":{},"nested":{"list":[]}}]`, resultText(result), q)
+		assert.Equal(t, want, resultText(result), q)
 	}
 
 	_, err = engine.ExecuteQuery(ctx, testURI, db,
@@ -389,7 +394,7 @@ func TestIntegration_KeyOrder_WriteResults(t *testing.T) {
 	ctx, db, engine := keyOrderEngine(t)
 
 	want := map[string]string{
-		`db.w.insertOne({ _id: 1 })`:                        `[{"acknowledged":true,"insertedId":{"$numberInt":"1"}}]`,
+		`db.w.insertOne({ _id: 1 })`:                        `[{"acknowledged":true,"insertedId":1}]`,
 		`db.w.updateOne({ _id: 1 }, { $set: { a: 1 } })`:    `[{"acknowledged":true,"matchedCount":{"$numberLong":"1"},"modifiedCount":{"$numberLong":"1"}}]`,
 		`Object.keys(db.w.insertMany([{ _id: 2 }])).join()`: `acknowledged,insertedIds`,
 	}

@@ -216,6 +216,36 @@ func TestIntegration_ReadModifyWriteKeepsNumberTypes(t *testing.T) {
 	assert.Equal(t, int64(7), doc["l"])
 }
 
+// Documents a command returns from a collection keep their long fields when a
+// script writes them back: findAndModify's document and a runCommand cursor's
+// batches convert as find() results do.
+func TestIntegration_CommandReturnedDocumentsKeepLongs(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	db := dbName(t)
+	defer testClient.Database(db).Drop(ctx)
+
+	engine := NewGojaEngine(testClient, 0, "")
+	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.src.insertMany([{ _id: 1, l: NumberLong(7) }, { _id: 2, l: NumberLong(8) }])`)
+	require.NoError(t, err)
+	_, err = engine.ExecuteQuery(ctx, testURI, db, `
+		var f = db.src.findAndModify({ query: { _id: 1 }, update: { $set: { seen: true } } });
+		db.fam.insertOne(f);
+		var r = db.runCommand({ find: 'src', filter: { _id: 1 } });
+		db.first.insertOne(r.cursor.firstBatch[0]);
+		var c = db.runCommand({ find: 'src', batchSize: 1 });
+		var m = db.runCommand({ getMore: c.cursor.id, collection: 'src' });
+		db.next.insertOne(m.cursor.nextBatch[0]);
+		r.ok + 1`)
+	require.NoError(t, err)
+
+	for coll, want := range map[string]int64{"fam": 7, "first": 7, "next": 8} {
+		var doc bson.M
+		require.NoError(t, testClient.Database(db).Collection(coll).FindOne(ctx, bson.M{}).Decode(&doc))
+		assert.Equal(t, want, doc["l"], coll)
+	}
+}
+
 // A server long beyond ±2^53 keeps its exact value and type through a script
 // (review of #314): EJSON.parse values, and cursor ids passed to getMore.
 func TestIntegration_LongsBeyondSafeIntegerRoundTrip(t *testing.T) {

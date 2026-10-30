@@ -3,6 +3,7 @@ package queryengine
 import (
 	"fmt"
 	"math"
+	"strconv"
 
 	"github.com/dop251/goja"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -102,6 +103,29 @@ func relaxedWholeNumbers(v any) any {
 	return v
 }
 
+// longsAsExtJSON spells each int64 (a Long, after convertToBson) as a
+// {$numberLong: ...} document, which relaxed Extended JSON would otherwise
+// write as a plain number and the parser read back as an int32.
+func longsAsExtJSON(v any) any {
+	switch val := v.(type) {
+	case bson.D:
+		doc := make(bson.D, len(val))
+		for i, e := range val {
+			doc[i] = bson.E{Key: e.Key, Value: longsAsExtJSON(e.Value)}
+		}
+		return doc
+	case bson.A:
+		arr := make(bson.A, len(val))
+		for i, item := range val {
+			arr[i] = longsAsExtJSON(item)
+		}
+		return arr
+	case int64:
+		return bson.D{{Key: "$numberLong", Value: strconv.FormatInt(val, 10)}}
+	}
+	return v
+}
+
 // ejsonParse parses an Extended JSON string into a JS object.
 // Usage: EJSON.parse(str)
 func ejsonParse(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
@@ -158,8 +182,10 @@ func ejsonDeserialize(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 
 		// convertToBson first so already-typed script values (ObjectId, Long,
 		// Date wrappers) are understood as well as plain Extended JSON input.
-		// Canonical, so a Long stays {$numberLong: ...} and comes back a Long.
-		data, err := bson.MarshalExtJSON(convertToBson(exportValue(call.Arguments[0])), true, false)
+		// Relaxed, because the parser rejects canonical {$numberInt: ...} inside
+		// wrappers such as $timestamp and $date; longsAsExtJSON keeps a Long a
+		// Long all the same.
+		data, err := bson.MarshalExtJSON(relaxedWholeNumbers(longsAsExtJSON(convertToBson(exportValue(call.Arguments[0])))), false, false)
 		if err != nil {
 			panic(rt.NewGoError(fmt.Errorf("EJSON.deserialize: %w", err)))
 		}
@@ -193,13 +219,15 @@ type explicitLong int64
 func markExplicitLongs(parsed, raw any) any {
 	switch p := parsed.(type) {
 	case bson.D:
+		// Both trees come from the same text, so their fields are in the same
+		// order; walking by index also copes with repeated keys.
 		rawDoc, ok := raw.(bson.D)
-		if !ok {
+		if !ok || len(rawDoc) != len(p) {
 			return p
 		}
 		out := make(bson.D, len(p))
 		for i, e := range p {
-			out[i] = bson.E{Key: e.Key, Value: markExplicitLongs(e.Value, docField(rawDoc, e.Key))}
+			out[i] = bson.E{Key: e.Key, Value: markExplicitLongs(e.Value, rawDoc[i].Value)}
 		}
 		return out
 	case bson.A:

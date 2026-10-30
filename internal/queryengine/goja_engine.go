@@ -110,10 +110,10 @@ func (e *GojaEngine) ExecuteQuery(ctx context.Context, uri, dbName, query string
 // Script-facing BSON values are objects carrying __bsonValue plus the methods
 // that make them usable in JS; handed to the UI as-is, the document would show
 // those internals instead of the value. Only those wrappers are rewritten (to
-// the same Extended JSON the query paths produce), and so are numbers, typed as
-// they would be stored (see jsIntegerToBson), so a value shows the same whether
-// it came straight from a query or through the script. Other plain JS values
-// are left exactly as the script built them.
+// the same Extended JSON the query paths produce). Plain JS values, numbers
+// included, are left exactly as the script built them: a plain number may be a
+// script literal or a command result's long, and displaying a BSON type for it
+// would claim a type that is not known.
 func displayValue(v any) any {
 	switch val := v.(type) {
 	case map[string]any:
@@ -144,25 +144,9 @@ func displayValue(v any) any {
 		return out
 	case time.Time:
 		return ejsonScalar(val)
-	case int64:
-		return ejsonScalar(jsIntegerToBson(val))
-	case float64:
-		return ejsonScalar(val)
 	default:
 		return v
 	}
-}
-
-// displayDocument is displayValue for one entry of the results list. A bare
-// number there is a result in its own right, not a field, so it stays plain
-// rather than becoming an Extended JSON wrapper the list would show as a
-// document.
-func displayDocument(v any) any {
-	switch v.(type) {
-	case int64, float64:
-		return v
-	}
-	return displayValue(v)
 }
 
 // ejsonScalar renders a single BSON value as canonical Extended JSON, matching
@@ -201,7 +185,7 @@ func exportedToResult(raw any) models.QueryResult {
 	case []any:
 		docs := make([]any, len(v))
 		for i, doc := range v {
-			docs[i] = displayDocument(doc)
+			docs[i] = displayValue(doc)
 		}
 		return models.QueryResult{Documents: docs}
 	case bson.D, map[string]any:

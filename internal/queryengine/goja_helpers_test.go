@@ -246,16 +246,13 @@ func TestDisplayValue_TimestampKeepsFieldOrder(t *testing.T) {
 	assert.Equal(t, `{"$timestamp":{"t":5,"i":2}}`, string(data))
 }
 
-// Script numbers display typed as they would be stored, like query results,
-// except bare numbers in the results list, which are not fields.
-func TestDisplayValue_TypesNumbersInsideDocuments(t *testing.T) {
-	res := exportedToResult([]any{
-		bson.D{{Key: "i", Value: int64(1)}, {Key: "big", Value: int64(2147483648)}, {Key: "d", Value: 2.5}, {Key: "a", Value: []any{int64(2)}}},
-		int64(7),
-	})
+// A plain number may be a script literal or a command result's long, so it
+// displays untyped rather than with a BSON type that is not known.
+func TestDisplayValue_LeavesPlainNumbersUntyped(t *testing.T) {
+	res := exportedToResult([]any{bson.D{{Key: "i", Value: int64(1)}, {Key: "d", Value: 2.5}}, int64(7)})
 	data, err := json.Marshal(res.Documents)
 	require.NoError(t, err)
-	assert.Equal(t, `[{"i":{"$numberInt":"1"},"big":{"$numberDouble":"2.147483648E+09"},"d":{"$numberDouble":"2.5"},"a":[{"$numberInt":"2"}]},7]`, string(data))
+	assert.Equal(t, `[{"i":1,"d":2.5},7]`, string(data))
 }
 
 // bulkWrite accepts op documents in any form asBsonDoc takes, as before.

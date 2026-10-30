@@ -24,8 +24,34 @@ func dbRunCommand(ec *execContext, dbName string) func(goja.FunctionCall) goja.V
 			panic(ec.rt.NewGoError(fmt.Errorf("runCommand: %w", err)))
 		}
 
-		return toJSValue(ec.rt, result)
+		return toJSValue(ec.rt, markCursorBatches(result))
 	}
+}
+
+// markCursorBatches marks the documents in a cursor reply (find, aggregate,
+// getMore) as read from a collection, so they convert as find() results do and
+// their longs stay Long when the script writes them back. The rest of the
+// reply stays in command mode.
+func markCursorBatches(reply bson.D) bson.D {
+	cursor, ok := docField(reply, "cursor").(bson.D)
+	if !ok {
+		return reply
+	}
+	marked := make(bson.D, len(cursor))
+	for i, e := range cursor {
+		marked[i] = e
+		if batch, ok := e.Value.(bson.A); ok && (e.Key == "firstBatch" || e.Key == "nextBatch") {
+			marked[i].Value = resultValues(batch)
+		}
+	}
+	out := make(bson.D, len(reply))
+	for i, e := range reply {
+		out[i] = e
+		if e.Key == "cursor" {
+			out[i].Value = marked
+		}
+	}
+	return out
 }
 
 // dbStats returns a function: db.stats() → object (runs {dbStats: 1})
