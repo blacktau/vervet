@@ -9,15 +9,16 @@ import { createI18n } from 'vue-i18n'
 import naive from 'naive-ui'
 import enGB from '@/i18n/en-GB'
 import * as shellProxy from 'wailsjs/go/api/ShellProxy'
+import * as monaco from 'monaco-editor'
 
 vi.mock('monaco-editor', () => ({
   editor: {
-    create: () => ({
+    create: vi.fn(() => ({
       addCommand: vi.fn(),
       setValue: vi.fn(),
       getValue: () => '{}',
       dispose: vi.fn(),
-    }),
+    })),
     setTheme: vi.fn(),
   },
   KeyMod: { CtrlCmd: 2048 },
@@ -102,4 +103,28 @@ describe('DocumentEditDialog save', () => {
       expect(script).toContain(`db.getCollection("o'brien").`)
     },
   )
+})
+
+describe('DocumentEditDialog mounted open', () => {
+  // The table mounts the dialog the first time it opens, so it starts shown
+  it('builds the editor and shows the _id', async () => {
+    vi.mocked(monaco.editor.create).mockClear()
+    const DocumentEditDialog = (await import('../DocumentEditDialog.vue')).default
+    wrapper = mount(DocumentEditDialog, {
+      props: {
+        show: true,
+        document: { _id: 7, name: 'a' },
+        mode: 'edit',
+        serverId: 'server-1',
+        dbName: 'shop',
+        collectionName: 'orders',
+      },
+      global: { plugins: [naive, i18n] },
+      attachTo: document.body,
+    })
+    await flushPromises()
+
+    expect(monaco.editor.create).toHaveBeenCalledTimes(1)
+    expect(document.body.textContent).toContain('_id: 7')
+  })
 })

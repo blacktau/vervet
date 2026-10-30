@@ -1,7 +1,13 @@
 <script lang="ts" setup>
 import { computed, h, onBeforeUnmount, onMounted, reactive, ref, toRef, watch, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { type DataTableColumns, type DataTableRowKey, useDialog, useThemeVars } from 'naive-ui'
+import {
+  NText,
+  type DataTableColumns,
+  type DataTableRowKey,
+  useDialog,
+  useThemeVars,
+} from 'naive-ui'
 import { buildTreeData } from './documentTreeUtils'
 import type { DocumentRow } from './types'
 import { typeColorMapDark, typeColorMapLight } from '@/features/queries/typeColorMap'
@@ -248,12 +254,22 @@ function handleContextMenuSelect(key: string) {
       return
     }
     const namespace = formatNamespace(context.dbName, context.collectionName)
-    const fromTabNote = context.collectionFromTab
-      ? `\n\n${t('query.dialogs.collectionFromTab', { namespace })}`
-      : ''
     dialog.warning({
       title: t('query.dialogs.deleteConfirmTitle'),
-      content: `${t('query.dialogs.deleteConfirmContent', { namespace })}\n\n_id: ${idDisplay}${fromTabNote}`,
+      // Paragraphs, since a plain string collapses line breaks
+      content: () =>
+        h('div', [
+          h('p', t('query.dialogs.deleteConfirmContent', { namespace })),
+          h('p', `_id: ${idDisplay}`),
+          context.collectionFromTab
+            ? h(
+                'p',
+                h(NText, { type: 'warning' }, () =>
+                  t('query.dialogs.collectionFromTab', { namespace }),
+                ),
+              )
+            : null,
+        ]),
       positiveText: t('common.confirm'),
       negativeText: t('common.cancel'),
       onPositiveClick: async () => {

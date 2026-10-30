@@ -95,6 +95,8 @@ watch(
       documentId.value = null
     }
   },
+  // The table mounts this dialog when it first opens, already shown
+  { immediate: true },
 )
 
 watch(
