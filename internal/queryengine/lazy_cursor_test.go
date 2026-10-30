@@ -58,6 +58,7 @@ func TestLazyCursor_SetSortAfterResolve_Errors(t *testing.T) {
 
 func TestLazyCursor_BuildPageContext_Find(t *testing.T) {
 	c := &lazyCursor{
+		ec:         &execContext{dbName: "shop"},
 		collection: "users",
 		filter:     map[string]any{"status": "active"},
 		projection: map[string]any{"name": int64(1)},
@@ -70,6 +71,7 @@ func TestLazyCursor_BuildPageContext_Find(t *testing.T) {
 	pc, err := c.buildPageContext()
 	require.NoError(t, err)
 	require.NotNil(t, pc)
+	assert.Equal(t, "shop", pc.Database)
 	assert.Equal(t, "users", pc.Collection)
 	assert.JSONEq(t, `{"status":"active"}`, pc.Filter)
 	assert.JSONEq(t, `{"name":{"$numberLong":"1"}}`, pc.Projection)
@@ -101,6 +103,7 @@ func TestLazyCursor_CursorOptionsFieldsDefaults(t *testing.T) {
 func TestPageContext_RoundTripKeepsOrderAndTypes(t *testing.T) {
 	oid := bson.NewObjectID()
 	c := &lazyCursor{
+		ec:         &execContext{dbName: "shop"},
 		collection: "users",
 		filter:     bson.D{{Key: "owner", Value: map[string]any{"__bsonValue": &bsonWrapper{Value: oid}}}},
 		sort:       bson.D{{Key: "z", Value: int64(1)}, {Key: "a", Value: int64(-1)}, {Key: "m", Value: int64(1)}},
@@ -125,7 +128,7 @@ func TestPageContext_RoundTripKeepsOrderAndTypes(t *testing.T) {
 }
 
 func TestPageContext_HintByName(t *testing.T) {
-	pc, err := (&lazyCursor{collection: "users", hint: "name_1"}).buildPageContext()
+	pc, err := (&lazyCursor{ec: &execContext{}, collection: "users", hint: "name_1"}).buildPageContext()
 	require.NoError(t, err)
 	q, err := decodePageContext(*pc)
 	require.NoError(t, err)
@@ -133,7 +136,7 @@ func TestPageContext_HintByName(t *testing.T) {
 }
 
 func TestPageContext_CarriesBatchSize(t *testing.T) {
-	pc, err := (&lazyCursor{collection: "users", batchSize: 50}).buildPageContext()
+	pc, err := (&lazyCursor{ec: &execContext{}, collection: "users", batchSize: 50}).buildPageContext()
 	require.NoError(t, err)
 	assert.Equal(t, int32(50), pc.BatchSize)
 }
@@ -141,7 +144,7 @@ func TestPageContext_CarriesBatchSize(t *testing.T) {
 // Non-document values fall back to "absent", as dispatch does, instead of
 // failing the query.
 func TestPageContext_NonDocumentFilterIsAbsent(t *testing.T) {
-	pc, err := (&lazyCursor{collection: "users", filter: int64(1), sort: "x"}).buildPageContext()
+	pc, err := (&lazyCursor{ec: &execContext{}, collection: "users", filter: int64(1), sort: "x"}).buildPageContext()
 	require.NoError(t, err)
 	assert.Empty(t, pc.Filter)
 	assert.Empty(t, pc.Sort)
@@ -150,6 +153,7 @@ func TestPageContext_NonDocumentFilterIsAbsent(t *testing.T) {
 // Any hint value and the collation's types must reach later pages unchanged.
 func TestPageContext_HintAndCollationRoundTrip(t *testing.T) {
 	c := &lazyCursor{
+		ec:         &execContext{},
 		collection: "users",
 		hint:       int64(7),
 		collation:  map[string]any{"locale": "en", "strength": int64(2), "numericOrdering": true},

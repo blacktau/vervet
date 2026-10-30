@@ -437,6 +437,7 @@ export default {
       commandResult: 'Command completed in {time}',
       switchedDatabase: 'Switched to database \'{name}\'',
       genericResult: 'Query completed in {time}',
+      resultsStale: 'Document changed. Run the query again to refresh the results.',
       filter: {
         info: 'Info',
         warning: 'Warning',
@@ -484,9 +485,13 @@ export default {
     dialogs: {
       viewDocument: 'View Document',
       editDocument: 'Edit Document',
-      insertDocument: 'Insert Document',
       deleteConfirmTitle: 'Delete Document',
-      deleteConfirmContent: 'Are you sure you want to delete this document? This action cannot be undone.',
+      editDocumentIn: 'Edit Document in {namespace}',
+      insertDocumentIn: 'Insert Document into {namespace}',
+      deleteConfirmContent:
+        'Are you sure you want to delete this document from {namespace}? This action cannot be undone.',
+      collectionFromTab:
+        "These results don't say which database and collection they came from, so changes go to {namespace}. Check that's where you mean.",
       save: 'Save',
       invalidJson: 'Invalid JSON: {error}',
     },

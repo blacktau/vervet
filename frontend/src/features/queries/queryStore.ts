@@ -92,12 +92,20 @@ export interface QueryState {
   _rawJsonCache: string | null
   /** Server-side paging state. Populated when the engine returns a PageContext. */
   pageContext: PageContext | null
+  /** The database the current results were read from */
+  resultsDatabase: string
   page: number
   pageSize: number
   total: number | null
   totalEstimated: boolean
   loadingPage: boolean
   loadingCount: boolean
+  /** Latest page and count requests; older responses are discarded */
+  pageRequestId: number
+  countRequestId: number
+  /** The page the latest page request asked for, which may not have arrived yet */
+  requestedPage: number
+  requestedPageSize: number
 }
 
 interface QueryStoreState {
@@ -106,6 +114,7 @@ interface QueryStoreState {
 }
 
 let nextExecutionId = 0
+let nextRequestId = 0
 
 function createQueryState(database: string): QueryState {
   return {
@@ -129,12 +138,17 @@ function createQueryState(database: string): QueryState {
     activeLimit: null,
     _rawJsonCache: null,
     pageContext: null,
+    resultsDatabase: '',
     page: 0,
     pageSize: 25,
     total: null,
     totalEstimated: false,
     loadingPage: false,
     loadingCount: false,
+    pageRequestId: 0,
+    countRequestId: 0,
+    requestedPage: 0,
+    requestedPageSize: 25,
   }
 }
 
@@ -290,6 +304,7 @@ export const useQueryStore = defineStore('query', {
       state.cancelled = false
       state.executionId = thisExecution
       state.documents = []
+      state.resultsDatabase = state.selectedDatabase
       state._rawJsonCache = null
       state.rawOutput = ''
       state.error = ''
@@ -302,6 +317,10 @@ export const useQueryStore = defineStore('query', {
       state.totalEstimated = false
       state.loadingPage = false
       state.loadingCount = false
+      state.pageRequestId = 0
+      state.countRequestId = 0
+      state.requestedPage = 0
+      state.requestedPageSize = state.pageSize
       this.appendMessage(queryId, {
         level: 'info',
         text: i18nGlobal.t('query.messages.executing'),
@@ -334,6 +353,8 @@ export const useQueryStore = defineStore('query', {
 
           if (data.pageContext) {
             state.pageContext = data.pageContext
+            // getSiblingDB() can read from a database other than the selected one
+            state.resultsDatabase = data.pageContext.database || state.resultsDatabase
             state.page = 0
             void this.fetchCount(queryId)
           }
@@ -405,53 +426,109 @@ export const useQueryStore = defineStore('query', {
       if (!state.pageContext) {
         return
       }
+      const requestId = ++nextRequestId
+      state.pageRequestId = requestId
+      state.requestedPage = page
+      state.requestedPageSize = pageSize
       state.loadingPage = true
       try {
-        const result = await shellProxy.FetchPage(
-          serverId,
-          state.selectedDatabase,
-          state.pageContext,
-          page,
-          pageSize,
-        )
+        const result = await shellProxy.FetchPage(serverId, state.pageContext, page, pageSize)
+        // A newer page request or query has taken over
+        if (state.pageRequestId !== requestId) {
+          return
+        }
         if (result.isSuccess && result.data) {
           state.documents = result.data.documents ?? []
           state.page = page
           state.pageSize = pageSize
           state._rawJsonCache = null
         } else {
+          state.requestedPage = state.page
+          state.requestedPageSize = state.pageSize
           const notifier = useNotifier()
           notifier.error(result.errorDetail || result.errorCode || 'Failed to fetch page')
         }
+      } catch (e) {
+        if (state.pageRequestId === requestId) {
+          state.requestedPage = state.page
+          state.requestedPageSize = state.pageSize
+          useNotifier().error(String(e))
+        }
       } finally {
-        state.loadingPage = false
+        if (state.pageRequestId === requestId) {
+          state.loadingPage = false
+        }
       }
     },
 
-    async fetchCount(queryId: string) {
+    /** Returns true when a fresh count was stored. */
+    async fetchCount(queryId: string): Promise<boolean> {
       const tabStore = useTabStore()
       const serverId = tabStore.currentTabId
       if (!serverId) {
-        return
+        return false
       }
       const state = this.getQueryState(queryId)
       if (!state.pageContext) {
-        return
+        return false
       }
+      const requestId = ++nextRequestId
+      state.countRequestId = requestId
       state.loadingCount = true
       try {
-        const result = await shellProxy.CountForPage(
-          serverId,
-          state.selectedDatabase,
-          state.pageContext,
-        )
-        if (result.isSuccess && result.data) {
-          state.total = result.data.count
-          state.totalEstimated = result.data.estimated
+        const result = await shellProxy.CountForPage(serverId, state.pageContext)
+        if (state.countRequestId !== requestId) {
+          return false
         }
+        if (!result.isSuccess || !result.data) {
+          return false
+        }
+        state.total = result.data.count
+        state.totalEstimated = result.data.estimated
+        return true
+      } catch {
+        // The count is advisory: the pager keeps its previous total
+        return false
       } finally {
-        state.loadingCount = false
+        if (state.countRequestId === requestId) {
+          state.loadingCount = false
+        }
       }
+    },
+
+    /**
+     * Refresh the results after a document was edited, inserted or deleted. Only paged
+     * results can be re-fetched safely; re-running the query text could repeat writes.
+     */
+    async refreshResults(queryId: string) {
+      const state = this.getQueryState(queryId)
+      if (state.loading) {
+        return
+      }
+      if (!state.pageContext) {
+        this.appendMessage(queryId, {
+          level: 'info',
+          text: i18nGlobal.t('query.messages.resultsStale'),
+        })
+        return
+      }
+      const pageRequestBefore = state.pageRequestId
+      const counted = await this.fetchCount(queryId)
+      // Use the page last asked for: a click whose response hasn't arrived still counts
+      const pageSize = state.requestedPageSize
+      let page = state.requestedPage
+      // Deletes can leave the page, or several, past the end. Clamp before fetching
+      // so an empty page never shows; without a fresh count, keep the page.
+      if (counted && state.total !== null) {
+        page = Math.min(page, Math.max(Math.ceil(state.total / pageSize) - 1, 0))
+      }
+      // A pager click during the count was sent after the change, so it's already
+      // fresh, unless it asked for a page the change has emptied
+      const clickedDuringCount = state.pageRequestId !== pageRequestBefore
+      if (clickedDuringCount && page === state.requestedPage) {
+        return
+      }
+      await this.fetchPage(queryId, page, pageSize)
     },
 
     async cancelQuery(queryId: string) {

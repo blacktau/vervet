@@ -300,7 +300,7 @@ func TestIntegration_CursorReadInScriptStaysPaged(t *testing.T) {
 	require.NotNil(t, result.PageContext, "the returned cursor must keep its pager")
 	assert.Len(t, result.Documents, 5)
 
-	page2, err := engine.FetchPage(ctx, db, *result.PageContext, 1, 5)
+	page2, err := engine.FetchPage(ctx, *result.PageContext, 1, 5)
 	require.NoError(t, err)
 	assert.Equal(t, `[{"n":{"$numberLong":"5"}},{"n":{"$numberLong":"6"}},{"n":{"$numberLong":"7"}},{"n":{"$numberLong":"8"}},{"n":{"$numberLong":"9"}}]`, resultText(page2))
 
@@ -310,7 +310,7 @@ func TestIntegration_CursorReadInScriptStaysPaged(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result.PageContext)
 	assert.Equal(t, `[{"n":{"$numberLong":"2"}},{"n":{"$numberLong":"3"}},{"n":{"$numberLong":"4"}},{"n":{"$numberLong":"5"}},{"n":{"$numberLong":"6"}}]`, resultText(result))
-	page2, err = engine.FetchPage(ctx, db, *result.PageContext, 1, 5)
+	page2, err = engine.FetchPage(ctx, *result.PageContext, 1, 5)
 	require.NoError(t, err)
 	assert.Equal(t, `[{"n":{"$numberLong":"7"}},{"n":{"$numberLong":"8"}},{"n":{"$numberLong":"9"}},{"n":{"$numberLong":"10"}},{"n":{"$numberLong":"11"}}]`, resultText(page2))
 }
@@ -427,7 +427,7 @@ func TestIntegration_FetchPage_CollationSurvivesFrontend(t *testing.T) {
 	var pc models.PageContext
 	require.NoError(t, json.Unmarshal(wire, &pc))
 
-	page2, err := engine.FetchPage(ctx, db, pc, 1, 3)
+	page2, err := engine.FetchPage(ctx, pc, 1, 3)
 	require.NoError(t, err)
 	assert.Equal(t, `[{"s":"10"},{"s":"33"},{"s":"100"}]`, resultText(page2))
 }
@@ -461,7 +461,7 @@ func TestIntegration_ReadCursorPagingLimitAndCount(t *testing.T) {
 		result, err := engine.ExecuteQuery(ctx, testURI, db, script)
 		require.NoError(t, err, script)
 		require.NotNil(t, result.PageContext, script)
-		count, _, err := engine.CountForPage(ctx, db, *result.PageContext)
+		count, _, err := engine.CountForPage(ctx, *result.PageContext)
 		require.NoError(t, err, script)
 		assert.Equal(t, want, count, script)
 	}

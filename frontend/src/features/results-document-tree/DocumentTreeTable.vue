@@ -1,11 +1,22 @@
 <script lang="ts" setup>
 import { computed, h, onBeforeUnmount, onMounted, reactive, ref, toRef, watch, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { type DataTableColumns, type DataTableRowKey, useDialog, useThemeVars } from 'naive-ui'
+import {
+  NText,
+  type DataTableColumns,
+  type DataTableRowKey,
+  useDialog,
+  useThemeVars,
+} from 'naive-ui'
 import { buildTreeData } from './documentTreeUtils'
 import type { DocumentRow } from './types'
 import { typeColorMapDark, typeColorMapLight } from '@/features/queries/typeColorMap'
-import { useDocumentContextMenu, type CollectionContext } from './useDocumentContextMenu'
+import {
+  formatNamespace,
+  hasDocumentId,
+  useDocumentContextMenu,
+  type CollectionContext,
+} from './useDocumentContextMenu'
 import { useSettingsStore } from '@/features/settings/settingsStore'
 import { useNotifier } from '@/utils/dialog'
 import { resolveRawValue } from './resolveRawValue'
@@ -61,6 +72,7 @@ const checkedKeys = ref<DataTableRowKey[]>([])
 const collectionContextRef = toRef(props, 'collectionContext')
 const contextMenu = useDocumentContextMenu(
   collectionContextRef as Ref<CollectionContext | undefined>,
+  (row) => hasDocumentId(resolveRawValue(props.documents, row.key)),
 )
 const notifier = useNotifier()
 const dialog = useDialog()
@@ -227,32 +239,43 @@ function handleContextMenuSelect(key: string) {
   }
 
   if (key === 'editDocument') {
-    editDocument.value = resolveRawValue(props.documents, row.key)
-    editMode.value = 'edit'
-    showEditDialog.value = true
+    openEditDialog('edit', resolveRawValue(props.documents, row.key))
   }
 
   if (key === 'insertDocument') {
-    editDocument.value = {}
-    editMode.value = 'insert'
-    showEditDialog.value = true
+    openEditDialog('insert', {})
   }
 
   if (key === 'deleteDocument') {
     const doc = resolveRawValue(props.documents, row.key) as Record<string, unknown>
     const idDisplay = doc?._id ? JSON.stringify(doc._id) : 'unknown'
+    const context = props.collectionContext
+    if (!context) {
+      return
+    }
+    const namespace = formatNamespace(context.dbName, context.collectionName)
     dialog.warning({
       title: t('query.dialogs.deleteConfirmTitle'),
-      content: `${t('query.dialogs.deleteConfirmContent')}\n\n_id: ${idDisplay}`,
+      // Paragraphs, since a plain string collapses line breaks
+      content: () =>
+        h('div', [
+          h('p', t('query.dialogs.deleteConfirmContent', { namespace })),
+          h('p', `_id: ${idDisplay}`),
+          context.collectionFromTab
+            ? h(
+                'p',
+                h(NText, { type: 'warning' }, () =>
+                  t('query.dialogs.collectionFromTab', { namespace }),
+                ),
+              )
+            : null,
+        ]),
       positiveText: t('common.confirm'),
       negativeText: t('common.cancel'),
       onPositiveClick: async () => {
-        if (!props.collectionContext) {
-          return
-        }
-        const { serverId, dbName, collectionName } = props.collectionContext
+        const { serverId, dbName, collectionName } = context
         const filter = `{ _id: ${toJsExpression(doc._id)} }`
-        const query = `db.getCollection('${collectionName}').deleteOne(${filter})`
+        const query = `db.getCollection(${JSON.stringify(collectionName)}).deleteOne(${filter})`
         const result = await shellProxy.ExecuteQuery(
           serverId,
           crypto.randomUUID(),
@@ -306,8 +329,20 @@ async function copyToClipboard(text: string) {
 
 function switchToEdit() {
   showViewDialog.value = false
-  editDocument.value = viewDocument.value
-  editMode.value = 'edit'
+  openEditDialog('edit', viewDocument.value)
+}
+
+// Fixed when the dialog opens: a query started mid-edit replaces the live
+// context, and the save must still go where the document came from.
+const editContext = ref<CollectionContext | null>(null)
+
+function openEditDialog(mode: 'edit' | 'insert', doc: unknown) {
+  if (!props.collectionContext) {
+    return
+  }
+  editContext.value = { ...props.collectionContext }
+  editDocument.value = doc
+  editMode.value = mode
   showEditDialog.value = true
 }
 
@@ -419,16 +454,17 @@ function rowClassName(row: DocumentRow): string {
       <DocumentViewDialog
         v-model:show="showViewDialog"
         :document="viewDocument"
-        :can-edit="!!collectionContext"
+        :can-edit="!!collectionContext?.canEdit && hasDocumentId(viewDocument)"
         @edit="switchToEdit" />
       <DocumentEditDialog
-        v-if="collectionContext"
+        v-if="editContext"
         v-model:show="showEditDialog"
         :document="editDocument"
         :mode="editMode"
-        :server-id="collectionContext.serverId"
-        :db-name="collectionContext.dbName"
-        :collection-name="collectionContext.collectionName"
+        :server-id="editContext.serverId"
+        :db-name="editContext.dbName"
+        :collection-name="editContext.collectionName"
+        :collection-from-tab="editContext.collectionFromTab"
         @saved="handleDocumentSaved" />
     </template>
   </div>

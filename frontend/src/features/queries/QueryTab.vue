@@ -69,13 +69,25 @@ const queryTabItem = computed(() => {
 const collectionContext = computed<CollectionContext | undefined>(() => {
   const item = queryTabItem.value
   const tab = tabStore.currentTab
-  if (!item?.collectionName || !tab) {
+  const dbName = queryState.value.resultsDatabase
+  // Edits must target where the results came from, not the tab's starting
+  // database or a collection the query didn't read
+  const pageContext = queryState.value.pageContext
+  const pagedCollection = pageContext?.collection
+  const projection = pageContext?.projection
+  const collectionName = pagedCollection ?? item?.collectionName
+  if (!collectionName || !tab || !dbName) {
     return undefined
   }
   return {
     serverId: tab.serverId,
-    dbName: item.database,
-    collectionName: item.collectionName,
+    dbName,
+    collectionName,
+    collectionFromTab: !pagedCollection,
+    // Saving replaces the whole document, so only results known to be whole
+    // documents can be edited. Until results carry their namespace (#313),
+    // that's a paged find with no projection.
+    canEdit: !!pagedCollection && (!projection || projection === '{}'),
   }
 })
 
@@ -314,12 +326,7 @@ function openExport() {
 }
 
 async function handleDocumentChanged() {
-  const editor_val = editor.value
-  if (!editor_val) {
-    return
-  }
-  const query = editor_val.getValue()
-  await queryStore.executeQuery(props.queryId, query)
+  await queryStore.refreshResults(props.queryId)
 }
 
 watch(
@@ -657,7 +664,7 @@ watch(
                   :total-estimated="queryState.totalEstimated"
                   :loading-page="queryState.loadingPage"
                   :loading-count="queryState.loadingCount"
-                  @update:page="(p: number) => queryStore.fetchPage(props.queryId, p, queryState.pageSize)"
+                  @update:page="(p: number) => queryStore.fetchPage(props.queryId, p, queryState.requestedPageSize)"
                   @update:page-size="(s: number) => queryStore.fetchPage(props.queryId, 0, s)"
                   @document-changed="handleDocumentChanged"
                   @export-requested="openExport" />

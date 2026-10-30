@@ -7,9 +7,29 @@ export interface CollectionContext {
   serverId: string
   dbName: string
   collectionName: string
+  /** The query's own collection is unknown, so collectionName is the tab's */
+  collectionFromTab: boolean
+  /** False when the results hide fields: replacing would delete them */
+  canEdit: boolean
 }
 
-export function useDocumentContextMenu(collectionContext: Ref<CollectionContext | undefined>) {
+export function formatNamespace(dbName: string, collectionName: string): string {
+  return `${dbName}.${collectionName}`
+}
+
+/** Edit and delete target a document by _id; without one they'd match nothing, or the wrong one. */
+export function hasDocumentId(doc: unknown): boolean {
+  if (typeof doc !== 'object' || doc === null) {
+    return false
+  }
+  const id = (doc as Record<string, unknown>)._id
+  return id !== undefined && id !== null
+}
+
+export function useDocumentContextMenu(
+  collectionContext: Ref<CollectionContext | undefined>,
+  rowHasId: (row: DocumentRow) => boolean = () => true,
+) {
   const { t } = useI18n()
   const showMenu = ref(false)
   const menuX = ref(0)
@@ -35,15 +55,16 @@ export function useDocumentContextMenu(collectionContext: Ref<CollectionContext 
     }
 
     if (targetRow.value.isDocRoot) {
+      const targetable = rowHasId(targetRow.value)
       const options: DropdownOption[] = [
         { label: t('query.contextMenu.viewDocument'), key: 'viewDocument' },
       ]
 
+      if (collectionContext.value?.canEdit && targetable) {
+        options.push({ label: t('query.contextMenu.editDocument'), key: 'editDocument' })
+      }
       if (collectionContext.value) {
-        options.push(
-          { label: t('query.contextMenu.editDocument'), key: 'editDocument' },
-          { label: t('query.contextMenu.insertDocument'), key: 'insertDocument' },
-        )
+        options.push({ label: t('query.contextMenu.insertDocument'), key: 'insertDocument' })
       }
 
       options.push(
@@ -52,7 +73,7 @@ export function useDocumentContextMenu(collectionContext: Ref<CollectionContext 
         { label: t('export.contextMenu'), key: 'exportResults' },
       )
 
-      if (collectionContext.value) {
+      if (collectionContext.value && targetable) {
         options.push(
           { type: 'divider', key: 'd2' },
           { label: t('query.contextMenu.deleteDocument'), key: 'deleteDocument' },
