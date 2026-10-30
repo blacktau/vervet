@@ -124,6 +124,8 @@ func convertToBson(v any) any {
 			doc = append(doc, bson.E{Key: k, Value: convertToBson(item)})
 		}
 		return doc
+	case bson.A:
+		return convertToBson([]any(val))
 	case []any:
 		arr := make(bson.A, len(val))
 		for i, item := range val {
@@ -140,8 +142,9 @@ func convertToBson(v any) any {
 // jsIntegerToBson types a whole JS number the way js-bson (and so mongosh)
 // does: int32 when it fits, double otherwise. goja exports every whole number
 // as int64, which would otherwise store a plain 5 as a long, so a script that
-// reads a NumberInt and writes it back would change its type. NumberLong values
-// never get here: they are unwrapped from __bsonValue above.
+// reads a NumberInt and writes it back would change its type. NumberLong values,
+// and server longs too large for a JS number (see jsCommand), never get here:
+// they are unwrapped from __bsonValue above.
 func jsIntegerToBson(n int64) any {
 	if n >= math.MinInt32 && n <= math.MaxInt32 {
 		return int32(n)

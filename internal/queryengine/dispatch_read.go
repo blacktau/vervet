@@ -92,16 +92,7 @@ func toCollation(m map[string]any) *options.Collation {
 		c.CaseFirst = v
 	}
 	if v, ok := m["strength"]; ok {
-		switch n := v.(type) {
-		case int32:
-			c.Strength = int(n)
-		case int64:
-			c.Strength = int(n)
-		case int:
-			c.Strength = n
-		case float64:
-			c.Strength = int(n)
-		}
+		c.Strength = int(toInt64(v))
 	}
 	if v, ok := m["numericOrdering"].(bool); ok {
 		c.NumericOrdering = v

@@ -380,6 +380,7 @@ func TestConvertToBson_TypesPlainIntegersLikeJsBson(t *testing.T) {
 	assert.Equal(t, float64(math.MinInt32-1), convertToBson(int64(math.MinInt32-1)))
 	assert.Equal(t, bson.D{{Key: "n", Value: int32(1)}}, convertToBson(bson.D{{Key: "n", Value: int64(1)}}))
 	assert.Equal(t, bson.A{int32(1), 2.5}, convertToBson([]any{int64(1), 2.5}))
+	assert.Equal(t, bson.A{int32(1), 2.5}, convertToBson(bson.A{int64(1), 2.5}))
 }
 
 // Test that BSON values survive convertToBson roundtrip

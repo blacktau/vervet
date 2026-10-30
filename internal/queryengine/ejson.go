@@ -2,6 +2,7 @@ package queryengine
 
 import (
 	"fmt"
+	"math"
 
 	"github.com/dop251/goja"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -41,7 +42,7 @@ func ejsonStringify(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 		}
 
 		raw := exportValue(call.Arguments[0])
-		bsonDoc := convertToBson(raw)
+		bsonDoc := relaxedWholeNumbers(convertToBson(raw))
 
 		// Check for indent (third argument, like JSON.stringify)
 		indent := ""
@@ -73,6 +74,32 @@ func ejsonStringify(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 
 		return rt.ToValue(string(data))
 	}
+}
+
+// relaxedWholeNumbers turns whole-number doubles into int64 so relaxed Extended
+// JSON prints them as plain integers, as mongosh does (1761782400123, not
+// 1.761782400123E+12). Only whole numbers within ±2^53 change, and -0
+// stays a double so its sign survives.
+func relaxedWholeNumbers(v any) any {
+	switch val := v.(type) {
+	case bson.D:
+		doc := make(bson.D, len(val))
+		for i, e := range val {
+			doc[i] = bson.E{Key: e.Key, Value: relaxedWholeNumbers(e.Value)}
+		}
+		return doc
+	case bson.A:
+		arr := make(bson.A, len(val))
+		for i, item := range val {
+			arr[i] = relaxedWholeNumbers(item)
+		}
+		return arr
+	case float64:
+		if val == math.Trunc(val) && math.Abs(val) <= maxSafeInteger && !(val == 0 && math.Signbit(val)) {
+			return int64(val)
+		}
+	}
+	return v
 }
 
 // ejsonParse parses an Extended JSON string into a JS object.

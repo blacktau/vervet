@@ -95,3 +95,21 @@ func TestScriptValue_CommandResultScalarsStayPlain(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(4), val.Export())
 }
+
+// A server long too large for a JS number (a cursor id, say) reaches the
+// script as a Long, so it goes back to the server exactly and still a long.
+func TestScriptValue_CommandResultLongBeyondSafeIntegerStaysLong(t *testing.T) {
+	for _, n := range []int64{maxSafeInteger + 1, -maxSafeInteger - 1, 9007199254740993} {
+		rt := goja.New()
+		require.NoError(t, rt.Set("r", toJSValue(rt, bson.D{{Key: "id", Value: n}})))
+		val, err := rt.RunString(`({ id: r.id })`)
+		require.NoError(t, err)
+		assert.Equal(t, bson.D{{Key: "id", Value: n}}, toBsonDoc(exportValue(val)))
+	}
+
+	rt := goja.New()
+	require.NoError(t, rt.Set("r", toJSValue(rt, bson.D{{Key: "n", Value: int64(maxSafeInteger)}})))
+	val, err := rt.RunString(`typeof r.n`)
+	require.NoError(t, err)
+	assert.Equal(t, "number", val.Export())
+}

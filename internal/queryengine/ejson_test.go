@@ -34,6 +34,15 @@ func TestEJSON_Stringify_WithIndent(t *testing.T) {
 	assert.Contains(t, s, "\n")
 }
 
+// Whole numbers beyond int32 print as plain integers, as in mongosh, not in
+// exponent form.
+func TestEJSON_Stringify_WholeNumbersPrintAsIntegers(t *testing.T) {
+	rt := setupEJSONRuntime(t)
+	val, err := rt.RunString(`EJSON.stringify({ ts: 1761782400123, neg: -2147483649, small: 5, frac: 2.5, long: NumberLong("9007199254740993") })`)
+	require.NoError(t, err)
+	assert.Equal(t, `{"ts":1761782400123,"neg":-2147483649,"small":5,"frac":2.5,"long":9007199254740993}`, val.String())
+}
+
 func TestEJSON_Stringify_NoArgs_Panics(t *testing.T) {
 	rt := setupEJSONRuntime(t)
 	_, err := rt.RunString(`EJSON.stringify()`)

@@ -216,6 +216,30 @@ func TestIntegration_ReadModifyWriteKeepsNumberTypes(t *testing.T) {
 	assert.Equal(t, int64(7), doc["l"])
 }
 
+// A server long beyond ±2^53 keeps its exact value and type through a script
+// (review of #314): EJSON.parse values, and cursor ids passed to getMore.
+func TestIntegration_LongsBeyondSafeIntegerRoundTrip(t *testing.T) {
+	doc := insertAndReadBack(t, `db.test.insertOne(EJSON.parse('{"n": {"$numberLong": "9007199254740993"}}'))`)
+	assert.Equal(t, int64(9007199254740993), doc["n"])
+
+	// No deadline, as in the app: the driver turns a deadline into maxTimeMS,
+	// which the server rejects on getMore.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	db := dbName(t) + "_cursor"
+	defer testClient.Database(db).Drop(ctx)
+
+	engine := NewGojaEngine(testClient, 0, "")
+	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.c.insertMany([{ n: 1 }, { n: 2 }, { n: 3 }])`)
+	require.NoError(t, err)
+	result, err := engine.ExecuteQuery(ctx, testURI, db, `
+		var r = db.runCommand({ find: 'c', batchSize: 1 });
+		var m = db.runCommand({ getMore: r.cursor.id, collection: 'c' });
+		String(m.ok) + ' ' + m.cursor.nextBatch.length`)
+	require.NoError(t, err)
+	assert.Equal(t, "1 2", result.RawOutput)
+}
+
 func TestIntegration_NumberDecimal(t *testing.T) {
 	doc := insertAndReadBack(t, `db.test.insertOne({ val: NumberDecimal("123.456") })`)
 	_, ok := doc["val"].(bson.Decimal128)

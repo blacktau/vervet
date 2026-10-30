@@ -28,7 +28,9 @@ const (
 	jsPlain jsMode = iota
 	// jsCommand converts BSON types (ObjectId, Date, Binary, ...) but leaves
 	// numbers plain, so arithmetic on command results such as
-	// db.stats().storageSize / 1024 keeps working.
+	// db.stats().storageSize / 1024 keeps working. Like the Node driver's
+	// promoteLongs, an int64 too large for a JS number to hold exactly (a
+	// cursor id, say) becomes a Long instead.
 	jsCommand
 	// jsDocument converts everything, as mongosh does for documents read
 	// from a collection: int64 becomes Long so 64-bit ids keep full precision.
@@ -86,12 +88,13 @@ func jsArray(rt *goja.Runtime, val []any, mode jsMode) goja.Value {
 }
 
 // bsonScalarToJS converts a native BSON value into its mongosh script form.
-// Numbers are converted only when numbers is set. The second return is false
-// for values goja can take as they are (strings, booleans, nil, numbers).
+// Numbers are converted only when numbers is set, apart from int64 values
+// beyond ±2^53. The second return is false for values goja can take as they
+// are (strings, booleans, nil, numbers).
 func bsonScalarToJS(rt *goja.Runtime, v any, numbers bool) (goja.Value, bool) {
 	switch x := v.(type) {
 	case int64:
-		if numbers {
+		if numbers || x > maxSafeInteger || x < -maxSafeInteger {
 			return longValue(rt, x), true
 		}
 	case int32:
@@ -169,6 +172,10 @@ func jsDate(rt *goja.Runtime, t time.Time) goja.Value {
 	}
 	return d
 }
+
+// maxSafeInteger is JavaScript's Number.MAX_SAFE_INTEGER (2^53 - 1), the
+// largest integer a JS number holds exactly.
+const maxSafeInteger = 1<<53 - 1
 
 // longValue mirrors mongosh's Long: an object, not a JS number, so 64-bit ids
 // survive without float64 rounding. toString gives the digits.
