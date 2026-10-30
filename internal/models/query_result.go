@@ -10,6 +10,9 @@ package models
 // MongoDB depends on for sort and hint) and BSON types such as ObjectId.
 // Hint is wrapped as {"v": hint} because it may be a name or a document.
 type PageContext struct {
+	// Database is where the find ran, which getSiblingDB() can make differ
+	// from the database the script was started on.
+	Database   string `json:"database"`
 	Collection string `json:"collection"`
 	Filter     string `json:"filter,omitempty"`
 	Projection string `json:"projection,omitempty"`

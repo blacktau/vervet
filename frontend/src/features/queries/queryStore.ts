@@ -100,6 +100,9 @@ export interface QueryState {
   totalEstimated: boolean
   loadingPage: boolean
   loadingCount: boolean
+  /** Latest page and count requests; older responses are discarded */
+  pageRequestId: number
+  countRequestId: number
 }
 
 interface QueryStoreState {
@@ -108,6 +111,7 @@ interface QueryStoreState {
 }
 
 let nextExecutionId = 0
+let nextRequestId = 0
 
 function createQueryState(database: string): QueryState {
   return {
@@ -138,6 +142,8 @@ function createQueryState(database: string): QueryState {
     totalEstimated: false,
     loadingPage: false,
     loadingCount: false,
+    pageRequestId: 0,
+    countRequestId: 0,
   }
 }
 
@@ -306,6 +312,8 @@ export const useQueryStore = defineStore('query', {
       state.totalEstimated = false
       state.loadingPage = false
       state.loadingCount = false
+      state.pageRequestId = 0
+      state.countRequestId = 0
       this.appendMessage(queryId, {
         level: 'info',
         text: i18nGlobal.t('query.messages.executing'),
@@ -338,6 +346,8 @@ export const useQueryStore = defineStore('query', {
 
           if (data.pageContext) {
             state.pageContext = data.pageContext
+            // getSiblingDB() can read from a database other than the selected one
+            state.resultsDatabase = data.pageContext.database || state.resultsDatabase
             state.page = 0
             void this.fetchCount(queryId)
           }
@@ -409,7 +419,8 @@ export const useQueryStore = defineStore('query', {
       if (!state.pageContext) {
         return
       }
-      const execution = state.executionId
+      const requestId = ++nextRequestId
+      state.pageRequestId = requestId
       state.loadingPage = true
       try {
         const result = await shellProxy.FetchPage(
@@ -419,8 +430,8 @@ export const useQueryStore = defineStore('query', {
           page,
           pageSize,
         )
-        // A query started since this request; its results take precedence
-        if (state.executionId !== execution) {
+        // A newer page request or query has taken over
+        if (state.pageRequestId !== requestId) {
           return
         }
         if (result.isSuccess && result.data) {
@@ -433,7 +444,9 @@ export const useQueryStore = defineStore('query', {
           notifier.error(result.errorDetail || result.errorCode || 'Failed to fetch page')
         }
       } finally {
-        state.loadingPage = false
+        if (state.pageRequestId === requestId) {
+          state.loadingPage = false
+        }
       }
     },
 
@@ -447,7 +460,8 @@ export const useQueryStore = defineStore('query', {
       if (!state.pageContext) {
         return
       }
-      const execution = state.executionId
+      const requestId = ++nextRequestId
+      state.countRequestId = requestId
       state.loadingCount = true
       try {
         const result = await shellProxy.CountForPage(
@@ -455,7 +469,7 @@ export const useQueryStore = defineStore('query', {
           state.resultsDatabase,
           state.pageContext,
         )
-        if (state.executionId !== execution) {
+        if (state.countRequestId !== requestId) {
           return
         }
         if (result.isSuccess && result.data) {
@@ -463,7 +477,9 @@ export const useQueryStore = defineStore('query', {
           state.totalEstimated = result.data.estimated
         }
       } finally {
-        state.loadingCount = false
+        if (state.countRequestId === requestId) {
+          state.loadingCount = false
+        }
       }
     },
 
@@ -487,9 +503,13 @@ export const useQueryStore = defineStore('query', {
         this.fetchPage(queryId, state.page, state.pageSize),
         this.fetchCount(queryId),
       ])
-      // Deleting the last document on the final page leaves it empty
-      if (state.documents.length === 0 && state.page > 0) {
-        await this.fetchPage(queryId, state.page - 1, state.pageSize)
+      // Deletes can leave the current page, or several, past the end
+      if (state.total === null) {
+        return
+      }
+      const lastPage = Math.max(Math.ceil(state.total / state.pageSize) - 1, 0)
+      if (state.page > lastPage) {
+        await this.fetchPage(queryId, lastPage, state.pageSize)
       }
     },
 

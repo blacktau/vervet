@@ -295,6 +295,7 @@ export namespace models {
 	}
 	
 	export interface PageContext {
+	    database: string;
 	    collection: string;
 	    filter?: string;
 	    projection?: string;

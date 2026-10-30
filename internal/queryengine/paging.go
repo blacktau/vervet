@@ -80,6 +80,7 @@ func (c *lazyCursor) buildPageContext() (*models.PageContext, error) {
 		return nil, nil
 	}
 	pc := &models.PageContext{
+		Database:   c.ec.dbName,
 		Collection: c.collection,
 		UserLimit:  c.limit,
 		UserSkip:   c.skip,
@@ -106,6 +107,15 @@ func (c *lazyCursor) buildPageContext() (*models.PageContext, error) {
 		}
 	}
 	return pc, nil
+}
+
+// pageDatabase is the database a PageContext's find ran against. Contexts
+// from before Database was recorded fall back to the caller's database.
+func pageDatabase(pc models.PageContext, dbName string) string {
+	if pc.Database != "" {
+		return pc.Database
+	}
+	return dbName
 }
 
 // pageQuery holds a PageContext's values decoded back into ordered BSON.
@@ -185,7 +195,7 @@ func (e *GojaEngine) FetchPage(
 		BatchSize:  pc.BatchSize,
 		Comment:    pc.Comment,
 	}
-	return dispatch(ctx, e.client, dbName, op)
+	return dispatch(ctx, e.client, pageDatabase(pc, dbName), op)
 }
 
 // CountForPage returns a total-row count for a PageContext: estimatedDocumentCount
@@ -213,7 +223,7 @@ func (e *GojaEngine) CountForPage(
 		Method:     method,
 		Args:       args,
 	}
-	res, err := dispatch(ctx, e.client, dbName, op)
+	res, err := dispatch(ctx, e.client, pageDatabase(pc, dbName), op)
 	if err != nil {
 		return 0, estimated, err
 	}

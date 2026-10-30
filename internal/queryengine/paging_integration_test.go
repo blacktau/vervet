@@ -138,3 +138,45 @@ func TestIntegration_FetchPage_CompoundSortHint(t *testing.T) {
 		require.Equal(t, want, got)
 	}
 }
+
+// A find on another database via getSiblingDB pages from that database, even
+// though FetchPage and CountForPage are called with the script's database.
+func TestIntegration_FetchPage_SiblingDatabase(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	db := dbName(t)
+	sibling := db + "_sib"
+	defer testClient.Database(db).Drop(ctx)
+	defer testClient.Database(sibling).Drop(ctx)
+
+	engine := NewGojaEngine(testClient, 25, "")
+
+	docs := ""
+	for i := 0; i < 30; i++ {
+		if i > 0 {
+			docs += ","
+		}
+		docs += fmt.Sprintf("{n:%d}", i)
+	}
+	_, err := engine.ExecuteQuery(ctx, testURI, sibling, "db.paged.insertMany(["+docs+"])")
+	require.NoError(t, err)
+	// Same collection name in the script's database, with different contents
+	_, err = engine.ExecuteQuery(ctx, testURI, db, "db.paged.insertOne({n:-1})")
+	require.NoError(t, err)
+
+	query := fmt.Sprintf(`db.getSiblingDB(%q).paged.find({}).sort({n:1})`, sibling)
+	res, err := engine.ExecuteQuery(ctx, testURI, db, query)
+	require.NoError(t, err)
+	require.NotNil(t, res.PageContext)
+	assert.Equal(t, sibling, res.PageContext.Database)
+	assert.Len(t, res.Documents, 25, "sibling finds are paged like any other")
+
+	page1, err := engine.FetchPage(ctx, db, *res.PageContext, 1, 25)
+	require.NoError(t, err)
+	assert.Len(t, page1.Documents, 5)
+
+	count, _, err := engine.CountForPage(ctx, db, *res.PageContext)
+	require.NoError(t, err)
+	assert.Equal(t, int64(30), count)
+}

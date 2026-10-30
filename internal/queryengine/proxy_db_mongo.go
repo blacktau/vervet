@@ -15,10 +15,11 @@ func dbGetSiblingDB(ec *execContext) func(goja.FunctionCall) goja.Value {
 
 		siblingName := call.Arguments[0].String()
 		siblingEC := &execContext{
-			ctx:    ec.ctx,
-			client: ec.client,
-			dbName: siblingName,
-			rt:     ec.rt,
+			ctx:      ec.ctx,
+			client:   ec.client,
+			dbName:   siblingName,
+			rt:       ec.rt,
+			pageSize: ec.pageSize,
 		}
 		return newDatabaseProxy(siblingEC)
 	}
@@ -31,10 +32,11 @@ func dbGetMongo(ec *execContext) func(goja.FunctionCall) goja.Value {
 		obj := ec.rt.NewObject()
 		_ = obj.Set("getDB", func(name string) goja.Value {
 			siblingEC := &execContext{
-				ctx:    ec.ctx,
-				client: ec.client,
-				dbName: name,
-				rt:     ec.rt,
+				ctx:      ec.ctx,
+				client:   ec.client,
+				dbName:   name,
+				rt:       ec.rt,
+				pageSize: ec.pageSize,
 			}
 			return newDatabaseProxy(siblingEC)
 		})
