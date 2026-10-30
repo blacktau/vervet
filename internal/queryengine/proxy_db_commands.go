@@ -24,15 +24,25 @@ func dbRunCommand(ec *execContext, dbName string) func(goja.FunctionCall) goja.V
 			panic(ec.rt.NewGoError(fmt.Errorf("runCommand: %w", err)))
 		}
 
-		return toJSValue(ec.rt, markCursorBatches(result))
+		return toJSValue(ec.rt, markCursorBatches(cmdDoc, result))
 	}
 }
 
-// markCursorBatches marks the documents in a cursor reply (find, aggregate,
-// getMore) as read from a collection, so they convert as find() results do and
-// their longs stay Long when the script writes them back. The rest of the
-// reply stays in command mode.
-func markCursorBatches(reply bson.D) bson.D {
+// markCursorBatches marks the documents in a find, aggregate or getMore reply as
+// read from a collection, so they convert as find() results do and their longs
+// stay Long when the script writes them back. The rest of the reply stays in
+// command mode, as do the batches of other cursor commands (listCollections,
+// listIndexes), whose documents are metadata rather than stored documents.
+func markCursorBatches(cmd any, reply bson.D) bson.D {
+	doc, ok := cmd.(bson.D)
+	if !ok || len(doc) == 0 {
+		return reply
+	}
+	switch doc[0].Key {
+	case "find", "aggregate", "getMore":
+	default:
+		return reply
+	}
 	cursor, ok := docField(reply, "cursor").(bson.D)
 	if !ok {
 		return reply

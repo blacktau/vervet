@@ -284,6 +284,25 @@ func TestIntegration_FindAndModifyNoMatchIsNull(t *testing.T) {
 	assert.Equal(t, "null", result.RawOutput)
 }
 
+// Batches of metadata cursor commands stay in command mode, so their numbers
+// are plain, as on main: a capped collection created with a long size lists
+// that size as a long.
+func TestIntegration_MetadataCursorBatchesStayPlain(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	db := dbName(t)
+	defer testClient.Database(db).Drop(ctx)
+
+	engine := NewGojaEngine(testClient, 0, "")
+	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.runCommand({ create: 'capped', capped: true, size: NumberLong("5000000000") })`)
+	require.NoError(t, err)
+	result, err := engine.ExecuteQuery(ctx, testURI, db, `
+		var o = db.runCommand({ listCollections: 1, filter: { name: 'capped' } }).cursor.firstBatch[0].options;
+		typeof o.size + " " + (o.size + 1)`)
+	require.NoError(t, err)
+	assert.Equal(t, "number 5000000001", result.RawOutput)
+}
+
 // A server long beyond ±2^53 keeps its exact value and type through a script
 // (review of #314): EJSON.parse values, and cursor ids passed to getMore.
 func TestIntegration_LongsBeyondSafeIntegerRoundTrip(t *testing.T) {
