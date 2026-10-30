@@ -52,10 +52,7 @@ describe('humanizeEjson', () => {
   it('converts $binary UUID (subType 04) to UUID string', () => {
     const base64 = btoa(
       String.fromCharCode(
-        ...[
-          0x55, 0x0e, 0x84, 0x00, 0xe2, 0x9b, 0x41, 0xd4, 0xa7, 0x16, 0x44, 0x66, 0x55, 0x44, 0x00,
-          0x00,
-        ],
+        ...[0x55, 0x0e, 0x84, 0x00, 0xe2, 0x9b, 0x41, 0xd4, 0xa7, 0x16, 0x44, 0x66, 0x55, 0x44, 0x00, 0x00],
       ),
     )
     const input = { $binary: { base64, subType: '04' } }
@@ -65,10 +62,7 @@ describe('humanizeEjson', () => {
   it('converts $binary legacy UUID (subType 03) to UUID string', () => {
     const base64 = btoa(
       String.fromCharCode(
-        ...[
-          0x55, 0x0e, 0x84, 0x00, 0xe2, 0x9b, 0x41, 0xd4, 0xa7, 0x16, 0x44, 0x66, 0x55, 0x44, 0x00,
-          0x00,
-        ],
+        ...[0x55, 0x0e, 0x84, 0x00, 0xe2, 0x9b, 0x41, 0xd4, 0xa7, 0x16, 0x44, 0x66, 0x55, 0x44, 0x00, 0x00],
       ),
     )
     const input = { $binary: { base64, subType: '03' } }
@@ -78,10 +72,7 @@ describe('humanizeEjson', () => {
   it('converts $binary MD5 (subType 05) to hex string', () => {
     const base64 = btoa(
       String.fromCharCode(
-        ...[
-          0xd4, 0x1d, 0x8c, 0xd9, 0x8f, 0x00, 0xb2, 0x04, 0xe9, 0x80, 0x09, 0x98, 0xec, 0xf8, 0x42,
-          0x7e,
-        ],
+        ...[0xd4, 0x1d, 0x8c, 0xd9, 0x8f, 0x00, 0xb2, 0x04, 0xe9, 0x80, 0x09, 0x98, 0xec, 0xf8, 0x42, 0x7e],
       ),
     )
     const input = { $binary: { base64, subType: '05' } }
@@ -148,7 +139,11 @@ describe('humanizeEjson', () => {
   })
 
   it('recurses into arrays', () => {
-    const input = [{ $date: '2024-01-01T00:00:00.000Z' }, { $numberLong: '99' }, 'plain string']
+    const input = [
+      { $date: '2024-01-01T00:00:00.000Z' },
+      { $numberLong: '99' },
+      'plain string',
+    ]
     expect(humanizeEjson(input)).toEqual(['2024-01-01T00:00:00.000Z', 99, 'plain string'])
   })
 
@@ -180,7 +175,9 @@ describe('toJsExpression', () => {
 
   it('converts $date with $numberLong to ISODate()', () => {
     const input = { $date: { $numberLong: '1706004800000' } }
-    expect(toJsExpression(input)).toBe(`ISODate("${new Date(1706004800000).toISOString()}")`)
+    expect(toJsExpression(input)).toBe(
+      `ISODate("${new Date(1706004800000).toISOString()}")`,
+    )
   })
 
   it('converts $numberLong to NumberLong()', () => {
@@ -204,10 +201,7 @@ describe('toJsExpression', () => {
   it('converts $binary UUID to UUID()', () => {
     const base64 = btoa(
       String.fromCharCode(
-        ...[
-          0x55, 0x0e, 0x84, 0x00, 0xe2, 0x9b, 0x41, 0xd4, 0xa7, 0x16, 0x44, 0x66, 0x55, 0x44, 0x00,
-          0x00,
-        ],
+        ...[0x55, 0x0e, 0x84, 0x00, 0xe2, 0x9b, 0x41, 0xd4, 0xa7, 0x16, 0x44, 0x66, 0x55, 0x44, 0x00, 0x00],
       ),
     )
     expect(toJsExpression({ $binary: { base64, subType: '04' } })).toBe(
@@ -228,7 +222,9 @@ describe('toJsExpression', () => {
   })
 
   it('converts $timestamp to Timestamp()', () => {
-    expect(toJsExpression({ $timestamp: { t: 1700000000, i: 1 } })).toBe('Timestamp(1700000000, 1)')
+    expect(toJsExpression({ $timestamp: { t: 1700000000, i: 1 } })).toBe(
+      'Timestamp(1700000000, 1)',
+    )
   })
 
   it('converts $minKey to MinKey()', () => {
@@ -241,11 +237,15 @@ describe('toJsExpression', () => {
 
   // --- Humanized values → BSON constructors ---
   it('detects ISO date strings and wraps with ISODate()', () => {
-    expect(toJsExpression('2024-01-23T10:13:20.000Z')).toBe('ISODate("2024-01-23T10:13:20.000Z")')
+    expect(toJsExpression('2024-01-23T10:13:20.000Z')).toBe(
+      'ISODate("2024-01-23T10:13:20.000Z")',
+    )
   })
 
   it('detects 24-char hex and wraps with ObjectId()', () => {
-    expect(toJsExpression('507f1f77bcf86cd799439011')).toBe('ObjectId("507f1f77bcf86cd799439011")')
+    expect(toJsExpression('507f1f77bcf86cd799439011')).toBe(
+      'ObjectId("507f1f77bcf86cd799439011")',
+    )
   })
 
   it('detects UUID strings and wraps with UUID()', () => {
@@ -311,10 +311,7 @@ describe('toJsExpression', () => {
     // Binary UUID _id
     const base64 = btoa(
       String.fromCharCode(
-        ...[
-          0x55, 0x0e, 0x84, 0x00, 0xe2, 0x9b, 0x41, 0xd4, 0xa7, 0x16, 0x44, 0x66, 0x55, 0x44, 0x00,
-          0x00,
-        ],
+        ...[0x55, 0x0e, 0x84, 0x00, 0xe2, 0x9b, 0x41, 0xd4, 0xa7, 0x16, 0x44, 0x66, 0x55, 0x44, 0x00, 0x00],
       ),
     )
     const rawId = { $binary: { base64, subType: '04' } }
