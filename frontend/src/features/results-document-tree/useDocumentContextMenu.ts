@@ -7,6 +7,8 @@ export interface CollectionContext {
   serverId: string
   dbName: string
   collectionName: string
+  /** The query's own collection is unknown, so collectionName is the tab's */
+  collectionFromTab: boolean
 }
 
 export function useDocumentContextMenu(collectionContext: Ref<CollectionContext | undefined>) {

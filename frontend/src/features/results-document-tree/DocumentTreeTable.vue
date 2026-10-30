@@ -241,9 +241,14 @@ function handleContextMenuSelect(key: string) {
   if (key === 'deleteDocument') {
     const doc = resolveRawValue(props.documents, row.key) as Record<string, unknown>
     const idDisplay = doc?._id ? JSON.stringify(doc._id) : 'unknown'
+    const context = props.collectionContext
+    const namespace = context ? `${context.dbName}.${context.collectionName}` : ''
+    const fromTabNote = context?.collectionFromTab
+      ? `\n\n${t('query.dialogs.collectionFromTab', { collection: context.collectionName })}`
+      : ''
     dialog.warning({
       title: t('query.dialogs.deleteConfirmTitle'),
-      content: `${t('query.dialogs.deleteConfirmContent')}\n\n_id: ${idDisplay}`,
+      content: `${t('query.dialogs.deleteConfirmContent', { namespace })}\n\n_id: ${idDisplay}${fromTabNote}`,
       positiveText: t('common.confirm'),
       negativeText: t('common.cancel'),
       onPositiveClick: async () => {
@@ -429,6 +434,7 @@ function rowClassName(row: DocumentRow): string {
         :server-id="collectionContext.serverId"
         :db-name="collectionContext.dbName"
         :collection-name="collectionContext.collectionName"
+        :collection-from-tab="collectionContext.collectionFromTab"
         @saved="handleDocumentSaved" />
     </template>
   </div>

@@ -14,6 +14,7 @@ const props = defineProps<{
   serverId: string
   dbName: string
   collectionName: string
+  collectionFromTab?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -31,11 +32,12 @@ const jsonError = ref('')
 const saving = ref(false)
 const documentId = ref<unknown>(null)
 
-const title = computed(() =>
-  props.mode === 'edit'
-    ? t('query.dialogs.editDocument')
-    : t('query.dialogs.insertDocument'),
-)
+const title = computed(() => {
+  const namespace = `${props.dbName}.${props.collectionName}`
+  return props.mode === 'edit'
+    ? t('query.dialogs.editDocumentIn', { namespace })
+    : t('query.dialogs.insertDocumentIn', { namespace })
+})
 
 const idDisplay = computed(() => {
   if (!documentId.value) {
@@ -165,6 +167,9 @@ function close() {
     :mask-closable="false"
     @update:show="emit('update:show', $event)"
   >
+    <n-alert v-if="collectionFromTab" type="warning" class="target-note">
+      {{ t('query.dialogs.collectionFromTab', { collection: collectionName }) }}
+    </n-alert>
     <div v-if="mode === 'edit' && idDisplay" class="id-display">
       <n-text depth="3">_id: {{ idDisplay }}</n-text>
     </div>
@@ -194,6 +199,10 @@ function close() {
   border: 1px solid var(--n-border-color);
   font-family: monospace;
   font-size: 13px;
+}
+
+.target-note {
+  margin-bottom: 8px;
 }
 
 .editor-container {

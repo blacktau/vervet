@@ -107,6 +107,7 @@ describe('QueryTab collection context', () => {
       serverId: 'server-1',
       dbName: 'archive',
       collectionName: 'orders',
+      collectionFromTab: true,
     })
     wrapper.unmount()
   })
@@ -126,9 +127,9 @@ describe('QueryTab collection context', () => {
     showResults('shop', 'customers')
     await flushPromises()
 
-    expect(wrapper.findComponent(TableStub).props('collectionContext').collectionName).toBe(
-      'customers',
-    )
+    const context = wrapper.findComponent(TableStub).props('collectionContext')
+    expect(context.collectionName).toBe('customers')
+    expect(context.collectionFromTab).toBe(false)
     wrapper.unmount()
   })
 })
