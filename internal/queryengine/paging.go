@@ -188,10 +188,10 @@ func (e *GojaEngine) FetchPage(
 	return dispatch(ctx, e.client, dbName, op)
 }
 
-// CountForPage returns a total-row count for a PageContext. When the filter is
-// empty/nil, returns estimatedDocumentCount with estimated=true. Otherwise
-// returns countDocuments(filter). pc.UserSkip is subtracted (floored at 0) and
-// the result is capped by pc.UserLimit if set.
+// CountForPage returns a total-row count for a PageContext: estimatedDocumentCount
+// (with estimated=true) when the filter is empty/nil, countDocuments(filter)
+// otherwise. Either way, pc.UserSkip is then subtracted (floored at 0) and the
+// result is capped by pc.UserLimit if set.
 func (e *GojaEngine) CountForPage(
 	ctx context.Context,
 	dbName string,

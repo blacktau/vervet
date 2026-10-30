@@ -21,8 +21,7 @@ type lazyCursor struct {
 	sort       any
 	resolved   bool
 	results    []any
-	index      int  // for hasNext/next iteration
-	consumed   bool // next/toArray/forEach/map has read documents
+	index      int // for hasNext/next iteration
 	isFindOne  bool
 	hint       any
 	maxTimeMS  int64
@@ -157,18 +156,36 @@ func (c *lazyCursor) consumeRest() ([]any, error) {
 	}
 	rest := c.results[c.index:]
 	c.index = len(c.results)
-	c.consumed = true
 	return rest, nil
 }
 
-// yieldsToPrints reports whether, left as the script's final value, this
-// cursor should give way to what the script printed: once the script has
-// consumed documents, or when nothing is left to show. hasNext() alone does
+// eachRemaining calls fn for each document next() has not consumed yet,
+// consuming one at a time, so if fn fails the documents it never reached can
+// still be read (as in mongosh).
+func (c *lazyCursor) eachRemaining(fn func(doc any) error) error {
+	if _, err := c.execute(false); err != nil {
+		return err
+	}
+	for c.index < len(c.results) {
+		doc := c.results[c.index]
+		c.index++
+		if err := fn(doc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// showsDocuments reports whether this cursor, left as the script's final
+// value, is shown as its documents rather than giving way to what the script
+// printed. It gives way once the script has read from it (next, toArray,
+// forEach, map) or when its read found nothing to show. hasNext() alone does
 // not count, so `if (c.hasNext()) print("found"); c` still shows documents,
-// but on an empty result `while (c.hasNext()) ...; print("done"); c` shows
+// while on an empty result `while (c.hasNext()) ...; print("done"); c` shows
 // the message.
-func (c *lazyCursor) yieldsToPrints() bool {
-	return c.consumed || (c.resolved && c.index >= len(c.results))
+func (c *lazyCursor) showsDocuments(printed bool) bool {
+	readFrom := c.resolved && (c.index > 0 || len(c.results) == 0)
+	return !printed || !readFrom
 }
 
 // explain runs an explain command for this cursor's find/findOne query.
@@ -290,14 +307,12 @@ func (c *lazyCursor) toGojaObject() goja.Value {
 		if !ok {
 			panic(rt.NewGoError(fmt.Errorf("forEach argument must be a function")))
 		}
-		docs, err := c.consumeRest()
+		err := c.eachRemaining(func(doc any) error {
+			_, err := fn(goja.Undefined(), toJSValue(rt, doc))
+			return err
+		})
 		if err != nil {
 			panic(rt.NewGoError(err))
-		}
-		for _, doc := range docs {
-			if _, err := fn(goja.Undefined(), toJSValue(rt, doc)); err != nil {
-				panic(rt.NewGoError(err))
-			}
 		}
 		return goja.Undefined()
 	})
@@ -310,17 +325,14 @@ func (c *lazyCursor) toGojaObject() goja.Value {
 		if !ok {
 			panic(rt.NewGoError(fmt.Errorf("map argument must be a function")))
 		}
-		docs, err := c.consumeRest()
+		var mapped []any
+		err := c.eachRemaining(func(doc any) error {
+			val, err := fn(goja.Undefined(), toJSValue(rt, doc))
+			mapped = append(mapped, val)
+			return err
+		})
 		if err != nil {
 			panic(rt.NewGoError(err))
-		}
-		mapped := make([]any, len(docs))
-		for i, doc := range docs {
-			val, err := fn(goja.Undefined(), toJSValue(rt, doc))
-			if err != nil {
-				panic(rt.NewGoError(err))
-			}
-			mapped[i] = val
 		}
 		return rt.NewArray(mapped...)
 	})
@@ -358,7 +370,6 @@ func (c *lazyCursor) toGojaObject() goja.Value {
 		}
 		doc := c.results[c.index]
 		c.index++
-		c.consumed = true
 		return toJSValue(rt, doc)
 	})
 

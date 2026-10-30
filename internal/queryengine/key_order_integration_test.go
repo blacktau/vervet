@@ -502,3 +502,39 @@ func TestIntegration_PrintsShownForEmptyReadCursor(t *testing.T) {
 		assert.Equal(t, "none found", result.RawOutput, script)
 	}
 }
+
+// More print/cursor combinations: printed output wins once the script has
+// read from the cursor, or when its read found nothing.
+func TestIntegration_PrintsAndCursorCombinations(t *testing.T) {
+	ctx, db, engine := keyOrderEngine(t)
+
+	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.some.insertMany([{ n: 1 }, { n: 2 }])`)
+	require.NoError(t, err)
+
+	for _, tc := range []struct{ script, want string }{
+		{`var c = db.none.find(); c.map(function (d) { return d; }); print("none found"); c`, "none found"},
+		{`var c = db.none.find(); if (!c.hasNext()) { print("none"); } c`, "none"},
+		{`var c = db.some.find().sort({ n: 1 }); c.forEach(function (d) { print(d.n); }); print("done"); c`, "1\n2\ndone"},
+	} {
+		result, err := engine.ExecuteQuery(ctx, testURI, db, tc.script)
+		require.NoError(t, err, tc.script)
+		assert.Equal(t, tc.want, result.RawOutput, tc.script)
+	}
+}
+
+// A forEach/map callback that throws leaves the documents it never reached
+// readable, as in mongosh.
+func TestIntegration_CallbackErrorLeavesRestReadable(t *testing.T) {
+	ctx, db, engine := keyOrderEngine(t)
+
+	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.cb.insertMany([{ n: 1 }, { n: 2 }, { n: 3 }])`)
+	require.NoError(t, err)
+
+	for _, method := range []string{"forEach", "map"} {
+		result, err := engine.ExecuteQuery(ctx, testURI, db, `var c = db.cb.find().sort({ n: 1 });
+			try { c.`+method+`(function (d) { if (String(d.n) === "1") { throw new Error("stop"); } }); } catch (e) {}
+			c.toArray().map(function (d) { return d.n; }).join()`)
+		require.NoError(t, err, method)
+		assert.Equal(t, "2,3", resultText(result), method)
+	}
+}
