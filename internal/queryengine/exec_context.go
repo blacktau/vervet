@@ -35,16 +35,18 @@ func (ec *execContext) rememberFindOne(obj *goja.Object, result models.QueryResu
 	ec.lastFindOne = &findOneResult{obj: obj, result: result}
 }
 
-// findOneDisplay returns the server's result for val, the script's final
-// value exported as raw, when val is the document findOne last returned and
-// the script has not changed it. Shown as the JS object instead, the document
-// would lose types JS cannot hold: a whole-number double reads back as a
-// plain integer and is shown as an int32.
-func (ec *execContext) findOneDisplay(val goja.Value, raw any) (models.QueryResult, bool) {
+// isLastFindOne reports whether val is the document findOne last returned.
+func (ec *execContext) isLastFindOne(val goja.Value) bool {
+	return ec.lastFindOne != nil && val == ec.lastFindOne.obj
+}
+
+// findOneDisplay returns the server's result for the document findOne last
+// returned, given as raw, the script's final value exported, when the script
+// has not changed it. Call it only when isLastFindOne. Shown as the JS object
+// instead, the document would lose types JS cannot hold: a whole-number double
+// reads back as a plain integer and is shown as an int32.
+func (ec *execContext) findOneDisplay(raw any) (models.QueryResult, bool) {
 	last := ec.lastFindOne
-	if last == nil || val != last.obj {
-		return models.QueryResult{}, false
-	}
 	// Compared in display form: exported BSON wrappers hold Go funcs, which
 	// never compare equal, while their display form is plain Extended JSON.
 	handedOut := exportValue(toGojaValue(ec.rt, last.result))

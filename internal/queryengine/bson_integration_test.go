@@ -321,16 +321,34 @@ func TestIntegration_FindOneOptions(t *testing.T) {
 		{`db.c.findOne({}, { _id: 0 }, { projection: { name: 0 } }).name`, "b"},
 		{`db.c.findOne({}, null, { sort: { name: -1 }, comment: "x", maxTimeMS: 5000 })._id`, "3"},
 		{`db.c.findOne({ name: "A" }, null, { collation: { locale: "en", strength: 2 } })._id`, "2"},
+		{`db.c.findOne({}, null, { sort: { name: 1 }, skip: NumberLong(2), maxTimeMS: NumberInt(5000) })._id`, "3"},
 	} {
 		result, err := engine.ExecuteQuery(ctx, testURI, db, tc.script)
 		require.NoError(t, err, tc.script)
 		assert.Equal(t, tc.want, resultText(result), tc.script)
 	}
+
+	for _, tc := range []struct{ script, want string }{
+		{`db.c.findOne({}, null, { skip: -1 })`, "findOne skip must not be negative"},
+		{`db.c.findOne({}, null, { skip: "1" })`, "findOne skip must be a number"},
+		{`db.c.findOne({}, null, { allowDiskUse: true })`, `findOne option "allowDiskUse" is not supported`},
+		{`db.c.findOne({}, null, { comment: 5 })`, "findOne comment must be a string"},
+	} {
+		_, err := engine.ExecuteQuery(ctx, testURI, db, tc.script)
+		assert.ErrorContains(t, err, tc.want, tc.script)
+	}
+
+	// A server error is reported once, as findOne's.
+	_, err = engine.ExecuteQuery(ctx, testURI, db, `db.c.findOne({ $bogus: 1 })`)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "findOne failed: ")
+	assert.NotContains(t, err.Error(), "find failed")
 }
 
 // A findOne document left as the script's final value is shown with the types
 // the server stored, which a whole-number double loses on its way through JS.
 // Once the script changes the document, it is shown as the script left it.
+// Like a cursor, an unchanged document is shown even when the script printed.
 func TestIntegration_FindOneShowsStoredTypes(t *testing.T) {
 	ctx, db, engine := keyOrderEngine(t)
 
@@ -344,6 +362,8 @@ func TestIntegration_FindOneShowsStoredTypes(t *testing.T) {
 		{`db.c.findOne({ l: { $exists: true } })`, `[{"_id":{"$oid":"650000000000000000000001"},"d":{"$numberDouble":"5.0"},"l":{"$numberLong":"7"},"at":{"$date":{"$numberLong":"0"}}}]`},
 		{`var d = db.c.findOne({ _id: 1 }); d.d; d`, `[{"_id":{"$numberInt":"1"},"d":{"$numberDouble":"5.0"}}]`},
 		{`var d = db.c.findOne({ _id: 1 }); d.x = "y"; d`, `[{"_id":1,"d":5,"x":"y"}]`},
+		{`print("checking"); db.c.findOne({ _id: 1 })`, `[{"_id":{"$numberInt":"1"},"d":{"$numberDouble":"5.0"}}]`},
+		{`var d = db.c.findOne({ _id: 1 }); d.x = "y"; print("changed"); d`, "changed"},
 	} {
 		result, err := engine.ExecuteQuery(ctx, testURI, db, tc.script)
 		require.NoError(t, err, tc.script)

@@ -92,17 +92,25 @@ func (e *GojaEngine) ExecuteQuery(ctx context.Context, uri, dbName, query string
 			return
 		}
 
+		// An unchanged findOne document left as the final value is shown even
+		// when the script printed, as a cursor it has not read from is.
+		var raw any
+		if ec.isLastFindOne(val) {
+			raw = exportValue(val)
+			if found, ok := ec.findOneDisplay(raw); ok {
+				result = found
+				return
+			}
+		}
+
 		if len(out.lines) > 0 {
 			result = models.QueryResult{RawOutput: out.text()}
 			return
 		}
 
-		raw := exportValue(val)
-		if found, ok := ec.findOneDisplay(val, raw); ok {
-			result = found
-			return
+		if raw == nil {
+			raw = exportValue(val)
 		}
-
 		if raw != nil {
 			switch raw.(type) {
 			case int32, float64:

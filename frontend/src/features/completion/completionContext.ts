@@ -124,6 +124,18 @@ export function analyzeContext(textBeforeCursor: string): CompletionContext {
   return ctx
 }
 
+/**
+ * Methods that return a document (or null) rather than a cursor, so cursor
+ * methods chained onto them would fail.
+ */
+const DOCUMENT_METHODS = new Set([
+  'findOne',
+  'findOneAndDelete',
+  'findOneAndReplace',
+  'findOneAndUpdate',
+  'findAndModify',
+])
+
 /** Methods whose second argument is an update document. */
 const UPDATE_METHODS = new Set(['updateOne', 'updateMany', 'findOneAndUpdate'])
 
@@ -144,6 +156,8 @@ interface Scan {
   insideQuotes: boolean
   /** The caret sits in a value position: the last token was a `:`. */
   afterColon: boolean
+  /** The method of the call most recently closed, e.g. `find` after `find({})`. */
+  closedCallee?: string
 }
 
 /**
@@ -161,6 +175,7 @@ function scan(text: string): Scan {
   let lastIdent = ''
   let afterColon = false
   let word = ''
+  let closedCallee: string | undefined
 
   const top = () => stack[stack.length - 1]
 
@@ -203,7 +218,8 @@ function scan(text: string): Scan {
       afterColon = false
       lastIdent = ''
     } else if (ch === '}' || ch === ']' || ch === ')') {
-      stack.pop()
+      const closed = stack.pop()
+      closedCallee = closed?.open === '(' ? closed.callee : undefined
       afterColon = false
       lastIdent = ''
     } else if (ch === ',') {
@@ -223,6 +239,7 @@ function scan(text: string): Scan {
     prefix: quote ? text.slice(quoteStart) : word,
     insideQuotes: quote !== null,
     afterColon,
+    closedCallee,
   }
 }
 
@@ -274,10 +291,15 @@ function analyzeContextCore(textBeforeCursor: string): CompletionContext {
     return { type: 'EJSON_METHOD', prefix: ejsonMatch[1] || '' }
   }
 
-  // db.collection.method(...).| → CURSOR_METHOD (chained modifiers)
+  // db.collection.method(...).| → CURSOR_METHOD (chained modifiers), unless
+  // the method returns a document, which has no cursor methods
   const cursorMethodMatch = trimmed.match(/\)\s*\.(\w*)$/)
   if (cursorMethodMatch) {
-    return { type: 'CURSOR_METHOD', prefix: cursorMethodMatch[1] || '' }
+    const prefix = cursorMethodMatch[1] || ''
+    if (DOCUMENT_METHODS.has(scan(trimmed).closedCallee ?? '')) {
+      return { type: 'KEYWORD', prefix }
+    }
+    return { type: 'CURSOR_METHOD', prefix }
   }
 
   // db.collection.| → METHOD_NAME

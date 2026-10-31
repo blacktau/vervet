@@ -3,6 +3,7 @@ package queryengine
 import (
 	"context"
 	"fmt"
+	"math"
 	"time"
 
 	"vervet/internal/models"
@@ -13,6 +14,17 @@ import (
 )
 
 func dispatchFind(ctx context.Context, coll *mongo.Collection, op CapturedOp) (models.QueryResult, error) {
+	results, err := findDocs(ctx, coll, op)
+	if err != nil {
+		return models.QueryResult{}, fmt.Errorf("find failed: %w", err)
+	}
+	result := docsToResult(results)
+	result.OperationType = "find"
+	return result, nil
+}
+
+// findDocs runs a find for op and reads every document it returns.
+func findDocs(ctx context.Context, coll *mongo.Collection, op CapturedOp) ([]bson.D, error) {
 	filter := bson.D{}
 	if len(op.Args) > 0 && op.Args[0] != nil {
 		filter = toBsonDoc(op.Args[0])
@@ -34,18 +46,15 @@ func dispatchFind(ctx context.Context, coll *mongo.Collection, op CapturedOp) (m
 
 	cursor, err := coll.Find(ctx, filter, opts)
 	if err != nil {
-		return models.QueryResult{}, fmt.Errorf("find failed: %w", err)
+		return nil, err
 	}
 	defer cursor.Close(ctx)
 
 	var results []bson.D
 	if err := cursor.All(ctx, &results); err != nil {
-		return models.QueryResult{}, fmt.Errorf("reading cursor: %w", err)
+		return nil, fmt.Errorf("reading cursor: %w", err)
 	}
-
-	result := docsToResult(results)
-	result.OperationType = "find"
-	return result, nil
+	return results, nil
 }
 
 // applyFindOptions applies the shared cursor-scoped options from op to the given FindOptions.
@@ -190,17 +199,26 @@ func dispatchFindOne(ctx context.Context, coll *mongo.Collection, op CapturedOp)
 		}
 	}
 
-	result, err := dispatchFind(ctx, coll, findOp)
+	docs, err := findDocs(ctx, coll, findOp)
 	if err != nil {
 		return models.QueryResult{}, fmt.Errorf("findOne failed: %w", err)
 	}
+	result := docsToResult(docs)
 	result.OperationType = "findOne"
-	result.Single = len(result.Documents) > 0
+	result.Single = len(docs) > 0
 	return result, nil
 }
 
+// findOneOptions are the findOne options applyFindOneOptions understands.
+var findOneOptions = map[string]bool{
+	"projection": true, "sort": true, "skip": true, "hint": true,
+	"maxTimeMS": true, "collation": true, "comment": true,
+}
+
 // applyFindOneOptions copies findOne's options document onto a find operation.
-// A projection given here applies when the projection argument is absent.
+// A projection given here applies when the projection argument is absent. An
+// option it does not support is an error rather than silently dropped, since
+// ignoring one such as min or allowDiskUse could change what is returned.
 func applyFindOneOptions(op *CapturedOp, raw any) error {
 	if raw == nil {
 		return nil
@@ -208,6 +226,11 @@ func applyFindOneOptions(op *CapturedOp, raw any) error {
 	opts, ok := asMap(raw)
 	if !ok {
 		return fmt.Errorf("findOne options must be an object")
+	}
+	for key := range opts {
+		if !findOneOptions[key] {
+			return fmt.Errorf("findOne option %q is not supported", key)
+		}
 	}
 	if proj, ok := opts["projection"]; ok && (len(op.Args) < 2 || op.Args[1] == nil) {
 		for len(op.Args) < 2 {
@@ -218,14 +241,19 @@ func applyFindOneOptions(op *CapturedOp, raw any) error {
 	if v, ok := opts["sort"]; ok {
 		op.Sort = v
 	}
-	if v, ok := opts["skip"]; ok {
-		op.Skip = coerceInt64(v)
-	}
 	if v, ok := opts["hint"]; ok {
 		op.Hint = v
 	}
+	var err error
+	if v, ok := opts["skip"]; ok {
+		if op.Skip, err = countOption("skip", v); err != nil {
+			return err
+		}
+	}
 	if v, ok := opts["maxTimeMS"]; ok {
-		op.MaxTimeMS = coerceInt64(v)
+		if op.MaxTimeMS, err = countOption("maxTimeMS", v); err != nil {
+			return err
+		}
 	}
 	if v, ok := opts["collation"]; ok {
 		collation, ok := asMap(v)
@@ -234,10 +262,37 @@ func applyFindOneOptions(op *CapturedOp, raw any) error {
 		}
 		op.Collation = collation
 	}
-	if v, ok := opts["comment"].(string); ok {
-		op.Comment = v
+	if v, ok := opts["comment"]; ok {
+		comment, ok := v.(string)
+		if !ok {
+			return fmt.Errorf("findOne comment must be a string")
+		}
+		op.Comment = comment
 	}
 	return nil
+}
+
+// countOption reads a non-negative whole-number option such as skip, given as
+// a plain number or a NumberInt/NumberLong.
+func countOption(name string, v any) (int64, error) {
+	var n int64
+	switch x := convertToBson(v).(type) {
+	case int32:
+		n = int64(x)
+	case int64:
+		n = x
+	case float64:
+		if x != math.Trunc(x) {
+			return 0, fmt.Errorf("findOne %s must be a whole number", name)
+		}
+		n = int64(x)
+	default:
+		return 0, fmt.Errorf("findOne %s must be a number", name)
+	}
+	if n < 0 {
+		return 0, fmt.Errorf("findOne %s must not be negative", name)
+	}
+	return n, nil
 }
 
 func dispatchCountDocuments(ctx context.Context, coll *mongo.Collection, op CapturedOp) (models.QueryResult, error) {
