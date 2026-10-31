@@ -284,6 +284,103 @@ func TestIntegration_FindAndModifyNoMatchIsNull(t *testing.T) {
 	assert.Equal(t, "null", result.RawOutput)
 }
 
+// findOne returns the document itself, or null when nothing matches, as in
+// mongosh (#303), so a script can read its fields and write it back.
+func TestIntegration_FindOneReturnsDocument(t *testing.T) {
+	ctx, db, engine := keyOrderEngine(t)
+
+	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.c.insertOne({ _id: 1, name: "alice" })`)
+	require.NoError(t, err)
+
+	for _, tc := range []struct{ script, want string }{
+		{`typeof db.c.findOne({ _id: 1 }).name`, "string"},
+		{`Object.keys(db.c.findOne({ _id: 1 })).join(",")`, "_id,name"},
+		{`String(db.c.findOne({ _id: 999 }) === null)`, "true"},
+		{`db.c.replaceOne({ _id: 1 }, db.c.findOne({ _id: 1 })).matchedCount`, "1"},
+		{`Object.keys(db.c.findOne({ _id: 1 }, { name: 0 })).join(",")`, "_id"},
+		{`db.c.findOne({ _id: 1 })`, `[{"_id":{"$numberInt":"1"},"name":"alice"}]`},
+		{`db.c.findOne({ _id: 999 })`, "null"},
+	} {
+		result, err := engine.ExecuteQuery(ctx, testURI, db, tc.script)
+		require.NoError(t, err, tc.script)
+		assert.Equal(t, tc.want, resultText(result), tc.script)
+	}
+}
+
+// findOne takes the find options mongosh accepts in its third argument.
+func TestIntegration_FindOneOptions(t *testing.T) {
+	ctx, db, engine := keyOrderEngine(t)
+
+	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.c.insertMany([{ _id: 1, name: "b" }, { _id: 2, name: "a" }, { _id: 3, name: "c" }])`)
+	require.NoError(t, err)
+
+	for _, tc := range []struct{ script, want string }{
+		{`db.c.findOne({}, null, { sort: { name: 1 } })._id`, "2"},
+		{`db.c.findOne({}, null, { sort: { name: 1 }, skip: 1 })._id`, "1"},
+		{`Object.keys(db.c.findOne({}, null, { projection: { name: 0 } })).join(",")`, "_id"},
+		{`db.c.findOne({}, { _id: 0 }, { projection: { name: 0 } }).name`, "b"},
+		{`db.c.findOne({}, null, { sort: { name: -1 }, comment: "x", maxTimeMS: 5000 })._id`, "3"},
+		{`db.c.findOne({ name: "A" }, null, { collation: { locale: "en", strength: 2 } })._id`, "2"},
+		{`db.c.findOne({}, null, { sort: { name: 1 }, skip: NumberLong(2), maxTimeMS: NumberInt(5000) })._id`, "3"},
+		{`db.c.findOne({}, null, { sort: { name: 1 }, limit: 5, batchSize: 10, noCursorTimeout: true })._id`, "2"},
+	} {
+		result, err := engine.ExecuteQuery(ctx, testURI, db, tc.script)
+		require.NoError(t, err, tc.script)
+		assert.Equal(t, tc.want, resultText(result), tc.script)
+	}
+
+	for _, tc := range []struct{ script, want string }{
+		{`db.c.findOne({}, null, { skip: -1 })`, "findOne skip must not be negative"},
+		{`db.c.findOne({}, null, { skip: "1" })`, "findOne skip must be a number"},
+		{`db.c.findOne({}, null, { allowDiskUse: true })`, `findOne option "allowDiskUse" is not supported`},
+		{`db.c.findOne({}, null, { comment: 5 })`, "findOne comment must be a string"},
+		{`db.c.findOne({}, null, { skip: -1, foo: 1 })`, "findOne skip must not be negative"},
+		{`db.c.findOne({}, null, { foo: 1, skip: -1 })`, `findOne option "foo" is not supported`},
+		{`db.c.findOne({}, null, { skip: 1e19 })`, "findOne skip is too large"},
+		{`db.c.findOne({}, null, { skip: Infinity })`, "findOne skip is too large"},
+		{`db.c.findOne({}, null, { maxTimeMS: 1e13 })`, "maxTimeMS must be at most 2147483647"},
+		{`db.c.find().maxTimeMS(1e13).toArray()`, "maxTimeMS must be at most 2147483647"},
+	} {
+		_, err := engine.ExecuteQuery(ctx, testURI, db, tc.script)
+		assert.ErrorContains(t, err, tc.want, tc.script)
+	}
+
+	// A server error is reported once, as findOne's.
+	_, err = engine.ExecuteQuery(ctx, testURI, db, `db.c.findOne({ $bogus: 1 })`)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "findOne failed: ")
+	assert.NotContains(t, err.Error(), "find failed")
+}
+
+// A findOne document left as the script's final value is shown with the types
+// the server stored, which a whole-number double loses on its way through JS.
+// Once the script changes the document, it is shown as the script left it.
+// Like a cursor, an unchanged document is shown even when the script printed.
+func TestIntegration_FindOneShowsStoredTypes(t *testing.T) {
+	ctx, db, engine := keyOrderEngine(t)
+
+	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.c.insertOne({ _id: 1, d: Double(5) })`)
+	require.NoError(t, err)
+	_, err = engine.ExecuteQuery(ctx, testURI, db, `db.c.insertOne({ _id: ObjectId("650000000000000000000001"), d: Double(5), l: Long(7), at: new Date(0) })`)
+	require.NoError(t, err)
+	_, err = engine.ExecuteQuery(ctx, testURI, db, `db.c.insertOne({ _id: 2, d: Double(5), n: NaN })`)
+	require.NoError(t, err)
+
+	for _, tc := range []struct{ script, want string }{
+		{`db.c.findOne({ _id: 1 })`, `[{"_id":{"$numberInt":"1"},"d":{"$numberDouble":"5.0"}}]`},
+		{`db.c.findOne({ l: { $exists: true } })`, `[{"_id":{"$oid":"650000000000000000000001"},"d":{"$numberDouble":"5.0"},"l":{"$numberLong":"7"},"at":{"$date":{"$numberLong":"0"}}}]`},
+		{`var d = db.c.findOne({ _id: 1 }); d.d; d`, `[{"_id":{"$numberInt":"1"},"d":{"$numberDouble":"5.0"}}]`},
+		{`var d = db.c.findOne({ _id: 1 }); d.x = "y"; d`, `[{"_id":1,"d":5,"x":"y"}]`},
+		{`db.c.findOne({ _id: 2 })`, `[{"_id":{"$numberInt":"2"},"d":{"$numberDouble":"5.0"},"n":{"$numberDouble":"NaN"}}]`},
+		{`print("checking"); db.c.findOne({ _id: 1 })`, `[{"_id":{"$numberInt":"1"},"d":{"$numberDouble":"5.0"}}]`},
+		{`var d = db.c.findOne({ _id: 1 }); d.x = "y"; print("changed"); d`, "changed"},
+	} {
+		result, err := engine.ExecuteQuery(ctx, testURI, db, tc.script)
+		require.NoError(t, err, tc.script)
+		assert.Equal(t, tc.want, resultText(result), tc.script)
+	}
+}
+
 // Every long in a command reply is a Long, metadata included (#315): a capped
 // collection created with a long size lists that size as a Long, which still
 // does arithmetic.

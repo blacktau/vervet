@@ -1,6 +1,10 @@
 export const mongoMethods = [
   { label: 'find', detail: '(filter?, projection?) - Query documents', snippet: 'find({$1})$0' },
-  { label: 'findOne', detail: '(filter?) - Find a single document', snippet: 'findOne({$1})$0' },
+  {
+    label: 'findOne',
+    detail: '(filter?, projection?, options?) - Find a single document',
+    snippet: 'findOne({$1})$0',
+  },
   { label: 'insertOne', detail: '(document) - Insert a document', snippet: 'insertOne({$1})$0' },
   {
     label: 'insertMany',

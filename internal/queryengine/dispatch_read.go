@@ -3,6 +3,9 @@ package queryengine
 import (
 	"context"
 	"fmt"
+	"maps"
+	"math"
+	"slices"
 	"time"
 
 	"vervet/internal/models"
@@ -13,11 +16,26 @@ import (
 )
 
 func dispatchFind(ctx context.Context, coll *mongo.Collection, op CapturedOp) (models.QueryResult, error) {
+	results, err := findDocs(ctx, coll, op)
+	if err != nil {
+		return models.QueryResult{}, fmt.Errorf("find failed: %w", err)
+	}
+	result := docsToResult(results)
+	result.OperationType = "find"
+	return result, nil
+}
+
+// findDocs runs a find for op and reads every document it returns.
+func findDocs(ctx context.Context, coll *mongo.Collection, op CapturedOp) ([]bson.D, error) {
 	filter := bson.D{}
 	if len(op.Args) > 0 && op.Args[0] != nil {
 		filter = toBsonDoc(op.Args[0])
 	}
 
+	// The server's limit, which also keeps the Duration below from overflowing.
+	if op.MaxTimeMS > math.MaxInt32 {
+		return nil, fmt.Errorf("maxTimeMS must be at most %d", math.MaxInt32)
+	}
 	if op.MaxTimeMS > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, time.Duration(op.MaxTimeMS)*time.Millisecond)
@@ -34,18 +52,15 @@ func dispatchFind(ctx context.Context, coll *mongo.Collection, op CapturedOp) (m
 
 	cursor, err := coll.Find(ctx, filter, opts)
 	if err != nil {
-		return models.QueryResult{}, fmt.Errorf("find failed: %w", err)
+		return nil, err
 	}
 	defer cursor.Close(ctx)
 
 	var results []bson.D
 	if err := cursor.All(ctx, &results); err != nil {
-		return models.QueryResult{}, fmt.Errorf("reading cursor: %w", err)
+		return nil, fmt.Errorf("reading cursor: %w", err)
 	}
-
-	result := docsToResult(results)
-	result.OperationType = "find"
-	return result, nil
+	return results, nil
 }
 
 // applyFindOptions applies the shared cursor-scoped options from op to the given FindOptions.
@@ -112,7 +127,7 @@ func toCollation(m map[string]any) *options.Collation {
 	return c
 }
 
-// dispatchExplainFind runs an explain command describing the find/findOne query for a lazy cursor.
+// dispatchExplainFind runs an explain command describing the find query for a lazy cursor.
 func dispatchExplainFind(ctx context.Context, client *mongo.Client, dbName string, op CapturedOp) (models.QueryResult, error) {
 	verbosity := "queryPlanner"
 	if len(op.Args) > 2 {
@@ -174,24 +189,127 @@ func dispatchExplainFind(ctx context.Context, client *mongo.Client, dbName strin
 	return qr, nil
 }
 
+// dispatchFindOne runs findOne(filter, projection, options) as a find limited
+// to one document, so it takes the same options a find cursor does.
 func dispatchFindOne(ctx context.Context, coll *mongo.Collection, op CapturedOp) (models.QueryResult, error) {
-	filter := bson.D{}
-	if len(op.Args) > 0 && op.Args[0] != nil {
-		filter = toBsonDoc(op.Args[0])
+	findOp := CapturedOp{Collection: op.Collection, Method: "find", Limit: 1}
+	if len(op.Args) > 0 {
+		findOp.Args = append(findOp.Args, op.Args[0])
+	}
+	if len(op.Args) > 1 {
+		findOp.Args = append(findOp.Args, op.Args[1])
+	}
+	if len(op.Args) > 2 {
+		if err := applyFindOneOptions(&findOp, op.Args[2]); err != nil {
+			return models.QueryResult{}, err
+		}
 	}
 
-	var result bson.D
-	err := coll.FindOne(ctx, filter).Decode(&result)
-	if err == mongo.ErrNoDocuments {
-		return models.QueryResult{Documents: []any{}, OperationType: "findOne"}, nil
-	}
+	docs, err := findDocs(ctx, coll, findOp)
 	if err != nil {
 		return models.QueryResult{}, fmt.Errorf("findOne failed: %w", err)
 	}
+	result := docsToResult(docs)
+	result.OperationType = "findOne"
+	result.Single = len(docs) > 0
+	return result, nil
+}
 
-	result2 := docsToResult([]bson.D{result})
-	result2.OperationType = "findOne"
-	return result2, nil
+// applyFindOneOptions copies findOne's options document onto a find operation.
+// A projection given here applies when the projection argument is absent.
+// Options that cannot change the document returned are ignored. Any other
+// option it does not support is an error rather than silently dropped, since
+// ignoring one such as min or readConcern could change what is returned.
+func applyFindOneOptions(op *CapturedOp, raw any) error {
+	if raw == nil {
+		return nil
+	}
+	opts, ok := asMap(raw)
+	if !ok {
+		return fmt.Errorf("findOne options must be an object")
+	}
+	// Applied in the order the script wrote them, so the first bad option
+	// is the one reported. A map has no order, so its keys are sorted.
+	var keys []string
+	if doc, ok := raw.(bson.D); ok {
+		for _, e := range doc {
+			keys = append(keys, e.Key)
+		}
+	} else {
+		keys = slices.Sorted(maps.Keys(opts))
+	}
+	for _, key := range keys {
+		if err := applyFindOneOption(op, key, opts[key]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// applyFindOneOption applies one findOne option to a find operation.
+func applyFindOneOption(op *CapturedOp, key string, v any) error {
+	var err error
+	switch key {
+	case "projection":
+		if len(op.Args) < 2 || op.Args[1] == nil {
+			for len(op.Args) < 2 {
+				op.Args = append(op.Args, nil)
+			}
+			op.Args[1] = v
+		}
+	case "sort":
+		op.Sort = v
+	case "hint":
+		op.Hint = v
+	case "skip":
+		op.Skip, err = countOption(key, v)
+	case "maxTimeMS":
+		op.MaxTimeMS, err = countOption(key, v)
+	case "collation":
+		collation, ok := asMap(v)
+		if !ok {
+			return fmt.Errorf("findOne collation must be an object")
+		}
+		op.Collation = collation
+	case "comment":
+		comment, ok := v.(string)
+		if !ok {
+			return fmt.Errorf("findOne comment must be a string")
+		}
+		op.Comment = comment
+	case "limit", "batchSize", "noCursorTimeout":
+		// findOne reads one document, so these change nothing.
+	default:
+		return fmt.Errorf("findOne option %q is not supported", key)
+	}
+	return err
+}
+
+// countOption reads a non-negative whole-number option such as skip, given as
+// a plain number or a NumberInt/NumberLong.
+func countOption(name string, v any) (int64, error) {
+	var n int64
+	switch x := convertToBson(v).(type) {
+	case int32:
+		n = int64(x)
+	case int64:
+		n = x
+	case float64:
+		if x != math.Trunc(x) {
+			return 0, fmt.Errorf("findOne %s must be a whole number", name)
+		}
+		// Converting a float64 beyond int64, or Infinity, gives MinInt64.
+		if math.Abs(x) >= math.MaxInt64 {
+			return 0, fmt.Errorf("findOne %s is too large", name)
+		}
+		n = int64(x)
+	default:
+		return 0, fmt.Errorf("findOne %s must be a number", name)
+	}
+	if n < 0 {
+		return 0, fmt.Errorf("findOne %s must not be negative", name)
+	}
+	return n, nil
 }
 
 func dispatchCountDocuments(ctx context.Context, coll *mongo.Collection, op CapturedOp) (models.QueryResult, error) {

@@ -19,8 +19,8 @@ import (
 )
 
 // GojaEngine implements QueryEngine using the goja JavaScript runtime.
-// Write methods execute eagerly during script execution. find/findOne return
-// lazy cursors that execute on terminal method calls or implicit resolve.
+// Write methods and findOne execute eagerly during script execution. find
+// returns lazy cursors that execute on terminal method calls or implicit resolve.
 type GojaEngine struct {
 	client   *mongo.Client
 	pageSize int64
@@ -92,12 +92,26 @@ func (e *GojaEngine) ExecuteQuery(ctx context.Context, uri, dbName, query string
 			return
 		}
 
+		// An unchanged findOne document left as the final value is shown even
+		// when the script printed, as a cursor it has not read from is.
+		var raw any
+		if ec.isLastFindOne(val) {
+			raw = exportValue(val)
+			if found, ok := ec.findOneDisplay(raw); ok {
+				result = found
+				return
+			}
+		}
+
 		if len(out.lines) > 0 {
 			result = models.QueryResult{RawOutput: out.text()}
 			return
 		}
 
-		if raw := exportValue(val); raw != nil {
+		if raw == nil {
+			raw = exportValue(val)
+		}
+		if raw != nil {
 			switch raw.(type) {
 			case int32, float64:
 				// A number shows as JS prints it (5000000001, not 5.000000001e+09).

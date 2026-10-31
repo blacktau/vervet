@@ -81,13 +81,6 @@ func TestLazyCursor_BuildPageContext_Find(t *testing.T) {
 	assert.Equal(t, "tagged", pc.Comment)
 }
 
-func TestLazyCursor_BuildPageContext_FindOneReturnsNil(t *testing.T) {
-	c := &lazyCursor{collection: "users", isFindOne: true}
-	pc, err := c.buildPageContext()
-	require.NoError(t, err)
-	assert.Nil(t, pc)
-}
-
 func TestLazyCursor_CursorOptionsFieldsDefaults(t *testing.T) {
 	c := &lazyCursor{}
 	assert.Nil(t, c.hint)

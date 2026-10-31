@@ -242,6 +242,20 @@ describe('analyzeContext', () => {
     expect(ctx.prefix).toBe('')
   })
 
+  it.each([
+    'db.users.findOne({}).',
+    'db.users.findOne({ name: f("x)") }).pr',
+    'db.users.findOneAndUpdate({}, { $set: { a: 1 } }).',
+    'db.users.findAndModify({ query: {} }).',
+  ])('suggests nothing after a document-returning call: %s', (text) => {
+    expect(analyzeContext(text).type).toBe('NONE')
+  })
+
+  it('returns CURSOR_METHOD after a chained call on a findOne result', () => {
+    const ctx = analyzeContext('db.users.find(db.users.findOne({}).ids).')
+    expect(ctx.type).toBe('CURSOR_METHOD')
+  })
+
   it('returns CURSOR_METHOD after chained sort().', () => {
     const ctx = analyzeContext('db.users.find({}).sort({ name: 1 }).')
     expect(ctx.type).toBe('CURSOR_METHOD')

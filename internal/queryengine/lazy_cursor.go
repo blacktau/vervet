@@ -22,7 +22,6 @@ type lazyCursor struct {
 	resolved   bool
 	results    []any
 	index      int // for hasNext/next iteration
-	isFindOne  bool
 	hint       any
 	maxTimeMS  int64
 	batchSize  int32
@@ -99,11 +98,6 @@ func (c *lazyCursor) execute(paged bool) (models.QueryResult, error) {
 		BatchSize:  c.batchSize,
 		Collation:  c.collation,
 		Comment:    c.comment,
-	}
-
-	if c.isFindOne {
-		op.Method = "findOne"
-		op.Args = []any{c.filter}
 	}
 
 	result, err := dispatch(c.ec.ctx, c.ec.client, c.ec.dbName, op)
@@ -188,7 +182,7 @@ func (c *lazyCursor) showsDocuments(printed bool) bool {
 	return !printed || !readFrom
 }
 
-// explain runs an explain command for this cursor's find/findOne query.
+// explain runs an explain command for this cursor's find query.
 func (c *lazyCursor) explain(verbosity string) (models.QueryResult, error) {
 	op := CapturedOp{
 		Collection: c.collection,
@@ -202,9 +196,6 @@ func (c *lazyCursor) explain(verbosity string) (models.QueryResult, error) {
 		BatchSize:  c.batchSize,
 		Collation:  c.collation,
 		Comment:    c.comment,
-	}
-	if c.isFindOne {
-		op.Limit = 1
 	}
 	return dispatch(c.ec.ctx, c.ec.client, c.ec.dbName, op)
 }
