@@ -334,6 +334,8 @@ func TestIntegration_FindOneOptions(t *testing.T) {
 		{`db.c.findOne({}, null, { skip: "1" })`, "findOne skip must be a number"},
 		{`db.c.findOne({}, null, { allowDiskUse: true })`, `findOne option "allowDiskUse" is not supported`},
 		{`db.c.findOne({}, null, { comment: 5 })`, "findOne comment must be a string"},
+		{`db.c.findOne({}, null, { skip: -1, foo: 1 })`, "findOne skip must not be negative"},
+		{`db.c.findOne({}, null, { foo: 1, skip: -1 })`, `findOne option "foo" is not supported`},
 		{`db.c.findOne({}, null, { skip: 1e19 })`, "findOne skip is too large"},
 		{`db.c.findOne({}, null, { skip: Infinity })`, "findOne skip is too large"},
 		{`db.c.findOne({}, null, { maxTimeMS: 1e13 })`, "maxTimeMS must be at most 2147483647"},
@@ -361,12 +363,15 @@ func TestIntegration_FindOneShowsStoredTypes(t *testing.T) {
 	require.NoError(t, err)
 	_, err = engine.ExecuteQuery(ctx, testURI, db, `db.c.insertOne({ _id: ObjectId("650000000000000000000001"), d: Double(5), l: Long(7), at: new Date(0) })`)
 	require.NoError(t, err)
+	_, err = engine.ExecuteQuery(ctx, testURI, db, `db.c.insertOne({ _id: 2, d: Double(5), n: NaN })`)
+	require.NoError(t, err)
 
 	for _, tc := range []struct{ script, want string }{
 		{`db.c.findOne({ _id: 1 })`, `[{"_id":{"$numberInt":"1"},"d":{"$numberDouble":"5.0"}}]`},
 		{`db.c.findOne({ l: { $exists: true } })`, `[{"_id":{"$oid":"650000000000000000000001"},"d":{"$numberDouble":"5.0"},"l":{"$numberLong":"7"},"at":{"$date":{"$numberLong":"0"}}}]`},
 		{`var d = db.c.findOne({ _id: 1 }); d.d; d`, `[{"_id":{"$numberInt":"1"},"d":{"$numberDouble":"5.0"}}]`},
 		{`var d = db.c.findOne({ _id: 1 }); d.x = "y"; d`, `[{"_id":1,"d":5,"x":"y"}]`},
+		{`db.c.findOne({ _id: 2 })`, `[{"_id":{"$numberInt":"2"},"d":{"$numberDouble":"5.0"},"n":{"$numberDouble":"NaN"}}]`},
 		{`print("checking"); db.c.findOne({ _id: 1 })`, `[{"_id":{"$numberInt":"1"},"d":{"$numberDouble":"5.0"}}]`},
 		{`var d = db.c.findOne({ _id: 1 }); d.x = "y"; print("changed"); d`, "changed"},
 	} {

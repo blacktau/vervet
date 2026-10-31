@@ -3,7 +3,9 @@ package queryengine
 import (
 	"context"
 	"fmt"
+	"maps"
 	"math"
+	"slices"
 	"time"
 
 	"vervet/internal/models"
@@ -226,8 +228,18 @@ func applyFindOneOptions(op *CapturedOp, raw any) error {
 	if !ok {
 		return fmt.Errorf("findOne options must be an object")
 	}
-	for key, v := range opts {
-		if err := applyFindOneOption(op, key, v); err != nil {
+	// Applied in the order the script wrote them, so the first bad option
+	// is the one reported. A map has no order, so its keys are sorted.
+	var keys []string
+	if doc, ok := raw.(bson.D); ok {
+		for _, e := range doc {
+			keys = append(keys, e.Key)
+		}
+	} else {
+		keys = slices.Sorted(maps.Keys(opts))
+	}
+	for _, key := range keys {
+		if err := applyFindOneOption(op, key, opts[key]); err != nil {
 			return err
 		}
 	}

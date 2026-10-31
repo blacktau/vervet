@@ -282,7 +282,8 @@ function analyzeContextCore(textBeforeCursor: string): CompletionContext {
     }
   }
 
-  const braceContext = analyzeBraces(textBeforeCursor)
+  const scanned = scan(textBeforeCursor)
+  const braceContext = analyzeBraces(textBeforeCursor, scanned)
   if (braceContext) {
     return braceContext
   }
@@ -298,7 +299,7 @@ function analyzeContextCore(textBeforeCursor: string): CompletionContext {
   const cursorMethodMatch = trimmed.match(/\)\s*\.(\w*)$/)
   if (cursorMethodMatch) {
     const prefix = cursorMethodMatch[1] || ''
-    if (DOCUMENT_METHODS.has(scan(trimmed).closedCallee ?? '')) {
+    if (DOCUMENT_METHODS.has(scanned.closedCallee ?? '')) {
       return { type: 'NONE', prefix }
     }
     return { type: 'CURSOR_METHOD', prefix }
@@ -329,8 +330,8 @@ function analyzeContextCore(textBeforeCursor: string): CompletionContext {
  * Returns undefined when the caret isn't inside one, leaving the caller's
  * simpler tail rules (method names, cursor methods, keywords) to handle it.
  */
-function analyzeBraces(text: string): CompletionContext | undefined {
-  const { stack, prefix, insideQuotes, afterColon } = scan(text)
+function analyzeBraces(text: string, scanned: Scan): CompletionContext | undefined {
+  const { stack, prefix, insideQuotes, afterColon } = scanned
   const frame = stack[stack.length - 1]
   if (!frame || frame.open === '(') {
     return undefined
