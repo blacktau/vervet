@@ -19,8 +19,8 @@ import (
 )
 
 // GojaEngine implements QueryEngine using the goja JavaScript runtime.
-// Write methods execute eagerly during script execution. find/findOne return
-// lazy cursors that execute on terminal method calls or implicit resolve.
+// Write methods and findOne execute eagerly during script execution. find
+// returns lazy cursors that execute on terminal method calls or implicit resolve.
 type GojaEngine struct {
 	client   *mongo.Client
 	pageSize int64
@@ -94,6 +94,11 @@ func (e *GojaEngine) ExecuteQuery(ctx context.Context, uri, dbName, query string
 
 		if len(out.lines) > 0 {
 			result = models.QueryResult{RawOutput: out.text()}
+			return
+		}
+
+		if found, ok := ec.findOneDisplay(val); ok {
+			result = found
 			return
 		}
 

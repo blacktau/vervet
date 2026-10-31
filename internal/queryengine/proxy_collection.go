@@ -40,8 +40,8 @@ func withCursorMethods(rt *goja.Runtime, method string, val goja.Value) goja.Val
 }
 
 // newCollectionProxy creates a Goja object with methods for each supported
-// MongoDB operation. Write methods execute eagerly via dispatch(). find/findOne
-// return a lazyCursor for deferred execution.
+// MongoDB operation. Write methods and findOne execute eagerly via dispatch(). find
+// returns a lazyCursor for deferred execution.
 func newCollectionProxy(ec *execContext, collName string) goja.Value {
 	obj := ec.rt.NewObject()
 
@@ -61,18 +61,23 @@ func newCollectionProxy(ec *execContext, collName string) goja.Value {
 		return cursor.toGojaObject()
 	})
 
-	// findOne — returns lazyCursor with isFindOne flag
+	// findOne — runs immediately and returns the document, or null when none
+	// matches, as in mongosh, so scripts can read fields from it and pass it on.
 	_ = obj.Set("findOne", func(call goja.FunctionCall) goja.Value {
-		args := exportArgs(call)
-		cursor := &lazyCursor{
-			ec:         ec,
-			collection: collName,
-			isFindOne:  true,
+		requireClient(ec)
+		op := CapturedOp{Collection: collName, Method: "findOne", Args: exportArgs(call)}
+		result, err := dispatch(ec.ctx, ec.client, ec.dbName, op)
+		if err != nil {
+			panic(ec.rt.NewGoError(err))
 		}
-		if len(args) > 0 {
-			cursor.filter = args[0]
+		if len(result.Documents) == 0 {
+			return goja.Null()
 		}
-		return cursor.toGojaObject()
+		val := toGojaValue(ec.rt, result)
+		if obj, ok := val.(*goja.Object); ok {
+			ec.rememberFindOne(obj, result)
+		}
+		return val
 	})
 
 	// Eager methods — execute immediately, return real results

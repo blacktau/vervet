@@ -135,13 +135,12 @@ func TestCollectionProxy_Find_HintAcceptsString(t *testing.T) {
 	assert.Equal(t, "name_1", cursor.hint)
 }
 
-func TestCollectionProxy_FindOne_ReturnsCursorWithFindOneFlag(t *testing.T) {
+// findOne runs immediately rather than returning a cursor, so without a
+// client it fails at the call.
+func TestCollectionProxy_FindOne_RunsEagerly(t *testing.T) {
 	rt, _ := setupRuntime(t)
-	val, err := rt.RunString(`db.users.findOne({ name: "alice" })`)
-	require.NoError(t, err)
-	cursor := extractLazyCursor(val)
-	require.NotNil(t, cursor)
-	assert.True(t, cursor.isFindOne)
+	_, err := rt.RunString(`db.users.findOne({ name: "alice" })`)
+	assert.ErrorContains(t, err, "no MongoDB client available")
 }
 
 func TestCollectionProxy_EagerMethods_Exist(t *testing.T) {

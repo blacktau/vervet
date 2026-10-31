@@ -343,10 +343,6 @@ func TestIntegration_CursorMethodsContinueAfterNext(t *testing.T) {
 		`var c = db.cm.find().sort({ n: 1 }); while (c.hasNext()) { print(c.next().n); } c`)
 	require.NoError(t, err)
 	assert.Equal(t, "0\n1\n2\n3", result.RawOutput)
-
-	result, err = engine.ExecuteQuery(ctx, testURI, db, `var f = db.cm.findOne({ n: 2 }); f.hasNext(); f`)
-	require.NoError(t, err)
-	assert.Equal(t, "findOne", result.OperationType)
 }
 
 // Values from EJSON.parse and command results keep their BSON types, so they

@@ -112,7 +112,7 @@ func toCollation(m map[string]any) *options.Collation {
 	return c
 }
 
-// dispatchExplainFind runs an explain command describing the find/findOne query for a lazy cursor.
+// dispatchExplainFind runs an explain command describing the find query for a lazy cursor.
 func dispatchExplainFind(ctx context.Context, client *mongo.Client, dbName string, op CapturedOp) (models.QueryResult, error) {
 	verbosity := "queryPlanner"
 	if len(op.Args) > 2 {
@@ -180,8 +180,15 @@ func dispatchFindOne(ctx context.Context, coll *mongo.Collection, op CapturedOp)
 		filter = toBsonDoc(op.Args[0])
 	}
 
+	opts := options.FindOne()
+	if len(op.Args) > 1 && op.Args[1] != nil {
+		if proj, ok := asBsonDoc(op.Args[1]); ok {
+			opts.SetProjection(proj)
+		}
+	}
+
 	var result bson.D
-	err := coll.FindOne(ctx, filter).Decode(&result)
+	err := coll.FindOne(ctx, filter, opts).Decode(&result)
 	if err == mongo.ErrNoDocuments {
 		return models.QueryResult{Documents: []any{}, OperationType: "findOne"}, nil
 	}
@@ -189,9 +196,9 @@ func dispatchFindOne(ctx context.Context, coll *mongo.Collection, op CapturedOp)
 		return models.QueryResult{}, fmt.Errorf("findOne failed: %w", err)
 	}
 
-	result2 := docsToResult([]bson.D{result})
-	result2.OperationType = "findOne"
-	return result2, nil
+	r := singleToResult(result)
+	r.OperationType = "findOne"
+	return r, nil
 }
 
 func dispatchCountDocuments(ctx context.Context, coll *mongo.Collection, op CapturedOp) (models.QueryResult, error) {

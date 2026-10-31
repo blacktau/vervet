@@ -284,6 +284,49 @@ func TestIntegration_FindAndModifyNoMatchIsNull(t *testing.T) {
 	assert.Equal(t, "null", result.RawOutput)
 }
 
+// findOne returns the document itself, or null when nothing matches, as in
+// mongosh (#303), so a script can read its fields and write it back.
+func TestIntegration_FindOneReturnsDocument(t *testing.T) {
+	ctx, db, engine := keyOrderEngine(t)
+
+	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.c.insertOne({ _id: 1, name: "alice" })`)
+	require.NoError(t, err)
+
+	for _, tc := range []struct{ script, want string }{
+		{`typeof db.c.findOne({ _id: 1 }).name`, "string"},
+		{`Object.keys(db.c.findOne({ _id: 1 })).join(",")`, "_id,name"},
+		{`String(db.c.findOne({ _id: 999 }) === null)`, "true"},
+		{`db.c.replaceOne({ _id: 1 }, db.c.findOne({ _id: 1 })).matchedCount`, "1"},
+		{`Object.keys(db.c.findOne({ _id: 1 }, { name: 0 })).join(",")`, "_id"},
+		{`db.c.findOne({ _id: 1 })`, `[{"_id":{"$numberInt":"1"},"name":"alice"}]`},
+		{`db.c.findOne({ _id: 999 })`, "null"},
+	} {
+		result, err := engine.ExecuteQuery(ctx, testURI, db, tc.script)
+		require.NoError(t, err, tc.script)
+		assert.Equal(t, tc.want, resultText(result), tc.script)
+	}
+}
+
+// A findOne document left as the script's final value is shown with the types
+// the server stored, which a whole-number double loses on its way through JS.
+// Once the script changes the document, it is shown as the script left it.
+func TestIntegration_FindOneShowsStoredTypes(t *testing.T) {
+	ctx, db, engine := keyOrderEngine(t)
+
+	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.c.insertOne({ _id: 1, d: Double(5) })`)
+	require.NoError(t, err)
+
+	for _, tc := range []struct{ script, want string }{
+		{`db.c.findOne({ _id: 1 })`, `[{"_id":{"$numberInt":"1"},"d":{"$numberDouble":"5.0"}}]`},
+		{`var d = db.c.findOne({ _id: 1 }); d.d; d`, `[{"_id":{"$numberInt":"1"},"d":{"$numberDouble":"5.0"}}]`},
+		{`var d = db.c.findOne({ _id: 1 }); d.x = "y"; d`, `[{"_id":1,"d":5,"x":"y"}]`},
+	} {
+		result, err := engine.ExecuteQuery(ctx, testURI, db, tc.script)
+		require.NoError(t, err, tc.script)
+		assert.Equal(t, tc.want, resultText(result), tc.script)
+	}
+}
+
 // Every long in a command reply is a Long, metadata included (#315): a capped
 // collection created with a long size lists that size as a Long, which still
 // does arithmetic.

@@ -73,13 +73,10 @@ func unmarshalPageJSON(s string) (bson.D, error) {
 }
 
 // buildPageContext snapshots this cursor's find parameters so the frontend
-// can fetch later pages. Returns nil for findOne (not pageable). A cursor
+// can fetch later pages. A cursor
 // option that should apply to every page must be copied here and applied in
 // FetchPage.
 func (c *lazyCursor) buildPageContext() (*models.PageContext, error) {
-	if c.isFindOne {
-		return nil, nil
-	}
 	pc := &models.PageContext{
 		Database:   c.ec.dbName,
 		Collection: c.collection,
