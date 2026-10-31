@@ -44,7 +44,7 @@
     "@vue/tsconfig": "^0.8.1",
     "eslint": "^9.39.5",
     "eslint-plugin-vue": "~10.5.1",
-    "happy-dom": "^20.11.2",
+    "happy-dom": "^21.0.4",
     "jiti": "^2.7.0",
     "naive-ui": "^2.44.1",
     "playwright": "^1.62.1",
