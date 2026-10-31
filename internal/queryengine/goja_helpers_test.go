@@ -228,7 +228,7 @@ func TestSingleToResult_FixedFieldOrder(t *testing.T) {
 	for i := 0; i < 20; i++ {
 		data, err := json.Marshal(r.Documents)
 		require.NoError(t, err)
-		assert.Equal(t, `[{"acknowledged":true,"matchedCount":{"$numberLong":"1"},"modifiedCount":{"$numberLong":"1"},"upsertedId":{"$numberInt":"3"}}]`, string(data))
+		assert.Equal(t, `[{"acknowledged":true,"matchedCount":{"$numberInt":"1"},"modifiedCount":{"$numberInt":"1"},"upsertedId":{"$numberInt":"3"}}]`, string(data))
 
 		rt := goja.New()
 		require.NoError(t, rt.Set("r", toGojaValue(rt, r)))

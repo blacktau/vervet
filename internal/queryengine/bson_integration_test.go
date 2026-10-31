@@ -517,6 +517,28 @@ func TestIntegration_WriteResultsAreObjectsNotArrays(t *testing.T) {
 	}
 }
 
+// Write-result counts are plain numbers, as in mongosh, so a zero count is
+// falsy and === compares by value.
+func TestIntegration_WriteResultCountsAreNumbers(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	db := dbName(t)
+	defer testClient.Database(db).Drop(ctx)
+
+	engine := NewGojaEngine(testClient, 0, "")
+	result, err := engine.ExecuteQuery(ctx, testURI, db, `
+		const counts = [
+			db.c.deleteOne({ x: 1 }).deletedCount,
+			db.c.deleteMany({ x: 1 }).deletedCount,
+			db.c.updateOne({ x: 1 }, { $set: { y: 1 } }).matchedCount,
+			db.c.updateMany({ x: 1 }, { $set: { y: 1 } }).modifiedCount,
+			db.c.bulkWrite([{ insertOne: { document: { x: 2 } } }]).insertedCount,
+		];
+		counts.map(n => typeof n + ":" + (n === 0) + ":" + !!n).join(" ")`)
+	require.NoError(t, err)
+	assert.Equal(t, "number:true:false number:true:false number:true:false number:true:false number:false:true", result.RawOutput)
+}
+
 func TestIntegration_Regex_NestedInOperator(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

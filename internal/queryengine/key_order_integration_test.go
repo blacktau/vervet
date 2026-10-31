@@ -395,7 +395,7 @@ func TestIntegration_KeyOrder_WriteResults(t *testing.T) {
 
 	want := map[string]string{
 		`db.w.insertOne({ _id: 1 })`:                        `[{"acknowledged":true,"insertedId":1}]`,
-		`db.w.updateOne({ _id: 1 }, { $set: { a: 1 } })`:    `[{"acknowledged":true,"matchedCount":{"$numberLong":"1"},"modifiedCount":{"$numberLong":"1"}}]`,
+		`db.w.updateOne({ _id: 1 }, { $set: { a: 1 } })`:    `[{"acknowledged":true,"matchedCount":1,"modifiedCount":1}]`,
 		`Object.keys(db.w.insertMany([{ _id: 2 }])).join()`: `acknowledged,insertedIds`,
 	}
 	for i := 0; i < 10; i++ {
