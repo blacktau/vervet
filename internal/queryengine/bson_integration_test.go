@@ -322,6 +322,7 @@ func TestIntegration_FindOneOptions(t *testing.T) {
 		{`db.c.findOne({}, null, { sort: { name: -1 }, comment: "x", maxTimeMS: 5000 })._id`, "3"},
 		{`db.c.findOne({ name: "A" }, null, { collation: { locale: "en", strength: 2 } })._id`, "2"},
 		{`db.c.findOne({}, null, { sort: { name: 1 }, skip: NumberLong(2), maxTimeMS: NumberInt(5000) })._id`, "3"},
+		{`db.c.findOne({}, null, { sort: { name: 1 }, limit: 5, batchSize: 10, noCursorTimeout: true })._id`, "2"},
 	} {
 		result, err := engine.ExecuteQuery(ctx, testURI, db, tc.script)
 		require.NoError(t, err, tc.script)
@@ -333,6 +334,10 @@ func TestIntegration_FindOneOptions(t *testing.T) {
 		{`db.c.findOne({}, null, { skip: "1" })`, "findOne skip must be a number"},
 		{`db.c.findOne({}, null, { allowDiskUse: true })`, `findOne option "allowDiskUse" is not supported`},
 		{`db.c.findOne({}, null, { comment: 5 })`, "findOne comment must be a string"},
+		{`db.c.findOne({}, null, { skip: 1e19 })`, "findOne skip is too large"},
+		{`db.c.findOne({}, null, { skip: Infinity })`, "findOne skip is too large"},
+		{`db.c.findOne({}, null, { maxTimeMS: 1e13 })`, "maxTimeMS must be at most 2147483647"},
+		{`db.c.find().maxTimeMS(1e13).toArray()`, "maxTimeMS must be at most 2147483647"},
 	} {
 		_, err := engine.ExecuteQuery(ctx, testURI, db, tc.script)
 		assert.ErrorContains(t, err, tc.want, tc.script)

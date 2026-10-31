@@ -11,6 +11,8 @@ export type CompletionContextType =
   | 'AGG_EXPRESSION'
   | 'USE_DATABASE'
   | 'EJSON_METHOD'
+  /** Nothing to suggest, e.g. a property of a document returned by findOne. */
+  | 'NONE'
 
 export interface CompletionContext {
   type: CompletionContextType
@@ -297,7 +299,7 @@ function analyzeContextCore(textBeforeCursor: string): CompletionContext {
   if (cursorMethodMatch) {
     const prefix = cursorMethodMatch[1] || ''
     if (DOCUMENT_METHODS.has(scan(trimmed).closedCallee ?? '')) {
-      return { type: 'KEYWORD', prefix }
+      return { type: 'NONE', prefix }
     }
     return { type: 'CURSOR_METHOD', prefix }
   }

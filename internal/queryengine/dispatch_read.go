@@ -30,6 +30,10 @@ func findDocs(ctx context.Context, coll *mongo.Collection, op CapturedOp) ([]bso
 		filter = toBsonDoc(op.Args[0])
 	}
 
+	// The server's limit, which also keeps the Duration below from overflowing.
+	if op.MaxTimeMS > math.MaxInt32 {
+		return nil, fmt.Errorf("maxTimeMS must be at most %d", math.MaxInt32)
+	}
 	if op.MaxTimeMS > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, time.Duration(op.MaxTimeMS)*time.Millisecond)
@@ -209,16 +213,11 @@ func dispatchFindOne(ctx context.Context, coll *mongo.Collection, op CapturedOp)
 	return result, nil
 }
 
-// findOneOptions are the findOne options applyFindOneOptions understands.
-var findOneOptions = map[string]bool{
-	"projection": true, "sort": true, "skip": true, "hint": true,
-	"maxTimeMS": true, "collation": true, "comment": true,
-}
-
 // applyFindOneOptions copies findOne's options document onto a find operation.
-// A projection given here applies when the projection argument is absent. An
+// A projection given here applies when the projection argument is absent.
+// Options that cannot change the document returned are ignored. Any other
 // option it does not support is an error rather than silently dropped, since
-// ignoring one such as min or allowDiskUse could change what is returned.
+// ignoring one such as min or readConcern could change what is returned.
 func applyFindOneOptions(op *CapturedOp, raw any) error {
 	if raw == nil {
 		return nil
@@ -227,49 +226,51 @@ func applyFindOneOptions(op *CapturedOp, raw any) error {
 	if !ok {
 		return fmt.Errorf("findOne options must be an object")
 	}
-	for key := range opts {
-		if !findOneOptions[key] {
-			return fmt.Errorf("findOne option %q is not supported", key)
+	for key, v := range opts {
+		if err := applyFindOneOption(op, key, v); err != nil {
+			return err
 		}
 	}
-	if proj, ok := opts["projection"]; ok && (len(op.Args) < 2 || op.Args[1] == nil) {
-		for len(op.Args) < 2 {
-			op.Args = append(op.Args, nil)
-		}
-		op.Args[1] = proj
-	}
-	if v, ok := opts["sort"]; ok {
-		op.Sort = v
-	}
-	if v, ok := opts["hint"]; ok {
-		op.Hint = v
-	}
+	return nil
+}
+
+// applyFindOneOption applies one findOne option to a find operation.
+func applyFindOneOption(op *CapturedOp, key string, v any) error {
 	var err error
-	if v, ok := opts["skip"]; ok {
-		if op.Skip, err = countOption("skip", v); err != nil {
-			return err
+	switch key {
+	case "projection":
+		if len(op.Args) < 2 || op.Args[1] == nil {
+			for len(op.Args) < 2 {
+				op.Args = append(op.Args, nil)
+			}
+			op.Args[1] = v
 		}
-	}
-	if v, ok := opts["maxTimeMS"]; ok {
-		if op.MaxTimeMS, err = countOption("maxTimeMS", v); err != nil {
-			return err
-		}
-	}
-	if v, ok := opts["collation"]; ok {
+	case "sort":
+		op.Sort = v
+	case "hint":
+		op.Hint = v
+	case "skip":
+		op.Skip, err = countOption(key, v)
+	case "maxTimeMS":
+		op.MaxTimeMS, err = countOption(key, v)
+	case "collation":
 		collation, ok := asMap(v)
 		if !ok {
 			return fmt.Errorf("findOne collation must be an object")
 		}
 		op.Collation = collation
-	}
-	if v, ok := opts["comment"]; ok {
+	case "comment":
 		comment, ok := v.(string)
 		if !ok {
 			return fmt.Errorf("findOne comment must be a string")
 		}
 		op.Comment = comment
+	case "limit", "batchSize", "noCursorTimeout":
+		// findOne reads one document, so these change nothing.
+	default:
+		return fmt.Errorf("findOne option %q is not supported", key)
 	}
-	return nil
+	return err
 }
 
 // countOption reads a non-negative whole-number option such as skip, given as
@@ -284,6 +285,10 @@ func countOption(name string, v any) (int64, error) {
 	case float64:
 		if x != math.Trunc(x) {
 			return 0, fmt.Errorf("findOne %s must be a whole number", name)
+		}
+		// Converting a float64 beyond int64, or Infinity, gives MinInt64.
+		if math.Abs(x) >= math.MaxInt64 {
+			return 0, fmt.Errorf("findOne %s is too large", name)
 		}
 		n = int64(x)
 	default:

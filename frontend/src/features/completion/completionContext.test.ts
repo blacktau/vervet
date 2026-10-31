@@ -247,8 +247,8 @@ describe('analyzeContext', () => {
     'db.users.findOne({ name: f("x)") }).pr',
     'db.users.findOneAndUpdate({}, { $set: { a: 1 } }).',
     'db.users.findAndModify({ query: {} }).',
-  ])('does not offer cursor methods after a document-returning call: %s', (text) => {
-    expect(analyzeContext(text).type).not.toBe('CURSOR_METHOD')
+  ])('suggests nothing after a document-returning call: %s', (text) => {
+    expect(analyzeContext(text).type).toBe('NONE')
   })
 
   it('returns CURSOR_METHOD after a chained call on a findOne result', () => {
