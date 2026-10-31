@@ -180,6 +180,153 @@ func TestIntegration_NumberLong(t *testing.T) {
 	assert.Equal(t, int64(9007199254740993), val)
 }
 
+// Plain JS numbers are typed as js-bson types them: int32 when they fit,
+// double otherwise (issue #305).
+func TestIntegration_PlainNumbersStoreAsInt32OrDouble(t *testing.T) {
+	doc := insertAndReadBack(t, `db.test.insertOne({ small: 5, neg: -2147483648, big: 2147483648, frac: 2.5 })`)
+	assert.Equal(t, int32(5), doc["small"])
+	assert.Equal(t, int32(-2147483648), doc["neg"])
+	assert.Equal(t, float64(2147483648), doc["big"])
+	assert.Equal(t, 2.5, doc["frac"])
+}
+
+// Reading a document and writing it back must not turn its NumberInt fields
+// into longs (issue #305). A whole-number double comes back as int32, the
+// same limitation mongosh has: the script sees it as a plain number.
+func TestIntegration_ReadModifyWriteKeepsNumberTypes(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	db := dbName(t)
+	defer testClient.Database(db).Drop(ctx)
+
+	engine := NewGojaEngine(testClient, 0, "")
+	_, err := engine.ExecuteQuery(ctx, testURI, db,
+		`db.src.insertOne({ _id: 1, i: NumberInt(5), d: Double(2), f: 2.5, l: NumberLong("7") })`)
+	require.NoError(t, err)
+	_, err = engine.ExecuteQuery(ctx, testURI, db,
+		`db.src.find().forEach(function (doc) { db.dst.insertOne(doc); })`)
+	require.NoError(t, err)
+
+	var doc bson.M
+	require.NoError(t, testClient.Database(db).Collection("dst").FindOne(ctx, bson.M{}).Decode(&doc))
+	assert.Equal(t, int32(1), doc["_id"])
+	assert.Equal(t, int32(5), doc["i"])
+	assert.Equal(t, int32(2), doc["d"])
+	assert.Equal(t, 2.5, doc["f"])
+	assert.Equal(t, int64(7), doc["l"])
+}
+
+// Documents a command returns from a collection keep their long fields when a
+// script writes them back: findAndModify's document and a runCommand cursor's
+// batches convert as find() results do.
+func TestIntegration_CommandReturnedDocumentsKeepLongs(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	db := dbName(t)
+	defer testClient.Database(db).Drop(ctx)
+
+	engine := NewGojaEngine(testClient, 0, "")
+	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.src.insertMany([{ _id: 1, l: NumberLong(7) }, { _id: 2, l: NumberLong(8) }])`)
+	require.NoError(t, err)
+	_, err = engine.ExecuteQuery(ctx, testURI, db, `
+		var f = db.src.findAndModify({ query: { _id: 1 }, update: { $set: { seen: true } } });
+		db.fam.insertOne(f);
+		var r = db.runCommand({ find: 'src', filter: { _id: 1 } });
+		db.first.insertOne(r.cursor.firstBatch[0]);
+		var c = db.runCommand({ find: 'src', batchSize: 1 });
+		var m = db.runCommand({ getMore: c.cursor.id, collection: 'src' });
+		db.next.insertOne(m.cursor.nextBatch[0]);
+		r.ok + 1`)
+	require.NoError(t, err)
+
+	for coll, want := range map[string]int64{"fam": 7, "first": 7, "next": 8} {
+		var doc bson.M
+		require.NoError(t, testClient.Database(db).Collection(coll).FindOne(ctx, bson.M{}).Decode(&doc))
+		assert.Equal(t, want, doc["l"], coll)
+	}
+}
+
+// Later pages and the count run the same filter as page 1: a long in the
+// filter keeps its exact value and type through the PageContext round trip.
+func TestIntegration_PagedFilterKeepsLongs(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	db := dbName(t)
+	defer testClient.Database(db).Drop(ctx)
+
+	engine := NewGojaEngine(testClient, 2, "")
+	_, err := engine.ExecuteQuery(ctx, testURI, db, `
+		for (var i = 0; i < 5; i++) { db.p.insertOne({ k: NumberLong("9007199254740993"), i: i }); }
+		db.p.insertOne({ k: NumberLong("9007199254740992"), i: 99 })`)
+	require.NoError(t, err)
+
+	result, err := engine.ExecuteQuery(ctx, testURI, db, `db.p.find({ k: NumberLong("9007199254740993") }, { _id: 0, k: 0 }).sort({ i: 1 })`)
+	require.NoError(t, err)
+	require.NotNil(t, result.PageContext)
+	count, _, err := engine.CountForPage(ctx, *result.PageContext)
+	require.NoError(t, err)
+	assert.Equal(t, int64(5), count)
+	page3, err := engine.FetchPage(ctx, *result.PageContext, 2, 2)
+	require.NoError(t, err)
+	assert.Equal(t, `[{"i":{"$numberInt":"4"}}]`, resultText(page3))
+}
+
+// findAndModify with no matching document returns null, as in mongosh.
+func TestIntegration_FindAndModifyNoMatchIsNull(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	db := dbName(t)
+	defer testClient.Database(db).Drop(ctx)
+
+	engine := NewGojaEngine(testClient, 0, "")
+	result, err := engine.ExecuteQuery(ctx, testURI, db, `String(db.none.findAndModify({ query: { _id: 1 }, update: { $set: { a: 1 } } }))`)
+	require.NoError(t, err)
+	assert.Equal(t, "null", result.RawOutput)
+}
+
+// Every long in a command reply is a Long, metadata included (#315): a capped
+// collection created with a long size lists that size as a Long, which still
+// does arithmetic.
+func TestIntegration_CommandReplyLongsAreLongs(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	db := dbName(t)
+	defer testClient.Database(db).Drop(ctx)
+
+	engine := NewGojaEngine(testClient, 0, "")
+	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.runCommand({ create: 'capped', capped: true, size: NumberLong("5000000000") })`)
+	require.NoError(t, err)
+	result, err := engine.ExecuteQuery(ctx, testURI, db, `
+		var o = db.runCommand({ listCollections: 1, filter: { name: 'capped' } }).cursor.firstBatch[0].options;
+		typeof o.size + " " + (o.size + 1)`)
+	require.NoError(t, err)
+	assert.Equal(t, "object 5000000001", result.RawOutput)
+}
+
+// A server long beyond ±2^53 keeps its exact value and type through a script
+// (review of #314): EJSON.parse values, and cursor ids passed to getMore.
+func TestIntegration_LongsBeyondSafeIntegerRoundTrip(t *testing.T) {
+	doc := insertAndReadBack(t, `db.test.insertOne(EJSON.parse('{"n": {"$numberLong": "9007199254740993"}}'))`)
+	assert.Equal(t, int64(9007199254740993), doc["n"])
+
+	// No deadline, as in the app: the driver turns a deadline into maxTimeMS,
+	// which the server rejects on getMore.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	db := dbName(t) + "_cursor"
+	defer testClient.Database(db).Drop(ctx)
+
+	engine := NewGojaEngine(testClient, 0, "")
+	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.c.insertMany([{ n: 1 }, { n: 2 }, { n: 3 }])`)
+	require.NoError(t, err)
+	result, err := engine.ExecuteQuery(ctx, testURI, db, `
+		var r = db.runCommand({ find: 'c', batchSize: 1 });
+		var m = db.runCommand({ getMore: r.cursor.id, collection: 'c' });
+		String(m.ok) + ' ' + m.cursor.nextBatch.length`)
+	require.NoError(t, err)
+	assert.Equal(t, "1 2", result.RawOutput)
+}
+
 func TestIntegration_NumberDecimal(t *testing.T) {
 	doc := insertAndReadBack(t, `db.test.insertOne({ val: NumberDecimal("123.456") })`)
 	_, ok := doc["val"].(bson.Decimal128)
@@ -368,6 +515,28 @@ func TestIntegration_WriteResultsAreObjectsNotArrays(t *testing.T) {
 				"field access on result returned undefined — result is likely still array-wrapped")
 		})
 	}
+}
+
+// Write-result counts are plain numbers, as in mongosh, so a zero count is
+// falsy and === compares by value.
+func TestIntegration_WriteResultCountsAreNumbers(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	db := dbName(t)
+	defer testClient.Database(db).Drop(ctx)
+
+	engine := NewGojaEngine(testClient, 0, "")
+	result, err := engine.ExecuteQuery(ctx, testURI, db, `
+		const counts = [
+			db.c.deleteOne({ x: 1 }).deletedCount,
+			db.c.deleteMany({ x: 1 }).deletedCount,
+			db.c.updateOne({ x: 1 }, { $set: { y: 1 } }).matchedCount,
+			db.c.updateMany({ x: 1 }, { $set: { y: 1 } }).modifiedCount,
+			db.c.bulkWrite([{ insertOne: { document: { x: 2 } } }]).insertedCount,
+		];
+		counts.map(n => typeof n + ":" + (n === 0) + ":" + !!n).join(" ")`)
+	require.NoError(t, err)
+	assert.Equal(t, "number:true:false number:true:false number:true:false number:true:false number:false:true", result.RawOutput)
 }
 
 func TestIntegration_Regex_NestedInOperator(t *testing.T) {

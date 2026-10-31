@@ -123,6 +123,8 @@ func convertToBson(v any) any {
 			doc = append(doc, bson.E{Key: k, Value: convertToBson(item)})
 		}
 		return doc
+	case bson.A:
+		return convertToBson([]any(val))
 	case []any:
 		arr := make(bson.A, len(val))
 		for i, item := range val {
@@ -173,11 +175,13 @@ func singleToResult(doc bson.D) models.QueryResult {
 }
 
 // updateResultToQueryResult converts a mongo UpdateResult to a QueryResult.
+// The counts are Go ints, not int64: a count is a plain number in scripts, not
+// a stored long (see dispatchCountDocuments).
 func updateResultToQueryResult(res *mongo.UpdateResult) models.QueryResult {
 	result := bson.D{
 		{Key: "acknowledged", Value: true},
-		{Key: "matchedCount", Value: res.MatchedCount},
-		{Key: "modifiedCount", Value: res.ModifiedCount},
+		{Key: "matchedCount", Value: int(res.MatchedCount)},
+		{Key: "modifiedCount", Value: int(res.ModifiedCount)},
 	}
 	if res.UpsertedID != nil {
 		result = append(result, bson.E{Key: "upsertedId", Value: res.UpsertedID})

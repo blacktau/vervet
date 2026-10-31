@@ -156,7 +156,7 @@ func TestIntegration_KeyOrder_DisplayedResults(t *testing.T) {
 	require.NoError(t, err)
 	data, err := json.Marshal(result.Documents)
 	require.NoError(t, err)
-	assert.Equal(t, `[{"_id":{"$numberLong":"1"},"zebra":{"$numberLong":"1"},"apple":{"$numberLong":"2"},"mango":{"$numberLong":"3"}}]`, string(data))
+	assert.Equal(t, `[{"_id":{"$numberInt":"1"},"zebra":{"$numberInt":"1"},"apple":{"$numberInt":"2"},"mango":{"$numberInt":"3"}}]`, string(data))
 
 	result, err = engine.ExecuteQuery(ctx, testURI, db, `({ zebra: 1, apple: "a", mango: { y: 1, x: 2 } })`)
 	require.NoError(t, err)
@@ -187,17 +187,22 @@ func TestIntegration_EmptyArraysSurviveResults(t *testing.T) {
 		`db.ea.insertOne({ _id: 1, tags: [], meta: {}, nested: { list: [] } })`)
 	require.NoError(t, err)
 
-	for _, q := range []string{`db.ea.find()`, `db.ea.aggregate([{ $match: {} }])`} {
+	// The aggregate result passes through the script, where an int32 is a
+	// plain number, so its _id is shown untyped.
+	for q, want := range map[string]string{
+		`db.ea.find()`:                      `[{"_id":{"$numberInt":"1"},"tags":[],"meta":{},"nested":{"list":[]}}]`,
+		`db.ea.aggregate([{ $match: {} }])`: `[{"_id":1,"tags":[],"meta":{},"nested":{"list":[]}}]`,
+	} {
 		result, err := engine.ExecuteQuery(ctx, testURI, db, q)
 		require.NoError(t, err)
-		assert.Equal(t, `[{"_id":{"$numberLong":"1"},"tags":[],"meta":{},"nested":{"list":[]}}]`, resultText(result), q)
+		assert.Equal(t, want, resultText(result), q)
 	}
 
 	_, err = engine.ExecuteQuery(ctx, testURI, db,
 		`db.ea.find().forEach(function (d) { d._id = 2; db.ea.insertOne(d); })`)
 	require.NoError(t, err)
 	var copied bson.D
-	require.NoError(t, testClient.Database(db).Collection("ea").FindOne(ctx, bson.D{{Key: "_id", Value: int64(2)}}).Decode(&copied))
+	require.NoError(t, testClient.Database(db).Collection("ea").FindOne(ctx, bson.D{{Key: "_id", Value: int32(2)}}).Decode(&copied))
 	assert.Equal(t, bson.A{}, docField(copied, "tags"))
 	assert.Equal(t, bson.D{{Key: "list", Value: bson.A{}}}, docField(copied, "nested"))
 }
@@ -302,17 +307,17 @@ func TestIntegration_CursorReadInScriptStaysPaged(t *testing.T) {
 
 	page2, err := engine.FetchPage(ctx, *result.PageContext, 1, 5)
 	require.NoError(t, err)
-	assert.Equal(t, `[{"n":{"$numberLong":"5"}},{"n":{"$numberLong":"6"}},{"n":{"$numberLong":"7"}},{"n":{"$numberLong":"8"}},{"n":{"$numberLong":"9"}}]`, resultText(page2))
+	assert.Equal(t, `[{"n":{"$numberInt":"5"}},{"n":{"$numberInt":"6"}},{"n":{"$numberInt":"7"}},{"n":{"$numberInt":"8"}},{"n":{"$numberInt":"9"}}]`, resultText(page2))
 
 	// After next() has consumed documents, the rest are shown a page at a
 	// time, continuing after the consumed ones.
 	result, err = engine.ExecuteQuery(ctx, testURI, db, `const d = db.big.find({}, { _id: 0 }).sort({ n: 1 }); d.next(); d.next(); d`)
 	require.NoError(t, err)
 	require.NotNil(t, result.PageContext)
-	assert.Equal(t, `[{"n":{"$numberLong":"2"}},{"n":{"$numberLong":"3"}},{"n":{"$numberLong":"4"}},{"n":{"$numberLong":"5"}},{"n":{"$numberLong":"6"}}]`, resultText(result))
+	assert.Equal(t, `[{"n":{"$numberInt":"2"}},{"n":{"$numberInt":"3"}},{"n":{"$numberInt":"4"}},{"n":{"$numberInt":"5"}},{"n":{"$numberInt":"6"}}]`, resultText(result))
 	page2, err = engine.FetchPage(ctx, *result.PageContext, 1, 5)
 	require.NoError(t, err)
-	assert.Equal(t, `[{"n":{"$numberLong":"7"}},{"n":{"$numberLong":"8"}},{"n":{"$numberLong":"9"}},{"n":{"$numberLong":"10"}},{"n":{"$numberLong":"11"}}]`, resultText(page2))
+	assert.Equal(t, `[{"n":{"$numberInt":"7"}},{"n":{"$numberInt":"8"}},{"n":{"$numberInt":"9"}},{"n":{"$numberInt":"10"}},{"n":{"$numberInt":"11"}}]`, resultText(page2))
 }
 
 // Cursor methods continue from where next() left off, as in mongosh, and a
@@ -389,8 +394,8 @@ func TestIntegration_KeyOrder_WriteResults(t *testing.T) {
 	ctx, db, engine := keyOrderEngine(t)
 
 	want := map[string]string{
-		`db.w.insertOne({ _id: 1 })`:                        `[{"acknowledged":true,"insertedId":{"$numberLong":"1"}}]`,
-		`db.w.updateOne({ _id: 1 }, { $set: { a: 1 } })`:    `[{"acknowledged":true,"matchedCount":{"$numberLong":"1"},"modifiedCount":{"$numberLong":"1"}}]`,
+		`db.w.insertOne({ _id: 1 })`:                        `[{"acknowledged":true,"insertedId":1}]`,
+		`db.w.updateOne({ _id: 1 }, { $set: { a: 1 } })`:    `[{"acknowledged":true,"matchedCount":1,"modifiedCount":1}]`,
 		`Object.keys(db.w.insertMany([{ _id: 2 }])).join()`: `acknowledged,insertedIds`,
 	}
 	for i := 0; i < 10; i++ {
@@ -484,7 +489,7 @@ func TestIntegration_UnreadCursorShownDespitePrints(t *testing.T) {
 
 	result, err := engine.ExecuteQuery(ctx, testURI, db, `var c = db.up.find({}, { _id: 0 }); if (c.hasNext()) { print("found"); } c`)
 	require.NoError(t, err)
-	assert.Equal(t, `[{"n":{"$numberLong":"1"}}]`, resultText(result))
+	assert.Equal(t, `[{"n":{"$numberInt":"1"}}]`, resultText(result))
 }
 
 // On an empty result, a script's printed message is not replaced by the

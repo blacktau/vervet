@@ -119,7 +119,7 @@ func TestCollectionProxy_Find_CursorOptionsChainingUpdatesState(t *testing.T) {
 	require.NoError(t, err)
 	cursor := extractLazyCursor(val)
 	require.NotNil(t, cursor)
-	assert.Equal(t, bson.D{{Key: "name", Value: int64(1)}}, cursor.hint)
+	assert.Equal(t, bson.D{{Key: "name", Value: int32(1)}}, cursor.hint)
 	assert.Equal(t, int64(5000), cursor.maxTimeMS)
 	assert.Equal(t, int32(100), cursor.batchSize)
 	assert.Equal(t, "en", cursor.collation["locale"])
@@ -336,7 +336,7 @@ func TestGojaEngine_RequireFS_RoundTrip(t *testing.T) {
 	res, err := eng.ExecuteQuery(context.Background(), "", "testdb", script)
 	require.NoError(t, err)
 	require.Len(t, res.Documents, 1)
-	assert.Equal(t, bson.D{{Key: "hello", Value: "world"}, {Key: "n", Value: int64(42)}}, res.Documents[0])
+	assert.Equal(t, bson.D{{Key: "hello", Value: "world"}, {Key: "n", Value: int32(42)}}, res.Documents[0])
 }
 
 func TestGojaEngine_RequirePath_Join(t *testing.T) {

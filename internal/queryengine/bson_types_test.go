@@ -1,6 +1,7 @@
 package queryengine
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -369,6 +370,30 @@ func TestDouble_InvalidString_Panics(t *testing.T) {
 	rt := setupRuntimeWithBSON(t)
 	_, err := rt.RunString(`Double("not-a-number")`)
 	assert.Error(t, err)
+}
+
+// Script numbers are typed as js-bson types them when they leave the script.
+func TestExportValue_TypesScriptNumbersLikeJsBson(t *testing.T) {
+	rt := goja.New()
+	val, err := rt.RunString(`[5, 2147483647, -2147483648, 2147483648, -2147483649, 2.5, 4 / 2, -0, { n: 1, a: [7] }, new Number(5), new Number(5000000000)]`)
+	require.NoError(t, err)
+	assert.Equal(t, bson.A{
+		int32(5), int32(math.MaxInt32), int32(math.MinInt32),
+		float64(math.MaxInt32 + 1), float64(math.MinInt32 - 1),
+		2.5, int32(2), math.Copysign(0, -1),
+		bson.D{{Key: "n", Value: int32(1)}, {Key: "a", Value: bson.A{int32(7)}}},
+		int32(5), float64(5000000000),
+	}, convertToBson(exportValue(val)))
+}
+
+// convertToBson keeps the types it is given: an int64 there is a real long
+// (a NumberLong, or a value the driver decoded, e.g. a filter decoded from a
+// PageContext), and must not be retyped.
+func TestConvertToBson_KeepsLongs(t *testing.T) {
+	big := int64(9007199254740993)
+	assert.Equal(t, bson.D{{Key: "n", Value: big}}, convertToBson(bson.D{{Key: "n", Value: big}}))
+	assert.Equal(t, bson.A{int64(1), big}, convertToBson(bson.A{int64(1), big}))
+	assert.Equal(t, bson.A{int64(1)}, convertToBson([]any{int64(1)}))
 }
 
 // Test that BSON values survive convertToBson roundtrip

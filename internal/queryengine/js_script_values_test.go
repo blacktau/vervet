@@ -86,12 +86,43 @@ func TestScriptValue_RoundTripsBackToBSON(t *testing.T) {
 	assert.Equal(t, int64(2309825), doc[0].Value, "Long must survive as int64, not become a float")
 }
 
-// Command results are not documents read from a collection: their scalars stay
-// plain, so arithmetic like db.stats().storageSize / 1024 keeps working.
-func TestScriptValue_CommandResultScalarsStayPlain(t *testing.T) {
+// A command result's long is a Long, whose valueOf keeps arithmetic like
+// db.stats().storageSize / 1024 working.
+func TestScriptValue_CommandResultLongArithmetic(t *testing.T) {
 	rt := goja.New()
 	require.NoError(t, rt.Set("r", toJSValue(rt, bson.D{{Key: "storageSize", Value: int64(4096)}})))
 	val, err := rt.RunString(`r.storageSize / 1024`)
 	require.NoError(t, err)
 	assert.Equal(t, int64(4), val.Export())
+}
+
+// Arithmetic and comparisons on a Long are numeric. Beyond 2^53 the number is
+// rounded, which can tie two values but never reverses their order, and
+// String() and template literals keep the exact digits.
+func TestScriptValue_LongArithmetic(t *testing.T) {
+	assert.Equal(t, int64(2309826), evalWithValue(t, int64(2309825), `doc.v + 1`).Export())
+	assert.Equal(t, true, evalWithValue(t, int64(2309825), `doc.v > 2309824 && doc.v == 2309825`).Export())
+	assert.Equal(t, "id 9007199254740993", evalWithValue(t, int64(9007199254740993), "`id ${doc.v}`").Export())
+	assert.Equal(t, "9007199254740993", evalWithValue(t, int64(9007199254740993), `String(doc.v)`).Export())
+
+	rt := goja.New()
+	require.NoError(t, rt.Set("r", toJSValue(rt, bson.D{
+		{Key: "a", Value: int64(9007199254740993)},
+		{Key: "b", Value: int64(10000000000000000)},
+	})))
+	val, err := rt.RunString(`[r.a < r.b, r.b > r.a, [r.b, r.a].sort((x, y) => x - y)[0] === r.a]`)
+	require.NoError(t, err)
+	assert.Equal(t, []any{true, true, true}, val.Export())
+}
+
+// Every server long reaches the script as a Long, in command results as in
+// documents, so it goes back to the server exactly and still a long.
+func TestScriptValue_CommandResultLongsStayLong(t *testing.T) {
+	for _, n := range []int64{7, 1<<53 + 1, -(1<<53 + 1), 9007199254740993} {
+		rt := goja.New()
+		require.NoError(t, rt.Set("r", toJSValue(rt, bson.D{{Key: "id", Value: n}})))
+		val, err := rt.RunString(`({ id: r.id })`)
+		require.NoError(t, err)
+		assert.Equal(t, bson.D{{Key: "id", Value: n}}, toBsonDoc(exportValue(val)))
+	}
 }

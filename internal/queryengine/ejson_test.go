@@ -2,10 +2,12 @@ package queryengine
 
 import (
 	"testing"
+	"time"
 
 	"github.com/dop251/goja"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 func setupEJSONRuntime(t *testing.T) *goja.Runtime {
@@ -32,6 +34,95 @@ func TestEJSON_Stringify_WithIndent(t *testing.T) {
 	s := val.String()
 	// Indented output should contain newlines
 	assert.Contains(t, s, "\n")
+}
+
+// Whole numbers beyond int32 print as plain integers, as in mongosh, not in
+// exponent form.
+func TestEJSON_Stringify_WholeNumbersPrintAsIntegers(t *testing.T) {
+	rt := setupEJSONRuntime(t)
+	val, err := rt.RunString(`EJSON.stringify({ ts: 1761782400123, neg: -2147483649, small: 5, frac: 2.5, long: NumberLong("9007199254740993") })`)
+	require.NoError(t, err)
+	assert.Equal(t, `{"ts":1761782400123,"neg":-2147483649,"small":5,"frac":2.5,"long":9007199254740993}`, val.String())
+}
+
+// A value written as $numberLong stays a long whatever its size, while plain
+// JSON integers, even beyond int32, are plain numbers.
+func TestEJSON_ParseAndDeserialize_KeepExplicitLongs(t *testing.T) {
+	rt := setupEJSONRuntime(t)
+	for _, script := range []string{
+		`EJSON.parse('{"l": {"$numberLong": "7"}, "a": [{"$numberLong": "8"}], "n": 7, "ts": 1761782400123}')`,
+		`EJSON.deserialize({ l: { $numberLong: "7" }, a: [NumberLong("8")], n: 7, ts: 1761782400123 })`,
+	} {
+		val, err := rt.RunString(script)
+		require.NoError(t, err)
+		require.NoError(t, rt.Set("v", val))
+		types, err := rt.RunString(`[typeof v.l, typeof v.a[0], typeof v.n, typeof v.ts].join()`)
+		require.NoError(t, err)
+		assert.Equal(t, "object,object,number,number", types.String(), script)
+		assert.Equal(t, bson.D{
+			{Key: "l", Value: int64(7)},
+			{Key: "a", Value: bson.A{int64(8)}},
+			{Key: "n", Value: int32(7)},
+			{Key: "ts", Value: float64(1761782400123)},
+		}, toBsonDoc(exportValue(val)), script)
+	}
+}
+
+// Numbers inside wrappers such as $timestamp and $date must reach the parser in
+// a form it accepts there.
+func TestEJSON_Deserialize_NumbersInsideWrappers(t *testing.T) {
+	rt := setupEJSONRuntime(t)
+	val, err := rt.RunString(`EJSON.deserialize({ ts: { $timestamp: { t: 1, i: 2 } }, d: { $date: 1700000000000 } })`)
+	require.NoError(t, err)
+	doc := toBsonDoc(exportValue(val))
+	assert.Equal(t, bson.Timestamp{T: 1, I: 2}, docField(doc, "ts"))
+	d, ok := docField(doc, "d").(time.Time)
+	require.True(t, ok, "expected a Date, got %T", docField(doc, "d"))
+	assert.Equal(t, int64(1700000000000), d.UnixMilli())
+}
+
+// Repeated keys are matched by position, not by name.
+func TestEJSON_Parse_ExplicitLongWithRepeatedKey(t *testing.T) {
+	rt := setupEJSONRuntime(t)
+	val, err := rt.RunString(`EJSON.parse('{"a": 5, "a": {"$numberLong": "7"}}')`)
+	require.NoError(t, err)
+	doc := toBsonDoc(exportValue(val))
+	require.NotEmpty(t, doc)
+	assert.Equal(t, int64(7), doc[len(doc)-1].Value)
+}
+
+// A plain JSON integer is a plain number at any size; only $numberLong is a Long.
+func TestEJSON_Parse_LargePlainIntegerStaysNumber(t *testing.T) {
+	rt := setupEJSONRuntime(t)
+	val, err := rt.RunString(`var v = EJSON.parse('{"a": 10000000000000000}'); typeof v.a + " " + (v.a + 1)`)
+	require.NoError(t, err)
+	assert.Equal(t, "number 10000000000000000", val.String())
+}
+
+// Long values inside a wrapper are written as plain numbers there.
+func TestEJSON_Deserialize_LongsInsideTimestamp(t *testing.T) {
+	rt := setupEJSONRuntime(t)
+	val, err := rt.RunString(`EJSON.deserialize({ ts: { $timestamp: { t: NumberLong(5), i: NumberLong(1) } } })`)
+	require.NoError(t, err)
+	assert.Equal(t, bson.Timestamp{T: 5, I: 1}, docField(toBsonDoc(exportValue(val)), "ts"))
+}
+
+// Query operators such as $set are not Extended JSON wrappers, so longs inside
+// them stay longs.
+func TestEJSON_Deserialize_LongsInsideOperators(t *testing.T) {
+	rt := setupEJSONRuntime(t)
+	val, err := rt.RunString(`EJSON.deserialize({ $set: { n: NumberLong(5) } })`)
+	require.NoError(t, err)
+	assert.Equal(t, bson.D{{Key: "$set", Value: bson.D{{Key: "n", Value: int64(5)}}}}, toBsonDoc(exportValue(val)))
+}
+
+// serialize writes a Long as {$numberLong} and whole numbers beyond int32 as
+// plain integers, not in exponent form.
+func TestEJSON_Serialize_LongsAndWholeNumbers(t *testing.T) {
+	rt := setupEJSONRuntime(t)
+	val, err := rt.RunString(`JSON.stringify(EJSON.serialize({ l: NumberLong(5), big: 5000000000 }))`)
+	require.NoError(t, err)
+	assert.Equal(t, `{"l":{"$numberLong":"5"},"big":5000000000}`, val.String())
 }
 
 func TestEJSON_Stringify_NoArgs_Panics(t *testing.T) {

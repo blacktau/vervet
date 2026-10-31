@@ -110,7 +110,7 @@ func dispatchDeleteOne(ctx context.Context, coll *mongo.Collection, op CapturedO
 
 	result := singleToResult(bson.D{
 		{Key: "acknowledged", Value: true},
-		{Key: "deletedCount", Value: res.DeletedCount},
+		{Key: "deletedCount", Value: int(res.DeletedCount)},
 	})
 	result.OperationType = "deleteOne"
 	result.AffectedCount = int(res.DeletedCount)
@@ -130,7 +130,7 @@ func dispatchDeleteMany(ctx context.Context, coll *mongo.Collection, op Captured
 
 	result := singleToResult(bson.D{
 		{Key: "acknowledged", Value: true},
-		{Key: "deletedCount", Value: res.DeletedCount},
+		{Key: "deletedCount", Value: int(res.DeletedCount)},
 	})
 	result.OperationType = "deleteMany"
 	result.AffectedCount = int(res.DeletedCount)
@@ -186,11 +186,11 @@ func dispatchBulkWrite(ctx context.Context, coll *mongo.Collection, op CapturedO
 
 	result := singleToResult(bson.D{
 		{Key: "acknowledged", Value: true},
-		{Key: "insertedCount", Value: res.InsertedCount},
-		{Key: "matchedCount", Value: res.MatchedCount},
-		{Key: "modifiedCount", Value: res.ModifiedCount},
-		{Key: "deletedCount", Value: res.DeletedCount},
-		{Key: "upsertedCount", Value: res.UpsertedCount},
+		{Key: "insertedCount", Value: int(res.InsertedCount)},
+		{Key: "matchedCount", Value: int(res.MatchedCount)},
+		{Key: "modifiedCount", Value: int(res.ModifiedCount)},
+		{Key: "deletedCount", Value: int(res.DeletedCount)},
+		{Key: "upsertedCount", Value: int(res.UpsertedCount)},
 	})
 	result.OperationType = "bulkWrite"
 	result.AffectedCount = int(res.ModifiedCount + res.InsertedCount + res.DeletedCount)

@@ -109,7 +109,7 @@ func setCollectionInfoMethods(obj *goja.Object, ec *execContext, collName string
 		if err != nil {
 			panic(rt.NewGoError(fmt.Errorf("totalSize: %w", err)))
 		}
-		total := toInt64(docField(stats, "storageSize")) + toInt64(docField(stats, "totalIndexSize"))
+		total := coerceInt64(docField(stats, "storageSize")) + coerceInt64(docField(stats, "totalIndexSize"))
 		return rt.ToValue(total)
 	})
 
@@ -194,22 +194,11 @@ func setCollectionInfoMethods(obj *goja.Object, ec *execContext, collName string
 		if err != nil {
 			panic(rt.NewGoError(err))
 		}
+		if result == nil {
+			return goja.Null()
+		}
 		return toJSValue(rt, result)
 	})
-}
-
-func toInt64(v any) int64 {
-	switch n := v.(type) {
-	case int64:
-		return n
-	case int32:
-		return int64(n)
-	case int:
-		return int64(n)
-	case float64:
-		return int64(n)
-	}
-	return 0
 }
 
 // runFindAndModify executes the legacy findAndModify operation against the named collection.

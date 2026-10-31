@@ -228,7 +228,7 @@ func TestSingleToResult_FixedFieldOrder(t *testing.T) {
 	for i := 0; i < 20; i++ {
 		data, err := json.Marshal(r.Documents)
 		require.NoError(t, err)
-		assert.Equal(t, `[{"acknowledged":true,"matchedCount":{"$numberLong":"1"},"modifiedCount":{"$numberLong":"1"},"upsertedId":{"$numberInt":"3"}}]`, string(data))
+		assert.Equal(t, `[{"acknowledged":true,"matchedCount":{"$numberInt":"1"},"modifiedCount":{"$numberInt":"1"},"upsertedId":{"$numberInt":"3"}}]`, string(data))
 
 		rt := goja.New()
 		require.NoError(t, rt.Set("r", toGojaValue(rt, r)))
@@ -244,6 +244,16 @@ func TestDisplayValue_TimestampKeepsFieldOrder(t *testing.T) {
 	data, err := json.Marshal(v)
 	require.NoError(t, err)
 	assert.Equal(t, `{"$timestamp":{"t":5,"i":2}}`, string(data))
+}
+
+// A plain number shows as the type it would be stored as: whole numbers in
+// int32 range stay untyped (the frontend shows them as int32), and whole-number
+// doubles beyond it are sent typed so they don't show as int32.
+func TestDisplayValue_TypesWholeNumberDoubles(t *testing.T) {
+	res := exportedToResult([]any{bson.D{{Key: "i", Value: int32(1)}, {Key: "d", Value: 2.5}, {Key: "big", Value: float64(5000000000)}}, int32(7)})
+	data, err := json.Marshal(res.Documents)
+	require.NoError(t, err)
+	assert.Equal(t, `[{"i":1,"d":2.5,"big":{"$numberDouble":"5000000000"}},7]`, string(data))
 }
 
 // bulkWrite accepts op documents in any form asBsonDoc takes, as before.
