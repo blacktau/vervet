@@ -3,7 +3,9 @@ package queryengine
 import (
 	"context"
 	"fmt"
+	"math"
 	"reflect"
+	"strconv"
 	"time"
 	"vervet/internal/models"
 	"vervet/internal/queryengine/jsmodules"
@@ -115,11 +117,11 @@ func (e *GojaEngine) ExecuteQuery(ctx context.Context, uri, dbName, query string
 // displayValue prepares a value returned by the script for the frontend.
 // Script-facing BSON values are objects carrying __bsonValue plus the methods
 // that make them usable in JS; handed to the UI as-is, the document would show
-// those internals instead of the value. Only those wrappers are rewritten (to
-// the same Extended JSON the query paths produce). Plain JS values, numbers
-// included, are left exactly as the script built them: a plain number may be a
-// script literal or a command result's long, and displaying a BSON type for it
-// would claim a type that is not known.
+// those internals instead of the value. Those wrappers are rewritten to the
+// same Extended JSON the query paths produce. A plain number is shown as the
+// type it would be stored as (see scriptNumber): the frontend shows an untyped
+// whole number as int32, so a whole-number double (5000000000) is sent typed.
+// Other plain JS values are left exactly as the script built them.
 func displayValue(v any) any {
 	switch val := v.(type) {
 	case map[string]any:
@@ -148,6 +150,15 @@ func displayValue(v any) any {
 			out[i] = displayValue(elem)
 		}
 		return out
+	case float64:
+		if math.IsInf(val, 0) || math.IsNaN(val) {
+			return ejsonScalar(val)
+		}
+		if val == math.Trunc(val) {
+			// Plain digits, where the driver would write 5E+09.
+			return bson.D{{Key: "$numberDouble", Value: strconv.FormatFloat(val, 'f', -1, 64)}}
+		}
+		return val
 	case time.Time:
 		return ejsonScalar(val)
 	default:

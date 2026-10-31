@@ -57,6 +57,9 @@ func exportValue(val goja.Value) any {
 		return regexpToBSON(obj)
 	case "Array":
 		return exportArray(obj)
+	case "Number":
+		// A boxed number (new Number(5)) is typed like a plain one.
+		return scriptNumber(val.Export())
 	case "Object":
 		// Already-wrapped BSON values pass through as-is
 		if bv := obj.Get("__bsonValue"); bv != nil && !goja.IsUndefined(bv) {

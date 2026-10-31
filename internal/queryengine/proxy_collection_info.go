@@ -197,9 +197,7 @@ func setCollectionInfoMethods(obj *goja.Object, ec *execContext, collName string
 		if result == nil {
 			return goja.Null()
 		}
-		// A stored document, so it converts as find() results do and its
-		// longs stay Long when the script writes it back.
-		return toJSValue(rt, resultDoc(result))
+		return toJSValue(rt, result)
 	})
 }
 

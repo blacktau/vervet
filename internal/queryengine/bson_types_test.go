@@ -375,13 +375,14 @@ func TestDouble_InvalidString_Panics(t *testing.T) {
 // Script numbers are typed as js-bson types them when they leave the script.
 func TestExportValue_TypesScriptNumbersLikeJsBson(t *testing.T) {
 	rt := goja.New()
-	val, err := rt.RunString(`[5, 2147483647, -2147483648, 2147483648, -2147483649, 2.5, 4 / 2, -0, { n: 1, a: [7] }]`)
+	val, err := rt.RunString(`[5, 2147483647, -2147483648, 2147483648, -2147483649, 2.5, 4 / 2, -0, { n: 1, a: [7] }, new Number(5), new Number(5000000000)]`)
 	require.NoError(t, err)
 	assert.Equal(t, bson.A{
 		int32(5), int32(math.MaxInt32), int32(math.MinInt32),
 		float64(math.MaxInt32 + 1), float64(math.MinInt32 - 1),
 		2.5, int32(2), math.Copysign(0, -1),
 		bson.D{{Key: "n", Value: int32(1)}, {Key: "a", Value: bson.A{int32(7)}}},
+		int32(5), float64(5000000000),
 	}, convertToBson(exportValue(val)))
 }
 

@@ -208,7 +208,8 @@ func dispatchCountDocuments(ctx context.Context, coll *mongo.Collection, op Capt
 	result := singleToResult(bson.D{
 		{Key: "count", Value: count},
 	})
-	result.JSValue = count
+	// A Go int, not int64: a count is a plain number, not a stored long.
+	result.JSValue = int(count)
 	result.OperationType = "countDocuments"
 	return result, nil
 }
@@ -350,7 +351,7 @@ func dispatchEstimatedDocumentCount(ctx context.Context, coll *mongo.Collection)
 	result := singleToResult(bson.D{
 		{Key: "count", Value: count},
 	})
-	result.JSValue = count
+	result.JSValue = int(count)
 	result.OperationType = "estimatedDocumentCount"
 	return result, nil
 }

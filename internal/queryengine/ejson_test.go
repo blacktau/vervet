@@ -107,6 +107,24 @@ func TestEJSON_Deserialize_LongsInsideTimestamp(t *testing.T) {
 	assert.Equal(t, bson.Timestamp{T: 5, I: 1}, docField(toBsonDoc(exportValue(val)), "ts"))
 }
 
+// Query operators such as $set are not Extended JSON wrappers, so longs inside
+// them stay longs.
+func TestEJSON_Deserialize_LongsInsideOperators(t *testing.T) {
+	rt := setupEJSONRuntime(t)
+	val, err := rt.RunString(`EJSON.deserialize({ $set: { n: NumberLong(5) } })`)
+	require.NoError(t, err)
+	assert.Equal(t, bson.D{{Key: "$set", Value: bson.D{{Key: "n", Value: int64(5)}}}}, toBsonDoc(exportValue(val)))
+}
+
+// serialize writes a Long as {$numberLong} and whole numbers beyond int32 as
+// plain integers, not in exponent form.
+func TestEJSON_Serialize_LongsAndWholeNumbers(t *testing.T) {
+	rt := setupEJSONRuntime(t)
+	val, err := rt.RunString(`JSON.stringify(EJSON.serialize({ l: NumberLong(5), big: 5000000000 }))`)
+	require.NoError(t, err)
+	assert.Equal(t, `{"l":{"$numberLong":"5"},"big":5000000000}`, val.String())
+}
+
 func TestEJSON_Stringify_NoArgs_Panics(t *testing.T) {
 	rt := setupEJSONRuntime(t)
 	_, err := rt.RunString(`EJSON.stringify()`)

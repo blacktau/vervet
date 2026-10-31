@@ -26,32 +26,27 @@ type jsMode int
 const (
 	// jsPlain converts no scalars (EJSON.serialize must expose {$oid: ...}).
 	jsPlain jsMode = iota
-	// jsCommand converts BSON types (ObjectId, Date, Binary, ...) but leaves
-	// numbers plain, so arithmetic on command results such as
-	// db.stats().storageSize / 1024 keeps working. Like the Node driver's
-	// promoteLongs, an int64 too large for a JS number to hold exactly (a
-	// cursor id, say) becomes a Long instead.
-	jsCommand
-	// jsDocument converts everything, as mongosh does for documents read
-	// from a collection: int64 becomes Long so 64-bit ids keep full precision.
-	jsDocument
+	// jsScript converts every BSON type, in documents and command replies
+	// alike: int64 becomes Long, so 64-bit ids keep full precision and a long
+	// is still a long when the script writes it back. Long's valueOf keeps
+	// arithmetic such as db.stats().storageSize / 1024 working.
+	jsScript
 )
 
 // scriptValue converts a normalized (see normalizeForJS) value into the
 // JavaScript value a mongosh script expects.
 func scriptValue(rt *goja.Runtime, v any) goja.Value {
-	return jsValue(rt, v, jsCommand)
+	return jsValue(rt, v, jsScript)
 }
 
 // jsValue builds JS objects and arrays from a value tree, keeping bson.D field
-// order and converting scalars as mode allows. A resultDoc or resultValues
-// switches to jsDocument for everything inside it.
+// order and converting scalars as mode allows.
 func jsValue(rt *goja.Runtime, v any, mode jsMode) goja.Value {
 	switch val := v.(type) {
 	case resultDoc:
-		return jsValue(rt, bson.D(val), jsDocument)
+		return jsValue(rt, bson.D(val), mode)
 	case resultValues:
-		return jsValue(rt, bson.A(val), jsDocument)
+		return jsValue(rt, bson.A(val), mode)
 	case map[string]any:
 		obj := rt.NewObject()
 		for k, elem := range val {
@@ -70,7 +65,7 @@ func jsValue(rt *goja.Runtime, v any, mode jsMode) goja.Value {
 		return jsArray(rt, val, mode)
 	}
 	if mode != jsPlain {
-		if converted, ok := bsonScalarToJS(rt, v, mode == jsDocument); ok {
+		if converted, ok := bsonScalarToJS(rt, v); ok {
 			return converted
 		}
 	}
@@ -88,21 +83,14 @@ func jsArray(rt *goja.Runtime, val []any, mode jsMode) goja.Value {
 }
 
 // bsonScalarToJS converts a native BSON value into its mongosh script form.
-// Numbers are converted only when numbers is set, apart from int64 values
-// beyond ±2^53 and explicit $numberLong values (see explicitLong). The second return is false for values goja can take as they
-// are (strings, booleans, nil, numbers).
-func bsonScalarToJS(rt *goja.Runtime, v any, numbers bool) (goja.Value, bool) {
+// The second return is false for values goja can take as they are (strings,
+// booleans, nil, numbers).
+func bsonScalarToJS(rt *goja.Runtime, v any) (goja.Value, bool) {
 	switch x := v.(type) {
 	case int64:
-		if numbers || x > maxSafeInteger || x < -maxSafeInteger {
-			return longValue(rt, x), true
-		}
-	case explicitLong:
-		return longValue(rt, int64(x)), true
+		return longValue(rt, x), true
 	case int32:
-		if numbers {
-			return rt.ToValue(int64(x)), true
-		}
+		return rt.ToValue(int64(x)), true
 	case bson.ObjectID:
 		return objectIDValue(rt, x.Hex()), true
 	case bson.Decimal128:
@@ -175,10 +163,6 @@ func jsDate(rt *goja.Runtime, t time.Time) goja.Value {
 	return d
 }
 
-// maxSafeInteger is JavaScript's Number.MAX_SAFE_INTEGER (2^53 - 1), the
-// largest integer a JS number holds exactly.
-const maxSafeInteger = 1<<53 - 1
-
 // longValue mirrors mongosh's Long: an object, not a JS number, so 64-bit ids
 // survive without float64 rounding. toString gives the digits.
 func longValue(rt *goja.Runtime, n int64) goja.Value {
@@ -187,18 +171,14 @@ func longValue(rt *goja.Runtime, n int64) goja.Value {
 
 // numberValue wraps an integral BSON number (int32 or int64), keeping the Go
 // type for the trip back to BSON while stringifying to plain digits. valueOf
-// makes arithmetic numeric (id + 1 is a sum, not "<id>1") when the value fits
-// in a JS number; beyond ±2^53 it returns the object, so string contexts fall
-// back to toString's exact digits instead of a rounded number.
+// gives the JS number, so arithmetic and comparisons are numeric (id + 1 is a
+// sum, not "<id>1"). Beyond ±2^53 that number is rounded; rounding never
+// reverses an order, so < and sorting stay right, and toString() keeps the
+// exact digits.
 func numberValue(rt *goja.Runtime, val any, n int64) goja.Value {
 	obj := bsonObject(rt, val, strconv.FormatInt(n, 10))
 	_ = obj.Set("toNumber", func() float64 { return float64(n) })
-	_ = obj.Set("valueOf", func(call goja.FunctionCall) goja.Value {
-		if n > maxSafeInteger || n < -maxSafeInteger {
-			return call.This
-		}
-		return rt.ToValue(float64(n))
-	})
+	_ = obj.Set("valueOf", func() float64 { return float64(n) })
 	return obj
 }
 

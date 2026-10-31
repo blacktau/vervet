@@ -284,10 +284,10 @@ func TestIntegration_FindAndModifyNoMatchIsNull(t *testing.T) {
 	assert.Equal(t, "null", result.RawOutput)
 }
 
-// Batches of metadata cursor commands stay in command mode, so their numbers
-// are plain, as on main: a capped collection created with a long size lists
-// that size as a long.
-func TestIntegration_MetadataCursorBatchesStayPlain(t *testing.T) {
+// Every long in a command reply is a Long, metadata included (#315): a capped
+// collection created with a long size lists that size as a Long, which still
+// does arithmetic.
+func TestIntegration_CommandReplyLongsAreLongs(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	db := dbName(t)
@@ -300,7 +300,7 @@ func TestIntegration_MetadataCursorBatchesStayPlain(t *testing.T) {
 		var o = db.runCommand({ listCollections: 1, filter: { name: 'capped' } }).cursor.firstBatch[0].options;
 		typeof o.size + " " + (o.size + 1)`)
 	require.NoError(t, err)
-	assert.Equal(t, "number 5000000001", result.RawOutput)
+	assert.Equal(t, "object 5000000001", result.RawOutput)
 }
 
 // A server long beyond ±2^53 keeps its exact value and type through a script

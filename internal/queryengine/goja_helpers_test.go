@@ -246,13 +246,14 @@ func TestDisplayValue_TimestampKeepsFieldOrder(t *testing.T) {
 	assert.Equal(t, `{"$timestamp":{"t":5,"i":2}}`, string(data))
 }
 
-// A plain number may be a script literal or a command result's long, so it
-// displays untyped rather than with a BSON type that is not known.
-func TestDisplayValue_LeavesPlainNumbersUntyped(t *testing.T) {
-	res := exportedToResult([]any{bson.D{{Key: "i", Value: int64(1)}, {Key: "d", Value: 2.5}}, int64(7)})
+// A plain number shows as the type it would be stored as: whole numbers in
+// int32 range stay untyped (the frontend shows them as int32), and whole-number
+// doubles beyond it are sent typed so they don't show as int32.
+func TestDisplayValue_TypesWholeNumberDoubles(t *testing.T) {
+	res := exportedToResult([]any{bson.D{{Key: "i", Value: int32(1)}, {Key: "d", Value: 2.5}, {Key: "big", Value: float64(5000000000)}}, int32(7)})
 	data, err := json.Marshal(res.Documents)
 	require.NoError(t, err)
-	assert.Equal(t, `[{"i":1,"d":2.5},7]`, string(data))
+	assert.Equal(t, `[{"i":1,"d":2.5,"big":{"$numberDouble":"5000000000"}},7]`, string(data))
 }
 
 // bulkWrite accepts op documents in any form asBsonDoc takes, as before.
