@@ -97,12 +97,13 @@ func (e *GojaEngine) ExecuteQuery(ctx context.Context, uri, dbName, query string
 			return
 		}
 
-		if found, ok := ec.findOneDisplay(val); ok {
+		raw := exportValue(val)
+		if found, ok := ec.findOneDisplay(val, raw); ok {
 			result = found
 			return
 		}
 
-		if raw := exportValue(val); raw != nil {
+		if raw != nil {
 			switch raw.(type) {
 			case int32, float64:
 				// A number shows as JS prints it (5000000001, not 5.000000001e+09).

@@ -307,6 +307,27 @@ func TestIntegration_FindOneReturnsDocument(t *testing.T) {
 	}
 }
 
+// findOne takes the find options mongosh accepts in its third argument.
+func TestIntegration_FindOneOptions(t *testing.T) {
+	ctx, db, engine := keyOrderEngine(t)
+
+	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.c.insertMany([{ _id: 1, name: "b" }, { _id: 2, name: "a" }, { _id: 3, name: "c" }])`)
+	require.NoError(t, err)
+
+	for _, tc := range []struct{ script, want string }{
+		{`db.c.findOne({}, null, { sort: { name: 1 } })._id`, "2"},
+		{`db.c.findOne({}, null, { sort: { name: 1 }, skip: 1 })._id`, "1"},
+		{`Object.keys(db.c.findOne({}, null, { projection: { name: 0 } })).join(",")`, "_id"},
+		{`db.c.findOne({}, { _id: 0 }, { projection: { name: 0 } }).name`, "b"},
+		{`db.c.findOne({}, null, { sort: { name: -1 }, comment: "x", maxTimeMS: 5000 })._id`, "3"},
+		{`db.c.findOne({ name: "A" }, null, { collation: { locale: "en", strength: 2 } })._id`, "2"},
+	} {
+		result, err := engine.ExecuteQuery(ctx, testURI, db, tc.script)
+		require.NoError(t, err, tc.script)
+		assert.Equal(t, tc.want, resultText(result), tc.script)
+	}
+}
+
 // A findOne document left as the script's final value is shown with the types
 // the server stored, which a whole-number double loses on its way through JS.
 // Once the script changes the document, it is shown as the script left it.
@@ -315,9 +336,12 @@ func TestIntegration_FindOneShowsStoredTypes(t *testing.T) {
 
 	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.c.insertOne({ _id: 1, d: Double(5) })`)
 	require.NoError(t, err)
+	_, err = engine.ExecuteQuery(ctx, testURI, db, `db.c.insertOne({ _id: ObjectId("650000000000000000000001"), d: Double(5), l: Long(7), at: new Date(0) })`)
+	require.NoError(t, err)
 
 	for _, tc := range []struct{ script, want string }{
 		{`db.c.findOne({ _id: 1 })`, `[{"_id":{"$numberInt":"1"},"d":{"$numberDouble":"5.0"}}]`},
+		{`db.c.findOne({ l: { $exists: true } })`, `[{"_id":{"$oid":"650000000000000000000001"},"d":{"$numberDouble":"5.0"},"l":{"$numberLong":"7"},"at":{"$date":{"$numberLong":"0"}}}]`},
 		{`var d = db.c.findOne({ _id: 1 }); d.d; d`, `[{"_id":{"$numberInt":"1"},"d":{"$numberDouble":"5.0"}}]`},
 		{`var d = db.c.findOne({ _id: 1 }); d.x = "y"; d`, `[{"_id":1,"d":5,"x":"y"}]`},
 	} {

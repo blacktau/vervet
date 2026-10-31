@@ -174,31 +174,70 @@ func dispatchExplainFind(ctx context.Context, client *mongo.Client, dbName strin
 	return qr, nil
 }
 
+// dispatchFindOne runs findOne(filter, projection, options) as a find limited
+// to one document, so it takes the same options a find cursor does.
 func dispatchFindOne(ctx context.Context, coll *mongo.Collection, op CapturedOp) (models.QueryResult, error) {
-	filter := bson.D{}
-	if len(op.Args) > 0 && op.Args[0] != nil {
-		filter = toBsonDoc(op.Args[0])
+	findOp := CapturedOp{Collection: op.Collection, Method: "find", Limit: 1}
+	if len(op.Args) > 0 {
+		findOp.Args = append(findOp.Args, op.Args[0])
 	}
-
-	opts := options.FindOne()
-	if len(op.Args) > 1 && op.Args[1] != nil {
-		if proj, ok := asBsonDoc(op.Args[1]); ok {
-			opts.SetProjection(proj)
+	if len(op.Args) > 1 {
+		findOp.Args = append(findOp.Args, op.Args[1])
+	}
+	if len(op.Args) > 2 {
+		if err := applyFindOneOptions(&findOp, op.Args[2]); err != nil {
+			return models.QueryResult{}, err
 		}
 	}
 
-	var result bson.D
-	err := coll.FindOne(ctx, filter, opts).Decode(&result)
-	if err == mongo.ErrNoDocuments {
-		return models.QueryResult{Documents: []any{}, OperationType: "findOne"}, nil
-	}
+	result, err := dispatchFind(ctx, coll, findOp)
 	if err != nil {
 		return models.QueryResult{}, fmt.Errorf("findOne failed: %w", err)
 	}
+	result.OperationType = "findOne"
+	result.Single = len(result.Documents) > 0
+	return result, nil
+}
 
-	r := singleToResult(result)
-	r.OperationType = "findOne"
-	return r, nil
+// applyFindOneOptions copies findOne's options document onto a find operation.
+// A projection given here applies when the projection argument is absent.
+func applyFindOneOptions(op *CapturedOp, raw any) error {
+	if raw == nil {
+		return nil
+	}
+	opts, ok := asMap(raw)
+	if !ok {
+		return fmt.Errorf("findOne options must be an object")
+	}
+	if proj, ok := opts["projection"]; ok && (len(op.Args) < 2 || op.Args[1] == nil) {
+		for len(op.Args) < 2 {
+			op.Args = append(op.Args, nil)
+		}
+		op.Args[1] = proj
+	}
+	if v, ok := opts["sort"]; ok {
+		op.Sort = v
+	}
+	if v, ok := opts["skip"]; ok {
+		op.Skip = coerceInt64(v)
+	}
+	if v, ok := opts["hint"]; ok {
+		op.Hint = v
+	}
+	if v, ok := opts["maxTimeMS"]; ok {
+		op.MaxTimeMS = coerceInt64(v)
+	}
+	if v, ok := opts["collation"]; ok {
+		collation, ok := asMap(v)
+		if !ok {
+			return fmt.Errorf("findOne collation must be an object")
+		}
+		op.Collation = collation
+	}
+	if v, ok := opts["comment"].(string); ok {
+		op.Comment = v
+	}
+	return nil
 }
 
 func dispatchCountDocuments(ctx context.Context, coll *mongo.Collection, op CapturedOp) (models.QueryResult, error) {

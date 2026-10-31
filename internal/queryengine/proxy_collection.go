@@ -1,7 +1,7 @@
 package queryengine
 
 import (
-	"fmt"
+	"vervet/internal/models"
 
 	"github.com/dop251/goja"
 )
@@ -39,6 +39,18 @@ func withCursorMethods(rt *goja.Runtime, method string, val goja.Value) goja.Val
 	return obj
 }
 
+// runEager dispatches a collection method called from a script, throwing a
+// JS error if it fails.
+func runEager(ec *execContext, collName, method string, call goja.FunctionCall) models.QueryResult {
+	requireClient(ec)
+	op := CapturedOp{Collection: collName, Method: method, Args: exportArgs(call)}
+	result, err := dispatch(ec.ctx, ec.client, ec.dbName, op)
+	if err != nil {
+		panic(ec.rt.NewGoError(err))
+	}
+	return result
+}
+
 // newCollectionProxy creates a Goja object with methods for each supported
 // MongoDB operation. Write methods and findOne execute eagerly via dispatch(). find
 // returns a lazyCursor for deferred execution.
@@ -64,12 +76,7 @@ func newCollectionProxy(ec *execContext, collName string) goja.Value {
 	// findOne — runs immediately and returns the document, or null when none
 	// matches, as in mongosh, so scripts can read fields from it and pass it on.
 	_ = obj.Set("findOne", func(call goja.FunctionCall) goja.Value {
-		requireClient(ec)
-		op := CapturedOp{Collection: collName, Method: "findOne", Args: exportArgs(call)}
-		result, err := dispatch(ec.ctx, ec.client, ec.dbName, op)
-		if err != nil {
-			panic(ec.rt.NewGoError(err))
-		}
+		result := runEager(ec, collName, "findOne", call)
 		if len(result.Documents) == 0 {
 			return goja.Null()
 		}
@@ -84,19 +91,7 @@ func newCollectionProxy(ec *execContext, collName string) goja.Value {
 	for _, method := range eagerMethods {
 		m := method
 		_ = obj.Set(m, func(call goja.FunctionCall) goja.Value {
-			if ec.client == nil {
-				panic(ec.rt.NewGoError(fmt.Errorf("no MongoDB client available")))
-			}
-			args := exportArgs(call)
-			op := CapturedOp{
-				Collection: collName,
-				Method:     m,
-				Args:       args,
-			}
-			result, err := dispatch(ec.ctx, ec.client, ec.dbName, op)
-			if err != nil {
-				panic(ec.rt.NewGoError(err))
-			}
+			result := runEager(ec, collName, m, call)
 			return withCursorMethods(ec.rt, m, toGojaValue(ec.rt, result))
 		})
 	}

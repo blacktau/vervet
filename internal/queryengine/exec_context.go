@@ -28,26 +28,27 @@ type execContext struct {
 type findOneResult struct {
 	obj    *goja.Object
 	result models.QueryResult
-	// snapshot is obj as exported when handed out, to tell if the script
-	// has changed it since.
-	snapshot any
 }
 
 // rememberFindOne records the document findOne is about to return.
 func (ec *execContext) rememberFindOne(obj *goja.Object, result models.QueryResult) {
-	ec.lastFindOne = &findOneResult{obj: obj, result: result, snapshot: exportValue(obj)}
+	ec.lastFindOne = &findOneResult{obj: obj, result: result}
 }
 
-// findOneDisplay returns the server's result for val when val is the document
-// findOne last returned and the script has not changed it. Shown as the JS
-// object instead, the document would lose types JS cannot hold: a
-// whole-number double reads back as a plain integer and is shown as an int32.
-func (ec *execContext) findOneDisplay(val goja.Value) (models.QueryResult, bool) {
+// findOneDisplay returns the server's result for val, the script's final
+// value exported as raw, when val is the document findOne last returned and
+// the script has not changed it. Shown as the JS object instead, the document
+// would lose types JS cannot hold: a whole-number double reads back as a
+// plain integer and is shown as an int32.
+func (ec *execContext) findOneDisplay(val goja.Value, raw any) (models.QueryResult, bool) {
 	last := ec.lastFindOne
 	if last == nil || val != last.obj {
 		return models.QueryResult{}, false
 	}
-	if !reflect.DeepEqual(exportValue(val), last.snapshot) {
+	// Compared in display form: exported BSON wrappers hold Go funcs, which
+	// never compare equal, while their display form is plain Extended JSON.
+	handedOut := exportValue(toGojaValue(ec.rt, last.result))
+	if !reflect.DeepEqual(displayValue(raw), displayValue(handedOut)) {
 		return models.QueryResult{}, false
 	}
 	return last.result, true
