@@ -316,6 +316,7 @@ export namespace models {
 	    documents: any[];
 	    rawOutput: string;
 	    output?: OutputLine[];
+	    hasValue?: boolean;
 	    operationType?: string;
 	    affectedCount?: number;
 	    pageContext?: PageContext;

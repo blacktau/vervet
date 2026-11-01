@@ -135,9 +135,8 @@ const limitTruncated = computed(() => {
   return limit !== null && queryState.value.documents.length >= limit
 })
 const hasRawOutput = computed(() => queryState.value.rawOutput !== '')
-const unseenOutput = computed(() =>
-  queryState.value.activeResultTab === 'messages' ? null : queryState.value.unseenOutput,
-)
+// Cleared by the watcher below when Messages is opened.
+const unseenOutput = computed(() => queryStore.unseenBadge(props.queryId))
 
 // Opening the Messages tab shows the printed lines its badge counted.
 watch(

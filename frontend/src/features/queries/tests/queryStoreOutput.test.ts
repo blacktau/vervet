@@ -75,7 +75,7 @@ describe('queryStore printed output', () => {
     })
     expect(state.activeResultTab).toBe('results')
     expect(state.documents).toEqual([{ a: 1 }])
-    expect(state.unseenOutput).toEqual({ count: 2, level: 'warning' })
+    expect(useQueryStore().unseenBadge(QUERY_ID)).toEqual({ count: 2, level: 'warning' })
   })
 
   test('a text result is kept alongside the printed lines', async () => {
@@ -85,7 +85,7 @@ describe('queryStore printed output', () => {
     })
     expect(state.rawOutput).toBe('5')
     expect(state.activeResultTab).toBe('results')
-    expect(state.unseenOutput).toEqual({ count: 1, level: 'info' })
+    expect(useQueryStore().unseenBadge(QUERY_ID)).toEqual({ count: 1, level: 'info' })
   })
 
   test('an empty cursor is still a result', async () => {
@@ -99,7 +99,7 @@ describe('queryStore printed output', () => {
       },
     })
     expect(state.activeResultTab).toBe('results')
-    expect(state.unseenOutput).toEqual({ count: 1, level: 'info' })
+    expect(useQueryStore().unseenBadge(QUERY_ID)).toEqual({ count: 1, level: 'info' })
   })
 
   test('a print-only script opens Messages, with no badge', async () => {
@@ -108,7 +108,7 @@ describe('queryStore printed output', () => {
       data: { documents: [], rawOutput: '', output: [{ level: 'error', text: 'bad' }] },
     })
     expect(state.activeResultTab).toBe('messages')
-    expect(state.unseenOutput).toBeNull()
+    expect(useQueryStore().unseenBadge(QUERY_ID)).toBeNull()
   })
 
   test('a script with no result is summarised as completed, not as 0 documents', async () => {
@@ -119,9 +119,63 @@ describe('queryStore printed output', () => {
     expect(state.messages.at(-1)!.text).toMatch(/^Query completed in /)
   })
 
+  test('mongosh: an empty result after printing is still a result', async () => {
+    const state = await run({
+      isSuccess: true,
+      data: {
+        documents: [],
+        rawOutput: '',
+        hasValue: true,
+        output: [{ level: 'info', text: 'x' }],
+      },
+    })
+    expect(state.activeResultTab).toBe('results')
+    expect(state.messages.at(-1)!.text).toMatch(/^0 document\(s\) returned/)
+    expect(useQueryStore().unseenBadge(QUERY_ID)).toEqual({ count: 1, level: 'info' })
+  })
+
+  test('the badge counts only levels the Messages filter shows', async () => {
+    await run({
+      isSuccess: true,
+      data: {
+        documents: [{ a: 1 }],
+        rawOutput: '',
+        output: [
+          { level: 'info', text: 'a' },
+          { level: 'info', text: 'b' },
+          { level: 'warning', text: 'w' },
+        ],
+      },
+    })
+    const store = useQueryStore()
+    store.setMessageFilter(QUERY_ID, 'info', false)
+    expect(store.unseenBadge(QUERY_ID)).toEqual({ count: 1, level: 'warning' })
+    store.setMessageFilter(QUERY_ID, 'warning', false)
+    expect(store.unseenBadge(QUERY_ID)).toBeNull()
+  })
+
+  test('past the limit, the rest of the printed lines are combined into one entry', async () => {
+    const output = Array.from({ length: 1500 }, (_, i) => ({ level: 'info', text: `line ${i}` }))
+    output[1200] = { level: 'error', text: 'line 1200' }
+    const state = await run({
+      isSuccess: true,
+      data: { documents: [{ a: 1 }], rawOutput: '', output },
+    })
+
+    // Executing, 1000 lines, the notice, the combined rest, the summary
+    expect(state.messages).toHaveLength(1004)
+    expect(state.messages[1000]!.text).toBe('line 999')
+    expect(state.messages[1001]!.level).toBe('warning')
+    const combined = state.messages[1002]!
+    expect(combined.level).toBe('error')
+    expect(combined.text.split('\n')).toHaveLength(500)
+    expect(combined.text.startsWith('line 1000\n')).toBe(true)
+    expect(useQueryStore().unseenBadge(QUERY_ID)).toEqual({ count: 1001, level: 'error' })
+  })
+
   test('no output means no badge', async () => {
-    const state = await run({ isSuccess: true, data: { documents: [{ a: 1 }], rawOutput: '' } })
-    expect(state.unseenOutput).toBeNull()
+    await run({ isSuccess: true, data: { documents: [{ a: 1 }], rawOutput: '' } })
+    expect(useQueryStore().unseenBadge(QUERY_ID)).toBeNull()
   })
 
   test('a failed script shows what it printed before the error', async () => {
@@ -144,20 +198,23 @@ describe('queryStore printed output', () => {
     })
     const store = useQueryStore()
     store.markOutputSeen(QUERY_ID)
-    expect(state.unseenOutput).toBeNull()
+    expect(useQueryStore().unseenBadge(QUERY_ID)).toBeNull()
 
-    state.unseenOutput = { count: 1, level: 'info' }
-    executeQuery.mockResolvedValue({ isSuccess: true, data: { documents: [{ a: 1 }], rawOutput: '' } })
+    state.unseenOutput = { info: 1, warning: 0, error: 0 }
+    executeQuery.mockResolvedValue({
+      isSuccess: true,
+      data: { documents: [{ a: 1 }], rawOutput: '' },
+    })
     await store.executeQuery(QUERY_ID, { text: 'script', range })
-    expect(state.unseenOutput).toBeNull()
+    expect(useQueryStore().unseenBadge(QUERY_ID)).toBeNull()
   })
 
   test('clearing messages clears the badge', async () => {
-    const state = await run({
+    await run({
       isSuccess: true,
       data: { documents: [{ a: 1 }], rawOutput: '', output: printed },
     })
     useQueryStore().clearMessages(QUERY_ID)
-    expect(state.unseenOutput).toBeNull()
+    expect(useQueryStore().unseenBadge(QUERY_ID)).toBeNull()
   })
 })

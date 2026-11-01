@@ -43,12 +43,20 @@ function toLogLevel(level: string): LogLevel {
   return level === 'warning' || level === 'error' ? level : 'info'
 }
 
-/** Printed lines added to Messages while the Results tab was showing. */
-export interface UnseenOutput {
+/** Printed lines added to Messages while the Results tab was showing, by level. */
+export type UnseenOutput = Record<LogLevel, number>
+
+/** What the Messages tab badge shows: a count and the level that colours it. */
+export interface UnseenBadge {
   count: number
-  /** The most severe level among them, which colours the badge */
   level: LogLevel
 }
+
+/**
+ * Printed lines past this many are combined into one Messages entry, so a
+ * script that prints in a long loop does not add tens of thousands of rows.
+ */
+export const MAX_OUTPUT_ENTRIES = 1000
 
 export interface LogMessageQuery {
   text: string
@@ -236,26 +244,89 @@ export const useQueryStore = defineStore('query', {
       state.unseenOutput = null
     },
 
-    /** Adds a script's printed lines to Messages and returns their most severe level. */
+    /**
+     * Adds a script's printed lines to Messages in one update and returns how
+     * many entries of each level it added, or null when there were none. Past
+     * MAX_OUTPUT_ENTRIES the rest are combined into one entry at their most
+     * severe level, after a notice saying so.
+     */
     appendOutput(
       queryId: string,
       output: models.OutputLine[] | undefined,
       query: LogMessageQuery,
-    ): LogLevel | null {
-      let highest: LogLevel | null = null
-      for (const line of output ?? []) {
-        const level = toLogLevel(line.level)
-        this.appendMessage(queryId, { level, text: line.text, query })
-        if (highest === null || levelRank[level] > levelRank[highest]) {
-          highest = level
-        }
+    ): UnseenOutput | null {
+      if (!output || output.length === 0) {
+        return null
       }
-      return highest
+      const state = this.getQueryState(queryId)
+      const timestamp = new Date().toLocaleTimeString()
+      const counts: UnseenOutput = { info: 0, warning: 0, error: 0 }
+      const entry = (level: LogLevel, text: string): LogMessage => ({
+        id: makeId(),
+        timestamp,
+        level,
+        text,
+        query,
+      })
+
+      const added: LogMessage[] = output.slice(0, MAX_OUTPUT_ENTRIES).map((line) => {
+        const level = toLogLevel(line.level)
+        counts[level]++
+        return entry(level, line.text)
+      })
+
+      const rest = output.slice(MAX_OUTPUT_ENTRIES)
+      if (rest.length > 0) {
+        let level: LogLevel = 'info'
+        for (const line of rest) {
+          const l = toLogLevel(line.level)
+          if (levelRank[l] > levelRank[level]) {
+            level = l
+          }
+        }
+        added.push(
+          entry(
+            'warning',
+            i18nGlobal.t('query.messages.outputCombined', {
+              shown: MAX_OUTPUT_ENTRIES,
+              count: rest.length,
+            }),
+          ),
+        )
+        added.push(entry(level, rest.map((line) => line.text).join('\n')))
+        counts[level]++
+      }
+
+      // One assignment, not a push per line: each push is a reactive update.
+      state.messages = state.messages.concat(added)
+      return counts
     },
 
     /** Called when the Messages tab is opened: its badge has been seen. */
     markOutputSeen(queryId: string) {
       this.getQueryState(queryId).unseenOutput = null
+    },
+
+    /**
+     * The Messages tab badge: unseen printed lines at the levels the Messages
+     * filter shows, coloured by the most severe of them. Null when there are none.
+     */
+    unseenBadge(queryId: string): UnseenBadge | null {
+      const state = this.getQueryState(queryId)
+      const unseen = state.unseenOutput
+      if (!unseen) {
+        return null
+      }
+      let count = 0
+      let level: LogLevel = 'info'
+      for (const l of ['info', 'warning', 'error'] as const) {
+        if (!state.messageFilter[l] || unseen[l] === 0) {
+          continue
+        }
+        count += unseen[l]
+        level = l
+      }
+      return count > 0 ? { count, level } : null
     },
 
     setMessageFilter(queryId: string, level: LogLevel, enabled: boolean) {
@@ -395,16 +466,19 @@ export const useQueryStore = defineStore('query', {
           // opens Messages; otherwise Results stays open and the Messages tab
           // shows a badge for the lines waiting there. An empty cursor
           // (pageContext) is still a result.
-          const highest = this.appendOutput(queryId, data.output, queryPayload)
+          const added = this.appendOutput(queryId, data.output, queryPayload)
+          // hasValue covers an empty result ([] or an empty cursor), which
+          // both engines report the same way; the rest covers older shapes.
           const hasResult =
-            (data.documents?.length ?? 0) > 0 || !!data.rawOutput || !!data.pageContext
-          if (!hasResult && highest !== null) {
+            !!data.hasValue ||
+            (data.documents?.length ?? 0) > 0 ||
+            !!data.rawOutput ||
+            !!data.pageContext
+          if (!hasResult && added !== null) {
             state.activeResultTab = 'messages'
           } else {
             state.activeResultTab = 'results'
-            if (highest !== null) {
-              state.unseenOutput = { count: data.output!.length, level: highest }
-            }
+            state.unseenOutput = added
           }
 
           if (data.pageContext) {
