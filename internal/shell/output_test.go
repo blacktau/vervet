@@ -108,7 +108,7 @@ func TestBuildResult_StderrIsAWarning(t *testing.T) {
 }
 
 func TestWrapQuery_FramesOutputWithNonce(t *testing.T) {
-	got := wrapQuery("print('a'); 1", testNonce)
+	got, _ := wrapQuery("print('a'); 1", testNonce)
 	first, _, _ := strings.Cut(got, "\n")
 	assert.Contains(t, first, testNonce, "the preamble is one line before the body")
 	assert.NotContains(t, first, "print('a')")
@@ -117,7 +117,7 @@ func TestWrapQuery_FramesOutputWithNonce(t *testing.T) {
 
 // The preamble keeps the body starting on line 2, which remapError counts on.
 func TestWrapQuery_BodyStartsOnLine2(t *testing.T) {
-	got := wrapQuery("db.c.find()\nprint('x')", testNonce)
+	got, _ := wrapQuery("db.c.find()\nprint('x')", testNonce)
 	lines := strings.Split(got, "\n")
 	assert.Equal(t, "db.c.find()", lines[1])
 }
@@ -133,4 +133,38 @@ func TestFailedRun_SeparatesPrintedOutputFromError(t *testing.T) {
 func TestFailedRun_StderrComesFirst(t *testing.T) {
 	_, errMsg := failedRun(framed("from stdout"), "from stderr\n", testNonce)
 	assert.Equal(t, "from stderr\nfrom stdout", errMsg)
+}
+
+// process.stdout.write leaves no newline, so the next marker shares its line.
+// The marker still counts, and the text before it is kept.
+func TestSplitOutput_MarkerAfterTextWithoutNewline(t *testing.T) {
+	stdout := framed("working..."+begin("info"), "next", end(), "done"+result(), `[{"n":1}]`)
+	out, res, hasResult := splitOutput(stdout, testNonce)
+	assert.Equal(t, []models.OutputLine{
+		{Level: models.OutputInfo, Text: "working..."},
+		{Level: models.OutputInfo, Text: "next"},
+		{Level: models.OutputInfo, Text: "done"},
+	}, out)
+	assert.True(t, hasResult)
+	assert.Equal(t, `[{"n":1}]`, res)
+}
+
+// Inside a call, text written without a newline before the end marker is
+// part of that call.
+func TestSplitOutput_EndMarkerAfterTextWithoutNewline(t *testing.T) {
+	out, _, _ := splitOutput(framed(begin("info"), "partial"+end(), begin("warning"), "w", end()), testNonce)
+	assert.Equal(t, []models.OutputLine{
+		{Level: models.OutputInfo, Text: "partial"},
+		{Level: models.OutputWarning, Text: "w"},
+	}, out)
+}
+
+// console.trace keeps mongosh's own output (the "Trace:" line and stack).
+func TestOutputPreamble_TraceUsesTheOriginal(t *testing.T) {
+	assert.Contains(t, outputPreamble(testNonce), `console.trace = w("info", T)`)
+}
+
+func TestBuildResult_HasValue(t *testing.T) {
+	assert.True(t, buildResult(framed(result(), "[]"), "", testNonce).HasValue)
+	assert.False(t, buildResult(framed(begin("info"), "x", end()), "", testNonce).HasValue)
 }

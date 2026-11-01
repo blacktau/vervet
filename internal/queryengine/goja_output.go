@@ -21,15 +21,6 @@ func (o *scriptOutput) add(level, text string) {
 	o.lines = append(o.lines, models.OutputLine{Level: level, Text: text})
 }
 
-// text joins every entry, for tests that only care what was written.
-func (o *scriptOutput) text() string {
-	texts := make([]string, len(o.lines))
-	for i, l := range o.lines {
-		texts[i] = l.Text
-	}
-	return strings.Join(texts, "\n")
-}
-
 // consoleLevels maps each console method to the level its output is shown at.
 var consoleLevels = map[string]string{
 	"log":   models.OutputInfo,

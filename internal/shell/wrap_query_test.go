@@ -9,7 +9,7 @@ import (
 // meaning of its declarations: `const db = db.getSiblingDB(name)` reads the
 // existing global at top level, but throws inside a function body.
 func TestWrapQuery_DoesNotWrapScriptInAFunction(t *testing.T) {
-	got := wrapQuery(`const db = db.getSiblingDB("other");`, "n")
+	got, _ := wrapQuery(`const db = db.getSiblingDB("other");`, "n")
 	if strings.Contains(got, "(() => {") {
 		t.Errorf("script must not be wrapped in an IIFE; got:\n%s", got)
 	}
@@ -19,7 +19,7 @@ func TestWrapQuery_DoesNotWrapScriptInAFunction(t *testing.T) {
 }
 
 func TestWrapQuery_CapturesLastExpression(t *testing.T) {
-	got := wrapQuery(`db.users.find({})`, "n")
+	got, _ := wrapQuery(`db.users.find({})`, "n")
 	if !strings.Contains(got, resultGlobal+" = db.users.find({})") {
 		t.Errorf("expected the final expression to be captured; got:\n%s", got)
 	}
@@ -28,7 +28,7 @@ func TestWrapQuery_CapturesLastExpression(t *testing.T) {
 // A script whose last statement is a declaration has no value to print, and
 // printing "null" for it adds a bogus line to the script's own output.
 func TestWrapQuery_CapturesNothingForDeclarations(t *testing.T) {
-	got := wrapQuery("print('done');\nconst x = 1;", "n")
+	got, _ := wrapQuery("print('done');\nconst x = 1;", "n")
 	if strings.Contains(got, resultGlobal+" = const") {
 		t.Errorf("declaration must not be captured; got:\n%s", got)
 	}
@@ -41,7 +41,7 @@ func TestWrapQuery_CapturesNothingForDeclarations(t *testing.T) {
 // last real statement, not to the comment (which is a syntax error).
 func TestWrapQuery_IgnoresTrailingComments(t *testing.T) {
 	src := "db.users.find({})\n// closing note\n// more notes"
-	got := wrapQuery(src, "n")
+	got, _ := wrapQuery(src, "n")
 	if !strings.Contains(got, resultGlobal+" = db.users.find({})") {
 		t.Errorf("expected capture on the last real statement; got:\n%s", got)
 	}

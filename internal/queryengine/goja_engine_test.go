@@ -411,3 +411,24 @@ func TestGojaEngine_ErrorKeepsPrintedOutputSeparate(t *testing.T) {
 	assert.NotContains(t, err.Error(), "checked 25")
 	assert.Equal(t, []models.OutputLine{{Level: models.OutputInfo, Text: "checked 25"}}, res.Output)
 }
+
+// HasValue tells "the script left no value" from "it left an empty one", so
+// both engines show a script that prints and ends in [] the same way.
+func TestGojaEngine_HasValue(t *testing.T) {
+	eng := NewGojaEngine(nil, 100, "")
+	for _, tc := range []struct {
+		script string
+		want   bool
+	}{
+		{`print("x")`, false},
+		{`const x = 1`, false},
+		{`print("x"); []`, true},
+		{`null`, true},
+		{`5`, true},
+		{`({a: 1})`, true},
+	} {
+		res, err := eng.ExecuteQuery(context.Background(), "", "testdb", tc.script)
+		require.NoError(t, err, tc.script)
+		assert.Equal(t, tc.want, res.HasValue, tc.script)
+	}
+}

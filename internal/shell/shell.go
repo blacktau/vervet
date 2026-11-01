@@ -72,8 +72,13 @@ func CheckMongosh() bool {
 // the epilogue frames the result, so the two can be told apart in stdout (see
 // output.go). The preamble keeps the script starting on line 2, which
 // remapError counts on.
-func wrapQuery(query, nonce string) string {
-	body := prependToLastStatement(strings.TrimSpace(query), resultGlobal+" = ")
+//
+// It also returns where the capture prefix went, which remapError needs to
+// correct positions on that line.
+func wrapQuery(query, nonce string) (string, capturePos) {
+	trimmed := strings.TrimSpace(query)
+	body := prependToLastStatement(trimmed, capturePrefix)
+	capture := capturePosition(trimmed, body)
 
 	return fmt.Sprintf(`%s
 %s
@@ -95,7 +100,27 @@ func wrapQuery(query, nonce string) string {
   __print(%q + "R");
   __print(__out);
 })();
-`, outputPreamble(nonce), body, resultGlobal, frameMarker(nonce))
+`, outputPreamble(nonce), body, resultGlobal, frameMarker(nonce)), capture
+}
+
+// capturePos is the user line (1-based) and column (0-based) where wrapQuery
+// inserted the capture prefix. line is 0 when it inserted none.
+type capturePos struct {
+	line, col int
+}
+
+// capturePosition finds where prependToLastStatement put the prefix in body,
+// the wrapped form of trimmed.
+func capturePosition(trimmed, body string) capturePos {
+	if body == trimmed {
+		return capturePos{}
+	}
+	start := lastStatementStart(trimmed)
+	before := trimmed[:start]
+	return capturePos{
+		line: strings.Count(before, "\n") + 1,
+		col:  start - (strings.LastIndexByte(before, '\n') + 1),
+	}
 }
 
 // resultGlobal holds the query's value between the user's script and the
@@ -130,7 +155,8 @@ func runMongosh(ctx context.Context, query string, cfg Config, remap bool, args 
 		return models.QueryResult{}, err
 	}
 
-	queryFile, cleanup, err := writeQueryFile(wrapQuery(query, nonce), cfg.ScriptDir)
+	wrapped, capture := wrapQuery(query, nonce)
+	queryFile, cleanup, err := writeQueryFile(wrapped, cfg.ScriptDir)
 	if err != nil {
 		return models.QueryResult{}, err
 	}
@@ -148,22 +174,24 @@ func runMongosh(ctx context.Context, query string, cfg Config, remap bool, args 
 		return buildResult(stdout.String(), stderr.String(), nonce), nil
 	}
 
-	if ctx.Err() == context.DeadlineExceeded {
-		return models.QueryResult{}, ErrQueryTimeout
-	}
-	if ctx.Err() == context.Canceled {
-		return models.QueryResult{}, ctx.Err()
-	}
 	if execErr, ok := err.(*exec.Error); ok && execErr.Err == exec.ErrNotFound {
 		return models.QueryResult{}, ErrShellNotFound
 	}
 
+	// What the script printed is kept on every failure, a timeout or cancel
+	// included: progress lines show where a long script stalled.
 	result, errMsg := failedRun(stdout.String(), stderr.String(), nonce)
+	if ctx.Err() == context.DeadlineExceeded {
+		return result, ErrQueryTimeout
+	}
+	if ctx.Err() == context.Canceled {
+		return result, ctx.Err()
+	}
 	if errMsg == "" {
 		return result, fmt.Errorf("mongosh exited with: %w", err)
 	}
 	if remap {
-		errMsg = remapError(errMsg, query)
+		errMsg = remapError(errMsg, query, capture)
 	}
 	return result, fmt.Errorf("%s", errMsg)
 }

@@ -27,7 +27,7 @@ db.createRole(
      | ^
   13 | const __val = (typeof __result?.toArray === 'function') ? __result.toArray() : __result;`
 
-	got := remapError(mongoshErr, userQuery)
+	got := remap(mongoshErr, userQuery)
 
 	if strings.Contains(got, "})();") {
 		t.Errorf("wrapper trailer should be stripped; got:\n%s", got)
@@ -63,7 +63,7 @@ func TestRemapError_CaptureLineShiftsCaretAndHeader(t *testing.T) {
 > 2 | globalThis.__vervetResult = foo(1,;
     |                                   ^`
 
-	got := remapError(mongoshErr, userQuery)
+	got := remap(mongoshErr, userQuery)
 
 	if !strings.Contains(got, "SyntaxError: Unexpected token (1:6)") {
 		t.Errorf("expected header at user line 1, column 6; got:\n%s", got)
@@ -84,7 +84,7 @@ func TestRemapError_CaptureOnLaterLine(t *testing.T) {
 > 3 | globalThis.__vervetResult = foo(1,;
     |                                   ^`
 
-	got := remapError(mongoshErr, userQuery)
+	got := remap(mongoshErr, userQuery)
 
 	if !strings.Contains(got, "(2:6)") {
 		t.Errorf("expected header at user line 2, column 6; got:\n%s", got)
@@ -102,7 +102,7 @@ func TestRemapError_NoCaptureKeepsColumn(t *testing.T) {
 > 2 | let x = (;
     |          ^`
 
-	got := remapError(mongoshErr, userQuery)
+	got := remap(mongoshErr, userQuery)
 
 	if !strings.Contains(got, "(1:9)") {
 		t.Errorf("expected header at user line 1, column 9; got:\n%s", got)
@@ -114,14 +114,14 @@ func TestRemapError_NoCaptureKeepsColumn(t *testing.T) {
 
 func TestRemapError_PlainStderrUnchanged(t *testing.T) {
 	err := `MongoServerError: not authorized on admin to execute command`
-	got := remapError(err, `db.whatever()`)
+	got := remap(err, `db.whatever()`)
 	if got != err {
 		t.Errorf("non-trace error should pass through; got %q", got)
 	}
 }
 
 func TestRemapError_EmptyUserQuery(t *testing.T) {
-	got := remapError("anything", "")
+	got := remap("anything", "")
 	if got != "anything" {
 		t.Errorf("empty user query should return input unchanged; got %q", got)
 	}
@@ -133,7 +133,7 @@ func TestRemapError_ContextLinesBeyondUserSource(t *testing.T) {
 > 2 | const __result = (() => { db.x.find({}) })();
   3 | const __val = ...
   4 | try {`
-	got := remapError(mongoshErr, userQuery)
+	got := remap(mongoshErr, userQuery)
 	if strings.Contains(got, "__val") {
 		t.Errorf("wrapper context lines should be dropped; got:\n%s", got)
 	}
@@ -145,6 +145,12 @@ func TestRemapError_ContextLinesBeyondUserSource(t *testing.T) {
 	}
 }
 
+// remap runs remapError with the capture position wrapQuery reports for query.
+func remap(errMsg, query string) string {
+	_, capture := wrapQuery(query, "n")
+	return remapError(errMsg, query, capture)
+}
+
 func findLineContaining(s, substr string) string {
 	for _, line := range strings.Split(s, "\n") {
 		if strings.Contains(line, substr) {
@@ -152,4 +158,17 @@ func findLineContaining(s, substr string) string {
 		}
 	}
 	return ""
+}
+
+// A warning on stderr can come before the error, so the (line:col) is not
+// always on the first line.
+func TestRemapError_PositionOnALaterLine(t *testing.T) {
+	userQuery := "let x = (;"
+	mongoshErr := "Warning: something deprecated\nSyntaxError: Unexpected token (2:9)\n\n> 2 | let x = (;\n    |          ^"
+
+	got := remap(mongoshErr, userQuery)
+
+	if !strings.Contains(got, "SyntaxError: Unexpected token (1:9)") {
+		t.Errorf("expected the position remapped on the second line; got:\n%s", got)
+	}
 }

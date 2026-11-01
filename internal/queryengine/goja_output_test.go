@@ -1,6 +1,7 @@
 package queryengine
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/dop251/goja"
@@ -19,7 +20,11 @@ func runOutput(t *testing.T, src string) string {
 	require.NoError(t, registerOutput(rt, out))
 	_, err := rt.RunString(src)
 	require.NoError(t, err)
-	return out.text()
+	texts := make([]string, len(out.lines))
+	for i, l := range out.lines {
+		texts[i] = l.Text
+	}
+	return strings.Join(texts, "\n")
 }
 
 func TestPrint_JoinsArgumentsOnOneLine(t *testing.T) {

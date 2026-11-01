@@ -28,24 +28,25 @@ var caretLineRE = regexp.MustCompile(`^(\s*\|\s*)(\^+)(.*)$`)
 // remapError rewrites mongosh error output so line numbers and source
 // snippets refer to the user's original query rather than the wrapped
 // script. Lines that point into wrapper code (before the body or after
-// the trailer) are dropped.
-func remapError(errMsg, userQuery string) string {
+// the trailer) are dropped. capture is where wrapQuery put its capture
+// prefix, which shifts positions on that line.
+func remapError(errMsg, userQuery string, capture capturePos) string {
 	trimmed := strings.TrimSpace(userQuery)
 	if trimmed == "" {
 		return errMsg
 	}
 	userLines := strings.Split(trimmed, "\n")
 	inLines := strings.Split(errMsg, "\n")
-	capLine, capCol := captureAt(trimmed)
+	capLine, capCol := capture.line, capture.col
 
 	out := make([]string, 0, len(inLines))
 	lastWasHighlight := false
 	lastWasOnCaptureLine := false
 
-	for i, line := range inLines {
-		if i == 0 {
-			line = remapPosition(line, len(userLines), capLine, capCol)
-		}
+	for _, line := range inLines {
+		// The (line:col) is usually on the first line, but a stderr warning or
+		// stray stdout can come before it.
+		line = remapPosition(line, len(userLines), capLine, capCol)
 		if m := lineNumberRE.FindStringSubmatch(line); m != nil {
 			lineNum, err := strconv.Atoi(m[3])
 			if err != nil {
@@ -84,20 +85,6 @@ func remapError(errMsg, userQuery string) string {
 	}
 
 	return strings.Join(out, "\n")
-}
-
-// captureAt returns the user line (1-based) and column (0-based) where
-// wrapQuery inserted the capture prefix, or line 0 when it inserted none.
-// trimmed is the query as wrapQuery sees it, trimmed of surrounding space.
-func captureAt(trimmed string) (line, col int) {
-	if prependToLastStatement(trimmed, capturePrefix) == trimmed {
-		return 0, 0
-	}
-	start := lastStatementStart(trimmed)
-	before := trimmed[:start]
-	line = strings.Count(before, "\n") + 1
-	col = start - (strings.LastIndexByte(before, '\n') + 1)
-	return line, col
 }
 
 // remapPosition rewrites a trailing (line:col) from wrapped-script terms to

@@ -86,6 +86,7 @@ func (e *GojaEngine) ExecuteQuery(ctx context.Context, uri, dbName, query string
 		}
 
 		result, retErr = finalValueResult(ec, val)
+		result.HasValue = val != nil && !goja.IsUndefined(val)
 		return
 	}()
 

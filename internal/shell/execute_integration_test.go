@@ -154,3 +154,29 @@ func TestExecute_SyntaxErrorLineIsTheUsersLine(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "> 2 | let x = (;")
 }
+
+// A script that times out still returns what it printed: the progress lines
+// show where it stalled.
+func TestExecute_TimeoutKeepsPrintedOutput(t *testing.T) {
+	if !CheckMongosh() {
+		t.Skip("mongosh not in PATH")
+	}
+
+	query := `print("step 1"); sleep(20000); print("step 2")`
+	result, err := Execute(context.Background(), testURI, query, Config{Timeout: 3 * time.Second})
+	require.ErrorIs(t, err, ErrQueryTimeout)
+	assert.Equal(t, []models.OutputLine{{Level: models.OutputInfo, Text: "step 1"}}, result.Output)
+}
+
+// process.stdout.write leaves the line open; the result must still be found.
+func TestExecute_StdoutWriteWithoutNewline(t *testing.T) {
+	if !CheckMongosh() {
+		t.Skip("mongosh not in PATH")
+	}
+
+	query := `process.stdout.write("working..."); [{ n: 1 }]`
+	result, err := Execute(context.Background(), testURI, query, Config{Timeout: 60 * time.Second})
+	require.NoError(t, err)
+	assert.Equal(t, []any{map[string]any{"n": map[string]any{"$numberInt": "1"}}}, result.Documents)
+	assert.Equal(t, []models.OutputLine{{Level: models.OutputInfo, Text: "working..."}}, result.Output)
+}
