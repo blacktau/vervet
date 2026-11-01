@@ -6,6 +6,7 @@ import (
 	"github.com/dop251/goja"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"vervet/internal/models"
 )
 
 // runOutput evaluates src in a runtime with print/printjson/console installed
@@ -73,4 +74,41 @@ func TestConsole_IsCaptured(t *testing.T) {
 
 func TestInspect_NullAndUndefined(t *testing.T) {
 	assert.Equal(t, "null undefined", runOutput(t, `print(null, undefined)`))
+}
+
+// runOutputLines is runOutput keeping each call as its own entry with a level.
+func runOutputLines(t *testing.T, src string) []models.OutputLine {
+	t.Helper()
+	rt := goja.New()
+	require.NoError(t, registerBSONTypes(rt))
+	out := &scriptOutput{}
+	require.NoError(t, registerOutput(rt, out))
+	_, err := rt.RunString(src)
+	require.NoError(t, err)
+	return out.lines
+}
+
+func TestOutput_ConsoleLevels(t *testing.T) {
+	got := runOutputLines(t, `
+		print("p"); printjson(1);
+		console.log("l"); console.info("i"); console.debug("d"); console.trace("t");
+		console.warn("w"); console.error("e");
+	`)
+	assert.Equal(t, []models.OutputLine{
+		{Level: models.OutputInfo, Text: "p"},
+		{Level: models.OutputInfo, Text: "1"},
+		{Level: models.OutputInfo, Text: "l"},
+		{Level: models.OutputInfo, Text: "i"},
+		{Level: models.OutputInfo, Text: "d"},
+		{Level: models.OutputInfo, Text: "t"},
+		{Level: models.OutputWarning, Text: "w"},
+		{Level: models.OutputError, Text: "e"},
+	}, got)
+}
+
+// A printjson that spans several lines is still one call, so one entry.
+func TestOutput_PrintjsonIsOneEntry(t *testing.T) {
+	got := runOutputLines(t, `printjson({a: 1, b: 2})`)
+	require.Len(t, got, 1)
+	assert.Equal(t, "{\n  a: 1,\n  b: 2\n}", got[0].Text)
 }

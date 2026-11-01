@@ -321,7 +321,7 @@ func TestIntegration_CursorReadInScriptStaysPaged(t *testing.T) {
 }
 
 // Cursor methods continue from where next() left off, as in mongosh, and a
-// script's printed output is not replaced by the cursor it returns.
+// script's printed output is returned alongside the cursor it leaves.
 func TestIntegration_CursorMethodsContinueAfterNext(t *testing.T) {
 	ctx, db, engine := keyOrderEngine(t)
 
@@ -342,7 +342,8 @@ func TestIntegration_CursorMethodsContinueAfterNext(t *testing.T) {
 	result, err := engine.ExecuteQuery(ctx, testURI, db,
 		`var c = db.cm.find().sort({ n: 1 }); while (c.hasNext()) { print(c.next().n); } c`)
 	require.NoError(t, err)
-	assert.Equal(t, "0\n1\n2\n3", result.RawOutput)
+	assert.Equal(t, "0\n1\n2\n3", printedText(result))
+	assert.Equal(t, "[]", resultText(result), "a used-up cursor shows an empty result")
 }
 
 // Values from EJSON.parse and command results keep their BSON types, so they
@@ -476,50 +477,30 @@ func TestIntegration_EJSONParseKeepsNumbersPlain(t *testing.T) {
 	assert.Equal(t, "5000000001", resultText(result))
 }
 
-// An unread cursor is shown as its documents even when the script printed.
-func TestIntegration_UnreadCursorShownDespitePrints(t *testing.T) {
-	ctx, db, engine := keyOrderEngine(t)
-
-	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.up.insertOne({ n: 1 })`)
-	require.NoError(t, err)
-
-	result, err := engine.ExecuteQuery(ctx, testURI, db, `var c = db.up.find({}, { _id: 0 }); if (c.hasNext()) { print("found"); } c`)
-	require.NoError(t, err)
-	assert.Equal(t, `[{"n":{"$numberInt":"1"}}]`, resultText(result))
-}
-
-// On an empty result, a script's printed message is not replaced by the
-// empty cursor, whichever way the script read it.
-func TestIntegration_PrintsShownForEmptyReadCursor(t *testing.T) {
-	ctx, db, engine := keyOrderEngine(t)
-
-	for _, script := range []string{
-		`var c = db.none.find(); c.forEach(function (d) {}); print("none found"); c`,
-		`var c = db.none.find(); while (c.hasNext()) { c.next(); } print("none found"); c`,
-		`var c = db.none.find(); c.toArray(); print("none found"); c`,
-	} {
-		result, err := engine.ExecuteQuery(ctx, testURI, db, script)
-		require.NoError(t, err, script)
-		assert.Equal(t, "none found", result.RawOutput, script)
-	}
-}
-
-// More print/cursor combinations: printed output wins once the script has
-// read from the cursor, or when its read found nothing.
+// A cursor left as the final value is shown as what it has left, whether or
+// not the script read from it, and what the script printed comes back
+// alongside (#310). Before, one of the two was dropped.
 func TestIntegration_PrintsAndCursorCombinations(t *testing.T) {
 	ctx, db, engine := keyOrderEngine(t)
 
 	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.some.insertMany([{ n: 1 }, { n: 2 }])`)
 	require.NoError(t, err)
 
-	for _, tc := range []struct{ script, want string }{
-		{`var c = db.none.find(); c.map(function (d) { return d; }); print("none found"); c`, "none found"},
-		{`var c = db.none.find(); if (!c.hasNext()) { print("none"); } c`, "none"},
-		{`var c = db.some.find().sort({ n: 1 }); c.forEach(function (d) { print(d.n); }); print("done"); c`, "1\n2\ndone"},
+	const some = `[{"n":{"$numberInt":"1"}},{"n":{"$numberInt":"2"}}]`
+	for _, tc := range []struct{ script, docs, printed string }{
+		{`var c = db.some.find({}, { _id: 0 }).sort({ n: 1 }); if (c.hasNext()) { print("found"); } c`, some, "found"},
+		{`var c = db.none.find(); c.forEach(function (d) {}); print("none found"); c`, "[]", "none found"},
+		{`var c = db.none.find(); while (c.hasNext()) { c.next(); } print("none found"); c`, "[]", "none found"},
+		{`var c = db.none.find(); c.toArray(); print("none found"); c`, "[]", "none found"},
+		{`var c = db.none.find(); c.map(function (d) { return d; }); print("none found"); c`, "[]", "none found"},
+		{`var c = db.none.find(); if (!c.hasNext()) { print("none"); } c`, "[]", "none"},
+		{`print("x"); var c = db.none.find(); c`, "[]", "x"},
+		{`var c = db.some.find().sort({ n: 1 }); c.forEach(function (d) { print(d.n); }); print("done"); c`, "[]", "1\n2\ndone"},
 	} {
 		result, err := engine.ExecuteQuery(ctx, testURI, db, tc.script)
 		require.NoError(t, err, tc.script)
-		assert.Equal(t, tc.want, result.RawOutput, tc.script)
+		assert.Equal(t, tc.docs, resultText(result), tc.script)
+		assert.Equal(t, tc.printed, printedText(result), tc.script)
 	}
 }
 

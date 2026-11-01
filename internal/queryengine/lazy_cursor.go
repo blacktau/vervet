@@ -170,18 +170,6 @@ func (c *lazyCursor) eachRemaining(fn func(doc any) error) error {
 	return nil
 }
 
-// showsDocuments reports whether this cursor, left as the script's final
-// value, is shown as its documents rather than giving way to what the script
-// printed. It gives way once the script has read from it (next, toArray,
-// forEach, map) or when its read found nothing to show. hasNext() alone does
-// not count, so `if (c.hasNext()) print("found"); c` still shows documents,
-// while on an empty result `while (c.hasNext()) ...; print("done"); c` shows
-// the message.
-func (c *lazyCursor) showsDocuments(printed bool) bool {
-	readFrom := c.resolved && (c.index > 0 || len(c.results) == 0)
-	return !printed || !readFrom
-}
-
 // explain runs an explain command for this cursor's find query.
 func (c *lazyCursor) explain(verbosity string) (models.QueryResult, error) {
 	op := CapturedOp{

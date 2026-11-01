@@ -26,12 +26,29 @@ type PageContext struct {
 	Comment    string `json:"comment,omitempty"`
 }
 
+// Output levels for OutputLine.Level. They match the frontend's message levels.
+const (
+	OutputInfo    = "info"
+	OutputWarning = "warning"
+	OutputError   = "error"
+)
+
+// OutputLine is one print/printjson/console call made by a script. A call that
+// writes several lines (printjson of an object) stays one OutputLine.
+type OutputLine struct {
+	Level string `json:"level"`
+	Text  string `json:"text"`
+}
+
 // QueryResult holds the parsed output of a query.
 // Documents contains structured data when the engine returns documents.
-// RawOutput contains raw text for non-JSON results (e.g. db.stats()).
+// RawOutput contains a text result (a scalar, a string, null); it never holds
+// what the script printed, which is in Output.
+// Output is everything the script printed, in order, whatever its result.
 type QueryResult struct {
 	Documents     []any        `json:"documents"`
 	RawOutput     string       `json:"rawOutput"`
+	Output        []OutputLine `json:"output,omitempty"`
 	OperationType string       `json:"operationType,omitempty"`
 	AffectedCount int          `json:"affectedCount,omitempty"`
 	PageContext   *PageContext `json:"pageContext,omitempty"`

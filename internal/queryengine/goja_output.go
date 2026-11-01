@@ -6,30 +6,55 @@ import (
 	"strings"
 
 	"github.com/dop251/goja"
+
+	"vervet/internal/models"
 )
 
 // scriptOutput collects everything a script writes with print, printjson and
-// console.*, in order. mongosh sends console.* to stderr and print to stdout;
-// Vervet has a single output pane, so both land here.
+// console.*, in order, one entry per call. console.warn and console.error keep
+// their level so the Messages pane can show them as warnings and errors.
 type scriptOutput struct {
-	lines []string
+	lines []models.OutputLine
 }
 
-func (o *scriptOutput) add(line string) { o.lines = append(o.lines, line) }
+func (o *scriptOutput) add(level, text string) {
+	o.lines = append(o.lines, models.OutputLine{Level: level, Text: text})
+}
 
-func (o *scriptOutput) text() string { return strings.Join(o.lines, "\n") }
+// text joins every entry, for tests that only care what was written.
+func (o *scriptOutput) text() string {
+	texts := make([]string, len(o.lines))
+	for i, l := range o.lines {
+		texts[i] = l.Text
+	}
+	return strings.Join(texts, "\n")
+}
+
+// consoleLevels maps each console method to the level its output is shown at.
+var consoleLevels = map[string]string{
+	"log":   models.OutputInfo,
+	"info":  models.OutputInfo,
+	"debug": models.OutputInfo,
+	"trace": models.OutputInfo,
+	"warn":  models.OutputWarning,
+	"error": models.OutputError,
+}
 
 // registerOutput installs print, printjson and console in the runtime.
 func registerOutput(rt *goja.Runtime, out *scriptOutput) error {
-	// print joins its arguments with a space onto one line, as mongosh does.
-	printFn := func(call goja.FunctionCall) goja.Value {
-		parts := make([]string, len(call.Arguments))
-		for i, arg := range call.Arguments {
-			parts[i] = printArg(rt, arg)
+	// printAt joins its arguments with a space onto one line, as mongosh's
+	// print does, and records it at level.
+	printAt := func(level string) func(goja.FunctionCall) goja.Value {
+		return func(call goja.FunctionCall) goja.Value {
+			parts := make([]string, len(call.Arguments))
+			for i, arg := range call.Arguments {
+				parts[i] = printArg(rt, arg)
+			}
+			out.add(level, strings.Join(parts, " "))
+			return goja.Undefined()
 		}
-		out.add(strings.Join(parts, " "))
-		return goja.Undefined()
 	}
+	printFn := printAt(models.OutputInfo)
 
 	if err := rt.Set("print", printFn); err != nil {
 		return fmt.Errorf("failed to set print function: %w", err)
@@ -42,15 +67,15 @@ func registerOutput(rt *goja.Runtime, out *scriptOutput) error {
 		for i, arg := range call.Arguments {
 			parts[i] = printArgExpanded(rt, arg)
 		}
-		out.add(strings.Join(parts, " "))
+		out.add(models.OutputInfo, strings.Join(parts, " "))
 		return goja.Undefined()
 	}); err != nil {
 		return fmt.Errorf("failed to set printjson function: %w", err)
 	}
 
 	console := rt.NewObject()
-	for _, method := range []string{"log", "error", "warn", "info", "debug", "trace"} {
-		if err := console.Set(method, printFn); err != nil {
+	for method, level := range consoleLevels {
+		if err := console.Set(method, printAt(level)); err != nil {
 			return fmt.Errorf("failed to set console.%s: %w", method, err)
 		}
 	}
