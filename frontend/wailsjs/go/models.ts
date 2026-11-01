@@ -294,6 +294,10 @@ export namespace models {
 	    databases: DatabaseNamespaces[];
 	}
 	
+	export interface OutputLine {
+	    level: string;
+	    text: string;
+	}
 	export interface PageContext {
 	    database: string;
 	    collection: string;
@@ -311,6 +315,8 @@ export namespace models {
 	export interface QueryResult {
 	    documents: any[];
 	    rawOutput: string;
+	    output?: OutputLine[];
+	    hasValue?: boolean;
 	    operationType?: string;
 	    affectedCount?: number;
 	    pageContext?: PageContext;

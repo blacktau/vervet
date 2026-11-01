@@ -135,6 +135,18 @@ const limitTruncated = computed(() => {
   return limit !== null && queryState.value.documents.length >= limit
 })
 const hasRawOutput = computed(() => queryState.value.rawOutput !== '')
+// Cleared by the watcher below when Messages is opened.
+const unseenOutput = computed(() => queryStore.unseenBadge(props.queryId))
+
+// Opening the Messages tab shows the printed lines its badge counted.
+watch(
+  () => queryState.value.activeResultTab,
+  (tab) => {
+    if (tab === 'messages') {
+      queryStore.markOutputSeen(props.queryId)
+    }
+  },
+)
 const hasExecuted = computed(() => queryState.value.messages.length > 0)
 const hasNoResults = computed(
   () =>
@@ -678,7 +690,19 @@ watch(
               <span class="empty-results-text">{{ t('query.noResults') }}</span>
             </div>
           </n-tab-pane>
-          <n-tab-pane name="messages" :tab="t('query.messagesTab')">
+          <n-tab-pane name="messages">
+            <template #tab>
+              <span class="messages-tab-label">
+                {{ t('query.messagesTab') }}
+                <n-badge
+                  v-if="unseenOutput"
+                  :value="unseenOutput.count"
+                  :max="99"
+                  :type="unseenOutput.level"
+                  :title="t('query.unseenOutput', { count: unseenOutput.count })"
+                  data-testid="unseen-output-badge" />
+              </span>
+            </template>
             <messages-pane
               :messages="queryState.messages"
               :filter="queryState.messageFilter"
@@ -693,6 +717,12 @@ watch(
 </template>
 
 <style lang="scss" scoped>
+.messages-tab-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .query-tab {
   display: flex;
   flex-direction: column;

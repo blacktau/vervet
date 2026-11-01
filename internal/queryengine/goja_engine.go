@@ -73,7 +73,7 @@ func (e *GojaEngine) ExecuteQuery(ctx context.Context, uri, dbName, query string
 		defer func() {
 			if r := recover(); r != nil {
 				if gojaErr, ok := r.(*goja.Exception); ok {
-					retErr = scriptError(out, fmt.Errorf("%s", gojaErr.Value().String()))
+					retErr = fmt.Errorf("script error: %s", gojaErr.Value().String())
 				} else {
 					panic(r)
 				}
@@ -82,50 +82,55 @@ func (e *GojaEngine) ExecuteQuery(ctx context.Context, uri, dbName, query string
 
 		val, err := rt.RunString(rewriteTopLevelDeclarations(query))
 		if err != nil {
-			return scriptError(out, err)
+			return fmt.Errorf("script error: %w", err)
 		}
 
-		// A lazy cursor left as the final value is shown as its documents,
-		// unless it gives way to what the script printed (see showsDocuments).
-		if cursor := extractLazyCursor(val); cursor != nil && cursor.showsDocuments(len(out.lines) > 0) {
-			result, retErr = cursor.execute(true)
-			return
-		}
-
-		// An unchanged findOne document left as the final value is shown even
-		// when the script printed, as a cursor it has not read from is.
-		var raw any
-		if ec.isLastFindOne(val) {
-			raw = exportValue(val)
-			if found, ok := ec.findOneDisplay(raw); ok {
-				result = found
-				return
-			}
-		}
-
-		if len(out.lines) > 0 {
-			result = models.QueryResult{RawOutput: out.text()}
-			return
-		}
-
-		if raw == nil {
-			raw = exportValue(val)
-		}
-		if raw != nil {
-			switch raw.(type) {
-			case int32, float64:
-				// A number shows as JS prints it (5000000001, not 5.000000001e+09).
-				result = models.QueryResult{RawOutput: val.String()}
-			default:
-				result = exportedToResult(raw)
-			}
-		} else if val != nil && !goja.IsUndefined(val) && goja.IsNull(val) {
-			result = models.QueryResult{RawOutput: "null"}
-		}
+		result, retErr = finalValueResult(ec, val)
+		result.HasValue = val != nil && !goja.IsUndefined(val)
 		return
 	}()
 
+	// What the script printed is returned whatever its result, and on failure
+	// too: a script that fails half way through its checks is much harder to
+	// diagnose without the output from before the error.
+	result.Output = out.lines
 	return result, err
+}
+
+// finalValueResult turns the script's final value into its result. What the
+// script printed plays no part: it is returned alongside, in Output.
+func finalValueResult(ec *execContext, val goja.Value) (models.QueryResult, error) {
+	// A lazy cursor left as the final value is shown as its documents.
+	if cursor := extractLazyCursor(val); cursor != nil {
+		return cursor.execute(true)
+	}
+
+	// An unchanged findOne document left as the final value keeps the types
+	// it was stored with.
+	var raw any
+	if ec.isLastFindOne(val) {
+		raw = exportValue(val)
+		if found, ok := ec.findOneDisplay(raw); ok {
+			return found, nil
+		}
+	}
+
+	if raw == nil {
+		raw = exportValue(val)
+	}
+	if raw != nil {
+		switch raw.(type) {
+		case int32, float64:
+			// A number shows as JS prints it (5000000001, not 5.000000001e+09).
+			return models.QueryResult{RawOutput: val.String()}, nil
+		default:
+			return exportedToResult(raw), nil
+		}
+	}
+	if val != nil && !goja.IsUndefined(val) && goja.IsNull(val) {
+		return models.QueryResult{RawOutput: "null"}, nil
+	}
+	return models.QueryResult{}, nil
 }
 
 // displayValue prepares a value returned by the script for the frontend.
@@ -193,17 +198,6 @@ func ejsonScalar(v any) any {
 	}
 	// Ordered so multi-field wrappers keep their form, e.g. {$timestamp: {t, i}}.
 	return docField(wrapper.(bson.D), "v")
-}
-
-// scriptError formats a failed script run. Anything the script printed before
-// it failed is kept: mongosh writes that output before the error appears, and a
-// script that fails half way through its checks is much harder to diagnose
-// without it.
-func scriptError(out *scriptOutput, err error) error {
-	if len(out.lines) == 0 {
-		return fmt.Errorf("script error: %w", err)
-	}
-	return fmt.Errorf("%s\n\nscript error: %w", out.text(), err)
 }
 
 // exportedToResult converts a value exported from the Goja runtime back into a

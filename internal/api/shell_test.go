@@ -17,7 +17,7 @@ type MockShellProvider struct {
 
 func (m *MockShellProvider) ExecuteQuery(serverID, queryID, dbName, query, scriptPath string) (models.QueryResult, error) {
 	if m.executeErr != nil {
-		return models.QueryResult{}, m.executeErr
+		return m.queryResult, m.executeErr
 	}
 	return m.queryResult, nil
 }
@@ -63,6 +63,19 @@ func TestShellProxy_ExecuteQuery(t *testing.T) {
 		result := proxy.ExecuteQuery("1", "q1", "db1", "db.coll.find()", "")
 		assert.False(t, result.IsSuccess)
 		assert.NotEmpty(t, result.ErrorCode)
+	})
+
+	// What a failing script printed reaches the frontend with the error.
+	t.Run("query error keeps printed output", func(t *testing.T) {
+		output := []models.OutputLine{{Level: models.OutputInfo, Text: "checked 25"}}
+		provider := &MockShellProvider{
+			queryResult: models.QueryResult{Output: output},
+			executeErr:  errors.New("script error: Wrong database"),
+		}
+		proxy := NewShellProxy(testLogger(), provider)
+		result := proxy.ExecuteQuery("1", "q1", "db1", "throw 1", "")
+		assert.False(t, result.IsSuccess)
+		assert.Equal(t, output, result.Data.Output)
 	})
 }
 

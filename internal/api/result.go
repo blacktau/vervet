@@ -45,6 +45,14 @@ func FailResult[T any](err error) Result[T] {
 	}
 }
 
+// FailResultWith is FailResult that still hands data to the frontend, for
+// failures that come with something worth showing (a script's printed output).
+func FailResultWith[T any](data T, err error) Result[T] {
+	r := FailResult[T](err)
+	r.Data = data
+	return r
+}
+
 // logFail logs an error from the proxy boundary at Error level.
 // Call this once per failed operation before returning FailResult/Fail.
 func logFail(log *slog.Logger, op string, err error) {

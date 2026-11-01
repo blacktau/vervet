@@ -15,28 +15,29 @@ var skipKeywords = []string{
 // prependToLastStatement inserts prefix at the start of the final top-level
 // statement in src. Bracket depth, strings, and comments are tracked so
 // multi-line expressions and strings containing semicolons don't confuse the
-// scan. If the final statement begins with a skip keyword or a brace, the
-// source is returned unchanged and nothing is captured.
-func prependToLastStatement(src, prefix string) string {
+// scan. It returns the new source and the byte offset where prefix went. If
+// the final statement begins with a skip keyword or a brace, the source is
+// returned unchanged with an offset of -1: nothing is captured.
+func prependToLastStatement(src, prefix string) (string, int) {
 	if src == "" {
-		return src
+		return src, -1
 	}
 
 	start := lastStatementStart(src)
 	stmt := src[start:]
 	if stmt == "" {
-		return src
+		return src, -1
 	}
 	if stmt[0] == '}' || stmt[0] == '{' {
-		return src
+		return src, -1
 	}
 	for _, kw := range skipKeywords {
 		if hasKeywordPrefix(stmt, kw) {
-			return src
+			return src, -1
 		}
 	}
 
-	return src[:start] + prefix + stmt
+	return src[:start] + prefix + stmt, start
 }
 
 // hasKeywordPrefix reports whether s begins with kw followed by a
