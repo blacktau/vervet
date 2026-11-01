@@ -25,7 +25,8 @@ func (sp *ShellProxy) ExecuteQuery(serverID string, queryID string, dbName strin
 	result, err := sp.provider.ExecuteQuery(serverID, queryID, dbName, query, scriptPath)
 	if err != nil {
 		logFail(sp.log, "ExecuteQuery", err)
-		return FailResult[models.QueryResult](err)
+		// The result still carries what the script printed before it failed.
+		return FailResultWith(result, err)
 	}
 
 	return SuccessResult(result)
