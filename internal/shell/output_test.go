@@ -159,12 +159,50 @@ func TestSplitOutput_EndMarkerAfterTextWithoutNewline(t *testing.T) {
 	}, out)
 }
 
-// console.trace keeps mongosh's own output (the "Trace:" line and stack).
-func TestOutputPreamble_TraceUsesTheOriginal(t *testing.T) {
-	assert.Contains(t, outputPreamble(testNonce), `console.trace = w("info", T)`)
+// console.trace prints through print like the other console methods, so its
+// message is on stdout inside its frame (mongosh's own trace adds a stack of
+// transpiled line numbers that match nothing the user wrote).
+func TestOutputPreamble_TracePrintsItsMessage(t *testing.T) {
+	assert.Contains(t, outputPreamble(testNonce), `["trace", "info"]`)
 }
 
 func TestBuildResult_HasValue(t *testing.T) {
 	assert.True(t, buildResult(framed(result(), "[]"), "", testNonce).HasValue)
 	assert.False(t, buildResult(framed(begin("info"), "x", end()), "", testNonce).HasValue)
+}
+
+// A promise callback can print after the epilogue. Its frame comes after the
+// result's end marker and is output, not part of the result.
+func TestSplitOutput_PrintAfterTheResult(t *testing.T) {
+	stdout := framed(begin("info"), "now", end(), result(), `[{"n":1}]`, end(), begin("info"), "micro", end())
+	out, res, hasResult := splitOutput(stdout, testNonce)
+	assert.True(t, hasResult)
+	assert.Equal(t, `[{"n":1}]`, res)
+	assert.Equal(t, []models.OutputLine{
+		{Level: models.OutputInfo, Text: "now"},
+		{Level: models.OutputInfo, Text: "micro"},
+	}, out)
+}
+
+// A run cut short while writing the result still has what it wrote.
+func TestSplitOutput_UnendedResult(t *testing.T) {
+	_, res, hasResult := splitOutput(framed(result(), `[{"n":1}]`), testNonce)
+	assert.True(t, hasResult)
+	assert.Equal(t, `[{"n":1}]`, res)
+}
+
+// A timed-out or cancelled run keeps all it wrote, process.stdout.write text
+// and stderr included: none of it is an error report.
+func TestInterruptedRun_KeepsEverything(t *testing.T) {
+	got := interruptedRun(framed(begin("info"), "step 1", end(), "50%"), "notice\n", testNonce)
+	assert.Equal(t, []models.OutputLine{
+		{Level: models.OutputInfo, Text: "step 1"},
+		{Level: models.OutputInfo, Text: "50%"},
+		{Level: models.OutputWarning, Text: "notice"},
+	}, got.Output)
+}
+
+func TestWrapQuery_ResultHasAnEndMarker(t *testing.T) {
+	got, _ := wrapQuery("1", testNonce)
+	assert.Contains(t, got, `"\n" + "\x1eVV:`+testNonce+`:" + "E")`)
 }

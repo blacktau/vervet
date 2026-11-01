@@ -77,8 +77,8 @@ func CheckMongosh() bool {
 // correct positions on that line.
 func wrapQuery(query, nonce string) (string, capturePos) {
 	trimmed := strings.TrimSpace(query)
-	body := prependToLastStatement(trimmed, capturePrefix)
-	capture := capturePosition(trimmed, body)
+	body, at := prependToLastStatement(trimmed, capturePrefix)
+	capture := capturePosition(trimmed, at)
 
 	return fmt.Sprintf(`%s
 %s
@@ -97,8 +97,9 @@ func wrapQuery(query, nonce string) (string, capturePos) {
       __out = String(__val);
     }
   }
-  __print(%q + "R");
-  __print(__out);
+  // One call: mongosh makes each call async, so a promise callback could
+  // print between separate calls and land inside the result.
+  __print(%[4]q + "R\n" + __out + "\n" + %[4]q + "E");
 })();
 `, outputPreamble(nonce), body, resultGlobal, frameMarker(nonce)), capture
 }
@@ -109,17 +110,16 @@ type capturePos struct {
 	line, col int
 }
 
-// capturePosition finds where prependToLastStatement put the prefix in body,
-// the wrapped form of trimmed.
-func capturePosition(trimmed, body string) capturePos {
-	if body == trimmed {
+// capturePosition turns the byte offset prependToLastStatement put the prefix
+// at in src (-1 for none) into a line and column.
+func capturePosition(src string, at int) capturePos {
+	if at < 0 {
 		return capturePos{}
 	}
-	start := lastStatementStart(trimmed)
-	before := trimmed[:start]
+	before := src[:at]
 	return capturePos{
 		line: strings.Count(before, "\n") + 1,
-		col:  start - (strings.LastIndexByte(before, '\n') + 1),
+		col:  at - (strings.LastIndexByte(before, '\n') + 1),
 	}
 }
 
@@ -134,15 +134,15 @@ const resultGlobal = "globalThis.__vervetResult"
 // otherwise the raw text is returned. What the script printed is returned in
 // Output, on failure too.
 func Execute(ctx context.Context, uri string, query string, cfg Config) (models.QueryResult, error) {
-	return runMongosh(ctx, query, cfg, true, func(queryFile string) []string {
+	return runMongosh(ctx, query, cfg, func(queryFile string) []string {
 		return buildArgs(uri, queryFile)
 	})
 }
 
 // runMongosh writes the wrapped query to a file, runs mongosh with the args
 // built for that file, and splits its output into the result and what the
-// script printed. remap rewrites error positions to the user's own lines.
-func runMongosh(ctx context.Context, query string, cfg Config, remap bool, args func(queryFile string) []string) (models.QueryResult, error) {
+// script printed. Error positions are rewritten to the user's own lines.
+func runMongosh(ctx context.Context, query string, cfg Config, args func(queryFile string) []string) (models.QueryResult, error) {
 	if cfg.Timeout == 0 {
 		cfg.Timeout = 30 * time.Second
 	}
@@ -180,20 +180,17 @@ func runMongosh(ctx context.Context, query string, cfg Config, remap bool, args 
 
 	// What the script printed is kept on every failure, a timeout or cancel
 	// included: progress lines show where a long script stalled.
-	result, errMsg := failedRun(stdout.String(), stderr.String(), nonce)
 	if ctx.Err() == context.DeadlineExceeded {
-		return result, ErrQueryTimeout
+		return interruptedRun(stdout.String(), stderr.String(), nonce), ErrQueryTimeout
 	}
 	if ctx.Err() == context.Canceled {
-		return result, ctx.Err()
+		return interruptedRun(stdout.String(), stderr.String(), nonce), ctx.Err()
 	}
+	result, errMsg := failedRun(stdout.String(), stderr.String(), nonce)
 	if errMsg == "" {
 		return result, fmt.Errorf("mongosh exited with: %w", err)
 	}
-	if remap {
-		errMsg = remapError(errMsg, query, capture)
-	}
-	return result, fmt.Errorf("%s", errMsg)
+	return result, fmt.Errorf("%s", remapError(errMsg, query, capture))
 }
 
 // parseResult parses the script's serialised final value: JSON documents when

@@ -16,12 +16,15 @@ import (
 //
 //	\x1eVV:<nonce>:B:<level>   a call starts (info, warning or error)
 //	\x1eVV:<nonce>:E           the call ends
-//	\x1eVV:<nonce>:R           the rest of stdout is the result
+//	\x1eVV:<nonce>:R           the result starts
+//	\x1eVV:<nonce>:E           the call, or the result, ends
 //
 // Every marker ends its line, as print adds a newline, but it need not start
 // one: process.stdout.write leaves the line open, so a marker can follow other
 // text. Nested frames (a wrapped function calling another) are counted so only
-// the outermost call becomes an entry.
+// the outermost call becomes an entry. The result has an end marker too: a
+// promise callback can still print after the epilogue, and that print belongs
+// in the output, not in the result.
 
 // frameMarker is the prefix of every marker line for nonce.
 func frameMarker(nonce string) string {
@@ -39,17 +42,24 @@ func newNonce() (string, error) {
 
 // outputPreamble returns the single line that goes before the script. It
 // replaces print, printjson and console.* with versions that frame each call.
-// console.warn and console.error write through print, so their output is sure
-// to be on stdout, in its place among the other lines. console.trace keeps
-// mongosh's own, which adds the "Trace:" line and stack. The original print
-// is kept as __vervetPrint for the epilogue, which must write the result
-// unframed.
+// console.warn, console.error and console.trace write through print, so their
+// output is sure to be on stdout, in its place among the other lines. trace
+// prints only its message, as in the builtin engine: mongosh's own stack has
+// line numbers from its transpiled copy of the script, which match nothing
+// the user wrote. The original print is kept as __vervetPrint for the
+// epilogue, which must write the result unframed.
+//
+// The framing function is built with new Function so mongosh does not
+// rewrite it. mongosh makes every call in the script's own code async, so a
+// promise callback could otherwise print between a call's start marker and
+// its text, and its line would be merged into that call's entry. Code from
+// new Function runs as plain JavaScript: the three writes happen together.
 func outputPreamble(nonce string) string {
-	return `;(function () { const M = "\x1eVV:` + nonce + `:", P = globalThis.print, J = globalThis.printjson, T = console.trace; ` +
-		`const w = (l, f) => function (...a) { P(M + "B:" + l); try { return f.apply(this, a); } finally { P(M + "E"); } }; ` +
+	return `;(function () { const M = "\x1eVV:` + nonce + `:", P = globalThis.print, J = globalThis.printjson; ` +
+		`const frame = new Function("P", "M", "l", "f", "return function (...a) { P(M + 'B:' + l); try { return f.apply(this, a); } finally { P(M + 'E'); } }"); ` +
+		`const w = (l, f) => frame(P, M, l, f); ` +
 		`globalThis.print = w("info", P); globalThis.printjson = w("info", J); ` +
-		`for (const [k, l] of [["log", "info"], ["info", "info"], ["debug", "info"], ["warn", "warning"], ["error", "error"]]) { console[k] = w(l, P); } ` +
-		`console.trace = w("info", T); ` +
+		`for (const [k, l] of [["log", "info"], ["info", "info"], ["debug", "info"], ["trace", "info"], ["warn", "warning"], ["error", "error"]]) { console[k] = w(l, P); } ` +
 		`globalThis.__vervetPrint = P; })();`
 }
 
@@ -79,10 +89,12 @@ func scanOutput(stdout, nonce string) (out []scannedLine, result string, hasResu
 	lines := splitAtMarkers(strings.Split(strings.TrimSuffix(stdout, "\n"), "\n"), marker)
 
 	var (
-		depth int
-		level string
-		body  []string
-		stray []string
+		depth    int
+		level    string
+		body     []string
+		stray    []string
+		inResult bool
+		resLines []string
 	)
 	flushStray := func() {
 		if text := strings.TrimSpace(strings.Join(stray, "\n")); text != "" {
@@ -94,12 +106,17 @@ func scanOutput(stdout, nonce string) (out []scannedLine, result string, hasResu
 		out = append(out, scannedLine{OutputLine: models.OutputLine{Level: level, Text: strings.Join(body, "\n")}, framed: true})
 	}
 
-	for i, line := range lines {
+	for _, line := range lines {
 		tag, isMarker := strings.CutPrefix(line, marker)
 		switch {
+		case inResult && isMarker && tag == "E":
+			inResult = false
+			result = strings.TrimSpace(strings.Join(resLines, "\n"))
+		case inResult:
+			resLines = append(resLines, line)
 		case isMarker && tag == "R" && depth == 0:
 			flushStray()
-			return out, strings.TrimSpace(strings.Join(lines[i+1:], "\n")), true
+			inResult, hasResult = true, true
 		case isMarker && strings.HasPrefix(tag, "B:"):
 			if depth == 0 {
 				flushStray()
@@ -119,12 +136,16 @@ func scanOutput(stdout, nonce string) (out []scannedLine, result string, hasResu
 		}
 	}
 
-	// A script that fails during a call never closes its frame.
+	// A script that fails during a call never closes its frame, and a run cut
+	// short while writing the result never ends it.
 	if depth > 0 {
 		closeCall()
 	}
+	if inResult {
+		result = strings.TrimSpace(strings.Join(resLines, "\n"))
+	}
 	flushStray()
-	return out, "", false
+	return out, result, hasResult
 }
 
 // splitAtMarkers puts a marker that follows other text on the same line (after
@@ -169,6 +190,13 @@ func buildResult(stdout, stderr, nonce string) models.QueryResult {
 	}
 	result.Output = output
 	return result
+}
+
+// interruptedRun keeps everything a timed-out or cancelled run wrote: the
+// framed calls, text written outside them (process.stdout.write) and stderr.
+// None of it is an error report, since the run never finished.
+func interruptedRun(stdout, stderr, nonce string) models.QueryResult {
+	return models.QueryResult{Output: buildResult(stdout, stderr, nonce).Output}
 }
 
 // failedRun builds the result and error text for a run mongosh exited from

@@ -180,3 +180,82 @@ func TestExecute_StdoutWriteWithoutNewline(t *testing.T) {
 	assert.Equal(t, []any{map[string]any{"n": map[string]any{"$numberInt": "1"}}}, result.Documents)
 	assert.Equal(t, []models.OutputLine{{Level: models.OutputInfo, Text: "working..."}}, result.Output)
 }
+
+// A print from a promise callback runs after the epilogue. It goes to Output,
+// and the result still parses.
+func TestExecute_PrintAfterTheResult(t *testing.T) {
+	if !CheckMongosh() {
+		t.Skip("mongosh not in PATH")
+	}
+
+	query := `Promise.resolve().then(() => print("late")); [{ n: 1 }]`
+	result, err := Execute(context.Background(), testURI, query, Config{Timeout: 60 * time.Second})
+	require.NoError(t, err)
+	assert.Equal(t, []any{map[string]any{"n": map[string]any{"$numberInt": "1"}}}, result.Documents)
+	assert.Equal(t, []models.OutputLine{{Level: models.OutputInfo, Text: "late"}}, result.Output)
+}
+
+// A syntax error before the capture prefix keeps its column, caret included.
+func TestExecute_SyntaxErrorBeforeTheCapturePrefix(t *testing.T) {
+	if !CheckMongosh() {
+		t.Skip("mongosh not in PATH")
+	}
+
+	_, err := Execute(context.Background(), testURI, "x = {a:,}; 5", Config{Timeout: 60 * time.Second})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "(1:7)")
+	assert.Contains(t, err.Error(), "> 1 | x = {a:,}; 5\n    |        ^")
+}
+
+// mongosh reports a runtime error with no position or stack, so there is no
+// wrapper line number in it to get wrong.
+func TestExecute_RuntimeErrorHasNoWrapperPosition(t *testing.T) {
+	if !CheckMongosh() {
+		t.Skip("mongosh not in PATH")
+	}
+
+	query := "print(1)\nprint(2)\nthrow new Error(\"boom\")"
+	_, err := Execute(context.Background(), testURI, query, Config{Timeout: 60 * time.Second})
+	require.Error(t, err)
+	assert.Equal(t, "Error: boom", err.Error())
+}
+
+// console.trace prints its message inside its frame, on stdout.
+func TestExecute_ConsoleTrace(t *testing.T) {
+	if !CheckMongosh() {
+		t.Skip("mongosh not in PATH")
+	}
+
+	result, err := Execute(context.Background(), testURI, `console.trace("here"); 1`, Config{Timeout: 60 * time.Second})
+	require.NoError(t, err)
+	assert.Equal(t, []models.OutputLine{{Level: models.OutputInfo, Text: "here"}}, result.Output)
+}
+
+// A timeout keeps text written outside any print call too.
+func TestExecute_TimeoutKeepsStdoutWrite(t *testing.T) {
+	if !CheckMongosh() {
+		t.Skip("mongosh not in PATH")
+	}
+
+	query := `process.stdout.write("50%\n"); sleep(20000)`
+	result, err := Execute(context.Background(), testURI, query, Config{Timeout: 3 * time.Second})
+	require.ErrorIs(t, err, ErrQueryTimeout)
+	assert.Equal(t, []models.OutputLine{{Level: models.OutputInfo, Text: "50%"}}, result.Output)
+}
+
+// A promise callback runs between the script's statements. Its print is an
+// entry of its own, in the order it ran, not merged into another call's.
+func TestExecute_PromisePrintIsItsOwnEntry(t *testing.T) {
+	if !CheckMongosh() {
+		t.Skip("mongosh not in PATH")
+	}
+
+	query := `Promise.resolve().then(() => console.warn("late")); print("a"); printjson({ x: 1 }); 1`
+	result, err := Execute(context.Background(), testURI, query, Config{Timeout: 60 * time.Second})
+	require.NoError(t, err)
+	assert.Equal(t, []models.OutputLine{
+		{Level: models.OutputInfo, Text: "a"},
+		{Level: models.OutputWarning, Text: "late"},
+		{Level: models.OutputInfo, Text: "{\n  x: 1\n}"},
+	}, result.Output)
+}

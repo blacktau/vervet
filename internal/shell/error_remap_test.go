@@ -19,7 +19,7 @@ db.createRole(
 )`
 	// User query is 11 lines; wrapper adds leading empty line, so line 12
 	// of the wrapped script is user line 11 (the closing paren).
-	mongoshErr := `SyntaxError: Unexpected token, expected ","
+	mongoshErr := `SyntaxError: Unexpected token, expected "," (12:0)
 
   10 |    }
   11 |    }
@@ -129,7 +129,7 @@ func TestRemapError_EmptyUserQuery(t *testing.T) {
 
 func TestRemapError_ContextLinesBeyondUserSource(t *testing.T) {
 	userQuery := `db.x.find({})`
-	mongoshErr := `SyntaxError: boom
+	mongoshErr := `SyntaxError: boom (2:26)
 > 2 | const __result = (() => { db.x.find({}) })();
   3 | const __val = ...
   4 | try {`
@@ -170,5 +170,46 @@ func TestRemapError_PositionOnALaterLine(t *testing.T) {
 
 	if !strings.Contains(got, "SyntaxError: Unexpected token (1:9)") {
 		t.Errorf("expected the position remapped on the second line; got:\n%s", got)
+	}
+}
+
+// The caret on the capture line only moves when it points past the prefix.
+// mongosh's real report for `x = {a:,}; 5`: the error is before the prefix.
+func TestRemapError_CaretBeforeCapturePrefixStays(t *testing.T) {
+	userQuery := "x = {a:,}; 5"
+	mongoshErr := "SyntaxError: Unexpected token (2:7)\n\n" +
+		"  1 | ;(function () {})();\n" +
+		"> 2 | x = {a:,}; globalThis.__vervetResult = 5\n" +
+		"    |        ^\n" +
+		"  3 |"
+
+	got := remap(mongoshErr, userQuery)
+
+	if !strings.Contains(got, "SyntaxError: Unexpected token (1:7)") {
+		t.Errorf("expected header at user line 1, column 7; got:\n%s", got)
+	}
+	if col := caretColumn(t, got); col != 9 {
+		t.Errorf("caret should stay under the ',' (column 9 after the pipe), got %d:\n%s", col, got)
+	}
+}
+
+// Only mongosh's code frame is remapped. Text the script wrote, or a server
+// error, that ends in "(N:M)" is left as it is.
+func TestRemapError_LeavesOtherPositionsAlone(t *testing.T) {
+	errMsg := "ratio (3:4)\nMongoServerError: bad value at (2:5)"
+	if got := remap(errMsg, "print('x')\ndb.c.find()"); got != errMsg {
+		t.Errorf("text outside a code frame should pass through; got:\n%s", got)
+	}
+}
+
+// Lines after the code frame are not part of it, even if they look numbered.
+func TestRemapError_StopsAtTheEndOfTheFrame(t *testing.T) {
+	userQuery := "let x = (;"
+	mongoshErr := "SyntaxError: Unexpected token (2:9)\n\n> 2 | let x = (;\n    |          ^\n\nShell cwd was reset\n  7 | not a frame line"
+
+	got := remap(mongoshErr, userQuery)
+
+	if !strings.HasSuffix(got, "\n\nShell cwd was reset\n  7 | not a frame line") {
+		t.Errorf("lines after the frame should be unchanged; got:\n%s", got)
 	}
 }

@@ -46,12 +46,12 @@ type OutputLine struct {
 // what the script printed, which is in Output.
 // Output is everything the script printed, in order, whatever its result.
 type QueryResult struct {
-	Documents     []any        `json:"documents"`
-	RawOutput     string       `json:"rawOutput"`
-	Output        []OutputLine `json:"output,omitempty"`
+	Documents []any        `json:"documents"`
+	RawOutput string       `json:"rawOutput"`
+	Output    []OutputLine `json:"output,omitempty"`
 	// HasValue is true when the script left a final value, even an empty one
 	// ([] or a cursor with no documents). A script that only prints has none.
-	HasValue bool `json:"hasValue,omitempty"`
+	HasValue      bool         `json:"hasValue,omitempty"`
 	OperationType string       `json:"operationType,omitempty"`
 	AffectedCount int          `json:"affectedCount,omitempty"`
 	PageContext   *PageContext `json:"pageContext,omitempty"`

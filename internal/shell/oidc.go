@@ -12,7 +12,7 @@ import (
 // session cookie is still active — mongosh's browser redirect completes
 // instantly without user interaction.
 func ExecuteWithOIDC(ctx context.Context, uri string, query string, cfg Config) (models.QueryResult, error) {
-	return runMongosh(ctx, query, cfg, false, func(queryFile string) []string {
+	return runMongosh(ctx, query, cfg, func(queryFile string) []string {
 		return []string{
 			uri,
 			"--quiet",
