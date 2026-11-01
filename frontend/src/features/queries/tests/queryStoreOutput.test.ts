@@ -170,7 +170,8 @@ describe('queryStore printed output', () => {
     expect(combined.level).toBe('error')
     expect(combined.text.split('\n')).toHaveLength(500)
     expect(combined.text.startsWith('line 1000\n')).toBe(true)
-    expect(useQueryStore().unseenBadge(QUERY_ID)).toEqual({ count: 1001, level: 'error' })
+    // The badge counts printed lines, combined ones included; the notice is not one.
+    expect(useQueryStore().unseenBadge(QUERY_ID)).toEqual({ count: 1500, level: 'error' })
   })
 
   test('no output means no badge', async () => {
@@ -207,6 +208,33 @@ describe('queryStore printed output', () => {
     })
     await store.executeQuery(QUERY_ID, { text: 'script', range })
     expect(useQueryStore().unseenBadge(QUERY_ID)).toBeNull()
+  })
+
+  test('a cancelled run still shows what it printed', async () => {
+    const tabStore = useTabStore()
+    vi.spyOn(tabStore, 'currentTabId', 'get').mockReturnValue(SERVER_ID)
+    vi.spyOn(tabStore, 'currentTab', 'get').mockReturnValue({
+      serverId: SERVER_ID,
+      activeInnerTabId: QUERY_ID,
+    } as never)
+    const store = useQueryStore()
+    store.initQueryState(QUERY_ID, 'mydb')
+    let resolve!: (r: unknown) => void
+    executeQuery.mockReturnValue(new Promise((r) => (resolve = r)))
+
+    const running = store.executeQuery(QUERY_ID, { text: 'script', range })
+    await store.cancelQuery(QUERY_ID)
+    resolve({
+      isSuccess: false,
+      errorCode: 'unknown',
+      errorDetail: 'context canceled',
+      data: { documents: [], rawOutput: '', output: [{ level: 'info', text: 'step 1' }] },
+    })
+    await running
+
+    const state = store.getQueryState(QUERY_ID)
+    expect(state.messages.map((m) => m.text)).toContain('step 1')
+    expect(state.messages.some((m) => m.text === 'context canceled')).toBe(false)
   })
 
   test('clearing messages clears the badge', async () => {

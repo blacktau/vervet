@@ -246,9 +246,10 @@ export const useQueryStore = defineStore('query', {
 
     /**
      * Adds a script's printed lines to Messages in one update and returns how
-     * many entries of each level it added, or null when there were none. Past
-     * MAX_OUTPUT_ENTRIES the rest are combined into one entry at their most
-     * severe level, after a notice saying so.
+     * many printed lines of each level there were, or null when there were
+     * none. Past MAX_OUTPUT_ENTRIES the rest are combined into one entry at
+     * their most severe level, after a notice saying so; each combined line
+     * still counts.
      */
     appendOutput(
       queryId: string,
@@ -280,6 +281,7 @@ export const useQueryStore = defineStore('query', {
         let level: LogLevel = 'info'
         for (const line of rest) {
           const l = toLogLevel(line.level)
+          counts[l]++
           if (levelRank[l] > levelRank[level]) {
             level = l
           }
@@ -294,7 +296,6 @@ export const useQueryStore = defineStore('query', {
           ),
         )
         added.push(entry(level, rest.map((line) => line.text).join('\n')))
-        counts[level]++
       }
 
       // One assignment, not a push per line: each push is a reactive update.
@@ -449,7 +450,15 @@ export const useQueryStore = defineStore('query', {
           state.filePath ?? '',
         )
 
-        if (state.cancelled || state.executionId !== thisExecution) {
+        if (state.executionId !== thisExecution) {
+          return
+        }
+        if (state.cancelled) {
+          // What the script printed before it was cancelled still goes to Messages.
+          const added = this.appendOutput(queryId, result.data?.output, queryPayload)
+          if (state.activeResultTab !== 'messages') {
+            state.unseenOutput = added
+          }
           return
         }
 
@@ -530,7 +539,15 @@ export const useQueryStore = defineStore('query', {
           }
         }
       } catch (e) {
-        if (state.cancelled || state.executionId !== thisExecution) {
+        if (state.executionId !== thisExecution) {
+          return
+        }
+        if (state.cancelled) {
+          // What the script printed before it was cancelled still goes to Messages.
+          const added = this.appendOutput(queryId, result.data?.output, queryPayload)
+          if (state.activeResultTab !== 'messages') {
+            state.unseenOutput = added
+          }
           return
         }
         const notifier = useNotifier()
