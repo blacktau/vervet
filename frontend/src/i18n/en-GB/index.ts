@@ -409,6 +409,7 @@ export default {
     cancel: 'Cancel',
     results: 'Results',
     messagesTab: 'Messages',
+    unseenOutput: '{count} printed line(s) not yet viewed',
     messages: {
       executing: 'Executing query...',
       findResult: '{count} document(s) returned in {time}',

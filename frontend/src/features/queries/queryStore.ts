@@ -36,6 +36,20 @@ function resultMessage(operationType: string, count: number, duration: string): 
 
 export type LogLevel = 'info' | 'warning' | 'error'
 
+const levelRank: Record<LogLevel, number> = { info: 0, warning: 1, error: 2 }
+
+/** The backend sends levels as plain strings; anything unknown is info. */
+function toLogLevel(level: string): LogLevel {
+  return level === 'warning' || level === 'error' ? level : 'info'
+}
+
+/** Printed lines added to Messages while the Results tab was showing. */
+export interface UnseenOutput {
+  count: number
+  /** The most severe level among them, which colours the badge */
+  level: LogLevel
+}
+
 export interface LogMessageQuery {
   text: string
   range: {
@@ -77,6 +91,8 @@ export interface QueryState {
   selectedDatabase: string
   messages: LogMessage[]
   messageFilter: MessageFilter
+  /** Printed lines the user has not seen yet, shown as a badge on the Messages tab */
+  unseenOutput: UnseenOutput | null
   activeResultTab: string
   resultView: 'table' | 'json'
   selectedDocIndex: number
@@ -127,6 +143,7 @@ function createQueryState(database: string): QueryState {
     selectedDatabase: database,
     messages: [],
     messageFilter: { info: true, warning: true, error: true },
+    unseenOutput: null,
     activeResultTab: 'results',
     resultView: 'table',
     selectedDocIndex: 0,
@@ -216,6 +233,29 @@ export const useQueryStore = defineStore('query', {
     clearMessages(queryId: string) {
       const state = this.getQueryState(queryId)
       state.messages = []
+      state.unseenOutput = null
+    },
+
+    /** Adds a script's printed lines to Messages and returns their most severe level. */
+    appendOutput(
+      queryId: string,
+      output: models.OutputLine[] | undefined,
+      query: LogMessageQuery,
+    ): LogLevel | null {
+      let highest: LogLevel | null = null
+      for (const line of output ?? []) {
+        const level = toLogLevel(line.level)
+        this.appendMessage(queryId, { level, text: line.text, query })
+        if (highest === null || levelRank[level] > levelRank[highest]) {
+          highest = level
+        }
+      }
+      return highest
+    },
+
+    /** Called when the Messages tab is opened: its badge has been seen. */
+    markOutputSeen(queryId: string) {
+      this.getQueryState(queryId).unseenOutput = null
     },
 
     setMessageFilter(queryId: string, level: LogLevel, enabled: boolean) {
@@ -308,6 +348,7 @@ export const useQueryStore = defineStore('query', {
       state._rawJsonCache = null
       state.rawOutput = ''
       state.error = ''
+      state.unseenOutput = null
       state.selectedDocIndex = 0
       state.activeLimit = parseLimit(query)
       state.pageContext = null
@@ -349,7 +390,22 @@ export const useQueryStore = defineStore('query', {
           } else if (data.rawOutput) {
             state.rawOutput = data.rawOutput
           }
-          state.activeResultTab = 'results'
+
+          // What the script printed goes to Messages. A script with no result
+          // opens Messages; otherwise Results stays open and the Messages tab
+          // shows a badge for the lines waiting there. An empty cursor
+          // (pageContext) is still a result.
+          const highest = this.appendOutput(queryId, data.output, queryPayload)
+          const hasResult =
+            (data.documents?.length ?? 0) > 0 || !!data.rawOutput || !!data.pageContext
+          if (!hasResult && highest !== null) {
+            state.activeResultTab = 'messages'
+          } else {
+            state.activeResultTab = 'results'
+            if (highest !== null) {
+              state.unseenOutput = { count: data.output!.length, level: highest }
+            }
+          }
 
           if (data.pageContext) {
             state.pageContext = data.pageContext
@@ -361,8 +417,9 @@ export const useQueryStore = defineStore('query', {
 
           const elapsed = formatDuration(Date.now() - (state.runStartedAt ?? Date.now()))
           const docCount = data.documents?.length ?? 0
-          const opType = data.operationType || 'find'
-          const msg = resultMessage(opType, data.affectedCount || docCount, elapsed)
+          const msg = hasResult
+            ? resultMessage(data.operationType || 'find', data.affectedCount || docCount, elapsed)
+            : i18nGlobal.t('query.messages.genericResult', { time: elapsed })
           this.appendMessage(queryId, { level: 'info', text: msg, query: queryPayload })
 
           if (isBackgrounded() && state.executionId === thisExecution && !state.cancelled) {
@@ -374,6 +431,8 @@ export const useQueryStore = defineStore('query', {
             )
           }
         } else {
+          // What the script printed before it failed comes first.
+          this.appendOutput(queryId, result.data?.output, queryPayload)
           const translated = translateError(result.errorCode, result.errorDetail)
           state.error = translated
           this.appendMessage(queryId, {
