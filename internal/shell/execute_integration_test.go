@@ -14,6 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/mongodb"
+
+	"vervet/internal/models"
 )
 
 var testURI string
@@ -92,4 +94,63 @@ func TestExecute_NoScriptDirStillRuns(t *testing.T) {
 	require.NoError(t, err)
 	// Numbers come back as canonical Extended JSON.
 	assert.Equal(t, []any{map[string]any{"$numberInt": "2"}}, result.Documents)
+}
+
+// Printed lines and the result both come back, apart (#310). Before, the
+// prints broke the JSON parse and the documents arrived as raw text.
+func TestExecute_PrintedOutputAndResult(t *testing.T) {
+	if !CheckMongosh() {
+		t.Skip("mongosh not in PATH")
+	}
+
+	query := `print("Top:"); console.warn("slow"); console.error("bad"); printjson({ a: 1, b: 2 }); [{ n: 1 }]`
+	result, err := Execute(context.Background(), testURI, query, Config{Timeout: 60 * time.Second})
+	require.NoError(t, err)
+	assert.Equal(t, []any{map[string]any{"n": map[string]any{"$numberInt": "1"}}}, result.Documents)
+	assert.Empty(t, result.RawOutput)
+	assert.Equal(t, []models.OutputLine{
+		{Level: models.OutputInfo, Text: "Top:"},
+		{Level: models.OutputWarning, Text: "slow"},
+		{Level: models.OutputError, Text: "bad"},
+		{Level: models.OutputInfo, Text: "{\n  a: 1,\n  b: 2\n}"},
+	}, result.Output)
+}
+
+func TestExecute_PrintOnlyHasNoResult(t *testing.T) {
+	if !CheckMongosh() {
+		t.Skip("mongosh not in PATH")
+	}
+
+	result, err := Execute(context.Background(), testURI, `print("done")`, Config{Timeout: 60 * time.Second})
+	require.NoError(t, err)
+	assert.Empty(t, result.Documents)
+	assert.Empty(t, result.RawOutput)
+	assert.Equal(t, []models.OutputLine{{Level: models.OutputInfo, Text: "done"}}, result.Output)
+}
+
+// A failing script's prints come back in Output and stay out of the error.
+func TestExecute_ErrorKeepsPrintedOutputSeparate(t *testing.T) {
+	if !CheckMongosh() {
+		t.Skip("mongosh not in PATH")
+	}
+
+	query := "print(\"checked 25\");\nthrow new Error(\"Wrong database\")"
+	result, err := Execute(context.Background(), testURI, query, Config{Timeout: 60 * time.Second})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "Wrong database")
+	assert.NotContains(t, err.Error(), "checked 25")
+	assert.NotContains(t, err.Error(), "\x1e")
+	assert.Equal(t, []models.OutputLine{{Level: models.OutputInfo, Text: "checked 25"}}, result.Output)
+}
+
+// Syntax error positions point at the user's own lines, not the wrapper's.
+func TestExecute_SyntaxErrorLineIsTheUsersLine(t *testing.T) {
+	if !CheckMongosh() {
+		t.Skip("mongosh not in PATH")
+	}
+
+	query := "print(\"a\");\nlet x = (;"
+	_, err := Execute(context.Background(), testURI, query, Config{Timeout: 60 * time.Second})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "> 2 | let x = (;")
 }

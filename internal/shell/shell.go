@@ -67,27 +67,35 @@ func CheckMongosh() bool {
 // tracking bracket depth, strings, and comments — so multi-line expressions are
 // handled. When that statement is a declaration or other non-expression, no
 // value is captured and only what the script printed is returned.
-func wrapQuery(query string) string {
+//
+// A one-line preamble before the script frames its print/console calls, and
+// the epilogue frames the result, so the two can be told apart in stdout (see
+// output.go). The preamble keeps the script starting on line 2, which
+// remapError counts on.
+func wrapQuery(query, nonce string) string {
 	body := prependToLastStatement(strings.TrimSpace(query), resultGlobal+" = ")
 
 	return fmt.Sprintf(`%s
+%s
 ;(function () {
   const __result = globalThis.%s;
   if (__result === undefined) { return; }
   const __val = (__result !== null && typeof __result.toArray === 'function') ? __result.toArray() : __result;
+  const __print = globalThis.__vervetPrint;
+  let __out;
   try {
-    const __json = EJSON.stringify(__val, {relaxed: false});
-    print(__json);
+    __out = EJSON.stringify(__val, {relaxed: false});
   } catch(_e) {
     try {
-      const __json2 = JSON.stringify(__val);
-      print(__json2);
+      __out = JSON.stringify(__val);
     } catch(_e2) {
-      print(String(__val));
+      __out = String(__val);
     }
   }
+  __print(%q + "R");
+  __print(__out);
 })();
-`, body, resultGlobal)
+`, outputPreamble(nonce), body, resultGlobal, frameMarker(nonce))
 }
 
 // resultGlobal holds the query's value between the user's script and the
@@ -98,8 +106,18 @@ const resultGlobal = "globalThis.__vervetResult"
 // Execute runs a one-shot mongosh --eval command against the given URI.
 // The user's query is wrapped in JavaScript that converts the result to JSON.
 // If the output is valid JSON, it is returned as structured documents;
-// otherwise the raw text is returned.
+// otherwise the raw text is returned. What the script printed is returned in
+// Output, on failure too.
 func Execute(ctx context.Context, uri string, query string, cfg Config) (models.QueryResult, error) {
+	return runMongosh(ctx, query, cfg, true, func(queryFile string) []string {
+		return buildArgs(uri, queryFile)
+	})
+}
+
+// runMongosh writes the wrapped query to a file, runs mongosh with the args
+// built for that file, and splits its output into the result and what the
+// script printed. remap rewrites error positions to the user's own lines.
+func runMongosh(ctx context.Context, query string, cfg Config, remap bool, args func(queryFile string) []string) (models.QueryResult, error) {
 	if cfg.Timeout == 0 {
 		cfg.Timeout = 30 * time.Second
 	}
@@ -107,14 +125,18 @@ func Execute(ctx context.Context, uri string, query string, cfg Config) (models.
 	ctx, cancel := context.WithTimeout(ctx, cfg.Timeout)
 	defer cancel()
 
-	queryFile, cleanup, err := writeQueryFile(wrapQuery(query), cfg.ScriptDir)
+	nonce, err := newNonce()
+	if err != nil {
+		return models.QueryResult{}, err
+	}
+
+	queryFile, cleanup, err := writeQueryFile(wrapQuery(query, nonce), cfg.ScriptDir)
 	if err != nil {
 		return models.QueryResult{}, err
 	}
 	defer cleanup()
 
-	args := buildArgs(uri, queryFile)
-	cmd := exec.CommandContext(ctx, "mongosh", args...)
+	cmd := exec.CommandContext(ctx, "mongosh", args(queryFile)...)
 	cmd.Dir = cfg.ScriptDir
 
 	var stdout, stderr bytes.Buffer
@@ -122,45 +144,33 @@ func Execute(ctx context.Context, uri string, query string, cfg Config) (models.
 	cmd.Stderr = &stderr
 
 	err = cmd.Run()
-	if err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
-			return models.QueryResult{}, ErrQueryTimeout
-		}
-		if ctx.Err() == context.Canceled {
-			return models.QueryResult{}, ctx.Err()
-		}
-		if execErr, ok := err.(*exec.Error); ok && execErr.Err == exec.ErrNotFound {
-			return models.QueryResult{}, ErrShellNotFound
-		}
-		errMsg := stderr.String() + stdout.String()
-		if len(errMsg) > 0 {
-			return models.QueryResult{}, fmt.Errorf("%s", remapError(errMsg, query))
-		}
-		return models.QueryResult{}, fmt.Errorf("mongosh exited with: %w", err)
+	if err == nil {
+		return buildResult(stdout.String(), stderr.String(), nonce), nil
 	}
 
-	return withStderr(parseOutput(stdout.String()), stderr.String()), nil
+	if ctx.Err() == context.DeadlineExceeded {
+		return models.QueryResult{}, ErrQueryTimeout
+	}
+	if ctx.Err() == context.Canceled {
+		return models.QueryResult{}, ctx.Err()
+	}
+	if execErr, ok := err.(*exec.Error); ok && execErr.Err == exec.ErrNotFound {
+		return models.QueryResult{}, ErrShellNotFound
+	}
+
+	result, errMsg := failedRun(stdout.String(), stderr.String(), nonce)
+	if errMsg == "" {
+		return result, fmt.Errorf("mongosh exited with: %w", err)
+	}
+	if remap {
+		errMsg = remapError(errMsg, query)
+	}
+	return result, fmt.Errorf("%s", errMsg)
 }
 
-// withStderr folds mongosh's stderr into the result. Scripts routinely send
-// summaries and warnings there with console.error, and Vervet has a single
-// output pane, so dropping it loses output the user asked for. Structured
-// results are left alone rather than polluted with text.
-func withStderr(result models.QueryResult, stderr string) models.QueryResult {
-	stderr = strings.TrimSpace(stderr)
-	if stderr == "" || len(result.Documents) > 0 {
-		return result
-	}
-	if result.RawOutput == "" {
-		result.RawOutput = stderr
-		return result
-	}
-	result.RawOutput = result.RawOutput + "\n" + stderr
-	return result
-}
-
-// parseOutput attempts to parse mongosh output as JSON documents.
-func parseOutput(output string) models.QueryResult {
+// parseResult parses the script's serialised final value: JSON documents when
+// it is JSON, otherwise text.
+func parseResult(output string) models.QueryResult {
 	output = strings.TrimSpace(output)
 	if output == "" {
 		return models.QueryResult{}

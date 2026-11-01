@@ -43,25 +43,72 @@ db.createRole(
 	}
 }
 
-func TestRemapError_FirstLineErrorAdjustsColumn(t *testing.T) {
-	userQuery := `db.x.find({ bad: })`
-	mongoshErr := `SyntaxError: Unexpected token
-> 2 | const __result = (() => { db.x.find({ bad: }) })();
-    |                                             ^`
-
-	got := remapError(mongoshErr, userQuery)
-
-	if !strings.Contains(got, "> 1 | db.x.find({ bad: })") {
-		t.Errorf("expected user line 1 with original source; got:\n%s", got)
-	}
+// caretColumn is how far the caret sits after the pipe in got's caret line.
+func caretColumn(t *testing.T, got string) int {
+	t.Helper()
 	caretLine := findLineContaining(got, "^")
 	if caretLine == "" {
 		t.Fatalf("caret line missing; got:\n%s", got)
 	}
-	pipeIdx := strings.IndexByte(caretLine, '|')
-	caretIdx := strings.IndexByte(caretLine, '^')
-	if caretIdx-pipeIdx >= 30 {
-		t.Errorf("caret column not shifted left; got caret line %q", caretLine)
+	return strings.IndexByte(caretLine, '^') - strings.IndexByte(caretLine, '|')
+}
+
+// The line holding the capture prefix is shown as the user wrote it, so the
+// caret and the (line:col) header move left by the prefix's length. These are
+// mongosh's real reports for each query, wrapped by wrapQuery.
+func TestRemapError_CaptureLineShiftsCaretAndHeader(t *testing.T) {
+	userQuery := "foo(1,;"
+	mongoshErr := `SyntaxError: Unexpected token (2:34)
+
+> 2 | globalThis.__vervetResult = foo(1,;
+    |                                   ^`
+
+	got := remapError(mongoshErr, userQuery)
+
+	if !strings.Contains(got, "SyntaxError: Unexpected token (1:6)") {
+		t.Errorf("expected header at user line 1, column 6; got:\n%s", got)
+	}
+	if !strings.Contains(got, "> 1 | foo(1,;") {
+		t.Errorf("expected user line 1 with original source; got:\n%s", got)
+	}
+	if col := caretColumn(t, got); col != 8 {
+		t.Errorf("caret should sit under the ';' (column 8 after the pipe), got %d:\n%s", col, got)
+	}
+}
+
+func TestRemapError_CaptureOnLaterLine(t *testing.T) {
+	userQuery := "print(1)\nfoo(1,;"
+	mongoshErr := `SyntaxError: Unexpected token (3:34)
+
+  2 | print(1)
+> 3 | globalThis.__vervetResult = foo(1,;
+    |                                   ^`
+
+	got := remapError(mongoshErr, userQuery)
+
+	if !strings.Contains(got, "(2:6)") {
+		t.Errorf("expected header at user line 2, column 6; got:\n%s", got)
+	}
+	if col := caretColumn(t, got); col != 8 {
+		t.Errorf("caret should sit under the ';', got %d:\n%s", col, got)
+	}
+}
+
+// A line without the capture prefix keeps its column.
+func TestRemapError_NoCaptureKeepsColumn(t *testing.T) {
+	userQuery := "let x = (;"
+	mongoshErr := `SyntaxError: Unexpected token (2:9)
+
+> 2 | let x = (;
+    |          ^`
+
+	got := remapError(mongoshErr, userQuery)
+
+	if !strings.Contains(got, "(1:9)") {
+		t.Errorf("expected header at user line 1, column 9; got:\n%s", got)
+	}
+	if col := caretColumn(t, got); col != 11 {
+		t.Errorf("caret should stay under the ';', got %d:\n%s", col, got)
 	}
 }
 

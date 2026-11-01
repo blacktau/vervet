@@ -7,10 +7,13 @@ import (
 	"strings"
 )
 
-// wrapperPrefixOnLine1 is the text the wrapper injects before the first
-// line of the user's body. Error columns on wrapped line 2 (user line 1)
-// need to subtract this length.
-const wrapperPrefixOnLine1 = "const __result = (() => { "
+// capturePrefix is what wrapQuery inserts before the script's last statement.
+// Positions on that line, past its start, are shifted right by its length.
+const capturePrefix = resultGlobal + " = "
+
+// positionRE matches the (line:col) position mongosh puts at the end of a
+// syntax error's first line, e.g. `SyntaxError: Unexpected token (2:9)`.
+var positionRE = regexp.MustCompile(`\((\d+):(\d+)\)$`)
 
 // lineNumberRE matches a source-snippet line in a mongosh error trace, e.g.
 // `  15 |      ]` or `> 17 | return ) })();`. Captures the leading
@@ -33,12 +36,16 @@ func remapError(errMsg, userQuery string) string {
 	}
 	userLines := strings.Split(trimmed, "\n")
 	inLines := strings.Split(errMsg, "\n")
+	capLine, capCol := captureAt(trimmed)
 
 	out := make([]string, 0, len(inLines))
 	lastWasHighlight := false
-	lastWasOnFirstUserLine := false
+	lastWasOnCaptureLine := false
 
-	for _, line := range inLines {
+	for i, line := range inLines {
+		if i == 0 {
+			line = remapPosition(line, len(userLines), capLine, capCol)
+		}
 		if m := lineNumberRE.FindStringSubmatch(line); m != nil {
 			lineNum, err := strconv.Atoi(m[3])
 			if err != nil {
@@ -54,29 +61,63 @@ func remapError(errMsg, userQuery string) string {
 			isHighlight := strings.Contains(m[2], ">")
 			out = append(out, fmt.Sprintf("%s%s%d | %s", m[1], m[2], userLine, userLines[userLine-1]))
 			lastWasHighlight = isHighlight
-			lastWasOnFirstUserLine = isHighlight && userLine == 1
+			lastWasOnCaptureLine = isHighlight && userLine == capLine
 			continue
 		}
 
 		if lastWasHighlight {
 			if m := caretLineRE.FindStringSubmatch(line); m != nil {
-				if lastWasOnFirstUserLine {
-					out = append(out, adjustCaretColumn(line, m, len(wrapperPrefixOnLine1)))
+				if lastWasOnCaptureLine {
+					out = append(out, adjustCaretColumn(line, m, len(capturePrefix)))
 				} else {
 					out = append(out, line)
 				}
 				lastWasHighlight = false
-				lastWasOnFirstUserLine = false
+				lastWasOnCaptureLine = false
 				continue
 			}
 		}
 
 		out = append(out, line)
 		lastWasHighlight = false
-		lastWasOnFirstUserLine = false
+		lastWasOnCaptureLine = false
 	}
 
 	return strings.Join(out, "\n")
+}
+
+// captureAt returns the user line (1-based) and column (0-based) where
+// wrapQuery inserted the capture prefix, or line 0 when it inserted none.
+// trimmed is the query as wrapQuery sees it, trimmed of surrounding space.
+func captureAt(trimmed string) (line, col int) {
+	if prependToLastStatement(trimmed, capturePrefix) == trimmed {
+		return 0, 0
+	}
+	start := lastStatementStart(trimmed)
+	before := trimmed[:start]
+	line = strings.Count(before, "\n") + 1
+	col = start - (strings.LastIndexByte(before, '\n') + 1)
+	return line, col
+}
+
+// remapPosition rewrites a trailing (line:col) from wrapped-script terms to
+// the user's: the preamble line is taken off, and so is the capture prefix
+// when the position lies past it.
+func remapPosition(line string, userLineCount, capLine, capCol int) string {
+	m := positionRE.FindStringSubmatchIndex(line)
+	if m == nil {
+		return line
+	}
+	wrappedLine, _ := strconv.Atoi(line[m[2]:m[3]])
+	col, _ := strconv.Atoi(line[m[4]:m[5]])
+	userLine := wrappedLine - 1
+	if userLine < 1 || userLine > userLineCount {
+		return line
+	}
+	if userLine == capLine && col >= capCol+len(capturePrefix) {
+		col -= len(capturePrefix)
+	}
+	return line[:m[0]] + fmt.Sprintf("(%d:%d)", userLine, col)
 }
 
 // adjustCaretColumn shifts the caret left by offset columns. If the caret
