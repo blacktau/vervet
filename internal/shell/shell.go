@@ -186,7 +186,7 @@ func runMongosh(ctx context.Context, query string, cfg Config, args func(queryFi
 	cmd.Stderr = &stderr
 
 	err = cmd.Run()
-	out, errOut := normalizeNewlines(stdout.String()), normalizeNewlines(stderr.String())
+	out, errOut := normalizeNewlines(stdout.String()), stripANSI(normalizeNewlines(stderr.String()))
 	if err == nil {
 		return buildResult(out, errOut, nonce), nil
 	}

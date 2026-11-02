@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"vervet/internal/models"
@@ -185,6 +186,18 @@ func outputLevel(l string) string {
 // has markers and error positions that end where the parsers expect.
 func normalizeNewlines(s string) string {
 	return strings.ReplaceAll(s, "\r\n", "\n")
+}
+
+// ansiRE matches a terminal colour code.
+var ansiRE = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+
+// stripANSI removes colour codes from mongosh's stderr. mongosh colours a syntax
+// error's code frame when it thinks colour is available: with CI or FORCE_COLOR
+// set, say, even though stderr is a pipe. The frame could not be remapped with
+// them in it, and Messages would show them as raw text. Stdout keeps its codes:
+// those are the script's own.
+func stripANSI(s string) string {
+	return ansiRE.ReplaceAllString(s, "")
 }
 
 // withStderrNotice adds what mongosh wrote to stderr after the script's output,

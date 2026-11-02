@@ -233,3 +233,20 @@ func TestRemapError_PositionPastTheEndOfTheScript(t *testing.T) {
 		t.Errorf("no blank line should be left where the frame was; got %q", got)
 	}
 }
+
+// mongosh colours the code frame when CI or FORCE_COLOR is set, and it must
+// still be remapped.
+func TestRemapError_ColouredFrame(t *testing.T) {
+	mongoshErr := "SyntaxError: Unexpected token (2:9)\n\n" +
+		"\x1b[0m\x1b[31m\x1b[1m>\x1b[22m\x1b[39m\x1b[90m 2 |\x1b[39m \x1b[36mlet\x1b[39m x \x1b[33m=\x1b[39m (\x1b[33m;\x1b[39m\n" +
+		"\x1b[90m   |\x1b[39m          \x1b[31m\x1b[1m^\x1b[22m\x1b[39m\x1b[0m"
+
+	got := remap(stripANSI(mongoshErr), "let x = (;")
+
+	if strings.Contains(got, "\x1b") {
+		t.Errorf("colour codes should be gone; got %q", got)
+	}
+	if !strings.Contains(got, "(1:9)") || !strings.Contains(got, "> 1 | let x = (;") {
+		t.Errorf("expected the frame remapped to user line 1; got:\n%s", got)
+	}
+}
