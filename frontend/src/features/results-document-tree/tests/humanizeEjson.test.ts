@@ -322,3 +322,69 @@ describe('toJsExpression', () => {
     expect(toJsExpression(oid)).toBe('ObjectId("507f1f77bcf86cd799439011")')
   })
 })
+
+describe('humanizeEjson with documents that only look like BSON wrappers', () => {
+  it('keeps a document that has a field named like a wrapper', () => {
+    const doc = { _id: 1, name: 'x', $date: '2024-01-01' }
+
+    expect(humanizeEjson(doc)).toEqual(doc)
+  })
+
+  it.each([[{ $regularExpression: null }], [{ $binary: null }]])('does not throw on %j', (doc) => {
+    expect(humanizeEjson(doc)).toEqual(doc)
+  })
+
+  it('keeps a UUID with invalid base64 instead of throwing', () => {
+    const value = { $binary: { base64: '!!!', subType: '04' } }
+
+    expect(humanizeEjson(value)).toEqual(value)
+  })
+})
+
+describe('saving an edit: toJsExpression(humanizeEjson(doc))', () => {
+  const saved = (doc: unknown) => toJsExpression(humanizeEjson(doc))
+
+  it('keeps every field of an object with a field named like a wrapper', () => {
+    expect(saved({ meta: { $date: '2024-01-01', name: 'x' } })).toBe(
+      '{ meta: { $date: "2024-01-01", name: "x" } }',
+    )
+  })
+
+  it.each([
+    [{ x: { $timestamp: null } }, '{ x: { $timestamp: null } }'],
+    [{ x: { $regularExpression: null } }, '{ x: { $regularExpression: null } }'],
+    [{ x: { $binary: null } }, '{ x: { $binary: null } }'],
+    [{ x: { $oid: 5 } }, '{ x: { $oid: 5 } }'],
+  ])('does not throw on %j', (doc, expected) => {
+    expect(saved(doc)).toBe(expected)
+  })
+
+  it('still writes real BSON values with their constructors', () => {
+    const doc = {
+      a: { $oid: '507f1f77bcf86cd799439011' },
+      b: { $date: { $numberLong: '0' } },
+      c: { $timestamp: { t: 1, i: 2 } },
+      d: { $numberLong: '7' },
+    }
+
+    expect(toJsExpression(doc)).toBe(
+      '{ a: ObjectId("507f1f77bcf86cd799439011"), b: ISODate("1970-01-01T00:00:00.000Z"), c: Timestamp(1, 2), d: NumberLong("7") }',
+    )
+  })
+
+  it('does not throw on a UUID with invalid base64', () => {
+    expect(() => toJsExpression({ $binary: { base64: '!!!', subType: '04' } })).not.toThrow()
+  })
+})
+
+describe('humanizeEjson with dates beyond a JS Date', () => {
+  it('keeps the date as EJSON, so it does not become a string', () => {
+    const value = { $date: { $numberLong: '99999999999999999' } }
+
+    expect(humanizeEjson(value)).toEqual(value)
+  })
+
+  it('still converts a date in range', () => {
+    expect(humanizeEjson({ $date: { $numberLong: '0' } })).toBe('1970-01-01T00:00:00.000Z')
+  })
+})

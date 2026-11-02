@@ -1,39 +1,14 @@
 import type { DocumentRow } from './types'
 import { i18nGlobal } from '@/i18n'
-
-const bsonKeyLookup: Record<string, string> = {
-  $oid: 'objectId',
-  $date: 'date',
-  $numberDecimal: 'decimal128',
-  $numberLong: 'long',
-  $numberInt: 'int32',
-  $numberDouble: 'double',
-  $binary: 'binary',
-  $regex: 'regex',
-  $regularExpression: 'regex',
-  $timestamp: 'timestamp',
-  $minKey: 'minKey',
-  $maxKey: 'maxKey',
-}
-
-const bsonKeyEntries = Object.entries(bsonKeyLookup)
-
-const BINARY_SUBTYPE_UUID_LEGACY = '03'
-const BINARY_SUBTYPE_UUID = '04'
-const BINARY_SUBTYPE_MD5 = '05'
-
-function base64ToHex(b64: string): string {
-  const raw = atob(b64)
-  return Array.from(raw, (ch) => ch.charCodeAt(0).toString(16).padStart(2, '0')).join('')
-}
-
-function hexToUUID(hex: string): string {
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`
-}
-
-function base64ToUUID(b64: string): string {
-  return hexToUUID(base64ToHex(b64))
-}
+import {
+  BINARY_SUBTYPE_MD5,
+  BINARY_SUBTYPE_UUID,
+  BINARY_SUBTYPE_UUID_LEGACY,
+  binaryToText,
+  epochMsToText,
+  getBsonWrapperType,
+} from './bsonValue'
+import { humanizeEjson } from './humanizeEjson'
 
 const primitiveTypeLookup: Record<string, string> = {
   string: 'string',
@@ -48,21 +23,18 @@ export function getTypeKey(val: unknown): string {
     return 'array'
   }
   if (typeof val === 'object') {
-    for (const [bsonKey, typeName] of bsonKeyEntries) {
-      if (bsonKey in val) {
-        if (bsonKey === '$binary') {
-          const binary = (val as Record<string, unknown>).$binary as Record<string, unknown>
-          if (binary?.subType === BINARY_SUBTYPE_UUID || binary?.subType === BINARY_SUBTYPE_UUID_LEGACY) {
-            return binary.subType === BINARY_SUBTYPE_UUID ? 'uuid' : 'uuidLegacy'
-          }
-          if (binary?.subType === BINARY_SUBTYPE_MD5) {
-            return 'md5'
-          }
-        }
-        return typeName
-      }
+    const wrapperType = getBsonWrapperType(val)
+    if (wrapperType !== 'binary') {
+      return wrapperType ?? 'object'
     }
-    return 'object'
+    const subType = ((val as Record<string, unknown>).$binary as Record<string, unknown>).subType
+    if (subType === BINARY_SUBTYPE_UUID) {
+      return 'uuid'
+    }
+    if (subType === BINARY_SUBTYPE_UUID_LEGACY) {
+      return 'uuidLegacy'
+    }
+    return subType === BINARY_SUBTYPE_MD5 ? 'md5' : 'binary'
   }
   if (typeof val === 'number') {
     return Number.isInteger(val) ? 'int32' : 'double'
@@ -83,14 +55,16 @@ export function getDisplayValue(val: unknown): string {
   }
   if (typeof val === 'object') {
     const obj = val as Record<string, unknown>
+    if (!getBsonWrapperType(obj)) {
+      return i18nGlobal.t('query.objectFields', { count: Object.keys(obj).length })
+    }
     if ('$oid' in obj) {
       return String(obj.$oid)
     }
     if ('$date' in obj) {
       const dateVal = obj.$date
       if (typeof dateVal === 'object' && dateVal !== null && '$numberLong' in dateVal) {
-        const ms = Number((dateVal as Record<string, unknown>).$numberLong)
-        return new Date(ms).toISOString()
+        return epochMsToText(String((dateVal as Record<string, unknown>).$numberLong))
       }
       return String(dateVal)
     }
@@ -108,13 +82,9 @@ export function getDisplayValue(val: unknown): string {
     }
     if ('$binary' in obj) {
       const binary = obj.$binary as Record<string, unknown>
-      if (typeof binary?.base64 === 'string') {
-        if (binary.subType === BINARY_SUBTYPE_UUID || binary.subType === BINARY_SUBTYPE_UUID_LEGACY) {
-          return base64ToUUID(binary.base64)
-        }
-        if (binary.subType === BINARY_SUBTYPE_MD5) {
-          return base64ToHex(binary.base64)
-        }
+      const text = binaryToText(String(binary.base64), binary.subType)
+      if (text !== undefined) {
+        return text
       }
       return i18nGlobal.t('query.binaryValue', { subType: binary.subType })
     }
@@ -135,8 +105,20 @@ export function getDisplayValue(val: unknown): string {
     if ('$maxKey' in obj) {
       return 'MaxKey'
     }
-    const keys = Object.keys(obj)
-    return i18nGlobal.t('query.objectFields', { count: keys.length })
+    if ('$code' in obj) {
+      return String(obj.$code)
+    }
+    if ('$symbol' in obj) {
+      return String(obj.$symbol)
+    }
+    if ('$uuid' in obj) {
+      return String(obj.$uuid)
+    }
+    if ('$dbPointer' in obj) {
+      const pointer = obj.$dbPointer as Record<string, unknown>
+      return `DBPointer(${pointer.$ref}, ${getDisplayValue(pointer.$id)})`
+    }
+    return 'undefined'
   }
   if (typeof val === 'string') {
     return val
@@ -151,10 +133,7 @@ export function getDocLabel(doc: unknown, index: number): string {
   const record = doc as Record<string, unknown>
   const id = record._id
   if (id !== undefined) {
-    const idStr = typeof id === 'object' && id !== null && '$oid' in id
-      ? (id as Record<string, unknown>).$oid
-      : getDisplayValue(id)
-    return `(${index + 1}) {_id: ${idStr}}`
+    return `(${index + 1}) {_id: ${getDisplayValue(id)}}`
   }
   return `(${index + 1})`
 }
@@ -165,24 +144,31 @@ export function buildTreeData(documents: unknown[]): DocumentRow[] {
   }
 
   return documents.map((doc, i) => {
-    const fieldCount =
-      typeof doc === 'object' && doc !== null ? Object.keys(doc).length : 0
+    const row = buildValueRow(`__doc_${i}`, getDocLabel(doc, i), doc)
 
-    const children: DocumentRow[] =
-      typeof doc === 'object' && doc !== null
-        ? buildChildRows(doc, `__doc_${i}`)
-        : []
-
-    return {
-      key: `__doc_${i}`,
-      field: getDocLabel(doc, i),
-      value: i18nGlobal.t('query.objectFields', { count: fieldCount }),
-      type: 'document',
-      typeLabel: getTypeName('document'),
-      isDocRoot: true,
-      children: children.length > 0 ? children : undefined,
+    // A script can return any value, such as the strings from getCollectionNames()
+    if (row.type !== 'object') {
+      return { ...row, kind: 'value' }
     }
+
+    return { ...row, kind: 'document', type: 'document', typeLabel: getTypeName('document') }
   })
+}
+
+function buildValueRow(key: string, field: string, val: unknown): DocumentRow {
+  const typeKey = getTypeKey(val)
+  const hasChildren = typeKey === 'object' || typeKey === 'array'
+  const children = hasChildren ? buildChildRows(val, key) : []
+
+  return {
+    key,
+    field,
+    value: getDisplayValue(val),
+    type: typeKey,
+    typeLabel: getTypeName(typeKey),
+    kind: 'field',
+    children: children.length > 0 ? children : undefined,
+  }
 }
 
 function buildChildRows(
@@ -197,24 +183,36 @@ function buildChildRows(
     ? obj.map((v, i) => [String(i), v] as [string, unknown])
     : Object.entries(obj)
 
-  return entries.map(([key, val]) => {
-    const nodeKey = prefix ? `${prefix}.${key}` : key
-    const typeKey = getTypeKey(val)
-    const hasChildren = typeKey === 'document' || typeKey === 'object' || typeKey === 'array'
+  return entries.map(([key, val]) => buildValueRow(prefix ? `${prefix}.${key}` : key, key, val))
+}
 
-    const children =
-      hasChildren && typeof val === 'object' && val !== null
-        ? buildChildRows(val, nodeKey)
-        : undefined
+/**
+ * The text to copy for a value. Scalars copy as shown, since converting them can
+ * change them: a long past 2^53 rounds, and NaN becomes null in JSON.
+ */
+export function getCopyText(val: unknown, pretty = false): string {
+  if (!isShownInFull(val)) {
+    return JSON.stringify(humanizeEjson(val), null, pretty ? 2 : undefined)
+  }
+  return getDisplayValue(val)
+}
 
-    return {
-      key: nodeKey,
-      field: key,
-      value: getDisplayValue(val),
-      type: typeKey,
-      typeLabel: getTypeName(typeKey),
-      isDocRoot: false,
-      children: children && children.length > 0 ? children : undefined,
-    }
-  })
+function isShownInFull(val: unknown): boolean {
+  const typeKey = getTypeKey(val)
+  if (typeKey === 'array' || typeKey === 'object' || typeKey === 'binary') {
+    return false
+  }
+  if (typeof val !== 'object' || val === null) {
+    return true
+  }
+
+  const obj = val as Record<string, unknown>
+  if ('$scope' in obj) {
+    return false
+  }
+  if (!('$binary' in obj)) {
+    return true
+  }
+  const binary = obj.$binary as Record<string, unknown>
+  return binaryToText(String(binary.base64), binary.subType) !== undefined
 }

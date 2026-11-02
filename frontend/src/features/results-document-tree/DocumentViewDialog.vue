@@ -91,7 +91,7 @@ function close() {
   <n-modal
     :show="props.show"
     preset="card"
-    :title="t('query.dialogs.viewDocument')"
+    :title="t(Array.isArray(document) ? 'query.dialogs.viewValue' : 'query.dialogs.viewDocument')"
     style="width: 700px; max-height: 80vh"
     :mask-closable="true"
     @update:show="emit('update:show', $event)"
@@ -100,7 +100,7 @@ function close() {
     <template #footer>
       <n-space justify="end">
         <n-button @click="copyToClipboard">
-          {{ t('query.contextMenu.copyDocument') }}
+          {{ t(Array.isArray(document) ? 'query.contextMenu.copyValue' : 'query.contextMenu.copyDocument') }}
         </n-button>
         <n-button v-if="canEdit" type="primary" @click="emit('edit')">
           {{ t('query.dialogs.editDocument') }}
