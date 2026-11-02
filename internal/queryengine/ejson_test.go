@@ -68,6 +68,48 @@ func TestEJSON_ParseAndDeserialize_KeepExplicitLongs(t *testing.T) {
 	}
 }
 
+// With { relaxed: false } every integer keeps its BSON type, as in mongosh.
+func TestEJSON_NotRelaxed_KeepsIntegerTypes(t *testing.T) {
+	rt := setupEJSONRuntime(t)
+	for _, script := range []string{
+		`EJSON.parse('{"l": {"$numberLong": "9007199254740993"}, "big": 5000000000, "n": 7, "a": [7], "d": 1.5}', { relaxed: false })`,
+		`EJSON.deserialize({ l: { $numberLong: "9007199254740993" }, big: 5000000000, n: 7, a: [7], d: 1.5 }, { relaxed: false })`,
+	} {
+		val, err := rt.RunString(script)
+		require.NoError(t, err)
+		require.NoError(t, rt.Set("v", val))
+		got, err := rt.RunString(`[typeof v.l, String(v.l), typeof v.big, typeof v.n, v.n + 1, typeof v.a[0], typeof v.d].join()`)
+		require.NoError(t, err)
+		assert.Equal(t, "object,9007199254740993,object,object,8,object,number", got.String(), script)
+		assert.Equal(t, bson.D{
+			{Key: "l", Value: int64(9007199254740993)},
+			{Key: "big", Value: int64(5000000000)},
+			{Key: "n", Value: int32(7)},
+			{Key: "a", Value: bson.A{int32(7)}},
+			{Key: "d", Value: 1.5},
+		}, toBsonDoc(exportValue(val)), script)
+	}
+}
+
+// Only a relaxed option that is set and falsy turns relaxed mode off.
+func TestEJSON_RelaxedOptionValues(t *testing.T) {
+	rt := setupEJSONRuntime(t)
+	cases := map[string]string{
+		`undefined`:          "number",
+		`null`:               "number",
+		`{}`:                 "number",
+		`{ relaxed: true }`:  "number",
+		`{ relaxed: null }`:  "number",
+		`{ relaxed: false }`: "object",
+		`{ relaxed: 0 }`:     "object",
+	}
+	for options, want := range cases {
+		val, err := rt.RunString(`typeof EJSON.parse('{"n": 7}', ` + options + `).n`)
+		require.NoError(t, err)
+		assert.Equal(t, want, val.String(), options)
+	}
+}
+
 // Numbers inside wrappers such as $timestamp and $date must reach the parser in
 // a form it accepts there.
 func TestEJSON_Deserialize_NumbersInsideWrappers(t *testing.T) {

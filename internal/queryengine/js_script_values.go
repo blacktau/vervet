@@ -31,6 +31,9 @@ const (
 	// is still a long when the script writes it back. Long's valueOf keeps
 	// arithmetic such as db.stats().storageSize / 1024 working.
 	jsScript
+	// jsTyped is jsScript with int32 kept as an Int32 wrapper rather than a plain
+	// number, for EJSON.parse with { relaxed: false }.
+	jsTyped
 )
 
 // scriptValue converts a normalized (see normalizeForJS) value into the
@@ -63,6 +66,9 @@ func jsValue(rt *goja.Runtime, v any, mode jsMode) goja.Value {
 		return jsArray(rt, val, mode)
 	case []any:
 		return jsArray(rt, val, mode)
+	}
+	if n, ok := v.(int32); ok && mode == jsTyped {
+		return numberValue(rt, n, int64(n))
 	}
 	if mode != jsPlain {
 		if converted, ok := bsonScalarToJS(rt, v); ok {
