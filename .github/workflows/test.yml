@@ -24,13 +24,20 @@ concurrency:
 jobs:
   backend-versions:
     name: Go tests (MongoDB ${{ matrix.mongodb }})
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
         # Every MongoDB version that has not reached end of life. Keep in step
         # with the list in README.md: https://endoflife.date/mongodb
-        mongodb: ['7.0', '8.0', '8.3', '9.0']
+        #
+        # 8.0 and 8.3 refuse to start on ubuntu-latest's kernel (7.0), so they run
+        # on an older one (6.8). See SERVER-121912 and SERVER-125742.
+        include:
+          - { mongodb: '7.0', runner: ubuntu-latest }
+          - { mongodb: '8.0', runner: ubuntu-22.04 }
+          - { mongodb: '8.3', runner: ubuntu-22.04 }
+          - { mongodb: '9.0', runner: ubuntu-latest }
     env:
       VERVET_TEST_MONGO_IMAGE: mongo:${{ matrix.mongodb }}
     steps:
