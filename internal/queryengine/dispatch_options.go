@@ -681,7 +681,8 @@ func aggregateOptions(raw any) (*options.AggregateOptionsBuilder, runOptions, er
 		"readPreference":           readPreferenceOpt(&run.readPreference),
 	}
 	if run.explain != "" {
-		// An explain takes no read concern, so mongosh does not look at it.
+		// As with mongosh, the server is the one to judge an explain's read concern,
+		// and only newer versions refuse a bad one. See explainAggregate.
 		delete(setters, "readConcern")
 	}
 	return o, run, applyOptions("aggregate", raw, setters)
@@ -736,7 +737,7 @@ func explainAggregate(ctx context.Context, db *mongo.Database, target, pipeline,
 			continue
 		}
 		switch e.Key {
-		case "hint", "collation", "let", "comment":
+		case "hint", "collation", "let", "comment", "readConcern":
 			aggregate = append(aggregate, e)
 		case "allowDiskUse", "bypassDocumentValidation":
 			if _, ok := e.Value.(bool); ok {

@@ -4,12 +4,16 @@ package queryengine
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/event"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 // setupWrites starts each script from the same three documents.
@@ -437,6 +441,43 @@ func TestIntegration_Writes_MaxTimeMSStopsTheWrite(t *testing.T) {
 	}
 }
 
+// A slow filter can't show that an insert honours maxTimeMS, and one short enough to
+// expire is a race, so look at what is sent.
+func TestIntegration_Writes_MaxTimeMSIsSentForEveryWrite(t *testing.T) {
+	var mu sync.Mutex
+	sent := map[string]bool{}
+	monitor := &event.CommandMonitor{Started: func(_ context.Context, e *event.CommandStartedEvent) {
+		_, err := e.Command.LookupErr("maxTimeMS")
+		mu.Lock()
+		defer mu.Unlock()
+		sent[e.CommandName] = err == nil
+	}}
+	ctx := context.Background()
+	client, err := mongo.Connect(options.Client().ApplyURI(testURI).SetMonitor(monitor))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.Disconnect(ctx) })
+
+	db := dbName(t)
+	t.Cleanup(func() { testClient.Database(db).Drop(ctx) })
+	engine := NewGojaEngine(client, 0, "")
+	for _, c := range []struct{ command, script string }{
+		{"insert", `db.c.insertOne({ _id: 1 }, { maxTimeMS: 60000 })`},
+		{"insert", `db.c.insertMany([{ _id: 2 }], { maxTimeMS: 60000 })`},
+		{"insert", `db.c.bulkWrite([{ insertOne: { document: { _id: 3 } } }], { maxTimeMS: 60000 })`},
+		{"update", `db.c.updateOne({ _id: 1 }, { $set: { z: 1 } }, { maxTimeMS: 60000 })`},
+		{"delete", `db.c.deleteOne({ _id: 1 }, { maxTimeMS: 60000 })`},
+	} {
+		mu.Lock()
+		delete(sent, c.command)
+		mu.Unlock()
+		_, err := engine.ExecuteQuery(ctx, testURI, db, c.script)
+		require.NoError(t, err, c.script)
+		mu.Lock()
+		assert.True(t, sent[c.command], c.script)
+		mu.Unlock()
+	}
+}
+
 // With several operation types in one entry, mongosh goes by a fixed order, not the
 // order they are written in. Going by the first key instead would run the wrong
 // operation, so these check what was written as well as the counts.
@@ -542,8 +583,7 @@ func TestIntegration_Aggregate_ExplainKeepsOptions(t *testing.T) {
 		// These only work if the option reaches the server.
 		`print(db.c.aggregate([{ $match: { $expr: { $eq: ["$_id", "$$v"] } } }], { explain: true, let: { v: 1 } }).ok)`: "1",
 		`print(db.aggregate([{ $documents: [{ a: "$$v" }] }], { explain: true, let: { v: 1 } }).ok)`:                    "1",
-		// An explain has no read concern, so mongosh does not look at it.
-		`print(db.c.aggregate([], { explain: true, readConcern: { level: "bogus" } }).ok)`: "1",
+		`print(db.c.aggregate([], { explain: true, readConcern: { level: "local" } }).ok)`: "1",
 		`print(db.c.aggregate([], { explain: true, batchSize: 1 }).ok)`:                    "1",
 		`print(db.c.aggregate([], { explain: true, cursor: { batchSize: 1 } }).ok)`:        "1",
 		`print(db.c.aggregate([], { explain: true, allowDiskUse: 1 }).ok)`:                 "1",
@@ -565,6 +605,7 @@ func TestIntegration_Aggregate_ExplainKeepsOptions(t *testing.T) {
 		`db.c.aggregate([{ $match: { $where: "sleep(300); return true" } }], { explain: "executionStats", maxTimeMS: 50 })`,
 		`db.c.aggregate([], { explain: true, batchSize: -1 })`,
 		`db.c.aggregate([], { explain: true, readPreference: "bogus" })`,
+		`db.c.aggregate([], { explain: true, readConcern: 5 })`,
 		`db.c.aggregate([], { explain: null })`,
 		`db.c.aggregate([], { explain: 1 })`,
 		`db.c.aggregate([], { explain: {} })`,
