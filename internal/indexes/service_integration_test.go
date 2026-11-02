@@ -18,6 +18,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 
 	"vervet/internal/models"
+	"vervet/internal/testmongo"
 )
 
 var testClient *mongo.Client
@@ -38,7 +39,7 @@ func TestMain(m *testing.M) {
 	ctx := context.Background()
 	os.Setenv("TESTCONTAINERS_RYUK_DISABLED", "true")
 
-	container, err := mongodb.Run(ctx, "mongo:7")
+	container, err := mongodb.Run(ctx, testmongo.Image())
 	if err != nil {
 		log.Fatalf("start container: %v", err)
 	}
@@ -266,10 +267,12 @@ func TestIntegration_DropIndex_RemovesIt(t *testing.T) {
 	}
 }
 
-func TestIntegration_DropIndex_UnknownErrors(t *testing.T) {
+// Dropping a missing index is an error only before MongoDB 8.3, so this uses a
+// missing collection, which is an error on every version.
+func TestIntegration_DropIndex_MissingCollectionErrors(t *testing.T) {
 	db := seedIdx(t, "idx_drop_unknown")
 
-	err := newService(t).DropIndex("srv", db, "c", "no_such_index")
+	err := newService(t).DropIndex("srv", db, "no_such_collection", "no_such_index")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to drop index")
 }

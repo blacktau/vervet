@@ -17,6 +17,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
+	"vervet/internal/testmongo"
 )
 
 var testClient *mongo.Client
@@ -38,7 +39,7 @@ func TestMain(m *testing.M) {
 	ctx := context.Background()
 	os.Setenv("TESTCONTAINERS_RYUK_DISABLED", "true")
 
-	container, err := mongodb.Run(ctx, "mongo:7")
+	container, err := mongodb.Run(ctx, testmongo.Image())
 	if err != nil {
 		log.Fatalf("start container: %v", err)
 	}

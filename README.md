@@ -41,6 +41,12 @@ or straight from [Releases](https://github.com/blacktau/vervet/releases/latest):
 | **macOS** (Intel, Apple silicon) | `.dmg` |
 | **Windows** (amd64, arm64) | Installer `.exe`, portable `.zip` |
 
+## Supported MongoDB versions
+
+Vervet supports the MongoDB versions that have not reached
+[end of life](https://endoflife.date/mongodb), currently 7.0, 8.0, 8.3 and 9.0,
+and tests against each of them. Older servers may still connect, but aren't tested.
+
 ## Screenshots
 
 | Server tree | Query editor (light) | Statistics |
