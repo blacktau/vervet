@@ -62,7 +62,9 @@ func dbGetCollectionInfos(ec *execContext) func(goja.FunctionCall) goja.Value {
 	}
 }
 
-// dbCreateCollection returns a function: db.createCollection(name) → { ok: 1 }
+// dbCreateCollection returns a function: db.createCollection(name, options?) → { ok: 1 }
+// The options go straight to the server's create command, so it decides which it
+// supports, whatever its version.
 func dbCreateCollection(ec *execContext) func(goja.FunctionCall) goja.Value {
 	return func(call goja.FunctionCall) goja.Value {
 		requireClient(ec)
@@ -70,9 +72,13 @@ func dbCreateCollection(ec *execContext) func(goja.FunctionCall) goja.Value {
 			panic(ec.rt.NewGoError(fmt.Errorf("createCollection requires a name argument")))
 		}
 
-		name := call.Arguments[0].String()
-		err := ec.client.Database(ec.dbName).CreateCollection(ec.ctx, name)
-		if err != nil {
+		cmd := bson.D{{Key: "create", Value: call.Arguments[0].String()}}
+		if len(call.Arguments) > 1 {
+			if opts, ok := asBsonDoc(exportValue(call.Arguments[1])); ok {
+				cmd = append(cmd, opts...)
+			}
+		}
+		if err := ec.client.Database(ec.dbName).RunCommand(ec.ctx, cmd).Err(); err != nil {
 			panic(ec.rt.NewGoError(fmt.Errorf("createCollection: %w", err)))
 		}
 

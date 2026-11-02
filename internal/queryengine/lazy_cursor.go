@@ -1,12 +1,17 @@
 package queryengine
 
 import (
+	"errors"
 	"fmt"
 
 	"vervet/internal/models"
 
 	"github.com/dop251/goja"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
+
+// errStopIteration ends a forEach whose callback returned false.
+var errStopIteration = errors.New("stop iteration")
 
 // lazyCursor represents a lazy MongoDB find cursor. It accumulates query
 // options (limit, skip, sort) and executes only when a terminal method is
@@ -26,8 +31,29 @@ type lazyCursor struct {
 	maxTimeMS  int64
 	batchSize  int32
 	collation  map[string]any
-	comment    string
+	comment    any
 	opType     string
+	closed     bool
+	findExtras
+}
+
+// newLazyCursor makes a cursor for a find whose arguments have been parsed.
+func newLazyCursor(ec *execContext, op CapturedOp) *lazyCursor {
+	return &lazyCursor{
+		ec:         ec,
+		collection: op.Collection,
+		filter:     argAt(op.Args, 0),
+		projection: argAt(op.Args, 1),
+		limit:      op.Limit,
+		skip:       op.Skip,
+		sort:       op.Sort,
+		hint:       op.Hint,
+		maxTimeMS:  op.MaxTimeMS,
+		batchSize:  op.BatchSize,
+		collation:  op.Collation,
+		comment:    op.Comment,
+		findExtras: op.findExtras,
+	}
 }
 
 func (c *lazyCursor) setLimit(n int64) error {
@@ -65,6 +91,11 @@ func (c *lazyCursor) execute(paged bool) (models.QueryResult, error) {
 	if c.resolved {
 		return c.cachedResult(paged)
 	}
+	if c.closed {
+		c.resolved = true
+		c.results = []any{}
+		return c.cachedResult(paged)
+	}
 
 	// Only a paged result needs a PageContext; script-side terminals would
 	// pay for encoding it and never use it.
@@ -98,6 +129,7 @@ func (c *lazyCursor) execute(paged bool) (models.QueryResult, error) {
 		BatchSize:  c.batchSize,
 		Collation:  c.collation,
 		Comment:    c.comment,
+		findExtras: c.findExtras,
 	}
 
 	result, err := dispatch(c.ec.ctx, c.ec.client, c.ec.dbName, op)
@@ -189,6 +221,7 @@ func (c *lazyCursor) explain(verbosity string) (models.QueryResult, error) {
 		BatchSize:  c.batchSize,
 		Collation:  c.collation,
 		Comment:    c.comment,
+		findExtras: c.findExtras,
 	}
 	return dispatch(c.ec.ctx, c.ec.client, c.ec.dbName, op)
 }
@@ -202,76 +235,157 @@ func (c *lazyCursor) toGojaObject() goja.Value {
 	// Hidden property for extractLazyCursor to find this cursor
 	_ = obj.Set("__lazyCursor", c)
 
-	// Chaining methods
-	_ = obj.Set("limit", func(n int64) goja.Value {
-		if err := c.setLimit(n); err != nil {
+	// Chaining methods. Each returns the cursor, and throws once it has run.
+	chain := func(name string, apply func(goja.FunctionCall)) {
+		_ = obj.Set(name, func(call goja.FunctionCall) goja.Value {
+			if c.resolved {
+				panic(rt.NewGoError(fmt.Errorf("cursor already executed — cannot set %s", name)))
+			}
+			apply(call)
+			return obj
+		})
+	}
+	throw := func(err error) {
+		if err != nil {
 			panic(rt.NewGoError(err))
 		}
-		return obj
-	})
+	}
+	// integer reads the argument of a method that insists on a plain number.
+	integer := func(name string, call goja.FunctionCall) float64 {
+		n, ok := jsNumber(call.Argument(0).Export())
+		if !ok {
+			throw(fmt.Errorf("operation %q requires an integer", name))
+		}
+		return n
+	}
+	// document reads an argument that must be a document when it is given.
+	document := func(name string, call goja.FunctionCall) any {
+		v := exportValue(call.Argument(0))
+		if v == nil {
+			return nil
+		}
+		if _, ok := asBsonDoc(v); !ok {
+			throw(fmt.Errorf("expected field %s to be of type object", name))
+		}
+		return convertToBson(v)
+	}
 
-	_ = obj.Set("skip", func(n int64) goja.Value {
-		if err := c.setSkip(n); err != nil {
-			panic(rt.NewGoError(err))
-		}
-		return obj
+	chain("limit", func(call goja.FunctionCall) {
+		throw(c.setLimit(cursorLimit(integer("limit", call))))
 	})
-
-	_ = obj.Set("sort", func(call goja.FunctionCall) goja.Value {
-		if len(call.Arguments) > 0 {
-			if err := c.setSort(exportValue(call.Arguments[0])); err != nil {
-				panic(rt.NewGoError(err))
-			}
+	chain("skip", func(call goja.FunctionCall) {
+		skip, err := cursorSkip(integer("skip", call))
+		if err != nil {
+			throw(fmt.Errorf("skip %w", err))
 		}
-		return obj
+		throw(c.setSkip(skip))
 	})
-
-	_ = obj.Set("hint", func(call goja.FunctionCall) goja.Value {
-		if c.resolved {
-			panic(rt.NewGoError(fmt.Errorf("cursor already executed — cannot set hint")))
+	chain("sort", func(call goja.FunctionCall) {
+		v := convertToBson(exportValue(call.Argument(0)))
+		if v == nil {
+			return
 		}
-		if len(call.Arguments) > 0 {
-			c.hint = exportValue(call.Arguments[0])
-		}
-		return obj
+		sort, err := normalizeSort(v)
+		throw(err)
+		throw(c.setSort(sort))
 	})
-
-	_ = obj.Set("maxTimeMS", func(n int64) goja.Value {
-		if c.resolved {
-			panic(rt.NewGoError(fmt.Errorf("cursor already executed — cannot set maxTimeMS")))
+	chain("hint", func(call goja.FunctionCall) {
+		v := convertToBson(exportValue(call.Argument(0)))
+		if v == nil {
+			return
 		}
-		c.maxTimeMS = n
-		return obj
+		hint, err := checkHint(v)
+		throw(err)
+		c.hint = hint
 	})
-
-	_ = obj.Set("batchSize", func(n int32) goja.Value {
-		if c.resolved {
-			panic(rt.NewGoError(fmt.Errorf("cursor already executed — cannot set batchSize")))
+	chain("maxTimeMS", func(call goja.FunctionCall) {
+		n, ok := jsNumber(call.Argument(0).Export())
+		if !ok {
+			throw(errors.New("argument for maxTimeMS must be a number"))
 		}
-		c.batchSize = n
-		return obj
+		ms, err := cursorMaxTime(n)
+		if err != nil {
+			throw(fmt.Errorf("maxTimeMS %w", err))
+		}
+		c.maxTimeMS = ms
 	})
-
-	_ = obj.Set("collation", func(call goja.FunctionCall) goja.Value {
-		if c.resolved {
-			panic(rt.NewGoError(fmt.Errorf("cursor already executed — cannot set collation")))
-		}
-		if len(call.Arguments) > 0 {
-			spec, ok := asMap(exportValue(call.Arguments[0]))
-			if !ok {
-				panic(rt.NewGoError(fmt.Errorf("collation argument must be an object")))
-			}
+	chain("batchSize", func(call goja.FunctionCall) {
+		c.batchSize = cursorBatchSize(integer("batchSize", call))
+	})
+	chain("collation", func(call goja.FunctionCall) {
+		if spec, ok := asMap(exportValue(call.Argument(0))); ok {
 			c.collation = spec
 		}
-		return obj
 	})
-
-	_ = obj.Set("comment", func(s string) goja.Value {
-		if c.resolved {
-			panic(rt.NewGoError(fmt.Errorf("cursor already executed — cannot set comment")))
+	chain("comment", func(call goja.FunctionCall) {
+		if v := exportValue(call.Argument(0)); v != nil {
+			c.comment = convertToBson(v)
 		}
-		c.comment = s
-		return obj
+	})
+	chain("projection", func(call goja.FunctionCall) {
+		if v := document("projection", call); v != nil {
+			c.projection = v
+		}
+	})
+	chain("min", func(call goja.FunctionCall) {
+		if v := document("min", call); v != nil {
+			c.Min = v
+		}
+	})
+	chain("max", func(call goja.FunctionCall) {
+		if v := document("max", call); v != nil {
+			c.Max = v
+		}
+	})
+	chain("returnKey", func(call goja.FunctionCall) {
+		c.ReturnKey = call.Argument(0).StrictEquals(rt.ToValue(true))
+	})
+	// mongosh turns this on whatever the argument is.
+	chain("showRecordId", func(goja.FunctionCall) { c.ShowRecordID = true })
+	chain("readConcern", func(call goja.FunctionCall) {
+		level, ok := call.Argument(0).Export().(string)
+		if !ok {
+			throw(errors.New(`"level" had the wrong type: expected a string`))
+		}
+		parsed, _, err := readConcernLevel(level)
+		throw(err)
+		c.ReadConcern = parsed
+	})
+	chain("readPref", func(call goja.FunctionCall) {
+		name := call.Argument(0).String()
+		_, err := readPreference(name)
+		throw(err)
+		c.ReadPreference = name
+	})
+	chain("allowDiskUse", func(call goja.FunctionCall) {
+		if c.sort == nil {
+			throw(errors.New(`option "allowDiskUse" requires a sort specification`))
+		}
+		allow := !call.Argument(0).StrictEquals(rt.ToValue(false))
+		c.AllowDiskUse = &allow
+	})
+	chain("allowPartialResults", func(goja.FunctionCall) { c.AllowPartialResults = true })
+	chain("noCursorTimeout", func(goja.FunctionCall) { c.NoCursorTimeout = true })
+	chain("tailable", func(goja.FunctionCall) { c.Tailable = true })
+	chain("addOption", func(call goja.FunctionCall) {
+		switch n, _ := jsNumber(call.Argument(0).Export()); n {
+		case 2:
+			c.Tailable = true
+		case 128:
+			c.AllowPartialResults = true
+		case 8, 64:
+			// oplogReplay and exhaust change nothing about what is read here.
+		case 32:
+			if !c.Tailable {
+				throw(errors.New("cannot set 'awaitData' without also setting 'tailable'"))
+			}
+		case 16:
+			throw(errors.New("flag noTimeout is not one of tailable,oplogReplay,noCursorTimeout,awaitData,exhaust,partial"))
+		case 4:
+			throw(errors.New("the slaveOk option is not supported"))
+		default:
+			throw(fmt.Errorf("unknown option flag number: %s", call.Argument(0).String()))
+		}
 	})
 
 	// Terminal methods
@@ -291,11 +405,15 @@ func (c *lazyCursor) toGojaObject() goja.Value {
 		if !ok {
 			panic(rt.NewGoError(fmt.Errorf("forEach argument must be a function")))
 		}
+		// A callback that returns false stops the loop.
 		err := c.eachRemaining(func(doc any) error {
-			_, err := fn(goja.Undefined(), toJSValue(rt, doc))
+			result, err := fn(goja.Undefined(), toJSValue(rt, doc))
+			if err == nil && result.StrictEquals(rt.ToValue(false)) {
+				return errStopIteration
+			}
 			return err
 		})
-		if err != nil {
+		if err != nil && !errors.Is(err, errStopIteration) {
 			panic(rt.NewGoError(err))
 		}
 		return goja.Undefined()
@@ -318,43 +436,102 @@ func (c *lazyCursor) toGojaObject() goja.Value {
 		if err != nil {
 			panic(rt.NewGoError(err))
 		}
-		return rt.NewArray(mapped...)
+		// Already read, so the mapped values carry on as a read cursor.
+		return withCursorMethods(rt, "aggregate", rt.NewArray(mapped...))
 	})
 
-	_ = obj.Set("count", func() goja.Value {
+	// count and size both respect the cursor's skip and limit in mongosh.
+	count := func() goja.Value {
+		countOpts := bson.D{}
+		if c.skip > 0 {
+			countOpts = append(countOpts, bson.E{Key: "skip", Value: c.skip})
+		}
+		if c.limit > 0 {
+			countOpts = append(countOpts, bson.E{Key: "limit", Value: c.limit})
+		}
+		if c.hint != nil {
+			countOpts = append(countOpts, bson.E{Key: "hint", Value: c.hint})
+		}
+		if c.collation != nil {
+			countOpts = append(countOpts, bson.E{Key: "collation", Value: c.collation})
+		}
+		filter := c.filter
+		if filter == nil {
+			filter = bson.D{}
+		}
 		op := CapturedOp{
 			Collection: c.collection,
 			Method:     "countDocuments",
-			Args:       []any{c.filter},
+			Args:       []any{filter, countOpts},
 		}
 		result, err := dispatch(c.ec.ctx, c.ec.client, c.ec.dbName, op)
 		if err != nil {
 			panic(rt.NewGoError(err))
 		}
 		return toGojaValue(rt, result)
-	})
+	}
+	_ = obj.Set("count", count)
+	_ = obj.Set("size", count)
 
-	_ = obj.Set("hasNext", func() goja.Value {
+	run := func() {
 		if !c.resolved {
 			if _, err := c.execute(false); err != nil {
 				panic(rt.NewGoError(err))
 			}
 		}
-		return rt.ToValue(c.index < len(c.results))
-	})
-
-	_ = obj.Set("next", func() goja.Value {
+	}
+	remaining := func() int {
 		if !c.resolved {
-			if _, err := c.execute(false); err != nil {
-				panic(rt.NewGoError(err))
-			}
+			return 0
 		}
+		return len(c.results) - c.index
+	}
+	next := func() goja.Value {
+		run()
 		if c.index >= len(c.results) {
-			panic(rt.NewGoError(fmt.Errorf("cursor exhausted — no more documents")))
+			return goja.Null()
 		}
 		doc := c.results[c.index]
 		c.index++
 		return toJSValue(rt, doc)
+	}
+
+	_ = obj.Set("hasNext", func() goja.Value {
+		run()
+		return rt.ToValue(c.index < len(c.results))
+	})
+	_ = obj.Set("next", next)
+	_ = obj.Set("tryNext", next)
+	_ = obj.Set("itcount", func() goja.Value {
+		run()
+		n := remaining()
+		c.index = len(c.results)
+		return rt.ToValue(n)
+	})
+	_ = obj.Set("objsLeftInBatch", func() goja.Value { return rt.ToValue(remaining()) })
+	used := func() goja.Value { return rt.ToValue(c.closed || c.usedUp()) }
+	_ = obj.Set("isExhausted", used)
+	_ = obj.Set("isClosed", used)
+	_ = obj.Set("close", func() goja.Value {
+		c.closed = true
+		if c.resolved {
+			c.index = len(c.results)
+		}
+		return goja.Undefined()
+	})
+	_ = obj.SetSymbol(goja.SymIterator, func(goja.FunctionCall) goja.Value {
+		iterator := rt.NewObject()
+		_ = iterator.Set("next", func() goja.Value {
+			run()
+			result := rt.NewObject()
+			done := c.index >= len(c.results)
+			_ = result.Set("done", done)
+			if !done {
+				_ = result.Set("value", next())
+			}
+			return result
+		})
+		return iterator
 	})
 
 	_ = obj.Set("explain", func(call goja.FunctionCall) goja.Value {

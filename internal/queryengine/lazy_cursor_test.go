@@ -87,7 +87,7 @@ func TestLazyCursor_CursorOptionsFieldsDefaults(t *testing.T) {
 	assert.Equal(t, int64(0), c.maxTimeMS)
 	assert.Equal(t, int32(0), c.batchSize)
 	assert.Nil(t, c.collation)
-	assert.Equal(t, "", c.comment)
+	assert.Nil(t, c.comment)
 }
 
 // TestPageContext_RoundTripKeepsOrderAndTypes guards the paging round-trip:

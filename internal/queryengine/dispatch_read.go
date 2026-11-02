@@ -4,9 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
 	"math"
-	"slices"
 	"time"
 
 	"vervet/internal/models"
@@ -28,9 +26,9 @@ func dispatchFind(ctx context.Context, coll *mongo.Collection, op CapturedOp) (m
 
 // findDocs runs a find for op and reads every document it returns.
 func findDocs(ctx context.Context, coll *mongo.Collection, op CapturedOp) ([]bson.D, error) {
-	filter := bson.D{}
-	if len(op.Args) > 0 && op.Args[0] != nil {
-		filter = toBsonDoc(op.Args[0])
+	filter, err := queryFilter(argAt(op.Args, 0))
+	if err != nil {
+		return nil, err
 	}
 
 	// The server's limit, which also keeps the Duration below from overflowing.
@@ -51,14 +49,38 @@ func findDocs(ctx context.Context, coll *mongo.Collection, op CapturedOp) ([]bso
 	}
 	applyFindOptions(opts, op)
 
-	cursor, err := coll.Find(ctx, filter, opts)
+	run, err := op.findExtras.run()
+	if err != nil {
+		return nil, err
+	}
+	cursor, err := run.collection(coll).Find(ctx, filter, opts)
 	if err != nil {
 		return nil, err
 	}
 	defer cursor.Close(ctx)
 
 	var results []bson.D
+	if op.Tailable {
+		return readTailable(ctx, cursor)
+	}
 	if err := cursor.All(ctx, &results); err != nil {
+		return nil, fmt.Errorf("reading cursor: %w", err)
+	}
+	return results, nil
+}
+
+// readTailable reads what a tailable cursor has now. It stays open for documents
+// yet to come, so reading it to its end would never finish.
+func readTailable(ctx context.Context, cursor *mongo.Cursor) ([]bson.D, error) {
+	var results []bson.D
+	for cursor.TryNext(ctx) {
+		var doc bson.D
+		if err := cursor.Decode(&doc); err != nil {
+			return nil, fmt.Errorf("reading cursor: %w", err)
+		}
+		results = append(results, doc)
+	}
+	if err := cursor.Err(); err != nil {
 		return nil, fmt.Errorf("reading cursor: %w", err)
 	}
 	return results, nil
@@ -90,9 +112,10 @@ func applyFindOptions(opts *options.FindOptionsBuilder, op CapturedOp) {
 	if op.Collation != nil {
 		opts.SetCollation(toCollation(op.Collation))
 	}
-	if op.Comment != "" {
+	if op.Comment != nil && op.Comment != "" {
 		opts.SetComment(op.Comment)
 	}
+	op.findExtras.apply(opts)
 }
 
 // toCollation converts a map[string]any into a driver *options.Collation.
@@ -139,7 +162,11 @@ func dispatchExplainFind(ctx context.Context, client *mongo.Client, dbName strin
 
 	findCmd := bson.D{{Key: "find", Value: op.Collection}}
 	if len(op.Args) > 0 && op.Args[0] != nil {
-		findCmd = append(findCmd, bson.E{Key: "filter", Value: toBsonDoc(op.Args[0])})
+		filter, err := queryFilter(op.Args[0])
+		if err != nil {
+			return models.QueryResult{}, err
+		}
+		findCmd = append(findCmd, bson.E{Key: "filter", Value: filter})
 	}
 	if len(op.Args) > 1 && op.Args[1] != nil {
 		if proj, ok := asBsonDoc(op.Args[1]); ok {
@@ -171,9 +198,10 @@ func dispatchExplainFind(ctx context.Context, client *mongo.Client, dbName strin
 	if op.Collation != nil {
 		findCmd = append(findCmd, bson.E{Key: "collation", Value: toBsonDoc(op.Collation)})
 	}
-	if op.Comment != "" {
+	if op.Comment != nil && op.Comment != "" {
 		findCmd = append(findCmd, bson.E{Key: "comment", Value: op.Comment})
 	}
+	findCmd = op.findExtras.explainFields(findCmd)
 
 	cmd := bson.D{
 		{Key: "explain", Value: findCmd},
@@ -192,19 +220,17 @@ func dispatchExplainFind(ctx context.Context, client *mongo.Client, dbName strin
 
 // dispatchFindOne runs findOne(filter, projection, options) as a find limited
 // to one document, so it takes the same options a find cursor does.
-func dispatchFindOne(ctx context.Context, coll *mongo.Collection, op CapturedOp) (models.QueryResult, error) {
-	findOp := CapturedOp{Collection: op.Collection, Method: "find", Limit: 1}
-	if len(op.Args) > 0 {
-		findOp.Args = append(findOp.Args, op.Args[0])
+func dispatchFindOne(ctx context.Context, client *mongo.Client, dbName string, coll *mongo.Collection, op CapturedOp) (models.QueryResult, error) {
+	findOp, err := parseFindArgs(op.Collection, "findOne", op.Args)
+	if err != nil {
+		return models.QueryResult{}, err
 	}
-	if len(op.Args) > 1 {
-		findOp.Args = append(findOp.Args, op.Args[1])
+	if findOp.Explain != "" {
+		return explainFindOp(ctx, client, dbName, findOp)
 	}
-	if len(op.Args) > 2 {
-		if err := applyFindOneOptions(&findOp, op.Args[2]); err != nil {
-			return models.QueryResult{}, err
-		}
-	}
+	// findOne reads one document, so these change nothing.
+	findOp.Limit = 1
+	findOp.BatchSize = 0
 
 	docs, err := findDocs(ctx, coll, findOp)
 	if err != nil {
@@ -216,83 +242,13 @@ func dispatchFindOne(ctx context.Context, coll *mongo.Collection, op CapturedOp)
 	return result, nil
 }
 
-// applyFindOneOptions copies findOne's options document onto a find operation.
-// A projection given here applies when the projection argument is absent.
-// Options that cannot change the document returned are ignored. Any other
-// option it does not support is an error rather than silently dropped, since
-// ignoring one such as min or readConcern could change what is returned.
-func applyFindOneOptions(op *CapturedOp, raw any) error {
-	if raw == nil {
-		return nil
-	}
-	opts, ok := asMap(raw)
-	if !ok {
-		return fmt.Errorf("findOne options must be an object")
-	}
-	// Applied in the order the script wrote them, so the first bad option
-	// is the one reported. A map has no order, so its keys are sorted.
-	var keys []string
-	if doc, ok := raw.(bson.D); ok {
-		for _, e := range doc {
-			keys = append(keys, e.Key)
-		}
-	} else {
-		keys = slices.Sorted(maps.Keys(opts))
-	}
-	for _, key := range keys {
-		if err := applyFindOneOption(op, key, opts[key]); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// applyFindOneOption applies one findOne option to a find operation.
-func applyFindOneOption(op *CapturedOp, key string, v any) error {
-	var err error
-	switch key {
-	case "projection":
-		if len(op.Args) < 2 || op.Args[1] == nil {
-			for len(op.Args) < 2 {
-				op.Args = append(op.Args, nil)
-			}
-			op.Args[1] = v
-		}
-	case "sort":
-		op.Sort = v
-	case "hint":
-		op.Hint = v
-	case "skip":
-		op.Skip, err = countOption(key, v)
-	case "maxTimeMS":
-		op.MaxTimeMS, err = countOption(key, v)
-	case "collation":
-		collation, ok := asMap(v)
-		if !ok {
-			return fmt.Errorf("findOne collation must be an object")
-		}
-		op.Collation = collation
-	case "comment":
-		comment, ok := v.(string)
-		if !ok {
-			return fmt.Errorf("findOne comment must be a string")
-		}
-		op.Comment = comment
-	case "limit", "batchSize", "noCursorTimeout":
-		// findOne reads one document, so these change nothing.
-	default:
-		return fmt.Errorf("findOne option %q is not supported", key)
-	}
-	return err
-}
-
-// countOption reads a findOne option that takes a non-negative whole number.
-func countOption(name string, v any) (int64, error) {
-	n, err := wholeNumber(v)
-	if err != nil {
-		return 0, fmt.Errorf("findOne %s %w", name, err)
-	}
-	return n, nil
+// explainFindOp runs find's explain option, at the verbosity it asked for.
+func explainFindOp(ctx context.Context, client *mongo.Client, dbName string, op CapturedOp) (models.QueryResult, error) {
+	verbosity := op.Explain
+	op.Method = "explainFind"
+	op.Explain = ""
+	op.Args = []any{argAt(op.Args, 0), argAt(op.Args, 1), verbosity}
+	return dispatchExplainFind(ctx, client, dbName, op)
 }
 
 func dispatchCountDocuments(ctx context.Context, coll *mongo.Collection, op CapturedOp) (models.QueryResult, error) {

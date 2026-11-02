@@ -312,6 +312,7 @@ export namespace models {
 	    maxTimeMS?: number;
 	    batchSize?: number;
 	    comment?: string;
+	    findExtras?: string;
 	}
 	export interface QueryResult {
 	    documents: any[];

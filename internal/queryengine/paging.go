@@ -84,9 +84,12 @@ func (c *lazyCursor) buildPageContext() (*models.PageContext, error) {
 		UserSkip:   c.skip,
 		MaxTimeMS:  c.maxTimeMS,
 		BatchSize:  c.batchSize,
-		Comment:    c.comment,
 	}
+	pc.Comment, _ = c.comment.(string)
 	var err error
+	if pc.FindExtras, err = encodeFindExtras(c.findExtras, c.comment); err != nil {
+		return nil, fmt.Errorf("paging settings: %w", err)
+	}
 	if pc.Filter, err = encodePageDoc(c.filter); err != nil {
 		return nil, fmt.Errorf("paging filter: %w", err)
 	}
@@ -113,8 +116,9 @@ var errNoPageDatabase = errors.New("page context has no database")
 
 // pageQuery holds a PageContext's values decoded back into ordered BSON.
 type pageQuery struct {
-	filter, projection, sort, hint any
-	collation                      map[string]any
+	filter, projection, sort, hint, comment any
+	collation                               map[string]any
+	extras                                  findExtras
 }
 
 func decodePageContext(pc models.PageContext) (pageQuery, error) {
@@ -138,6 +142,12 @@ func decodePageContext(pc models.PageContext) (pageQuery, error) {
 	}
 	if collation != nil {
 		q.collation, _ = asMap(collation)
+	}
+	if q.extras, q.comment, err = decodeFindExtras(pc.FindExtras); err != nil {
+		return q, fmt.Errorf("paging settings: %w", err)
+	}
+	if pc.Comment != "" {
+		q.comment = pc.Comment
 	}
 	return q, nil
 }
@@ -188,7 +198,8 @@ func (e *GojaEngine) FetchPage(
 		Collation:  q.collation,
 		MaxTimeMS:  pc.MaxTimeMS,
 		BatchSize:  pc.BatchSize,
-		Comment:    pc.Comment,
+		Comment:    q.comment,
+		findExtras: q.extras,
 	}
 	return dispatch(ctx, e.client, pc.Database, op)
 }
@@ -204,9 +215,13 @@ func (e *GojaEngine) CountForPage(
 	if pc.Database == "" {
 		return 0, false, errNoPageDatabase
 	}
-	filter, err := decodePageDoc(pc.Filter)
+	q, err := decodePageContext(pc)
 	if err != nil {
-		return 0, false, fmt.Errorf("paging filter: %w", err)
+		return 0, false, err
+	}
+	filter := q.filter
+	if q.collation != nil || q.extras.narrowsMatches() {
+		return e.countByReading(ctx, pc, q)
 	}
 	method := "countDocuments"
 	args := []any{filter}
@@ -224,13 +239,39 @@ func (e *GojaEngine) CountForPage(
 	if err != nil {
 		return 0, estimated, err
 	}
+	return cappedPageCount(extractCount(res), pc), estimated, nil
+}
+
+// countByReading counts a query whose matches depend on more than its filter, such
+// as min() or a collation, by running it: a count taken from the filter alone would
+// not page to the same documents. It reads only each document's _id.
+func (e *GojaEngine) countByReading(ctx context.Context, pc models.PageContext, q pageQuery) (int64, bool, error) {
+	extras := q.extras
+	extras.ReturnKey = false
+	extras.ShowRecordID = false
+	res, err := dispatch(ctx, e.client, pc.Database, CapturedOp{
+		Collection: pc.Collection,
+		Method:     "find",
+		Args:       []any{q.filter, bson.D{{Key: "_id", Value: 1}}},
+		Hint:       q.hint,
+		Collation:  q.collation,
+		findExtras: extras,
+	})
+	if err != nil {
+		return 0, false, err
+	}
+	return cappedPageCount(int64(len(res.Documents)), pc), false, nil
+}
+
+// cappedPageCount narrows a total to what the cursor's own skip and limit show.
+func cappedPageCount(total int64, pc models.PageContext) int64 {
 	// Documents the cursor skips (its own skip(), plus any next() consumed
 	// before it was returned) are not part of the paged result.
-	count = max(extractCount(res)-pc.UserSkip, 0)
+	count := max(total-pc.UserSkip, 0)
 	if pc.UserLimit > 0 && count > pc.UserLimit {
 		count = pc.UserLimit
 	}
-	return count, estimated, nil
+	return count
 }
 
 func isEmptyFilter(f any) bool {

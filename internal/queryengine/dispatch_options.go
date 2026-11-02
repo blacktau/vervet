@@ -372,19 +372,11 @@ type runOptions struct {
 
 func readConcernOpt(rc **readconcern.ReadConcern) func(any) error {
 	return func(v any) error {
-		level, ok := v.(string)
-		if doc, isDoc := v.(bson.D); isDoc {
-			level, ok = docField(doc, "level").(string)
-		}
-		if !ok {
-			return nil
-		}
-		switch level {
-		case "local", "majority", "linearizable", "available", "snapshot":
+		level, ok, err := readConcernLevel(v)
+		if ok {
 			*rc = &readconcern.ReadConcern{Level: level}
-			return nil
 		}
-		return errors.New("level must be either 'local', 'majority', 'linearizable', 'available', or 'snapshot'")
+		return err
 	}
 }
 
@@ -397,11 +389,7 @@ func readPreferenceOpt(rp **readpref.ReadPref) func(any) error {
 		if !ok {
 			return nil
 		}
-		mode, err := readpref.ModeFromString(name)
-		if err != nil {
-			return errors.New("must be a valid read preference mode")
-		}
-		pref, err := readpref.New(mode)
+		pref, err := readPreference(name)
 		if err != nil {
 			return err
 		}

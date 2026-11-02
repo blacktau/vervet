@@ -29,7 +29,7 @@ func dispatch(ctx context.Context, client *mongo.Client, dbName string, op Captu
 	case "explainFind":
 		return dispatchExplainFind(ctx, client, dbName, op)
 	case "findOne":
-		return dispatchFindOne(ctx, coll, op)
+		return dispatchFindOne(ctx, client, dbName, coll, op)
 	case "insertOne":
 		return dispatchInsertOne(ctx, coll, op)
 	case "insertMany":
