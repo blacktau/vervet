@@ -1,10 +1,8 @@
 import { nextTick, onBeforeUnmount, watch, type Ref, type ComponentPublicInstance } from 'vue'
 import Sortable from 'sortablejs'
 
-type TabRoot = HTMLElement | ComponentPublicInstance | null
-
 export function useTabSortable(
-  rootRef: Ref<TabRoot>,
+  rootRef: Ref<ComponentPublicInstance | null>,
   navSelector: string,
   onReorder: (from: number, to: number) => void,
 ): void {
@@ -18,9 +16,7 @@ export function useTabSortable(
   }
 
   function setup() {
-    const value = rootRef.value
-    const root = (value as ComponentPublicInstance | null)?.$el
-      ?? (value as HTMLElement | null)
+    const root = rootRef.value?.$el
     if (!root) {
       teardown()
       return

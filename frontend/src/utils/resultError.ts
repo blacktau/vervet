@@ -1,4 +1,5 @@
 import { i18nGlobal } from '@/i18n'
+import { useNotifier } from '@/utils/dialog'
 
 // The Go side's catch-all: it says nothing the detail doesn't say better.
 const UNKNOWN_ERROR = 'unknown_error'
@@ -19,8 +20,22 @@ export function errorCodeText(errorCode?: string): string {
   return translateCode(errorCode) ?? i18nGlobal.t(`errors.${UNKNOWN_ERROR}`)
 }
 
-/** The one line to show for a failed proxy result, where there's no room for a separate detail. */
+/** A short message for a failed proxy result, where a known code is enough and the detail would be noise. */
 export function resultErrorText({ errorCode, errorDetail }: FailedResult): string {
   const translated = errorCode === UNKNOWN_ERROR ? undefined : translateCode(errorCode)
   return translated || errorDetail || errorCodeText()
+}
+
+/** The whole message as text, for error states that render a string: the headline, then the detail. */
+export function resultErrorLines({ errorCode, errorDetail }: FailedResult): string {
+  const headline = errorCode === UNKNOWN_ERROR ? undefined : translateCode(errorCode)
+  if (!headline) {
+    return errorDetail || errorCodeText()
+  }
+  return errorDetail && errorDetail !== headline ? `${headline}\n${errorDetail}` : headline
+}
+
+/** Notifies of a failed proxy result, keeping the detail beneath the headline. */
+export function notifyResultError(result: FailedResult, title?: string): void {
+  useNotifier().error(errorCodeText(result.errorCode), { title, detail: result.errorDetail })
 }

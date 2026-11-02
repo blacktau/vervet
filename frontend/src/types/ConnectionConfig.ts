@@ -1,10 +1,11 @@
-const AUTH_METHODS = ['none', 'password', 'x509', 'oidc', 'aws', 'gssapi', 'plain'] as const
+export type AuthMethod = 'none' | 'password' | 'x509' | 'oidc' | 'aws' | 'gssapi' | 'plain'
 
-export type AuthMethod = (typeof AUTH_METHODS)[number]
-
-/** Go sends the method as a plain string, and configs saved before it existed leave it empty. */
+/**
+ * Go sends the method as a plain string, and configs saved before it existed leave it empty.
+ * An unrecognised value passes through, so that saving the server doesn't overwrite it.
+ */
 export function toAuthMethod(value: string): AuthMethod {
-  return AUTH_METHODS.find((method) => method === value) ?? 'password'
+  return (value || 'password') as AuthMethod
 }
 
 export type OIDCPrompt = '' | 'login' | 'select_account' | 'consent'

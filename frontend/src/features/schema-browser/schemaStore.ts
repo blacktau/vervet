@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { SampleSchema, CancelSampleSchema } from 'wailsjs/go/api/CollectionsProxy'
 import type { models } from 'wailsjs/go/models'
-import { resultErrorText } from '@/utils/resultError'
+import { resultErrorLines } from '@/utils/resultError'
 
 export interface SchemaTabState {
   loading: boolean
@@ -37,7 +37,7 @@ export const useSchemaStore = defineStore('schema-browser', () => {
     if (res.isSuccess) {
       states.value.set(tabId, { loading: false, result: res.data, sampleSize: size })
     } else {
-      states.value.set(tabId, { loading: false, error: resultErrorText(res), sampleSize: size })
+      states.value.set(tabId, { loading: false, error: resultErrorLines(res), sampleSize: size })
     }
   }
 

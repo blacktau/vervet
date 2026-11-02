@@ -3,7 +3,7 @@ import { ref } from 'vue'
 import { CheckIfDue, CheckNow, DismissUpdate, OpenReleasePage } from 'wailsjs/go/api/UpdatesProxy'
 import { EventsOn, EventsOff } from 'wailsjs/runtime/runtime'
 import { useSettingsStore } from '@/features/settings/settingsStore'
-import { resultErrorText } from '@/utils/resultError'
+import { errorCodeText } from '@/utils/resultError'
 
 export interface UpdateInfo {
   available: boolean
@@ -44,7 +44,7 @@ export const useUpdateStore = defineStore('updates', () => {
     try {
       const result = await CheckNow()
       if (!result.isSuccess) {
-        lastError.value = resultErrorText(result)
+        lastError.value = result.errorDetail || errorCodeText(result.errorCode)
         return
       }
       applyEvent(result.data as UpdateInfo)

@@ -6,7 +6,7 @@ import { ArrowPathIcon } from '@heroicons/vue/24/outline'
 import StatisticsTab from './StatisticsTab.vue'
 import type { StatCard } from './StatisticsSummaryCards.vue'
 import * as collectionsProxy from 'wailsjs/go/api/CollectionsProxy'
-import { errorCodeText } from '@/utils/resultError'
+import { resultErrorLines } from '@/utils/resultError'
 
 const props = defineProps<{
   serverId: string
@@ -111,9 +111,7 @@ async function fetchStatistics() {
     if (result.isSuccess) {
       stats.value = result.data
     } else {
-      error.value = result.errorDetail
-        ? `${errorCodeText(result.errorCode)}\n${result.errorDetail}`
-        : errorCodeText(result.errorCode)
+      error.value = resultErrorLines(result)
     }
   } catch (e) {
     error.value = String(e)

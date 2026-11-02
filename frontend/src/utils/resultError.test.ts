@@ -1,6 +1,9 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { i18nGlobal } from '@/i18n'
-import { errorCodeText, resultErrorText } from './resultError'
+import { errorCodeText, notifyResultError, resultErrorLines, resultErrorText } from './resultError'
+
+const notifierError = vi.hoisted(() => vi.fn())
+vi.mock('@/utils/dialog', () => ({ useNotifier: () => ({ error: notifierError }) }))
 
 const generic = () => i18nGlobal.t('errors.unknown_error')
 const notAuthorised = () => i18nGlobal.t('errors.not_authorized')
@@ -46,5 +49,31 @@ describe('resultErrorText', () => {
 
   it('uses the generic message when the result says nothing', () => {
     expect(resultErrorText({})).toBe(generic())
+  })
+})
+
+describe('resultErrorLines', () => {
+  it('keeps the detail beneath a known code', () => {
+    expect(resultErrorLines({ errorCode: 'not_authorized', errorDetail: 'raw' })).toBe(`${notAuthorised()}\nraw`)
+  })
+
+  it('does not repeat a detail that matches the headline', () => {
+    expect(resultErrorLines({ errorCode: 'not_authorized', errorDetail: notAuthorised() })).toBe(notAuthorised())
+  })
+
+  it("shows only the detail for the Go side's catch-all code", () => {
+    expect(resultErrorLines({ errorCode: 'unknown_error', errorDetail: 'raw' })).toBe('raw')
+  })
+
+  it('uses the headline or generic message when there is no detail', () => {
+    expect(resultErrorLines({ errorCode: 'not_authorized' })).toBe(notAuthorised())
+    expect(resultErrorLines({})).toBe(generic())
+  })
+})
+
+describe('notifyResultError', () => {
+  it('passes the detail and title to the notifier', () => {
+    notifyResultError({ errorCode: 'not_authorized', errorDetail: 'raw' }, 'Title')
+    expect(notifierError).toHaveBeenCalledWith(notAuthorised(), { title: 'Title', detail: 'raw' })
   })
 })

@@ -33,6 +33,18 @@ describe('schemaStore', () => {
     expect(s.result?.sampledCount).toBe(3)
   })
 
+  it('sample keeps the detail beneath a recognised error code', async () => {
+    ;(SampleSchema as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      isSuccess: false,
+      errorCode: 'not_authorized',
+      errorDetail: 'not allowed on db.coll',
+    })
+    const store = useSchemaStore()
+    await store.sample('tab-1', 's1', 'db', 'coll', 100)
+    expect(store.stateFor('tab-1')!.error).toContain('not allowed on db.coll')
+    expect(store.stateFor('tab-1')!.error).toContain('\n')
+  })
+
   it('sample sets error on failure', async () => {
     ;(SampleSchema as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
       isSuccess: false,

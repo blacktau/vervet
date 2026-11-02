@@ -2,14 +2,14 @@
 import { h, ref } from 'vue'
 import { NInput, type TreeOption } from 'naive-ui'
 import { useWorkspaceStore } from '@/features/workspaces/workspaceStore'
-import { useDialoger, useNotifier } from '@/utils/dialog'
+import { useDialoger } from '@/utils/dialog'
 import { useDialogStore } from '@/stores/dialog'
 import { useTabStore } from '@/features/tabs/tabs'
 import { useQueryStore } from '@/features/queries/queryStore'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore'
 import { useI18n } from 'vue-i18n'
 import * as workspacesProxy from 'wailsjs/go/api/WorkspacesProxy'
-import { resultErrorText } from '@/utils/resultError'
+import { notifyResultError } from '@/utils/resultError'
 
 const { t } = useI18n()
 const workspaceStore = useWorkspaceStore()
@@ -18,7 +18,6 @@ const dialogStore = useDialogStore()
 const tabStore = useTabStore()
 const queryStore = useQueryStore()
 const browserStore = useDataBrowserStore()
-const notifier = useNotifier()
 
 const contextMenuX = ref(0)
 const contextMenuY = ref(0)
@@ -174,7 +173,7 @@ function handleNewFile(node: TreeOption) {
       const dirPath = node.key as string
       const result = await workspacesProxy.CreateFile(dirPath, fileName)
       if (!result.isSuccess) {
-        notifier.error(resultErrorText(result))
+        notifyResultError(result)
         return
       }
 
@@ -195,7 +194,7 @@ function handleNewFolder(node: TreeOption) {
     const dirPath = node.key as string
     const result = await workspacesProxy.CreateFolder(dirPath, folderName)
     if (!result.isSuccess) {
-      notifier.error(resultErrorText(result))
+      notifyResultError(result)
       return
     }
 
@@ -246,7 +245,7 @@ function handleRename(node: TreeOption) {
 
       const result = await workspacesProxy.RenameFile(oldPath, newPath)
       if (!result.isSuccess) {
-        notifier.error(resultErrorText(result))
+        notifyResultError(result)
         return
       }
 
@@ -266,7 +265,7 @@ function handleDelete(node: TreeOption) {
     onPositiveClick: async () => {
       const result = await workspacesProxy.DeleteFile(node.key as string)
       if (!result.isSuccess) {
-        notifier.error(resultErrorText(result))
+        notifyResultError(result)
         return
       }
 

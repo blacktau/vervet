@@ -269,7 +269,7 @@ watch(
           parentId: server.parentID || '',
         }
         previousParentId.value = generalForm.value.parentId
-        authPicker.value = server.authMethod ?? 'password'
+        authPicker.value = server.authMethod
         if (server.oidcConfig) {
           oidcConfig.value = { ...server.oidcConfig }
         }

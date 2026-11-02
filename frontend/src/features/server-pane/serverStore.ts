@@ -221,7 +221,7 @@ export const useServerStore = defineStore('server', {
 
       const writeResult = await filesProxy.WriteFile(pathResult.data, exportResult.data)
       if (!writeResult.isSuccess) {
-        return { success: false, msg: resultErrorText(writeResult) }
+        return { success: false, msg: writeResult.errorDetail || errorCodeText(writeResult.errorCode) }
       }
 
       return { success: true }
@@ -240,12 +240,12 @@ export const useServerStore = defineStore('server', {
 
       const readResult = await filesProxy.ReadFile(pathResult.data)
       if (!readResult.isSuccess) {
-        return { success: false, msg: resultErrorText(readResult) }
+        return { success: false, msg: readResult.errorDetail || errorCodeText(readResult.errorCode) }
       }
 
       const importResult = await serversProxy.ImportServers(readResult.data)
       if (!importResult.isSuccess) {
-        return { success: false, msg: resultErrorText(importResult) }
+        return { success: false, msg: importResult.errorDetail || errorCodeText(importResult.errorCode) }
       }
 
       await this.refreshServers(true)

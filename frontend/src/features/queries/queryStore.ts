@@ -6,7 +6,7 @@ import { useTabStore } from '@/features/tabs/tabs'
 import { useNotifier } from '@/utils/dialog'
 import { useSettingsStore } from '@/features/settings/settingsStore'
 import { i18nGlobal } from '@/i18n'
-import { errorCodeText, resultErrorText } from '@/utils/resultError'
+import { errorCodeText, notifyResultError, resultErrorText } from '@/utils/resultError'
 
 export type PageContext = models.PageContext
 
@@ -605,8 +605,7 @@ export const useQueryStore = defineStore('query', {
         } else {
           state.requestedPage = state.page
           state.requestedPageSize = state.pageSize
-          const notifier = useNotifier()
-          notifier.error(resultErrorText(result))
+          notifyResultError(result)
         }
       } catch (e) {
         if (state.pageRequestId === requestId) {

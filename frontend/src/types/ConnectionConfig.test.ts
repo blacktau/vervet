@@ -6,8 +6,11 @@ describe('toAuthMethod', () => {
     expect(toAuthMethod('oidc')).toBe('oidc')
   })
 
-  it('falls back to password for an empty or unknown value', () => {
+  it('defaults an empty value to password', () => {
     expect(toAuthMethod('')).toBe('password')
-    expect(toAuthMethod('kerberos')).toBe('password')
+  })
+
+  it('keeps an unrecognised value, so saving does not overwrite it', () => {
+    expect(toAuthMethod('kerberos')).toBe('kerberos')
   })
 })
