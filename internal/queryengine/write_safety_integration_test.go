@@ -399,29 +399,25 @@ func TestIntegration_Writes_FindOneAndDisplaysOneDocument(t *testing.T) {
 	assert.Contains(t, resultText(result), `"z"`)
 }
 
-// maxTimeMS reaches the server, so a write that runs out of time writes nothing,
-// including when the time runs out after the write has started.
+// maxTimeMS reaches the server, which stops the write. The filter sleeps far longer
+// than the limit because a server can still write a document whose short sleep
+// outlasts the limit, in mongosh too. The wait shows that nothing arrives late.
 func TestIntegration_Writes_MaxTimeMSStopsTheWrite(t *testing.T) {
 	run, db := setupWrites(t)
-	slow := `{ $where: "sleep(300); return true" }`
+	slow := `{ $where: "sleep(2000); return true" }`
 	for _, script := range []string{
-		`db.c.updateOne(` + slow + `, { $set: { z: 1 } }, { maxTimeMS: 50 })`,
-		`db.c.updateMany(` + slow + `, { $set: { z: 1 } }, { maxTimeMS: 50 })`,
-		`db.c.replaceOne(` + slow + `, { z: 1 }, { maxTimeMS: 50 })`,
-		`db.c.deleteOne(` + slow + `, { maxTimeMS: 50 })`,
-		`db.c.deleteMany(` + slow + `, { maxTimeMS: 50 })`,
-		`db.c.bulkWrite([{ deleteMany: { filter: ` + slow + ` } }], { maxTimeMS: 50 })`,
+		`db.c.updateOne(` + slow + `, { $set: { z: 1 } }, { maxTimeMS: 100 })`,
+		`db.c.updateMany(` + slow + `, { $set: { z: 1 } }, { maxTimeMS: 100 })`,
+		`db.c.replaceOne(` + slow + `, { z: 1 }, { maxTimeMS: 100 })`,
+		`db.c.deleteOne(` + slow + `, { maxTimeMS: 100 })`,
+		`db.c.deleteMany(` + slow + `, { maxTimeMS: 100 })`,
+		`db.c.bulkWrite([{ deleteMany: { filter: ` + slow + ` } }], { maxTimeMS: 100 })`,
 	} {
 		_, err := run(script)
 		assert.Error(t, err, script)
+		time.Sleep(500 * time.Millisecond)
 		assertUnchanged(t, db, script)
 	}
-	// The server would still be working through the documents after a client-side
-	// timeout alone, so wait to see that nothing arrives late.
-	_, err := run(`db.c.updateMany({ $where: "sleep(200); return true" }, { $set: { z: 1 } }, { maxTimeMS: 100 })`)
-	assert.Error(t, err)
-	time.Sleep(time.Second)
-	assertUnchanged(t, db, "updateMany, after waiting")
 
 	// As with other options, values that are not numbers are ignored, and bad numbers
 	// are refused before anything is written.
@@ -583,10 +579,10 @@ func TestIntegration_Aggregate_ExplainKeepsOptions(t *testing.T) {
 		// These only work if the option reaches the server.
 		`print(db.c.aggregate([{ $match: { $expr: { $eq: ["$_id", "$$v"] } } }], { explain: true, let: { v: 1 } }).ok)`: "1",
 		`print(db.aggregate([{ $documents: [{ a: "$$v" }] }], { explain: true, let: { v: 1 } }).ok)`:                    "1",
-		`print(db.c.aggregate([], { explain: true, readConcern: { level: "local" } }).ok)`: "1",
-		`print(db.c.aggregate([], { explain: true, batchSize: 1 }).ok)`:                    "1",
-		`print(db.c.aggregate([], { explain: true, cursor: { batchSize: 1 } }).ok)`:        "1",
-		`print(db.c.aggregate([], { explain: true, allowDiskUse: 1 }).ok)`:                 "1",
+		`print(db.c.aggregate([], { explain: true, readConcern: { level: "local" } }).ok)`:                              "1",
+		`print(db.c.aggregate([], { explain: true, batchSize: 1 }).ok)`:                                                 "1",
+		`print(db.c.aggregate([], { explain: true, cursor: { batchSize: 1 } }).ok)`:                                     "1",
+		`print(db.c.aggregate([], { explain: true, allowDiskUse: 1 }).ok)`:                                              "1",
 		// Which plan each form asks for.
 		`print(!!db.c.aggregate([], { explain: true }).executionStats)`:  "true",
 		`print(!!db.c.aggregate([], { explain: false }).executionStats)`: "false",
