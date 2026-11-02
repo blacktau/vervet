@@ -140,7 +140,9 @@ func countOpt[B any](set func(int64) B) func(any) error {
 // maxTimeOpt reads maxTimeMS. The driver's options have no such setting: it is
 // a deadline on the context (see withMaxTime), as for a find. The driver sends the
 // server the time left on that deadline as maxTimeMS, so the server stops the
-// operation itself, and a write that runs out of time writes nothing.
+// operation itself. Unlike mongosh, the script doesn't wait for the server's reply
+// once the deadline passes, so a write the server was finishing can land just after
+// the script sees the error.
 func maxTimeOpt(d *time.Duration) func(any) error {
 	return func(v any) error {
 		if !isNumber(v) {
