@@ -83,6 +83,14 @@ export function useDocumentContextMenu(
       return options
     }
 
+    if (targetRow.value.isRootValue) {
+      return [
+        { label: t('query.contextMenu.copyValue'), key: 'copyValue' },
+        { type: 'divider', key: 'd1' },
+        { label: t('export.contextMenu'), key: 'exportResults' },
+      ]
+    }
+
     return [
       { label: t('query.contextMenu.copyValue'), key: 'copyValue' },
       { label: t('query.contextMenu.copyField'), key: 'copyField' },

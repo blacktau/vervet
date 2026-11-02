@@ -98,4 +98,65 @@ describe('buildTreeData', () => {
     expect(result[1]?.key).toBe('__doc_1')
     expect(result[2]?.key).toBe('__doc_2')
   })
+
+  describe('top-level values that are not documents', () => {
+    test.each([
+      ['comments', 'comments', 'string'],
+      [42, '42', 'int32'],
+      [2.5, '2.5', 'double'],
+      [0, '0', 'int32'],
+      [false, 'false', 'boolean'],
+      [null, 'null', 'null'],
+      ['', '', 'string'],
+      [{ $oid: 'abc123' }, 'abc123', 'objectId'],
+      [{ $numberLong: '7' }, '7', 'long'],
+      [{ $date: '2024-01-01T00:00:00Z' }, '2024-01-01T00:00:00Z', 'date'],
+    ])('shows %j as its value and type', (value, displayValue, type) => {
+      const [row] = buildTreeData([value])
+
+      expect(row).toMatchObject({
+        key: '__doc_0',
+        field: '(1)',
+        value: displayValue,
+        type,
+        typeLabel: `query.types.${type}`,
+        isDocRoot: false,
+        isRootValue: true,
+      })
+      expect(row?.children).toBeUndefined()
+    })
+
+    test('numbers each row', () => {
+      const rows = buildTreeData(['a', 'b'])
+
+      expect(rows.map((r) => [r.field, r.value])).toEqual([
+        ['(1)', 'a'],
+        ['(2)', 'b'],
+      ])
+    })
+
+    test('shows an array as an array, with its elements as children', () => {
+      const [row] = buildTreeData([['x', 'y']])
+
+      expect(row?.type).toBe('array')
+      expect(row?.isRootValue).toBe(true)
+      expect(row?.children?.map((c) => [c.key, c.value])).toEqual([
+        ['__doc_0.0', 'x'],
+        ['__doc_0.1', 'y'],
+      ])
+    })
+
+    test('keeps a mix of documents and values apart', () => {
+      const rows = buildTreeData([{ a: 1 }, 'b'])
+
+      expect(rows[0]).toMatchObject({ type: 'document', isDocRoot: true, isRootValue: false })
+      expect(rows[1]).toMatchObject({ type: 'string', isDocRoot: false, isRootValue: true })
+    })
+
+    test('still treats an empty object as a document', () => {
+      const [row] = buildTreeData([{}])
+
+      expect(row).toMatchObject({ type: 'document', isDocRoot: true, isRootValue: false })
+    })
+  })
 })

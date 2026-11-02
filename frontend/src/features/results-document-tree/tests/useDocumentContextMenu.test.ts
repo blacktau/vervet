@@ -56,6 +56,27 @@ describe('useDocumentContextMenu', () => {
     expect(keys).not.toContain('deleteDocument')
     expect(keys).toContain('insertDocument')
   })
+
+  it('offers copy and export, and no writes, for a top-level value', () => {
+    const menu = useDocumentContextMenu(ref(context), () => false)
+    menu.openMenu(
+      { isDocRoot: false, isRootValue: true } as DocumentRow,
+      { preventDefault: () => {}, clientX: 0, clientY: 0 } as MouseEvent,
+    )
+
+    const keys = menu.menuOptions.value.filter((o) => o.type !== 'divider').map((o) => o.key)
+    expect(keys).toEqual(['copyValue', 'exportResults'])
+  })
+
+  it('offers copy value and copy field for a field inside a document', () => {
+    const menu = useDocumentContextMenu(ref(context))
+    menu.openMenu(
+      { isDocRoot: false, isRootValue: false } as DocumentRow,
+      { preventDefault: () => {}, clientX: 0, clientY: 0 } as MouseEvent,
+    )
+
+    expect(menu.menuOptions.value.map((o) => o.key)).toEqual(['copyValue', 'copyField'])
+  })
 })
 
 describe('hasDocumentId', () => {

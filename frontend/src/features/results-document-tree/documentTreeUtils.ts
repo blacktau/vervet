@@ -165,24 +165,45 @@ export function buildTreeData(documents: unknown[]): DocumentRow[] {
   }
 
   return documents.map((doc, i) => {
-    const fieldCount =
-      typeof doc === 'object' && doc !== null ? Object.keys(doc).length : 0
+    const key = `__doc_${i}`
 
-    const children: DocumentRow[] =
-      typeof doc === 'object' && doc !== null
-        ? buildChildRows(doc, `__doc_${i}`)
-        : []
+    // A script can return any value, such as the strings from getCollectionNames()
+    if (getTypeKey(doc) !== 'object') {
+      return { ...buildValueRow(key, getDocLabel(doc, i), doc), isRootValue: true }
+    }
+
+    const children = buildChildRows(doc, key)
 
     return {
-      key: `__doc_${i}`,
+      key,
       field: getDocLabel(doc, i),
-      value: i18nGlobal.t('query.objectFields', { count: fieldCount }),
+      value: i18nGlobal.t('query.objectFields', { count: children.length }),
       type: 'document',
       typeLabel: getTypeName('document'),
       isDocRoot: true,
+      isRootValue: false,
       children: children.length > 0 ? children : undefined,
     }
   })
+}
+
+function buildValueRow(key: string, field: string, val: unknown): DocumentRow {
+  const typeKey = getTypeKey(val)
+  const hasChildren = typeKey === 'document' || typeKey === 'object' || typeKey === 'array'
+
+  const children =
+    hasChildren && typeof val === 'object' && val !== null ? buildChildRows(val, key) : undefined
+
+  return {
+    key,
+    field,
+    value: getDisplayValue(val),
+    type: typeKey,
+    typeLabel: getTypeName(typeKey),
+    isDocRoot: false,
+    isRootValue: false,
+    children: children && children.length > 0 ? children : undefined,
+  }
 }
 
 function buildChildRows(
@@ -197,24 +218,5 @@ function buildChildRows(
     ? obj.map((v, i) => [String(i), v] as [string, unknown])
     : Object.entries(obj)
 
-  return entries.map(([key, val]) => {
-    const nodeKey = prefix ? `${prefix}.${key}` : key
-    const typeKey = getTypeKey(val)
-    const hasChildren = typeKey === 'document' || typeKey === 'object' || typeKey === 'array'
-
-    const children =
-      hasChildren && typeof val === 'object' && val !== null
-        ? buildChildRows(val, nodeKey)
-        : undefined
-
-    return {
-      key: nodeKey,
-      field: key,
-      value: getDisplayValue(val),
-      type: typeKey,
-      typeLabel: getTypeName(typeKey),
-      isDocRoot: false,
-      children: children && children.length > 0 ? children : undefined,
-    }
-  })
+  return entries.map(([key, val]) => buildValueRow(prefix ? `${prefix}.${key}` : key, key, val))
 }
