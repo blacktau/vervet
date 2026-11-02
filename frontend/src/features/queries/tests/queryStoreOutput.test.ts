@@ -175,6 +175,28 @@ describe('queryStore printed output', () => {
     expect(useQueryStore().unseenBadge(QUERY_ID)).toEqual({ count: 1500, level: 'error' })
   })
 
+  test('a notice from the engine goes to Messages but is not counted as printed', async () => {
+    const notice = { level: 'warning', text: 'deprecated', notice: true }
+    const state = await run({
+      isSuccess: true,
+      data: { documents: [], rawOutput: '', output: [notice] },
+    })
+    expect(state.activeResultTab).toBe('results')
+    expect(state.messages.map((m) => m.text)).toContain('deprecated')
+    expect(useQueryStore().unseenBadge(QUERY_ID)).toBeNull()
+
+    const withPrint = await run({
+      isSuccess: true,
+      data: {
+        documents: [{ a: 1 }],
+        rawOutput: '',
+        output: [{ level: 'info', text: 'p' }, notice],
+      },
+    })
+    expect(withPrint.activeResultTab).toBe('results')
+    expect(useQueryStore().unseenBadge(QUERY_ID)).toEqual({ count: 1, level: 'info' })
+  })
+
   test('no output means no badge', async () => {
     await run({ isSuccess: true, data: { documents: [{ a: 1 }], rawOutput: '' } })
     expect(useQueryStore().unseenBadge(QUERY_ID)).toBeNull()

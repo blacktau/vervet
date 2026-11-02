@@ -250,9 +250,9 @@ export const useQueryStore = defineStore('query', {
     },
 
     /**
-     * Adds a script's printed lines to Messages in one update and returns how
-     * many printed lines of each level there were, or null when there were
-     * none. Past MAX_OUTPUT_ENTRIES the rest are combined into one entry at
+     * Adds a script's output to Messages in one update and returns how many
+     * printed lines of each level there were, or null when there were none.
+     * A notice (text from the engine, not the script) is added but not counted. Past MAX_OUTPUT_ENTRIES the rest are combined into one entry at
      * their most severe level, after a notice saying so; each combined line
      * still counts. With before, they go above that message, or at the end if
      * it has been cleared.
@@ -269,6 +269,11 @@ export const useQueryStore = defineStore('query', {
       const state = this.getQueryState(queryId)
       const timestamp = new Date().toLocaleTimeString()
       const counts: UnseenOutput = { info: 0, warning: 0, error: 0 }
+      const count = (line: models.OutputLine, level: LogLevel) => {
+        if (!line.notice) {
+          counts[level]++
+        }
+      }
       const entry = (level: LogLevel, text: string): LogMessage => ({
         id: makeId(),
         timestamp,
@@ -279,7 +284,7 @@ export const useQueryStore = defineStore('query', {
 
       const added: LogMessage[] = output.slice(0, MAX_OUTPUT_ENTRIES).map((line) => {
         const level = toLogLevel(line.level)
-        counts[level]++
+        count(line, level)
         return entry(level, line.text)
       })
 
@@ -288,7 +293,7 @@ export const useQueryStore = defineStore('query', {
         let level: LogLevel = 'info'
         for (const line of rest) {
           const l = toLogLevel(line.level)
-          counts[l]++
+          count(line, l)
           if (levelRank[l] > levelRank[level]) {
             level = l
           }
@@ -311,7 +316,7 @@ export const useQueryStore = defineStore('query', {
         at < 0
           ? state.messages.concat(added)
           : [...state.messages.slice(0, at), ...added, ...state.messages.slice(at)]
-      return counts
+      return counts.info + counts.warning + counts.error > 0 ? counts : null
     },
 
     /** Called when the Messages tab is opened: its badge has been seen. */
