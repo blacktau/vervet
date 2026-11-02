@@ -26,6 +26,13 @@ var arrayCursorMethods = map[string]bool{
 	"listIndexes": true,
 }
 
+// findAndModifyMethods give a script the document, or null when none matched.
+var findAndModifyMethods = map[string]bool{
+	"findOneAndDelete":  true,
+	"findOneAndReplace": true,
+	"findOneAndUpdate":  true,
+}
+
 // withCursorMethods adds toArray to an already-materialised array result.
 func withCursorMethods(rt *goja.Runtime, method string, val goja.Value) goja.Value {
 	if !arrayCursorMethods[method] {
@@ -92,6 +99,9 @@ func newCollectionProxy(ec *execContext, collName string) goja.Value {
 		m := method
 		_ = obj.Set(m, func(call goja.FunctionCall) goja.Value {
 			result := runEager(ec, collName, m, call)
+			if findAndModifyMethods[m] && len(result.Documents) == 0 {
+				return goja.Null()
+			}
 			return withCursorMethods(ec.rt, m, toGojaValue(ec.rt, result))
 		})
 	}

@@ -129,13 +129,24 @@ func dbAggregate(ec *execContext) func(goja.FunctionCall) goja.Value {
 		pipelineRaw := exportValue(call.Arguments[0])
 		pipeline := convertToBson(pipelineRaw)
 
-		cursor, err := ec.client.Database(ec.dbName).Aggregate(ec.ctx, pipeline)
+		var rawOptions any
+		if len(call.Arguments) > 1 {
+			rawOptions = exportValue(call.Arguments[1])
+		}
+		opts, maxTime, err := aggregateOptions(rawOptions)
+		if err != nil {
+			panic(ec.rt.NewGoError(err))
+		}
+		ctx, cancel := withMaxTime(ec.ctx, maxTime)
+		defer cancel()
+
+		cursor, err := ec.client.Database(ec.dbName).Aggregate(ctx, pipeline, opts)
 		if err != nil {
 			panic(ec.rt.NewGoError(fmt.Errorf("aggregate: %w", err)))
 		}
 
 		var results []bson.D
-		if err := cursor.All(ec.ctx, &results); err != nil {
+		if err := cursor.All(ctx, &results); err != nil {
 			panic(ec.rt.NewGoError(fmt.Errorf("aggregate: %w", err)))
 		}
 

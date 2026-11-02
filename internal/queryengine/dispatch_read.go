@@ -2,6 +2,7 @@ package queryengine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"math"
@@ -285,29 +286,11 @@ func applyFindOneOption(op *CapturedOp, key string, v any) error {
 	return err
 }
 
-// countOption reads a non-negative whole-number option such as skip, given as
-// a plain number or a NumberInt/NumberLong.
+// countOption reads a findOne option that takes a non-negative whole number.
 func countOption(name string, v any) (int64, error) {
-	var n int64
-	switch x := convertToBson(v).(type) {
-	case int32:
-		n = int64(x)
-	case int64:
-		n = x
-	case float64:
-		if x != math.Trunc(x) {
-			return 0, fmt.Errorf("findOne %s must be a whole number", name)
-		}
-		// Converting a float64 beyond int64, or Infinity, gives MinInt64.
-		if math.Abs(x) >= math.MaxInt64 {
-			return 0, fmt.Errorf("findOne %s is too large", name)
-		}
-		n = int64(x)
-	default:
-		return 0, fmt.Errorf("findOne %s must be a number", name)
-	}
-	if n < 0 {
-		return 0, fmt.Errorf("findOne %s must not be negative", name)
+	n, err := wholeNumber(v)
+	if err != nil {
+		return 0, fmt.Errorf("findOne %s %w", name, err)
 	}
 	return n, nil
 }
@@ -318,7 +301,14 @@ func dispatchCountDocuments(ctx context.Context, coll *mongo.Collection, op Capt
 		filter = toBsonDoc(op.Args[0])
 	}
 
-	count, err := coll.CountDocuments(ctx, filter)
+	opts, maxTime, err := countOptions(argAt(op.Args, 1))
+	if err != nil {
+		return models.QueryResult{}, err
+	}
+	ctx, cancel := withMaxTime(ctx, maxTime)
+	defer cancel()
+
+	count, err := coll.CountDocuments(ctx, filter, opts)
 	if err != nil {
 		return models.QueryResult{}, fmt.Errorf("countDocuments failed: %w", err)
 	}
@@ -339,7 +329,14 @@ func dispatchAggregate(ctx context.Context, coll *mongo.Collection, op CapturedO
 
 	pipeline := convertToBson(op.Args[0])
 
-	cursor, err := coll.Aggregate(ctx, pipeline)
+	opts, maxTime, err := aggregateOptions(argAt(op.Args, 1))
+	if err != nil {
+		return models.QueryResult{}, err
+	}
+	ctx, cancel := withMaxTime(ctx, maxTime)
+	defer cancel()
+
+	cursor, err := coll.Aggregate(ctx, pipeline, opts)
 	if err != nil {
 		return models.QueryResult{}, fmt.Errorf("aggregate failed: %w", err)
 	}
@@ -385,79 +382,76 @@ func dispatchDistinct(ctx context.Context, coll *mongo.Collection, op CapturedOp
 	return result, nil
 }
 
-func dispatchFindOneAndDelete(ctx context.Context, coll *mongo.Collection, op CapturedOp) (models.QueryResult, error) {
-	if len(op.Args) < 1 {
-		return models.QueryResult{}, fmt.Errorf("findOneAndDelete requires a filter argument")
-	}
-
-	filter := bson.D{}
-	if op.Args[0] != nil {
-		filter = toBsonDoc(op.Args[0])
-	}
-
-	var result bson.D
-	err := coll.FindOneAndDelete(ctx, filter).Decode(&result)
-	if err == mongo.ErrNoDocuments {
-		return models.QueryResult{Documents: []any{}, OperationType: "findOneAndDelete"}, nil
+// findAndModifyResult is what a findOneAnd* method returns: the document on its
+// own, as findOne gives it, or no documents when none matched.
+func findAndModifyResult(method string, doc bson.D, err error) (models.QueryResult, error) {
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return models.QueryResult{Documents: []any{}, OperationType: method}, nil
 	}
 	if err != nil {
-		return models.QueryResult{}, fmt.Errorf("findOneAndDelete failed: %w", err)
+		return models.QueryResult{}, fmt.Errorf("%s failed: %w", method, err)
 	}
-
-	r := docsToResult([]bson.D{result})
-	r.OperationType = "findOneAndDelete"
+	r := singleToResult(doc)
+	r.OperationType = method
 	return r, nil
+}
+
+func dispatchFindOneAndDelete(ctx context.Context, coll *mongo.Collection, op CapturedOp) (models.QueryResult, error) {
+	filter, err := filterDoc("findOneAndDelete", argAt(op.Args, 0))
+	if err != nil {
+		return models.QueryResult{}, err
+	}
+	opts, maxTime, err := findOneAndDeleteOptions(argAt(op.Args, 1))
+	if err != nil {
+		return models.QueryResult{}, err
+	}
+	ctx, cancel := withMaxTime(ctx, maxTime)
+	defer cancel()
+
+	var doc bson.D
+	err = coll.FindOneAndDelete(ctx, filter, opts).Decode(&doc)
+	return findAndModifyResult("findOneAndDelete", doc, err)
 }
 
 func dispatchFindOneAndReplace(ctx context.Context, coll *mongo.Collection, op CapturedOp) (models.QueryResult, error) {
-	if len(op.Args) < 2 {
-		return models.QueryResult{}, fmt.Errorf("findOneAndReplace requires filter and replacement arguments")
-	}
-
-	filter := bson.D{}
-	if op.Args[0] != nil {
-		filter = toBsonDoc(op.Args[0])
-	}
-
-	replacement := bson.D{}
-	if op.Args[1] != nil {
-		replacement = toBsonDoc(op.Args[1])
-	}
-
-	var result bson.D
-	err := coll.FindOneAndReplace(ctx, filter, replacement).Decode(&result)
-	if err == mongo.ErrNoDocuments {
-		return models.QueryResult{Documents: []any{}, OperationType: "findOneAndReplace"}, nil
-	}
+	filter, err := filterDoc("findOneAndReplace", argAt(op.Args, 0))
 	if err != nil {
-		return models.QueryResult{}, fmt.Errorf("findOneAndReplace failed: %w", err)
+		return models.QueryResult{}, err
 	}
+	replacement, err := replacementDoc("findOneAndReplace", argAt(op.Args, 1))
+	if err != nil {
+		return models.QueryResult{}, err
+	}
+	opts, maxTime, err := findOneAndReplaceOptions(argAt(op.Args, 2))
+	if err != nil {
+		return models.QueryResult{}, err
+	}
+	ctx, cancel := withMaxTime(ctx, maxTime)
+	defer cancel()
 
-	r := docsToResult([]bson.D{result})
-	r.OperationType = "findOneAndReplace"
-	return r, nil
+	var doc bson.D
+	err = coll.FindOneAndReplace(ctx, filter, replacement, opts).Decode(&doc)
+	return findAndModifyResult("findOneAndReplace", doc, err)
 }
 
 func dispatchFindOneAndUpdate(ctx context.Context, coll *mongo.Collection, op CapturedOp) (models.QueryResult, error) {
+	filter, err := filterDoc("findOneAndUpdate", argAt(op.Args, 0))
+	if err != nil {
+		return models.QueryResult{}, err
+	}
 	if len(op.Args) < 2 {
 		return models.QueryResult{}, fmt.Errorf("findOneAndUpdate requires filter and update arguments")
 	}
-
-	filter := toBsonDoc(op.Args[0])
-	update := convertToBson(op.Args[1])
-
-	var result bson.D
-	err := coll.FindOneAndUpdate(ctx, filter, update).Decode(&result)
-	if err == mongo.ErrNoDocuments {
-		return models.QueryResult{Documents: []any{}, OperationType: "findOneAndUpdate"}, nil
-	}
+	opts, maxTime, err := findOneAndUpdateOptions(argAt(op.Args, 2))
 	if err != nil {
-		return models.QueryResult{}, fmt.Errorf("findOneAndUpdate failed: %w", err)
+		return models.QueryResult{}, err
 	}
+	ctx, cancel := withMaxTime(ctx, maxTime)
+	defer cancel()
 
-	r := docsToResult([]bson.D{result})
-	r.OperationType = "findOneAndUpdate"
-	return r, nil
+	var doc bson.D
+	err = coll.FindOneAndUpdate(ctx, filter, convertToBson(op.Args[1]), opts).Decode(&doc)
+	return findAndModifyResult("findOneAndUpdate", doc, err)
 }
 
 func dispatchEstimatedDocumentCount(ctx context.Context, coll *mongo.Collection) (models.QueryResult, error) {
