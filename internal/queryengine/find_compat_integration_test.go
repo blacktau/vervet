@@ -11,6 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	"vervet/internal/models"
 )
 
@@ -261,6 +264,40 @@ func TestIntegration_Paging_KeepsFindSettings(t *testing.T) {
 		count, _, err := engine.CountForPage(ctx, pc)
 		require.NoError(t, err, tc.name)
 		assert.Equal(t, tc.count, count, tc.name)
+	}
+
+	// Only documents 0 and 3 have q, so a sparse index on it holds just those two. A
+	// script's createIndex can't make one yet (#331).
+	_, err = engine.ExecuteQuery(ctx, testURI, db, `db.h.insertMany([
+		{ _id: 0, q: 1, t: "x" }, { _id: 1, t: "x" }, { _id: 2, t: "X" }, { _id: 3, q: 2, t: "X" }, { _id: 4, t: "y" },
+	])`)
+	require.NoError(t, err)
+	_, err = testClient.Database(db).Collection("h").Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "q", Value: 1}}, Options: options.Index().SetSparse(true).SetName("sparse_q"),
+	})
+	require.NoError(t, err)
+	for _, tc := range []struct {
+		script string
+		want   int
+		count  int64
+	}{
+		{`db.h.find().hint({ q: 1 })`, 0, 2},
+		{`db.h.find().hint("sparse_q")`, 0, 2},
+		{`db.h.find({}, {}, { hint: { q: 1 } })`, 0, 2},
+		{`db.h.find({ t: "x" }).hint({ q: 1 })`, 0, 1},
+		{`db.h.find({ t: "x" }).hint({ q: 1 }).collation({ locale: "en", strength: 2 })`, 0, 2},
+		{`db.h.find().hint({ q: 1 }).skip(1)`, 0, 1},
+		{`db.h.find().hint({ q: 1 }).limit(1)`, 0, 1},
+		{`db.h.find().hint({ _id: 1 })`, 2, 5},
+		{`db.h.find().hint({ $natural: 1 })`, 2, 5},
+		{`db.h.find().hint({ $natural: -1 })`, 2, 5},
+	} {
+		next, pc := page(tc.script, 1)
+		assert.Len(t, next.Documents, tc.want, tc.script)
+		count, estimated, err := engine.CountForPage(ctx, pc)
+		require.NoError(t, err, tc.script)
+		assert.False(t, estimated, tc.script)
+		assert.Equal(t, tc.count, count, tc.script)
 	}
 
 	next, _ := page(`db.c.find().returnKey(true).sort({ _id: 1 })`, 1)

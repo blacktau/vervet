@@ -205,9 +205,11 @@ func (e *GojaEngine) FetchPage(
 }
 
 // CountForPage returns a total-row count for a PageContext: estimatedDocumentCount
-// (with estimated=true) when the filter is empty/nil, countDocuments(filter)
-// otherwise. Either way, pc.UserSkip is then subtracted (floored at 0) and the
-// result is capped by pc.UserLimit if set.
+// (with estimated=true) when the filter is empty/nil and nothing else affects which
+// documents match, countDocuments otherwise. A hint and collation go to the count,
+// since a hint on a sparse or partial index can leave out documents the filter
+// matches. Either way, pc.UserSkip is then subtracted (floored at 0) and the result
+// is capped by pc.UserLimit if set.
 func (e *GojaEngine) CountForPage(
 	ctx context.Context,
 	pc models.PageContext,
@@ -220,12 +222,21 @@ func (e *GojaEngine) CountForPage(
 		return 0, false, err
 	}
 	filter := q.filter
-	if q.collation != nil || q.extras.narrowsMatches() {
+	if q.extras.narrowsMatches() {
 		return e.countByReading(ctx, pc, q)
 	}
 	method := "countDocuments"
 	args := []any{filter}
-	if isEmptyFilter(filter) {
+	countOpts := bson.D{}
+	if q.hint != nil {
+		countOpts = append(countOpts, bson.E{Key: "hint", Value: q.hint})
+	}
+	if q.collation != nil {
+		countOpts = append(countOpts, bson.E{Key: "collation", Value: q.collation})
+	}
+	if len(countOpts) > 0 {
+		args = append(args, countOpts)
+	} else if isEmptyFilter(filter) {
 		method = "estimatedDocumentCount"
 		args = nil
 		estimated = true
@@ -242,9 +253,9 @@ func (e *GojaEngine) CountForPage(
 	return cappedPageCount(extractCount(res), pc), estimated, nil
 }
 
-// countByReading counts a query whose matches depend on more than its filter, such
-// as min() or a collation, by running it: a count taken from the filter alone would
-// not page to the same documents. It reads only each document's _id.
+// countByReading counts a query whose matches depend on settings a count can't take,
+// such as min(), by running it: a count taken from the filter alone would not page to
+// the same documents. It reads only each document's _id.
 func (e *GojaEngine) countByReading(ctx context.Context, pc models.PageContext, q pageQuery) (int64, bool, error) {
 	extras := q.extras
 	extras.ReturnKey = false
