@@ -1,4 +1,10 @@
-import { binaryToText, epochMsToText, getBsonWrapperType } from './bsonValue'
+import {
+  binaryToText,
+  dateEpochMs,
+  epochMsToText,
+  getBsonWrapperType,
+  hasUnwritableDate,
+} from './bsonValue'
 
 /**
  * Converts canonical Extended JSON (EJSON) values into human-readable equivalents,
@@ -42,14 +48,12 @@ export function humanizeEjson(value: unknown): unknown {
     }
 
     if ('$date' in obj) {
-      const dateVal = obj.$date
-      if (typeof dateVal === 'string') {
-        return dateVal
+      // Text would lose the type if it were saved, and no text form can hold this
+      if (hasUnwritableDate(obj)) {
+        return value
       }
-      if (typeof dateVal === 'object' && dateVal !== null && '$numberLong' in dateVal) {
-        return epochMsToText(String((dateVal as Record<string, unknown>).$numberLong))
-      }
-      return String(dateVal)
+      const epochMs = dateEpochMs(obj.$date)
+      return epochMs === undefined ? String(obj.$date) : epochMsToText(epochMs)
     }
 
     if ('$numberLong' in obj && typeof obj.$numberLong === 'string') {
@@ -128,6 +132,10 @@ export function toJsExpression(value: unknown): string {
   if (typeof value === 'object') {
     const obj = value as Record<string, unknown>
 
+    if (!getBsonWrapperType(obj)) {
+      return toJsObject(obj)
+    }
+
     // EJSON types → BSON constructors
     if ('$oid' in obj && typeof obj.$oid === 'string') {
       return `ObjectId("${obj.$oid}")`
@@ -165,7 +173,10 @@ export function toJsExpression(value: unknown): string {
       const binary = obj.$binary as Record<string, unknown>
       if (typeof binary?.base64 === 'string') {
         if (binary.subType === '04' || binary.subType === '03') {
-          return `UUID("${base64ToUUID(binary.base64)}")`
+          const uuid = binaryToText(binary.base64, binary.subType)
+          if (uuid !== undefined) {
+            return `UUID("${uuid}")`
+          }
         }
         return `BinData(${Number(binary.subType)}, "${binary.base64}")`
       }
@@ -193,12 +204,8 @@ export function toJsExpression(value: unknown): string {
       return 'MaxKey()'
     }
 
-    // Regular object
-    const entries = Object.entries(obj).map(([k, v]) => {
-      const key = needsQuoting(k) ? JSON.stringify(k) : k
-      return `${key}: ${toJsExpression(v)}`
-    })
-    return `{ ${entries.join(', ')} }`
+    // Wrappers with no constructor here, such as $code
+    return toJsObject(obj)
   }
 
   if (typeof value === 'string') {
@@ -233,6 +240,14 @@ export function toJsExpression(value: unknown): string {
   }
 
   return String(value)
+}
+
+function toJsObject(obj: Record<string, unknown>): string {
+  const entries = Object.entries(obj).map(([k, v]) => {
+    const key = needsQuoting(k) ? JSON.stringify(k) : k
+    return `${key}: ${toJsExpression(v)}`
+  })
+  return `{ ${entries.join(', ')} }`
 }
 
 const JS_IDENTIFIER_RE = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/
@@ -271,17 +286,3 @@ function parseSpecialDouble(str: string): number {
   }
   return Number(str)
 }
-
-function base64ToHex(b64: string): string {
-  const raw = atob(b64)
-  return Array.from(raw, (ch) => ch.charCodeAt(0).toString(16).padStart(2, '0')).join('')
-}
-
-function hexToUUID(hex: string): string {
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`
-}
-
-function base64ToUUID(b64: string): string {
-  return hexToUUID(base64ToHex(b64))
-}
-

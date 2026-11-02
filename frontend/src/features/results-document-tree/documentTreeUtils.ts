@@ -133,10 +133,7 @@ export function getDocLabel(doc: unknown, index: number): string {
   const record = doc as Record<string, unknown>
   const id = record._id
   if (id !== undefined) {
-    const idStr = typeof id === 'object' && id !== null && '$oid' in id
-      ? (id as Record<string, unknown>).$oid
-      : getDisplayValue(id)
-    return `(${index + 1}) {_id: ${idStr}}`
+    return `(${index + 1}) {_id: ${getDisplayValue(id)}}`
   }
   return `(${index + 1})`
 }
@@ -194,9 +191,28 @@ function buildChildRows(
  * change them: a long past 2^53 rounds, and NaN becomes null in JSON.
  */
 export function getCopyText(val: unknown, pretty = false): string {
-  const typeKey = getTypeKey(val)
-  if (typeKey !== 'array' && typeKey !== 'object' && typeKey !== 'binary') {
-    return getDisplayValue(val)
+  if (!isShownInFull(val)) {
+    return JSON.stringify(humanizeEjson(val), null, pretty ? 2 : undefined)
   }
-  return JSON.stringify(humanizeEjson(val), null, pretty ? 2 : undefined)
+  return getDisplayValue(val)
+}
+
+function isShownInFull(val: unknown): boolean {
+  const typeKey = getTypeKey(val)
+  if (typeKey === 'array' || typeKey === 'object' || typeKey === 'binary') {
+    return false
+  }
+  if (typeof val !== 'object' || val === null) {
+    return true
+  }
+
+  const obj = val as Record<string, unknown>
+  if ('$scope' in obj) {
+    return false
+  }
+  if (!('$binary' in obj)) {
+    return true
+  }
+  const binary = obj.$binary as Record<string, unknown>
+  return binaryToText(String(binary.base64), binary.subType) !== undefined
 }

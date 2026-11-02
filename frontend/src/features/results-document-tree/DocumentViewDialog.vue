@@ -100,7 +100,7 @@ function close() {
     <template #footer>
       <n-space justify="end">
         <n-button @click="copyToClipboard">
-          {{ t('query.contextMenu.copyDocument') }}
+          {{ t(Array.isArray(document) ? 'query.contextMenu.copyValue' : 'query.contextMenu.copyDocument') }}
         </n-button>
         <n-button v-if="canEdit" type="primary" @click="emit('edit')">
           {{ t('query.dialogs.editDocument') }}

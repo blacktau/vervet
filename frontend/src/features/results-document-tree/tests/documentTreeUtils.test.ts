@@ -1,5 +1,5 @@
 import { describe, test, expect, vi } from 'vitest'
-import { buildTreeData, getCopyText } from '../documentTreeUtils'
+import { buildTreeData, getCopyText, getDocLabel } from '../documentTreeUtils'
 
 vi.mock('@/i18n', () => ({
   i18nGlobal: {
@@ -230,8 +230,38 @@ describe('getCopyText', () => {
     expect(getCopyText(value)).toBe(JSON.stringify(value))
   })
 
+  test('copies Code with its scope, since the text shown leaves it out', () => {
+    const value = { $code: 'x()', $scope: { a: 1 } }
+
+    expect(getCopyText(value)).toBe(JSON.stringify(value))
+  })
+
+  test('copies a UUID with invalid base64 as EJSON, not the placeholder shown', () => {
+    const value = { $binary: { base64: '!!!', subType: '04' } }
+
+    expect(getCopyText(value)).toBe(JSON.stringify(value))
+  })
+
+  test('copies a valid UUID as shown', () => {
+    const value = { $binary: { base64: 'AAAAAAAAAAAAAAAAAAAAAA==', subType: '04' } }
+
+    expect(getCopyText(value)).toBe('00000000-0000-0000-0000-000000000000')
+  })
+
   test('indents an array only when asked to', () => {
     expect(getCopyText(['a'])).toBe('["a"]')
     expect(getCopyText(['a'], true)).toBe('[\n  "a"\n]')
+  })
+})
+
+describe('getDocLabel', () => {
+  test('shows an ObjectId _id', () => {
+    expect(getDocLabel({ _id: { $oid: 'abc123' } }, 0)).toBe('(1) {_id: abc123}')
+  })
+
+  test('agrees with the tree when the _id only looks like an ObjectId', () => {
+    expect(getDocLabel({ _id: { $oid: 'abc123', x: 1 } }, 0)).toBe(
+      '(1) {_id: query.objectFields:{"count":2}}',
+    )
   })
 })

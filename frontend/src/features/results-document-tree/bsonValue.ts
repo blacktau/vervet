@@ -95,3 +95,36 @@ export function epochMsToText(epochMs: string): string {
   const date = new Date(Number(epochMs))
   return Number.isNaN(date.getTime()) ? epochMs : date.toISOString()
 }
+
+function isEpochMsInRange(epochMs: unknown): boolean {
+  return !Number.isNaN(new Date(Number(epochMs)).getTime())
+}
+
+/** The epoch milliseconds of a $date payload, or undefined for a date already in text. */
+export function dateEpochMs(payload: unknown): string | undefined {
+  if (typeof payload === 'number') {
+    return String(payload)
+  }
+  if (isRecord(payload) && typeof payload.$numberLong === 'string') {
+    return payload.$numberLong
+  }
+  return undefined
+}
+
+/**
+ * Whether a value holds a date beyond a JS Date's range. Scripts handle dates as
+ * JS Dates, so a query can't write such a value back or match it.
+ */
+export function hasUnwritableDate(value: unknown): boolean {
+  if (Array.isArray(value)) {
+    return value.some(hasUnwritableDate)
+  }
+  if (!isRecord(value)) {
+    return false
+  }
+  if (getBsonWrapperType(value) === 'date') {
+    const epochMs = dateEpochMs(value.$date)
+    return epochMs !== undefined && !isEpochMsInRange(epochMs)
+  }
+  return Object.values(value).some(hasUnwritableDate)
+}

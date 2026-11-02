@@ -208,3 +208,59 @@ func TestSerialize_ValuesThatAreNotDocuments(t *testing.T) {
 		})
 	}
 }
+
+func TestParseEJSON_DocumentsThatLookLikeWrappersStayDocuments(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  bson.M
+	}{
+		{"extra field beside $date", `[{"$date":"2024-01-01","name":"x"}]`, bson.M{"$date": "2024-01-01", "name": "x"}},
+		{"null $timestamp", `[{"$timestamp":null}]`, bson.M{"$timestamp": nil}},
+		{"number in $oid", `[{"$oid":5}]`, bson.M{"$oid": int32(5)}},
+		{"null $regularExpression", `[{"$regularExpression":null}]`, bson.M{"$regularExpression": nil}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			docs, err := parseEJSON(tt.input)
+			require.NoError(t, err)
+			require.Equal(t, []bson.M{tt.want}, docs)
+		})
+	}
+}
+
+func TestParseEJSON_RegexIsAValue(t *testing.T) {
+	docs, err := parseEJSON(`[{"$regex":"a","$options":"i"},{"$options":"m","$regex":"b"},{"$regex":"c"}]`)
+	require.NoError(t, err)
+	require.Equal(t, []bson.M{
+		{nonDocumentField: bson.Regex{Pattern: "a", Options: "i"}},
+		{nonDocumentField: bson.Regex{Pattern: "b", Options: "m"}},
+		{nonDocumentField: bson.Regex{Pattern: "c"}},
+	}, docs)
+}
+
+func TestSerialize_InvalidWrappersDontFailTheExport(t *testing.T) {
+	const input = `[{"$oid":"abc123"},{"$uuid":"abc"},{"_id":1,"a":{"$oid":"abc"}},{"b":{"$numberLong":"x"}}]`
+
+	for _, format := range []Format{FormatCSV, FormatJSON, FormatNDJSON} {
+		t.Run(string(format), func(t *testing.T) {
+			docs, err := parseEJSON(input)
+			require.NoError(t, err)
+			require.Len(t, docs, 4)
+
+			data, err := Serialize(docs, Options{Format: format, CSV: CSVOptions{IncludeHeader: true}})
+			require.NoError(t, err)
+			require.Contains(t, string(data), "abc123")
+		})
+	}
+}
+
+func TestSerialize_JSONWithValuesThatAreNotDocuments(t *testing.T) {
+	docs, err := parseEJSON(`["theaters", null, {"a":1}]`)
+	require.NoError(t, err)
+
+	data, err := Serialize(docs, Options{Format: FormatJSON})
+	require.NoError(t, err)
+	require.JSONEq(t, `[{"value":"theaters"},{"value":null},{"a":1}]`, string(data))
+}

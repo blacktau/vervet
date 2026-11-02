@@ -14,6 +14,7 @@ import { typeColorMapDark, typeColorMapLight } from '@/features/queries/typeColo
 import {
   formatNamespace,
   hasDocumentId,
+  isDocumentEditable,
   useDocumentContextMenu,
   type CollectionContext,
 } from './useDocumentContextMenu'
@@ -74,6 +75,7 @@ const collectionContextRef = toRef(props, 'collectionContext')
 const contextMenu = useDocumentContextMenu(
   collectionContextRef as Ref<CollectionContext | undefined>,
   (row) => hasDocumentId(resolveRawValue(props.documents, row.key)),
+  (row) => isDocumentEditable(resolveRawValue(props.documents, row.key)),
 )
 const notifier = useNotifier()
 const dialog = useDialog()
@@ -452,7 +454,7 @@ function rowClassName(row: DocumentRow): string {
       <DocumentViewDialog
         v-model:show="showViewDialog"
         :document="viewDocument"
-        :can-edit="!!collectionContext?.canEdit && hasDocumentId(viewDocument)"
+        :can-edit="!!collectionContext?.canEdit && isDocumentEditable(viewDocument)"
         @edit="switchToEdit" />
       <DocumentEditDialog
         v-if="editContext"

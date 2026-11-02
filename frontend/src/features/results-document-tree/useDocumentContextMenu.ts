@@ -2,6 +2,7 @@ import { computed, ref, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { DropdownOption } from 'naive-ui'
 import type { DocumentRow } from './types'
+import { hasUnwritableDate } from './bsonValue'
 
 export interface CollectionContext {
   serverId: string
@@ -23,12 +24,18 @@ export function hasDocumentId(doc: unknown): boolean {
     return false
   }
   const id = (doc as Record<string, unknown>)._id
-  return id !== undefined && id !== null
+  return id !== undefined && id !== null && !hasUnwritableDate(id)
+}
+
+/** Saving replaces the whole document, so every value in it must survive the trip. */
+export function isDocumentEditable(doc: unknown): boolean {
+  return hasDocumentId(doc) && !hasUnwritableDate(doc)
 }
 
 export function useDocumentContextMenu(
   collectionContext: Ref<CollectionContext | undefined>,
   rowHasId: (row: DocumentRow) => boolean = () => true,
+  rowIsEditable: (row: DocumentRow) => boolean = rowHasId,
 ) {
   const { t } = useI18n()
   const showMenu = ref(false)
@@ -60,7 +67,7 @@ export function useDocumentContextMenu(
         { label: t('query.contextMenu.viewDocument'), key: 'viewDocument' },
       ]
 
-      if (collectionContext.value?.canEdit && targetable) {
+      if (collectionContext.value?.canEdit && rowIsEditable(targetRow.value)) {
         options.push({ label: t('query.contextMenu.editDocument'), key: 'editDocument' })
       }
       if (collectionContext.value) {

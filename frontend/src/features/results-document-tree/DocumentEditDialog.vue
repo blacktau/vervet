@@ -125,11 +125,10 @@ async function save() {
     return
   }
 
-  // Convert humanized JSON to JS expression with BSON constructors
-  const jsBody = toJsExpression(parsed)
-
   saving.value = true
   try {
+    // Convert humanized JSON to JS expression with BSON constructors
+    const jsBody = toJsExpression(parsed)
     let query: string
     const collection = JSON.stringify(props.collectionName)
     if (props.mode === 'edit') {

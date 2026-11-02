@@ -5,6 +5,7 @@ vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 
 import {
   hasDocumentId,
+  isDocumentEditable,
   useDocumentContextMenu,
   type CollectionContext,
 } from '../useDocumentContextMenu'
@@ -102,5 +103,43 @@ describe('hasDocumentId', () => {
     ['text', false],
   ])('%j → %s', (doc, expected) => {
     expect(hasDocumentId(doc)).toBe(expected)
+  })
+})
+
+describe('documents holding dates a script cannot write', () => {
+  const farDate = { $date: { $numberLong: '99999999999999999' } }
+
+  it('cannot be edited, since saving would change the date', () => {
+    expect(isDocumentEditable({ _id: 1, when: farDate })).toBe(false)
+    expect(isDocumentEditable({ _id: 1, nested: [{ when: farDate }] })).toBe(false)
+  })
+
+  it('can still be deleted when the date is not the _id', () => {
+    expect(hasDocumentId({ _id: 1, when: farDate })).toBe(true)
+  })
+
+  it('cannot be edited or deleted when the date is the _id', () => {
+    expect(hasDocumentId({ _id: farDate })).toBe(false)
+    expect(isDocumentEditable({ _id: farDate })).toBe(false)
+  })
+
+  it('stay editable with ordinary dates', () => {
+    expect(isDocumentEditable({ _id: 1, when: { $date: { $numberLong: '0' } } })).toBe(true)
+  })
+
+  it('hides edit but keeps delete in the menu', () => {
+    const menu = useDocumentContextMenu(
+      ref(context),
+      () => true,
+      () => false,
+    )
+    menu.openMenu(
+      { kind: 'document' } as DocumentRow,
+      { preventDefault: () => {}, clientX: 0, clientY: 0 } as MouseEvent,
+    )
+
+    const keys = menu.menuOptions.value.map((o) => String(o.key))
+    expect(keys).not.toContain('editDocument')
+    expect(keys).toContain('deleteDocument')
   })
 })

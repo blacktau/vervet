@@ -121,6 +121,47 @@ func parseEJSON(raw string) ([]bson.M, error) {
 }
 
 func parseResult(raw json.RawMessage) (bson.M, error) {
+	if raw[0] != '{' {
+		return parseValue(raw)
+	}
+
+	if fields, isValue := parseEJSONValueFields(raw); isValue {
+		return parseWrapperValue(raw, fields)
+	}
+
+	var doc bson.M
+	if err := bson.UnmarshalExtJSON(raw, false, &doc); err == nil {
+		return doc, nil
+	}
+
+	// The driver rejects malformed wrappers, such as a field holding
+	// {"$oid":"abc"}. One such row shouldn't fail the export, so keep it as JSON.
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		return nil, err
+	}
+	return doc, nil
+}
+
+func parseWrapperValue(raw json.RawMessage, fields map[string]json.RawMessage) (bson.M, error) {
+	pattern, isRegex := fields["$regex"]
+	if !isRegex {
+		return parseValue(raw)
+	}
+
+	// The driver reads {$regex, $options} as an ordinary document.
+	var regex bson.Regex
+	if err := json.Unmarshal(pattern, &regex.Pattern); err != nil {
+		return nil, err
+	}
+	if options, hasOptions := fields["$options"]; hasOptions {
+		if err := json.Unmarshal(options, &regex.Options); err != nil {
+			return nil, err
+		}
+	}
+	return bson.M{nonDocumentField: regex}, nil
+}
+
+func parseValue(raw json.RawMessage) (bson.M, error) {
 	// A top-level EJSON value can't decode into a bson.M, so read it as a field.
 	wrapped, err := json.Marshal(map[string]json.RawMessage{nonDocumentField: raw})
 	if err != nil {
@@ -128,20 +169,16 @@ func parseResult(raw json.RawMessage) (bson.M, error) {
 	}
 
 	var result bson.M
-	if err := bson.UnmarshalExtJSON(wrapped, false, &result); err != nil {
-		return nil, err
-	}
-
-	if _, isDocument := result[nonDocumentField].(bson.D); !isDocument {
+	if err := bson.UnmarshalExtJSON(wrapped, false, &result); err == nil {
 		return result, nil
 	}
 
-	var doc bson.M
-	if err := bson.UnmarshalExtJSON(raw, false, &doc); err != nil {
+	// An invalid payload, such as {"$oid":"abc"}: keep the value as JSON.
+	var value any
+	if err := json.Unmarshal(raw, &value); err != nil {
 		return nil, err
 	}
-
-	return doc, nil
+	return bson.M{nonDocumentField: value}, nil
 }
 
 // buildOptions maps the api.ExportRequest fields to export.Options.
