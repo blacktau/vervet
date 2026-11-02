@@ -328,7 +328,6 @@ func TestIntegration_Writes_UnacknowledgedWrites(t *testing.T) {
 }
 
 func TestIntegration_Writes_DbAggregateOptions(t *testing.T) {
-	skipWithoutDocumentsStage(t)
 	run, _ := setupWrites(t)
 	for script, want := range map[string]string{
 		`print(db.aggregate([{ $documents: [{ t: "ABC" }] }, { $match: { t: "abc" } }], { collation: { locale: "en", strength: 2 } }).length)`: "1",
@@ -345,7 +344,7 @@ func TestIntegration_Writes_DbAggregateOptions(t *testing.T) {
 // sort on updateOne and replaceOne needs MongoDB 8. The option goes to the server
 // either way, so what happens on an older one is for that server to decide.
 func TestIntegration_Writes_UpdateSortOnMongo8(t *testing.T) {
-	skipBeforeVersion(t, "8")
+	skipBeforeMajor(t, 8)
 	run, _ := setupWrites(t)
 	got, err := run(`db.c.updateOne({ s: "r" }, { $set: { z: 1 } }, { sort: { p: -1 } }); print(db.c.findOne({ z: 1 })._id)`)
 	require.NoError(t, err)

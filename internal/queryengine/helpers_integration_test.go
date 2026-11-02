@@ -5,6 +5,7 @@ package queryengine
 import (
 	"context"
 	"encoding/json"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -32,25 +33,21 @@ func resultText(r models.QueryResult) string {
 	return string(b)
 }
 
-// skipWithoutDocumentsStage skips a test that needs $documents, which MongoDB 5.0
-// refuses in user requests.
-func skipWithoutDocumentsStage(t *testing.T) {
-	t.Helper()
-	engine := NewGojaEngine(testClient, 0, "")
-	if _, err := engine.ExecuteQuery(context.Background(), testURI, dbName(t), `db.aggregate([{ $documents: [] }])`); err != nil {
-		t.Skipf("server has no $documents: %v", err)
-	}
-}
-
-// skipBeforeVersion skips a test that needs a server of at least major.
-func skipBeforeVersion(t *testing.T, major string) {
+// skipBeforeMajor skips a test that needs a server of at least the given major
+// version, for features newer than the oldest supported MongoDB.
+func skipBeforeMajor(t *testing.T, major int) {
 	t.Helper()
 	engine := NewGojaEngine(testClient, 0, "")
 	result, err := engine.ExecuteQuery(context.Background(), testURI, dbName(t), `print(db.version())`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if version := printedText(result); version < major {
-		t.Skipf("needs MongoDB %s, server is %s", major, version)
+	version := printedText(result)
+	got, err := strconv.Atoi(strings.SplitN(version, ".", 2)[0])
+	if err != nil {
+		t.Fatalf("unreadable server version %q: %v", version, err)
+	}
+	if got < major {
+		t.Skipf("needs MongoDB %d, server is %s", major, version)
 	}
 }

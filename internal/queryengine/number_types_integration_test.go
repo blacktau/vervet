@@ -52,7 +52,6 @@ func TestIntegration_Numbers_WriteAckCounts(t *testing.T) {
 // The same stored value has the same type whichever aggregate returns it: a
 // stored long is a Long, a stored int is a plain number.
 func TestIntegration_Numbers_AggregatesAgreeOnStoredTypes(t *testing.T) {
-	skipWithoutDocumentsStage(t)
 	engine, db, ctx := setupNumberData(t)
 	got := runScript(t, engine, ctx, db, `
 		var a = db.c.aggregate([{ $match: {} }]).toArray()[0];
@@ -64,7 +63,6 @@ func TestIntegration_Numbers_AggregatesAgreeOnStoredTypes(t *testing.T) {
 }
 
 func TestIntegration_Numbers_DbAggregateHasCursorMethods(t *testing.T) {
-	skipWithoutDocumentsStage(t)
 	engine, db, ctx := setupNumberData(t)
 	got := runScript(t, engine, ctx, db, `print(db.aggregate([{ $documents: [{ n: 1 }] }]).toArray().length)`)
 	assert.Equal(t, "1", got)
@@ -83,7 +81,6 @@ func TestIntegration_Numbers_EJSONParseStrictKeepsLongPrecision(t *testing.T) {
 // Adding toArray must not change how the result displays when it is the
 // script's final value.
 func TestIntegration_Numbers_DbAggregateDisplaysAsDocuments(t *testing.T) {
-	skipWithoutDocumentsStage(t)
 	engine, db, ctx := setupNumberData(t)
 	for _, script := range []string{
 		`db.aggregate([{ $documents: [{ n: 1 }] }])`,

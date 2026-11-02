@@ -16,6 +16,7 @@ import (
 	"github.com/testcontainers/testcontainers-go/modules/mongodb"
 
 	"vervet/internal/models"
+	"vervet/internal/testmongo"
 )
 
 var testURI string
@@ -28,7 +29,7 @@ func TestMain(m *testing.M) {
 	// terminated below instead.
 	os.Setenv("TESTCONTAINERS_RYUK_DISABLED", "true")
 
-	mongoContainer, err := mongodb.Run(ctx, "mongo:7")
+	mongoContainer, err := mongodb.Run(ctx, testmongo.Image())
 	if err != nil {
 		log.Fatalf("failed to start MongoDB container: %v", err)
 	}
