@@ -182,6 +182,7 @@ func updateResultToQueryResult(res *mongo.UpdateResult) models.QueryResult {
 		{Key: "acknowledged", Value: true},
 		{Key: "matchedCount", Value: int(res.MatchedCount)},
 		{Key: "modifiedCount", Value: int(res.ModifiedCount)},
+		{Key: "upsertedCount", Value: int(res.UpsertedCount)},
 	}
 	if res.UpsertedID != nil {
 		result = append(result, bson.E{Key: "upsertedId", Value: res.UpsertedID})

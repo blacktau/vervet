@@ -224,17 +224,17 @@ func TestDocsToResult_KeepsEmptyContainers(t *testing.T) {
 // Write and count results are built as bson.D, so their fields come out in a
 // fixed order on every run, in the UI and in Object.keys.
 func TestSingleToResult_FixedFieldOrder(t *testing.T) {
-	r := updateResultToQueryResult(&mongo.UpdateResult{MatchedCount: 1, ModifiedCount: 1, UpsertedID: int32(3)})
+	r := updateResultToQueryResult(&mongo.UpdateResult{MatchedCount: 1, ModifiedCount: 1, UpsertedCount: 1, UpsertedID: int32(3)})
 	for i := 0; i < 20; i++ {
 		data, err := json.Marshal(r.Documents)
 		require.NoError(t, err)
-		assert.Equal(t, `[{"acknowledged":true,"matchedCount":{"$numberInt":"1"},"modifiedCount":{"$numberInt":"1"},"upsertedId":{"$numberInt":"3"}}]`, string(data))
+		assert.Equal(t, `[{"acknowledged":true,"matchedCount":{"$numberInt":"1"},"modifiedCount":{"$numberInt":"1"},"upsertedCount":{"$numberInt":"1"},"upsertedId":{"$numberInt":"3"}}]`, string(data))
 
 		rt := goja.New()
 		require.NoError(t, rt.Set("r", toGojaValue(rt, r)))
 		val, err := rt.RunString(`Object.keys(r).join(",")`)
 		require.NoError(t, err)
-		assert.Equal(t, "acknowledged,matchedCount,modifiedCount,upsertedId", val.String())
+		assert.Equal(t, "acknowledged,matchedCount,modifiedCount,upsertedCount,upsertedId", val.String())
 	}
 }
 

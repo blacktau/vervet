@@ -13,9 +13,9 @@ import (
 // registerEJSON registers the EJSON global object in the Goja runtime,
 // providing mongosh-compatible Extended JSON methods:
 //   - EJSON.stringify(value, replacer?, space?) → string
-//   - EJSON.parse(str) → object
+//   - EJSON.parse(str, options?) → object
 //   - EJSON.serialize(value) → object (Extended JSON representation)
-//   - EJSON.deserialize(value) → object (BSON types from Extended JSON)
+//   - EJSON.deserialize(value, options?) → object (BSON types from Extended JSON)
 func registerEJSON(rt *goja.Runtime) error {
 	ejson := rt.NewObject()
 
@@ -129,7 +129,7 @@ func relaxedExtJSONTree(v any, spellLongs bool) any {
 }
 
 // ejsonParse parses an Extended JSON string into a JS object.
-// Usage: EJSON.parse(str)
+// Usage: EJSON.parse(str) or EJSON.parse(str, { relaxed: false })
 func ejsonParse(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(call goja.FunctionCall) goja.Value {
 		if len(call.Arguments) == 0 {
@@ -138,7 +138,7 @@ func ejsonParse(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 
 		str := call.Arguments[0].String()
 
-		return parsedExtJSONValue(rt, []byte(str), "EJSON.parse")
+		return parsedExtJSONValue(rt, []byte(str), ejsonRelaxed(call), "EJSON.parse")
 	}
 }
 
@@ -175,7 +175,7 @@ func ejsonSerialize(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 
 // ejsonDeserialize converts an Extended JSON object representation back to
 // a JS object with native BSON types. This is the inverse of serialize.
-// Usage: EJSON.deserialize(obj)
+// Usage: EJSON.deserialize(obj) or EJSON.deserialize(obj, { relaxed: false })
 func ejsonDeserialize(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(call goja.FunctionCall) goja.Value {
 		if len(call.Arguments) == 0 {
@@ -190,17 +190,47 @@ func ejsonDeserialize(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 		if err != nil {
 			panic(rt.NewGoError(fmt.Errorf("EJSON.deserialize: %w", err)))
 		}
-		return parsedExtJSONValue(rt, data, "EJSON.deserialize")
+		return parsedExtJSONValue(rt, data, ejsonRelaxed(call), "EJSON.deserialize")
 	}
 }
 
-// parsedExtJSONValue parses Extended JSON into a script value. A value written
-// as {$numberLong: ...} is a Long whatever its size: the text says it is a
-// long, so writing it back must store a long. A plain integer is a number.
-func parsedExtJSONValue(rt *goja.Runtime, data []byte, fn string) goja.Value {
+// ejsonRelaxed reads the relaxed option from the second argument of EJSON.parse
+// or EJSON.deserialize. As in mongosh, it defaults to true when the options, or
+// the option itself, are missing or null, and any other value counts by its
+// truthiness.
+func ejsonRelaxed(call goja.FunctionCall) bool {
+	options := call.Argument(1)
+	if goja.IsUndefined(options) || goja.IsNull(options) {
+		return true
+	}
+	obj, ok := options.(*goja.Object)
+	if !ok {
+		return true
+	}
+	relaxed := obj.Get("relaxed")
+	if relaxed == nil || goja.IsUndefined(relaxed) || goja.IsNull(relaxed) {
+		return true
+	}
+	return relaxed.ToBoolean()
+}
+
+// parsedExtJSONValue parses Extended JSON into a script value.
+//
+// Relaxed: a value written as {$numberLong: ...} is a Long whatever its size:
+// the text says it is a long, so writing it back must store a long. A plain
+// integer is a number. mongosh's relaxed parse gives a plain number for
+// {$numberLong} too; that would round values beyond 2^53 and store a long back
+// as an int, so this differs on purpose.
+//
+// Not relaxed: integers keep their BSON type, as Int32 or Long wrappers, as in
+// mongosh. Doubles stay plain numbers, where mongosh gives a Double wrapper.
+func parsedExtJSONValue(rt *goja.Runtime, data []byte, relaxed bool, fn string) goja.Value {
 	var result bson.D
 	if err := bson.UnmarshalExtJSON(data, false, &result); err != nil {
 		panic(rt.NewGoError(fmt.Errorf("%s: %w", fn, err)))
+	}
+	if !relaxed {
+		return jsValue(rt, normalizeForJS(result), jsTyped)
 	}
 	if !bytes.Contains(data, []byte("$numberLong")) {
 		// No long is written out, so every int64 is a plain integer.
