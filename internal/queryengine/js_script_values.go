@@ -31,8 +31,8 @@ const (
 	// is still a long when the script writes it back. Long's valueOf keeps
 	// arithmetic such as db.stats().storageSize / 1024 working.
 	jsScript
-	// jsTyped is jsScript with int32 kept as an Int32 wrapper rather than a plain
-	// number, for EJSON.parse with { relaxed: false }.
+	// jsTyped is jsScript with every value keeping its exact BSON type when written
+	// back, for EJSON.parse with { relaxed: false }. See typedScalarToJS.
 	jsTyped
 )
 
@@ -67,8 +67,10 @@ func jsValue(rt *goja.Runtime, v any, mode jsMode) goja.Value {
 	case []any:
 		return jsArray(rt, val, mode)
 	}
-	if n, ok := v.(int32); ok && mode == jsTyped {
-		return numberValue(rt, n, int64(n))
+	if mode == jsTyped {
+		if converted, ok := typedScalarToJS(rt, v); ok {
+			return converted
+		}
 	}
 	if mode != jsPlain {
 		if converted, ok := bsonScalarToJS(rt, v); ok {
@@ -86,6 +88,27 @@ func jsArray(rt *goja.Runtime, val []any, mode jsMode) goja.Value {
 		items[i] = jsValue(rt, elem, mode)
 	}
 	return rt.NewArray(items...)
+}
+
+// typedScalarToJS wraps the values that bsonScalarToJS would change the type of
+// on the way back to BSON: a whole-number double would be stored as an int, a
+// symbol as a string, undefined as null, and a regex goes through a JS RegExp,
+// which rewrites an empty pattern and rejects the x option. As in mongosh, a
+// regex here is not a JS RegExp.
+func typedScalarToJS(rt *goja.Runtime, v any) (goja.Value, bool) {
+	switch x := v.(type) {
+	case int32:
+		return numberValue(rt, x, int64(x)), true
+	case float64:
+		return doubleValue(rt, x), true
+	case bson.Symbol:
+		return namedBSONValue(rt, x, string(x)), true
+	case bson.Undefined:
+		return namedBSONValue(rt, x, "undefined"), true
+	case bson.Regex:
+		return namedBSONValue(rt, x, "/"+x.Pattern+"/"+x.Options), true
+	}
+	return nil, false
 }
 
 // bsonScalarToJS converts a native BSON value into its mongosh script form.
@@ -185,6 +208,15 @@ func numberValue(rt *goja.Runtime, val any, n int64) goja.Value {
 	obj := bsonObject(rt, val, strconv.FormatInt(n, 10))
 	_ = obj.Set("toNumber", func() float64 { return float64(n) })
 	_ = obj.Set("valueOf", func() float64 { return float64(n) })
+	return obj
+}
+
+// doubleValue wraps a float64 so it stays a double when written back, whatever its
+// value. The valueOf keeps arithmetic working, as it does for numberValue.
+func doubleValue(rt *goja.Runtime, n float64) goja.Value {
+	obj := bsonObject(rt, n, strconv.FormatFloat(n, 'g', -1, 64))
+	_ = obj.Set("toNumber", func() float64 { return n })
+	_ = obj.Set("valueOf", func() float64 { return n })
 	return obj
 }
 

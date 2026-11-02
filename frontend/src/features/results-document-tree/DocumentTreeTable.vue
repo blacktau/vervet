@@ -21,7 +21,8 @@ import {
 import { useSettingsStore } from '@/features/settings/settingsStore'
 import { useNotifier } from '@/utils/dialog'
 import { resolveRawValue } from './resolveRawValue'
-import { humanizeEjson, toJsExpression } from './humanizeEjson'
+import { humanizeEjson } from './humanizeEjson'
+import { documentIdFilter } from './editableEjson'
 import DocumentContextMenu from './DocumentContextMenu.vue'
 import DocumentViewDialog from './DocumentViewDialog.vue'
 import DocumentEditDialog from './DocumentEditDialog.vue'
@@ -277,7 +278,7 @@ function handleContextMenuSelect(key: string) {
       negativeText: t('common.cancel'),
       onPositiveClick: async () => {
         const { serverId, dbName, collectionName } = context
-        const filter = `{ _id: ${toJsExpression(doc._id)} }`
+        const filter = documentIdFilter(doc._id)
         const query = `db.getCollection(${JSON.stringify(collectionName)}).deleteOne(${filter})`
         const result = await shellProxy.ExecuteQuery(
           serverId,

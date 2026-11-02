@@ -498,6 +498,8 @@ export default {
         "These results don't say which database and collection they came from, so changes go to {namespace}. Check that's where you mean.",
       save: 'Save',
       invalidJson: 'Invalid JSON: {error}',
+      extendedJsonHint:
+        'Types plain JSON can\'t hold are written as Extended JSON, such as $oid, $date and $numberLong.',
     },
     types: {
       null: 'Null',

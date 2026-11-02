@@ -105,6 +105,58 @@ describe('DocumentEditDialog save', () => {
   )
 })
 
+describe('DocumentEditDialog keeps BSON types', () => {
+  async function mountEdit(doc: unknown) {
+    vi.mocked(monaco.editor.create).mockClear()
+    const DocumentEditDialog = (await import('../DocumentEditDialog.vue')).default
+    wrapper = mount(DocumentEditDialog, {
+      props: {
+        show: true,
+        document: doc,
+        mode: 'edit',
+        serverId: 'server-1',
+        dbName: 'shop',
+        collectionName: 'orders',
+      },
+      global: { plugins: [naive, i18n] },
+      attachTo: document.body,
+    })
+    await flushPromises()
+  }
+
+  it('shows types plain JSON cannot hold as Extended JSON, without the _id', async () => {
+    await mountEdit({
+      _id: { $oid: '507f1f77bcf86cd799439011' },
+      long: { $numberLong: '7' },
+      whole: { $numberDouble: '5.0' },
+      int: { $numberInt: '5' },
+    })
+
+    const shown = vi.mocked(monaco.editor.create).mock.lastCall![1]!.value!
+    expect(JSON.parse(shown)).toEqual({
+      long: { $numberLong: '7' },
+      whole: { $numberDouble: '5.0' },
+      int: 5,
+    })
+  })
+
+  it('saves through a strict EJSON.parse of the editor text', async () => {
+    await mountEdit({ _id: { $oid: '507f1f77bcf86cd799439011' }, name: 'a' })
+
+    const save = [...document.body.querySelectorAll('button')].find(
+      (b) => b.textContent?.trim() === 'Save',
+    )
+    save!.click()
+    await flushPromises()
+
+    expect(vi.mocked(shellProxy.ExecuteQuery).mock.lastCall![3]).toBe(
+      'db.getCollection("orders").replaceOne(' +
+        'EJSON.parse("{\\"_id\\":{\\"$oid\\":\\"507f1f77bcf86cd799439011\\"}}", { relaxed: false }), ' +
+        'EJSON.parse("{}", { relaxed: false }))',
+    )
+  })
+})
+
 describe('DocumentEditDialog mounted open', () => {
   // The table mounts the dialog the first time it opens, so it starts shown
   it('builds the editor and shows the _id', async () => {

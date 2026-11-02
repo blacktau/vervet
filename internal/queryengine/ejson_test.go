@@ -69,6 +69,7 @@ func TestEJSON_ParseAndDeserialize_KeepExplicitLongs(t *testing.T) {
 }
 
 // With { relaxed: false } every integer keeps its BSON type, as in mongosh.
+// Doubles are wrapped too, as in mongosh, so a whole-number double stays a double.
 func TestEJSON_NotRelaxed_KeepsIntegerTypes(t *testing.T) {
 	rt := setupEJSONRuntime(t)
 	for _, script := range []string{
@@ -80,7 +81,7 @@ func TestEJSON_NotRelaxed_KeepsIntegerTypes(t *testing.T) {
 		require.NoError(t, rt.Set("v", val))
 		got, err := rt.RunString(`[typeof v.l, String(v.l), typeof v.big, typeof v.n, v.n + 1, typeof v.a[0], typeof v.d].join()`)
 		require.NoError(t, err)
-		assert.Equal(t, "object,9007199254740993,object,object,8,object,number", got.String(), script)
+		assert.Equal(t, "object,9007199254740993,object,object,8,object,object", got.String(), script)
 		assert.Equal(t, bson.D{
 			{Key: "l", Value: int64(9007199254740993)},
 			{Key: "big", Value: int64(5000000000)},

@@ -222,8 +222,8 @@ func ejsonRelaxed(call goja.FunctionCall) bool {
 // {$numberLong} too; that would round values beyond 2^53 and store a long back
 // as an int, so this differs on purpose.
 //
-// Not relaxed: integers keep their BSON type, as Int32 or Long wrappers, as in
-// mongosh. Doubles stay plain numbers, where mongosh gives a Double wrapper.
+// Not relaxed: every value keeps its BSON type, as a wrapper where a plain script
+// value would lose it (see typedScalarToJS). The edit dialog saves through this.
 func parsedExtJSONValue(rt *goja.Runtime, data []byte, relaxed bool, fn string) goja.Value {
 	var result bson.D
 	if err := bson.UnmarshalExtJSON(data, false, &result); err != nil {
