@@ -1,6 +1,8 @@
 package queryengine
 
 import (
+	"strconv"
+
 	"vervet/internal/models"
 
 	"github.com/dop251/goja"
@@ -33,7 +35,10 @@ var findAndModifyMethods = map[string]bool{
 	"findOneAndUpdate":  true,
 }
 
-// withCursorMethods adds toArray to an already-materialised array result.
+// withCursorMethods adds the cursor methods mongosh scripts use to a result that
+// has already been read into an array. They are not enumerable, so the array still
+// looks like an array. Reading through them consumes it as a cursor would, while
+// indexing and the Array methods see every document.
 func withCursorMethods(rt *goja.Runtime, method string, val goja.Value) goja.Value {
 	if !arrayCursorMethods[method] {
 		return val
@@ -42,7 +47,86 @@ func withCursorMethods(rt *goja.Runtime, method string, val goja.Value) goja.Val
 	if !ok || obj.ClassName() != "Array" {
 		return val
 	}
-	_ = obj.Set("toArray", func() goja.Value { return obj })
+	length := int(obj.Get("length").ToInteger())
+	index := 0
+	closed := false
+	next := func() goja.Value {
+		if closed || index >= length {
+			return goja.Null()
+		}
+		doc := obj.Get(strconv.Itoa(index))
+		index++
+		return doc
+	}
+	remaining := func() int {
+		if closed {
+			return 0
+		}
+		return length - index
+	}
+	define := func(name string, fn func(goja.FunctionCall) goja.Value) {
+		_ = obj.DefineDataProperty(name, rt.ToValue(fn), goja.FLAG_TRUE, goja.FLAG_TRUE, goja.FLAG_FALSE)
+	}
+	define("toArray", func(goja.FunctionCall) goja.Value {
+		if index == 0 && !closed {
+			index = length
+			return obj
+		}
+		rest := make([]any, 0, remaining())
+		for remaining() > 0 {
+			rest = append(rest, next())
+		}
+		return rt.NewArray(rest...)
+	})
+	define("next", func(goja.FunctionCall) goja.Value { return next() })
+	define("tryNext", func(goja.FunctionCall) goja.Value { return next() })
+	define("hasNext", func(goja.FunctionCall) goja.Value { return rt.ToValue(remaining() > 0) })
+	define("itcount", func(goja.FunctionCall) goja.Value {
+		n := remaining()
+		index = length
+		return rt.ToValue(n)
+	})
+	define("objsLeftInBatch", func(goja.FunctionCall) goja.Value { return rt.ToValue(remaining()) })
+	define("isExhausted", func(goja.FunctionCall) goja.Value { return rt.ToValue(remaining() == 0) })
+	define("isClosed", func(goja.FunctionCall) goja.Value { return rt.ToValue(remaining() == 0) })
+	define("close", func(goja.FunctionCall) goja.Value {
+		closed = true
+		return goja.Undefined()
+	})
+	define("pretty", func(goja.FunctionCall) goja.Value { return obj })
+	// Array's map, whose result stays a cursor so that calls can keep chaining.
+	define("map", func(call goja.FunctionCall) goja.Value {
+		fn, ok := goja.AssertFunction(call.Argument(0))
+		if !ok {
+			panic(rt.NewTypeError("map argument must be a function"))
+		}
+		mapped := make([]any, length)
+		for i := range length {
+			val, err := fn(call.Argument(1), obj.Get(strconv.Itoa(i)), rt.ToValue(i), obj)
+			if err != nil {
+				panic(err)
+			}
+			mapped[i] = val
+		}
+		return withCursorMethods(rt, method, rt.NewArray(mapped...))
+	})
+	// A callback that returns false stops the loop, unlike Array's forEach.
+	define("forEach", func(call goja.FunctionCall) goja.Value {
+		fn, ok := goja.AssertFunction(call.Argument(0))
+		if !ok {
+			panic(rt.NewTypeError("forEach argument must be a function"))
+		}
+		for remaining() > 0 {
+			result, err := fn(goja.Undefined(), next())
+			if err != nil {
+				panic(err)
+			}
+			if result.StrictEquals(rt.ToValue(false)) {
+				break
+			}
+		}
+		return goja.Undefined()
+	})
 	return obj
 }
 
@@ -64,25 +148,28 @@ func runEager(ec *execContext, collName, method string, call goja.FunctionCall) 
 func newCollectionProxy(ec *execContext, collName string) goja.Value {
 	obj := ec.rt.NewObject()
 
-	// find — returns lazyCursor
+	// find — returns lazyCursor, or the plan when its explain option is set
 	_ = obj.Set("find", func(call goja.FunctionCall) goja.Value {
-		args := exportArgs(call)
-		cursor := &lazyCursor{
-			ec:         ec,
-			collection: collName,
+		rejectNullFilter(ec, call)
+		op, err := parseFindArgs(collName, "find", exportArgs(call))
+		if err != nil {
+			panic(ec.rt.NewGoError(err))
 		}
-		if len(args) > 0 {
-			cursor.filter = args[0]
+		if op.Explain != "" {
+			requireClient(ec)
+			result, err := explainFindOp(ec.ctx, ec.client, ec.dbName, op)
+			if err != nil {
+				panic(ec.rt.NewGoError(err))
+			}
+			return toGojaValue(ec.rt, result)
 		}
-		if len(args) > 1 {
-			cursor.projection = args[1]
-		}
-		return cursor.toGojaObject()
+		return newLazyCursor(ec, op).toGojaObject()
 	})
 
 	// findOne — runs immediately and returns the document, or null when none
 	// matches, as in mongosh, so scripts can read fields from it and pass it on.
 	_ = obj.Set("findOne", func(call goja.FunctionCall) goja.Value {
+		rejectNullFilter(ec, call)
 		result := runEager(ec, collName, "findOne", call)
 		if len(result.Documents) == 0 {
 			return goja.Null()

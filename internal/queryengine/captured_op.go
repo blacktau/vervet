@@ -14,5 +14,8 @@ type CapturedOp struct {
 	MaxTimeMS  int64
 	BatchSize  int32
 	Collation  map[string]any
-	Comment    string
+	Comment    any
+	// Explain, when set, is the verbosity find's explain option asked for.
+	Explain string
+	findExtras
 }

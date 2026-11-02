@@ -207,22 +207,20 @@ func TestIntegration_EmptyArraysSurviveResults(t *testing.T) {
 	assert.Equal(t, bson.D{{Key: "list", Value: bson.A{}}}, docField(copied, "nested"))
 }
 
-// An unpaged cursor never builds a PageContext, so a non-document filter
-// falls back to an empty filter as it always did.
+// A filter that is not a document or ObjectId fails, as in mongosh, rather than
+// matching every document.
 func TestIntegration_NonDocumentFilter(t *testing.T) {
 	ctx, db, engine := keyOrderEngine(t)
 
 	_, err := engine.ExecuteQuery(ctx, testURI, db, `db.nd.insertMany([{ n: 1 }, { n: 2 }])`)
 	require.NoError(t, err)
 
-	result, err := engine.ExecuteQuery(ctx, testURI, db, `db.nd.find(1).toArray().length`)
-	require.NoError(t, err)
-	assert.Equal(t, "2", resultText(result))
+	_, err = engine.ExecuteQuery(ctx, testURI, db, `db.nd.find(1).toArray().length`)
+	assert.ErrorContains(t, err, "query filter must be a plain object or ObjectId")
 
 	paged := NewGojaEngine(testClient, 25, "")
-	result, err = paged.ExecuteQuery(ctx, testURI, db, `db.nd.find(1)`)
-	require.NoError(t, err)
-	assert.Len(t, result.Documents, 2)
+	_, err = paged.ExecuteQuery(ctx, testURI, db, `db.nd.find(1)`)
+	assert.ErrorContains(t, err, "query filter must be a plain object or ObjectId")
 }
 
 func TestIntegration_KeyOrder_FindAndModifyReadBack(t *testing.T) {

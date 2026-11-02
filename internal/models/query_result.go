@@ -24,6 +24,8 @@ type PageContext struct {
 	MaxTimeMS  int64  `json:"maxTimeMS,omitempty"`
 	BatchSize  int32  `json:"batchSize,omitempty"`
 	Comment    string `json:"comment,omitempty"`
+	// FindExtras holds any other find settings, as canonical Extended JSON.
+	FindExtras string `json:"findExtras,omitempty"`
 }
 
 // Output levels for OutputLine.Level. They match the frontend's message levels.
