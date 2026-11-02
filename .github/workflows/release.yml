@@ -16,7 +16,7 @@ permissions:
 
 env:
   GO_VERSION: '1.26'
-  WAILS_VERSION: 'v2.14.0'
+  WAILS_VERSION: 'v2.17.1'
 
 jobs:
   build:
