@@ -137,7 +137,8 @@ func TestIntegration_Writes_MatchMongoshOnOddOptions(t *testing.T) {
 		// explain gives the plan rather than the documents.
 		`print(db.c.aggregate([], { explain: true }).ok)`:           "1",
 		`print(db.c.aggregate([], { explain: "queryPlanner" }).ok)`: "1",
-		`print(db.c.aggregate([], { explain: false }).length)`:      "3",
+		`print(db.c.aggregate([], { explain: false }).ok)`:          "1",
+		`print(db.c.aggregate([], { explain: "" }).length)`:         "3",
 		// A bulk insertOne with no document field inserts its own fields.
 		`db.c.bulkWrite([{ insertOne: { doc: 1 } }]); print(db.c.countDocuments({ doc: 1 }))`: "1",
 		`print(db.c.bulkWrite([{ insertOne: {} }]).insertedCount)`:                            "1",
@@ -393,4 +394,184 @@ func TestIntegration_Writes_FindOneAndDisplaysOneDocument(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, result.Documents, 1)
 	assert.Contains(t, resultText(result), `"z"`)
+}
+
+// maxTimeMS reaches the server, so a write that runs out of time writes nothing,
+// including when the time runs out after the write has started.
+func TestIntegration_Writes_MaxTimeMSStopsTheWrite(t *testing.T) {
+	run, db := setupWrites(t)
+	slow := `{ $where: "sleep(300); return true" }`
+	for _, script := range []string{
+		`db.c.updateOne(` + slow + `, { $set: { z: 1 } }, { maxTimeMS: 50 })`,
+		`db.c.updateMany(` + slow + `, { $set: { z: 1 } }, { maxTimeMS: 50 })`,
+		`db.c.replaceOne(` + slow + `, { z: 1 }, { maxTimeMS: 50 })`,
+		`db.c.deleteOne(` + slow + `, { maxTimeMS: 50 })`,
+		`db.c.deleteMany(` + slow + `, { maxTimeMS: 50 })`,
+		`db.c.bulkWrite([{ deleteMany: { filter: ` + slow + ` } }], { maxTimeMS: 50 })`,
+	} {
+		_, err := run(script)
+		assert.Error(t, err, script)
+		assertUnchanged(t, db, script)
+	}
+	// The server would still be working through the documents after a client-side
+	// timeout alone, so wait to see that nothing arrives late.
+	_, err := run(`db.c.updateMany({ $where: "sleep(200); return true" }, { $set: { z: 1 } }, { maxTimeMS: 100 })`)
+	assert.Error(t, err)
+	time.Sleep(time.Second)
+	assertUnchanged(t, db, "updateMany, after waiting")
+
+	// As with other options, values that are not numbers are ignored, and bad numbers
+	// are refused before anything is written.
+	got, err := run(`print(db.c.updateOne({ _id: 1 }, { $set: { z: 1 } }, { maxTimeMS: "x" }).modifiedCount,
+		db.c.deleteOne({ _id: 2 }, { maxTimeMS: 60000 }).deletedCount,
+		db.c.insertOne({ _id: 7 }, { maxTimeMS: 60000 }).insertedId,
+		db.c.insertMany([{ _id: 8 }], { maxTimeMS: 0 }).acknowledged)`)
+	require.NoError(t, err)
+	assert.Equal(t, "1 1 7 true", got)
+	for _, script := range []string{
+		`db.c.updateOne({ _id: 1 }, { $set: { z: 1 } }, { maxTimeMS: -1 })`,
+		`db.c.deleteOne({ _id: 1 }, { maxTimeMS: 1.5 })`,
+	} {
+		_, err := run(script)
+		assert.Error(t, err, script)
+		assertUnchanged(t, db, script)
+	}
+}
+
+// With several operation types in one entry, mongosh goes by a fixed order, not the
+// order they are written in. Going by the first key instead would run the wrong
+// operation, so these check what was written as well as the counts.
+func TestIntegration_Writes_BulkWritePicksOperationAsMongosh(t *testing.T) {
+	run, _ := setupWrites(t)
+	state := `print(r.insertedCount, r.modifiedCount, r.deletedCount, db.c.countDocuments());`
+	for script, want := range map[string]string{
+		`{ deleteOne: { filter: { _id: 1 } }, insertOne: { document: { _id: 9 } } }`:                                                   "1 0 0 4",
+		`{ deleteOne: { filter: { _id: 2 } }, replaceOne: { filter: { _id: 1 }, replacement: { r: 1 } } }`:                             "0 1 0 3",
+		`{ deleteMany: { filter: {} }, updateOne: { filter: { _id: 1 }, update: { $set: { z: 1 } } } }`:                                "0 1 0 3",
+		`{ updateOne: { filter: { _id: 1 }, update: { $set: { z: 1 } } }, replaceOne: { filter: { _id: 1 }, replacement: { r: 1 } } }`: "0 1 0 3",
+		`{ updateMany: { filter: {}, update: { $set: { z: 1 } } }, updateOne: { filter: { _id: 1 }, update: { $set: { y: 1 } } } }`:    "0 1 0 3",
+		`{ deleteMany: { filter: {} }, updateMany: { filter: {}, update: { $set: { z: 1 } } } }`:                                       "0 3 0 3",
+		`{ deleteMany: { filter: {} }, deleteOne: { filter: { _id: 1 } } }`:                                                            "0 0 1 2",
+		`{ bogus: {}, deleteOne: { filter: { _id: 1 } } }`:                                                                             "0 0 1 2",
+		`{ deleteOne: { filter: { _id: 1 } }, bogus: {} }`:                                                                             "0 0 1 2",
+	} {
+		got, err := run(`var r = db.c.bulkWrite([` + script + `]); ` + state)
+		require.NoError(t, err, script)
+		assert.Equal(t, want, got, script)
+	}
+
+	// A type that comes first in the order decides even when its value is unusable.
+	for _, script := range []string{
+		`{ insertOne: 5, deleteOne: { filter: { _id: 1 } } }`,
+		`{ insertOne: null, deleteOne: { filter: { _id: 1 } } }`,
+		`{ deleteOne: { filter: { _id: 1 } }, updateOne: null }`,
+		`{ replaceOne: { filter: { _id: 1 } }, deleteOne: { filter: { _id: 1 } } }`,
+	} {
+		got, err := run(`try { db.c.bulkWrite([` + script + `]); print("no error") } catch (e) { print(db.c.countDocuments()) }`)
+		require.NoError(t, err, script)
+		assert.Equal(t, "3", got, script)
+	}
+}
+
+// Which version findOneAnd* returns depends on which options are present, not their
+// order: returnDocument, then returnOriginal, then returnNewDocument, then new.
+func TestIntegration_Writes_ReturnVersionPrecedence(t *testing.T) {
+	run, _ := setupWrites(t)
+	for options, want := range map[string]string{
+		`{ returnDocument: "before", returnNewDocument: true }`: "before",
+		`{ returnNewDocument: true, returnDocument: "before" }`: "before",
+		`{ returnDocument: "before", returnOriginal: false }`:   "before",
+		`{ returnDocument: "after", returnOriginal: true }`:     "after",
+		`{ returnDocument: "before", new: true }`:               "before",
+		`{ returnNewDocument: true, returnOriginal: true }`:     "before",
+		`{ returnOriginal: true, returnNewDocument: true }`:     "before",
+		`{ returnNewDocument: false, returnOriginal: false }`:   "after",
+		`{ new: true, returnOriginal: true }`:                   "before",
+		`{ new: true, returnNewDocument: false }`:               "before",
+		`{ returnNewDocument: false, new: true }`:               "before",
+		`{ new: false, returnNewDocument: true }`:               "after",
+		`{ returnOriginal: 0 }`:                                 "after",
+		`{ returnOriginal: null }`:                              "after",
+		`{ returnOriginal: "x" }`:                               "before",
+		`{ returnNewDocument: 1 }`:                              "after",
+		`{ returnNewDocument: null }`:                           "before",
+		`{ new: 1 }`:                                            "after",
+		`{ new: null }`:                                         "before",
+		`{}`:                                                    "before",
+	} {
+		for _, call := range []string{
+			`db.c.findOneAndUpdate({ _id: 1 }, { $set: { z: 1 } }, ` + options + `)`,
+			`db.c.findOneAndReplace({ _id: 1 }, { z: 1 }, ` + options + `)`,
+		} {
+			got, err := run(`print(` + call + `.z === 1 ? "after" : "before")`)
+			require.NoError(t, err, call)
+			assert.Equal(t, want, got, call)
+		}
+	}
+
+	// A bad returnDocument throws, even beside a usable spelling.
+	for _, options := range []string{
+		`{ returnDocument: "new" }`, `{ returnDocument: null }`, `{ returnDocument: true }`,
+		`{ returnDocument: "x", returnNewDocument: true }`, `{ returnDocument: undefined, returnOriginal: false }`,
+	} {
+		_, err := run(`db.c.findOneAndUpdate({ _id: 1 }, { $set: { z: 1 } }, ` + options + `)`)
+		assert.Error(t, err, options)
+	}
+
+	// findOneAndDelete has no versions to choose between, so these mean nothing.
+	got, err := run(`print(db.c.findOneAndDelete({ _id: 1 }, { returnDocument: "x" })._id)`)
+	require.NoError(t, err)
+	assert.Equal(t, "1", got)
+}
+
+// The explain option describes the query the other options would run, so they have
+// to be part of what is explained.
+func TestIntegration_Aggregate_ExplainKeepsOptions(t *testing.T) {
+	run, _ := setupWrites(t)
+	setup := `db.c.createIndex({ p: 1 }); function plan(o) { return JSON.stringify(db.c.aggregate([{ $match: { p: { $gt: 0 } } }], Object.assign({ explain: "queryPlanner" }, o))); }; `
+	for options, want := range map[string]string{
+		`{ hint: { p: 1 } }`:                           `"indexName":"p_1"`,
+		`{ hint: "_id_" }`:                             `"indexName":"_id_"`,
+		`{ collation: { locale: "en", strength: 2 } }`: `"strength":2`,
+	} {
+		got, err := run(setup + `print(plan(` + options + `))`)
+		require.NoError(t, err, options)
+		assert.Contains(t, got, want, options)
+	}
+
+	for script, want := range map[string]string{
+		// These only work if the option reaches the server.
+		`print(db.c.aggregate([{ $match: { $expr: { $eq: ["$_id", "$$v"] } } }], { explain: true, let: { v: 1 } }).ok)`: "1",
+		`print(db.aggregate([{ $documents: [{ a: "$$v" }] }], { explain: true, let: { v: 1 } }).ok)`:                    "1",
+		// An explain has no read concern, so mongosh does not look at it.
+		`print(db.c.aggregate([], { explain: true, readConcern: { level: "bogus" } }).ok)`: "1",
+		`print(db.c.aggregate([], { explain: true, batchSize: 1 }).ok)`:                    "1",
+		`print(db.c.aggregate([], { explain: true, cursor: { batchSize: 1 } }).ok)`:        "1",
+		`print(db.c.aggregate([], { explain: true, allowDiskUse: 1 }).ok)`:                 "1",
+		// Which plan each form asks for.
+		`print(!!db.c.aggregate([], { explain: true }).executionStats)`:  "true",
+		`print(!!db.c.aggregate([], { explain: false }).executionStats)`: "false",
+	} {
+		got, err := run(script)
+		require.NoError(t, err, script)
+		assert.Equal(t, want, got, script)
+	}
+
+	for _, script := range []string{
+		`db.c.aggregate([{ $match: { p: 1 } }], { explain: true, hint: "nope" })`,
+		`db.c.aggregate([{ $match: { p: 1 } }], { explain: true, hint: 5 })`,
+		`db.c.aggregate([{ $match: { p: 1 } }], { explain: true, collation: { locale: "nope" } })`,
+		`db.c.aggregate([{ $match: { p: 1 } }], { explain: true, let: 5 })`,
+		`db.c.aggregate([{ $match: { $expr: { $eq: ["$_id", "$$v"] } } }], { explain: true })`,
+		`db.c.aggregate([{ $match: { $where: "sleep(300); return true" } }], { explain: "executionStats", maxTimeMS: 50 })`,
+		`db.c.aggregate([], { explain: true, batchSize: -1 })`,
+		`db.c.aggregate([], { explain: true, readPreference: "bogus" })`,
+		`db.c.aggregate([], { explain: null })`,
+		`db.c.aggregate([], { explain: 1 })`,
+		`db.c.aggregate([], { explain: {} })`,
+		`db.c.aggregate([], { explain: "bogus" })`,
+	} {
+		_, err := run(script)
+		assert.Error(t, err, script)
+	}
 }
