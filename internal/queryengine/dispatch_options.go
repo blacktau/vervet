@@ -138,7 +138,9 @@ func countOpt[B any](set func(int64) B) func(any) error {
 }
 
 // maxTimeOpt reads maxTimeMS. The driver's options have no such setting: it is
-// a deadline on the context (see withMaxTime), as for a find.
+// a deadline on the context (see withMaxTime), as for a find. The driver sends the
+// server the time left on that deadline as maxTimeMS, so the server stops the
+// operation itself, and a write that runs out of time writes nothing.
 func maxTimeOpt(d *time.Duration) func(any) error {
 	return func(v any) error {
 		if !isNumber(v) {
@@ -367,7 +369,8 @@ type runOptions struct {
 	maxTime        time.Duration
 	readConcern    *readconcern.ReadConcern
 	readPreference *readpref.ReadPref
-	explain        any
+	// explain is the verbosity of an aggregate's explain option, if it has one.
+	explain string
 }
 
 func readConcernOpt(rc **readconcern.ReadConcern) func(any) error {
@@ -423,26 +426,33 @@ func (r runOptions) database(client *mongo.Client, name string) *mongo.Database 
 	return client.Database(name, opts)
 }
 
-func insertOneOptions(raw any) (*options.InsertOneOptionsBuilder, error) {
+func insertOneOptions(raw any) (*options.InsertOneOptionsBuilder, time.Duration, error) {
 	o := options.InsertOne()
-	return o, applyOptions("insertOne", raw, optionSetters{
+	var maxTime time.Duration
+	err := applyOptions("insertOne", raw, optionSetters{
 		"bypassDocumentValidation": boolOpt(o.SetBypassDocumentValidation),
 		"comment":                  anyOpt(o.SetComment),
+		"maxTimeMS":                maxTimeOpt(&maxTime),
 	})
+	return o, maxTime, err
 }
 
-func insertManyOptions(raw any) (*options.InsertManyOptionsBuilder, error) {
+func insertManyOptions(raw any) (*options.InsertManyOptionsBuilder, time.Duration, error) {
 	o := options.InsertMany()
-	return o, applyOptions("insertMany", raw, optionSetters{
+	var maxTime time.Duration
+	err := applyOptions("insertMany", raw, optionSetters{
 		"ordered":                  boolOpt(o.SetOrdered),
 		"bypassDocumentValidation": boolOpt(o.SetBypassDocumentValidation),
 		"comment":                  anyOpt(o.SetComment),
+		"maxTimeMS":                maxTimeOpt(&maxTime),
 	})
+	return o, maxTime, err
 }
 
-func updateOneOptions(raw any) (*options.UpdateOneOptionsBuilder, error) {
+func updateOneOptions(raw any) (*options.UpdateOneOptionsBuilder, time.Duration, error) {
 	o := options.UpdateOne()
-	return o, applyOptions("updateOne", raw, optionSetters{
+	var maxTime time.Duration
+	err := applyOptions("updateOne", raw, optionSetters{
 		"upsert":                   boolOpt(o.SetUpsert),
 		"arrayFilters":             arrayFiltersOpt(o.SetArrayFilters),
 		"collation":                collationOpt(o.SetCollation),
@@ -451,12 +461,15 @@ func updateOneOptions(raw any) (*options.UpdateOneOptionsBuilder, error) {
 		"sort":                     sortOpt(o.SetSort),
 		"bypassDocumentValidation": boolOpt(o.SetBypassDocumentValidation),
 		"comment":                  anyOpt(o.SetComment),
+		"maxTimeMS":                maxTimeOpt(&maxTime),
 	})
+	return o, maxTime, err
 }
 
-func updateManyOptions(raw any) (*options.UpdateManyOptionsBuilder, error) {
+func updateManyOptions(raw any) (*options.UpdateManyOptionsBuilder, time.Duration, error) {
 	o := options.UpdateMany()
-	return o, applyOptions("updateMany", raw, optionSetters{
+	var maxTime time.Duration
+	err := applyOptions("updateMany", raw, optionSetters{
 		"upsert":                   boolOpt(o.SetUpsert),
 		"arrayFilters":             arrayFiltersOpt(o.SetArrayFilters),
 		"collation":                collationOpt(o.SetCollation),
@@ -464,12 +477,15 @@ func updateManyOptions(raw any) (*options.UpdateManyOptionsBuilder, error) {
 		"let":                      anyOpt(o.SetLet),
 		"bypassDocumentValidation": boolOpt(o.SetBypassDocumentValidation),
 		"comment":                  anyOpt(o.SetComment),
+		"maxTimeMS":                maxTimeOpt(&maxTime),
 	})
+	return o, maxTime, err
 }
 
-func replaceOptions(raw any) (*options.ReplaceOptionsBuilder, error) {
+func replaceOptions(raw any) (*options.ReplaceOptionsBuilder, time.Duration, error) {
 	o := options.Replace()
-	return o, applyOptions("replaceOne", raw, optionSetters{
+	var maxTime time.Duration
+	err := applyOptions("replaceOne", raw, optionSetters{
 		"upsert":                   boolOpt(o.SetUpsert),
 		"collation":                collationOpt(o.SetCollation),
 		"hint":                     hintOpt(o.SetHint),
@@ -477,37 +493,48 @@ func replaceOptions(raw any) (*options.ReplaceOptionsBuilder, error) {
 		"sort":                     sortOpt(o.SetSort),
 		"bypassDocumentValidation": boolOpt(o.SetBypassDocumentValidation),
 		"comment":                  anyOpt(o.SetComment),
+		"maxTimeMS":                maxTimeOpt(&maxTime),
 	})
+	return o, maxTime, err
 }
 
-func deleteOneOptions(raw any) (*options.DeleteOneOptionsBuilder, error) {
+func deleteOneOptions(raw any) (*options.DeleteOneOptionsBuilder, time.Duration, error) {
 	o := options.DeleteOne()
-	return o, applyOptions("deleteOne", raw, optionSetters{
+	var maxTime time.Duration
+	err := applyOptions("deleteOne", raw, optionSetters{
 		"collation": collationOpt(o.SetCollation),
 		"hint":      hintOpt(o.SetHint),
 		"let":       anyOpt(o.SetLet),
 		"comment":   anyOpt(o.SetComment),
+		"maxTimeMS": maxTimeOpt(&maxTime),
 	})
+	return o, maxTime, err
 }
 
-func deleteManyOptions(raw any) (*options.DeleteManyOptionsBuilder, error) {
+func deleteManyOptions(raw any) (*options.DeleteManyOptionsBuilder, time.Duration, error) {
 	o := options.DeleteMany()
-	return o, applyOptions("deleteMany", raw, optionSetters{
+	var maxTime time.Duration
+	err := applyOptions("deleteMany", raw, optionSetters{
 		"collation": collationOpt(o.SetCollation),
 		"hint":      hintOpt(o.SetHint),
 		"let":       anyOpt(o.SetLet),
 		"comment":   anyOpt(o.SetComment),
+		"maxTimeMS": maxTimeOpt(&maxTime),
 	})
+	return o, maxTime, err
 }
 
-func bulkWriteOptions(raw any) (*options.BulkWriteOptionsBuilder, error) {
+func bulkWriteOptions(raw any) (*options.BulkWriteOptionsBuilder, time.Duration, error) {
 	o := options.BulkWrite()
-	return o, applyOptions("bulkWrite", raw, optionSetters{
+	var maxTime time.Duration
+	err := applyOptions("bulkWrite", raw, optionSetters{
 		"ordered":                  boolOpt(o.SetOrdered),
 		"bypassDocumentValidation": boolOpt(o.SetBypassDocumentValidation),
 		"let":                      anyOpt(o.SetLet),
 		"comment":                  anyOpt(o.SetComment),
+		"maxTimeMS":                maxTimeOpt(&maxTime),
 	})
+	return o, maxTime, err
 }
 
 func findOneAndDeleteOptions(raw any) (*options.FindOneAndDeleteOptionsBuilder, time.Duration, error) {
@@ -525,45 +552,61 @@ func findOneAndDeleteOptions(raw any) (*options.FindOneAndDeleteOptionsBuilder, 
 	return o, maxTime, err
 }
 
-// returnDocumentOpts are the spellings mongosh takes of "which version to return".
-func returnDocumentOpts[B any](set func(options.ReturnDocument) B) optionSetters {
-	return optionSetters{
-		"returnDocument": func(v any) error {
-			switch v {
-			case "before":
-				set(options.Before)
-			case "after":
-				set(options.After)
-			default:
-				return errors.New(`must be "before" or "after"`)
-			}
-			return nil
-		},
-		"returnNewDocument": func(v any) error {
-			if jsTruthy(v) {
-				set(options.After)
-			}
-			return nil
-		},
-		"new": func(v any) error {
-			if jsTruthy(v) {
-				set(options.After)
-			}
-			return nil
-		},
-		"returnOriginal": func(v any) error {
-			if v == false {
-				set(options.After)
-			}
-			return nil
-		},
+// lookupOption reports an option's value and whether the script gave that option
+// at all, since mongosh goes by which options are present, even when null.
+func lookupOption(doc bson.D, key string) (any, bool) {
+	for _, e := range doc {
+		if e.Key == key {
+			return e.Value, true
+		}
 	}
+	return nil, false
+}
+
+// returnDocumentOption applies the option saying which version of the document to
+// return. Of the spellings mongosh takes, whichever comes first here decides,
+// wherever it is in the options, and the others are ignored.
+func returnDocumentOption[B any](method string, raw any, set func(options.ReturnDocument) B) error {
+	doc, ok := asBsonDoc(raw)
+	if !ok {
+		return nil
+	}
+	if v, ok := lookupOption(doc, "returnDocument"); ok {
+		switch v {
+		case "before":
+			set(options.Before)
+		case "after":
+			set(options.After)
+		default:
+			return fmt.Errorf(`%s returnDocument must be "before" or "after"`, method)
+		}
+		return nil
+	}
+	if v, ok := lookupOption(doc, "returnOriginal"); ok {
+		if jsTruthy(v) {
+			set(options.Before)
+		} else {
+			set(options.After)
+		}
+		return nil
+	}
+	for _, key := range []string{"returnNewDocument", "new"} {
+		if v, ok := lookupOption(doc, key); ok {
+			if jsTruthy(v) {
+				set(options.After)
+			} else {
+				set(options.Before)
+			}
+			return nil
+		}
+	}
+	return nil
 }
 
 func findOneAndUpdateOptions(raw any) (*options.FindOneAndUpdateOptionsBuilder, time.Duration, error) {
 	o := options.FindOneAndUpdate()
 	var maxTime time.Duration
-	setters := optionSetters{
+	err := applyOptions("findOneAndUpdate", raw, optionSetters{
 		"sort":                     sortOpt(o.SetSort),
 		"projection":               anyOpt(o.SetProjection),
 		"upsert":                   boolOpt(o.SetUpsert),
@@ -574,17 +617,17 @@ func findOneAndUpdateOptions(raw any) (*options.FindOneAndUpdateOptionsBuilder, 
 		"bypassDocumentValidation": boolOpt(o.SetBypassDocumentValidation),
 		"comment":                  anyOpt(o.SetComment),
 		"maxTimeMS":                maxTimeOpt(&maxTime),
+	})
+	if err != nil {
+		return o, maxTime, err
 	}
-	for k, v := range returnDocumentOpts(o.SetReturnDocument) {
-		setters[k] = v
-	}
-	return o, maxTime, applyOptions("findOneAndUpdate", raw, setters)
+	return o, maxTime, returnDocumentOption("findOneAndUpdate", raw, o.SetReturnDocument)
 }
 
 func findOneAndReplaceOptions(raw any) (*options.FindOneAndReplaceOptionsBuilder, time.Duration, error) {
 	o := options.FindOneAndReplace()
 	var maxTime time.Duration
-	setters := optionSetters{
+	err := applyOptions("findOneAndReplace", raw, optionSetters{
 		"sort":                     sortOpt(o.SetSort),
 		"projection":               anyOpt(o.SetProjection),
 		"upsert":                   boolOpt(o.SetUpsert),
@@ -594,11 +637,11 @@ func findOneAndReplaceOptions(raw any) (*options.FindOneAndReplaceOptionsBuilder
 		"bypassDocumentValidation": boolOpt(o.SetBypassDocumentValidation),
 		"comment":                  anyOpt(o.SetComment),
 		"maxTimeMS":                maxTimeOpt(&maxTime),
+	})
+	if err != nil {
+		return o, maxTime, err
 	}
-	for k, v := range returnDocumentOpts(o.SetReturnDocument) {
-		setters[k] = v
-	}
-	return o, maxTime, applyOptions("findOneAndReplace", raw, setters)
+	return o, maxTime, returnDocumentOption("findOneAndReplace", raw, o.SetReturnDocument)
 }
 
 func countOptions(raw any) (*options.CountOptionsBuilder, runOptions, error) {
@@ -620,7 +663,11 @@ func countOptions(raw any) (*options.CountOptionsBuilder, runOptions, error) {
 func aggregateOptions(raw any) (*options.AggregateOptionsBuilder, runOptions, error) {
 	o := options.Aggregate()
 	var run runOptions
-	err := applyOptions("aggregate", raw, optionSetters{
+	var err error
+	if run.explain, err = explainVerbosity(raw); err != nil {
+		return o, run, err
+	}
+	setters := optionSetters{
 		"allowDiskUse":             boolOpt(o.SetAllowDiskUse),
 		"batchSize":                batchSizeOpt(o),
 		"cursor":                   cursorOpt(o),
@@ -632,14 +679,36 @@ func aggregateOptions(raw any) (*options.AggregateOptionsBuilder, runOptions, er
 		"maxTimeMS":                maxTimeOpt(&run.maxTime),
 		"readConcern":              readConcernOpt(&run.readConcern),
 		"readPreference":           readPreferenceOpt(&run.readPreference),
-		"explain": func(v any) error {
-			if jsTruthy(v) {
-				run.explain = v
-			}
-			return nil
-		},
-	})
-	return o, run, err
+	}
+	if run.explain != "" {
+		// An explain takes no read concern, so mongosh does not look at it.
+		delete(setters, "readConcern")
+	}
+	return o, run, applyOptions("aggregate", raw, setters)
+}
+
+// explainVerbosity reads an aggregate's explain option as mongosh does: true is the
+// fullest plan and false the shortest, an empty string means no explain, and any
+// other string goes to the server to judge. Anything else is an error.
+func explainVerbosity(raw any) (string, error) {
+	doc, ok := asBsonDoc(raw)
+	if !ok {
+		return "", nil
+	}
+	v, ok := lookupOption(doc, "explain")
+	if !ok {
+		return "", nil
+	}
+	switch x := v.(type) {
+	case string:
+		return x, nil
+	case bool:
+		if x {
+			return "allPlansExecution", nil
+		}
+		return "queryPlanner", nil
+	}
+	return "", errors.New("aggregate explain must be a boolean or a verbosity")
 }
 
 // aggregateArgs splits aggregate's arguments as mongosh does: (pipeline, options),
@@ -652,23 +721,46 @@ func aggregateArgs(args []any) (any, any) {
 	return convertToBson(args), nil
 }
 
-// explainAggregate runs an aggregate with the explain option. target is the
-// collection name, or 1 for a database-level pipeline.
-func explainAggregate(ctx context.Context, db *mongo.Database, target, pipeline, explain any) (bson.D, error) {
-	verbosity, ok := explain.(string)
-	if !ok {
-		verbosity = "allPlansExecution"
+// explainAggregate runs an aggregate with the explain option, taking the aggregate's
+// other options as they would apply to a real run. aggregateOptions has already
+// checked them. target is the collection name, or 1 for a database-level pipeline.
+func explainAggregate(ctx context.Context, db *mongo.Database, target, pipeline, rawOptions any, run runOptions) (bson.D, error) {
+	aggregate := bson.D{
+		{Key: "aggregate", Value: target},
+		{Key: "pipeline", Value: pipeline},
 	}
+	cursor := bson.D{}
+	doc, _ := asBsonDoc(rawOptions)
+	for _, e := range doc {
+		if e.Value == nil {
+			continue
+		}
+		switch e.Key {
+		case "hint", "collation", "let", "comment":
+			aggregate = append(aggregate, e)
+		case "allowDiskUse", "bypassDocumentValidation":
+			if _, ok := e.Value.(bool); ok {
+				aggregate = append(aggregate, e)
+			}
+		case "batchSize":
+			cursor = bson.D{{Key: "batchSize", Value: e.Value}}
+		case "cursor":
+			if size := docField(e.Value.(bson.D), "batchSize"); size != nil {
+				cursor = bson.D{{Key: "batchSize", Value: size}}
+			}
+		}
+	}
+	aggregate = append(aggregate, bson.E{Key: "cursor", Value: cursor})
 	cmd := bson.D{
-		{Key: "explain", Value: bson.D{
-			{Key: "aggregate", Value: target},
-			{Key: "pipeline", Value: pipeline},
-			{Key: "cursor", Value: bson.D{}},
-		}},
-		{Key: "verbosity", Value: verbosity},
+		{Key: "explain", Value: aggregate},
+		{Key: "verbosity", Value: run.explain},
+	}
+	opts := options.RunCmd()
+	if run.readPreference != nil {
+		opts.SetReadPreference(run.readPreference)
 	}
 	var result bson.D
-	err := db.RunCommand(ctx, cmd).Decode(&result)
+	err := db.RunCommand(ctx, cmd, opts).Decode(&result)
 	return result, err
 }
 

@@ -141,8 +141,8 @@ func dbAggregate(ec *execContext) func(goja.FunctionCall) goja.Value {
 		defer cancel()
 
 		database := run.database(ec.client, ec.dbName)
-		if run.explain != nil {
-			plan, err := explainAggregate(ctx, database, 1, pipeline, run.explain)
+		if run.explain != "" {
+			plan, err := explainAggregate(ctx, database, 1, pipeline, rawOptions, run)
 			if err != nil {
 				panic(ec.rt.NewGoError(fmt.Errorf("aggregate: %w", err)))
 			}

@@ -291,8 +291,8 @@ func dispatchAggregate(ctx context.Context, coll *mongo.Collection, op CapturedO
 	ctx, cancel := withMaxTime(ctx, run.maxTime)
 	defer cancel()
 
-	if run.explain != nil {
-		plan, err := explainAggregate(ctx, coll.Database(), coll.Name(), pipeline, run.explain)
+	if run.explain != "" {
+		plan, err := explainAggregate(ctx, coll.Database(), coll.Name(), pipeline, rawOptions, run)
 		if err != nil {
 			return models.QueryResult{}, fmt.Errorf("aggregate failed: %w", err)
 		}
