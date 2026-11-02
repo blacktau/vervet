@@ -6,6 +6,7 @@ import { useTabStore } from '@/features/tabs/tabs'
 import { useNotifier } from '@/utils/dialog'
 import { useSettingsStore } from '@/features/settings/settingsStore'
 import { i18nGlobal } from '@/i18n'
+import { errorCodeText, resultErrorText } from '@/utils/resultError'
 
 export type PageContext = models.PageContext
 
@@ -14,15 +15,6 @@ function formatDuration(ms: number): string {
     return `${ms}ms`
   }
   return `${(ms / 1000).toFixed(1)}s`
-}
-
-function translateError(errorCode?: string, errorDetail?: string): string {
-  const key = `errors.${errorCode ?? 'unknown_error'}`
-  const translated = i18nGlobal.t(key)
-  if (translated === key) {
-    return errorDetail || errorCode || key
-  }
-  return translated
 }
 
 function resultMessage(operationType: string, count: number, duration: string): string {
@@ -539,7 +531,7 @@ export const useQueryStore = defineStore('query', {
         } else {
           // What the script printed before it failed comes first.
           this.appendOutput(queryId, result.data?.output, queryPayload)
-          const translated = translateError(result.errorCode, result.errorDetail)
+          const translated = resultErrorText(result)
           state.error = translated
           this.appendMessage(queryId, {
             level: 'error',
@@ -614,7 +606,7 @@ export const useQueryStore = defineStore('query', {
           state.requestedPage = state.page
           state.requestedPageSize = state.pageSize
           const notifier = useNotifier()
-          notifier.error(result.errorDetail || result.errorCode || 'Failed to fetch page')
+          notifier.error(resultErrorText(result))
         }
       } catch (e) {
         if (state.pageRequestId === requestId) {
@@ -774,7 +766,7 @@ export const useQueryStore = defineStore('query', {
       const result = await filesProxy.ReadFile(filePath)
       if (!result.isSuccess) {
         const notifier = useNotifier()
-        notifier.error(i18nGlobal.t(`errors.${result.errorCode}`), {
+        notifier.error(errorCodeText(result.errorCode), {
           title: i18nGlobal.t('errorTitles.loadFile'),
           detail: result.errorDetail,
         })

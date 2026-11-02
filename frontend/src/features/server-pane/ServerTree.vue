@@ -47,7 +47,7 @@ const { contextMenuParams, openContextMenu, handleSelectContextMenu } = useServe
   connectToServer,
 )
 
-const asServerNode = (option: TreeOption) => option as unknown as RegisteredServerNode
+const asServerNode = (option: TreeOption) => option as TreeOption & RegisteredServerNode
 
 const renderLabel = (info: { option: TreeOption }) => {
   return h(NText, {}, () => asServerNode(info.option).name)

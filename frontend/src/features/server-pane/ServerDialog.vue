@@ -3,7 +3,6 @@ import {
   NIcon,
   type FormInst,
   type FormRules,
-  type TreeSelectOption,
   type TreeSelectRenderLabel,
   useThemeVars,
 } from 'naive-ui'
@@ -20,10 +19,11 @@ import {
   detectAuthFromUri,
   getUriHost,
 } from '@/features/server-pane/connectionStrings.ts'
-import { filterGroupMap } from '@/features/server-pane/helpers.ts'
+import { filterGroupMap, toTreeSelectOptions } from '@/features/server-pane/helpers.ts'
 import * as connectionsProxy from 'wailsjs/go/api/ConnectionsProxy'
 import type { AuthMethod, OIDCConfig } from '@/types/ConnectionConfig'
 import AuthenticationPanel from './authentication/AuthenticationPanel.vue'
+import { errorCodeText } from '@/utils/resultError'
 
 type EditableRegisteredServer = {
   id: string
@@ -39,8 +39,7 @@ const serverStore = useServerStore()
 const browserStore = useDataBrowserStore()
 const i18n = useI18n()
 
-const initialDialogData = dialogStore.serverDialogData
-const editServerID = ref(initialDialogData?.mode === 'new' ? undefined : initialDialogData?.serverId)
+const editServerID = ref<string>()
 const tab = ref('general')
 const serverColors = ref<string[]>([
   '',
@@ -203,6 +202,8 @@ const groupOptions = computed(() => {
   ]
 })
 
+const groupTreeOptions = computed(() => toTreeSelectOptions(groupOptions.value))
+
 const previousParentId = ref('')
 
 function onParentChange(next: string) {
@@ -361,7 +362,7 @@ const onTestConnection = async () => {
   try {
     const result = await connectionsProxy.TestConnection(generalForm.value.connectionString)
     if (!result.isSuccess) {
-      testingMessage = i18n.t(`errors.${result.errorCode}`)
+      testingMessage = errorCodeText(result.errorCode)
       testingDetail = result.errorDetail ?? ''
     }
   } catch (e: unknown) {
@@ -441,7 +442,7 @@ const onTestConnection = async () => {
               <n-form-item-gi :label="$t('serverPane.dialogs.server.group')" :span="24" required>
                 <n-tree-select
                   v-model:value="generalForm.parentId"
-                  :options="groupOptions as unknown as TreeSelectOption[]"
+                  :options="groupTreeOptions"
                   :render-label="renderGroupLabel"
                   key-field="id"
                   label-field="name"

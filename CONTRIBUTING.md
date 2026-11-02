@@ -8,6 +8,7 @@ Thanks for your interest in contributing to Vervet! This guide will help you get
 
 - [Go](https://go.dev/) 1.24+
 - [Bun](https://bun.sh/)
+- [Node.js](https://nodejs.org/) 24+, for the type-check in `bun run lint` and `wails build`
 - [Wails CLI](https://wails.io/docs/gettingstarted/installation)
 
 ### Setup

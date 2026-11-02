@@ -6,6 +6,7 @@ import { ArrowPathIcon } from '@heroicons/vue/24/outline'
 import StatisticsTab from './StatisticsTab.vue'
 import type { StatCard } from './StatisticsSummaryCards.vue'
 import * as databasesProxy from 'wailsjs/go/api/DatabasesProxy'
+import { errorCodeText } from '@/utils/resultError'
 
 const props = defineProps<{
   serverId: string
@@ -108,8 +109,8 @@ async function fetchStatistics() {
       stats.value = result.data
     } else {
       error.value = result.errorDetail
-        ? `${t(`errors.${result.errorCode}`)}\n${result.errorDetail}`
-        : t(`errors.${result.errorCode}`)
+        ? `${errorCodeText(result.errorCode)}\n${result.errorDetail}`
+        : errorCodeText(result.errorCode)
     }
   } catch (e) {
     error.value = String(e)

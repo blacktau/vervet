@@ -19,6 +19,7 @@ import {
 } from '@/features/data-browser/statsImpact.ts'
 import * as collectionsProxy from 'wailsjs/go/api/CollectionsProxy'
 import * as databasesProxy from 'wailsjs/go/api/DatabasesProxy'
+import { errorCodeText } from '@/utils/resultError'
 
 const props = defineProps<{
   filterPattern?: string
@@ -177,7 +178,7 @@ async function handleContextMenuSelect(key: string) {
         const doDropDb = async () => {
           const result = await databasesProxy.DropDatabase(serverId, dbName)
           if (!result.isSuccess) {
-            notifier.error(t(`errors.${result.errorCode}`), {
+            notifier.error(errorCodeText(result.errorCode), {
               title: t('errorTitles.dropDatabase'),
               detail: result.errorDetail,
             })
@@ -234,7 +235,7 @@ async function handleContextMenuSelect(key: string) {
         const doDrop = async () => {
           const result = await collectionsProxy.DropCollection(serverId, dbName, collectionName)
           if (!result.isSuccess) {
-            notifier.error(t(`errors.${result.errorCode}`), {
+            notifier.error(errorCodeText(result.errorCode), {
               title: t('errorTitles.dropCollection'),
               detail: result.errorDetail,
             })

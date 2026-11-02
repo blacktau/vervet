@@ -33,11 +33,4 @@ export default defineConfig({
       wailsjs: fileURLToPath(new URL('./wailsjs', import.meta.url)),
     },
   },
-  css: {
-    preprocessorOptions: {
-      scss: {
-        api: 'modern-compiler',
-      },
-    },
-  },
 })

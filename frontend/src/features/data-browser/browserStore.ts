@@ -10,6 +10,7 @@ import { i18nGlobal } from '@/i18n'
 import { type models } from 'wailsjs/go/models.ts'
 import { DataNodeType, type DataTreeNode } from '@/features/data-browser/types.ts'
 import { type NamespaceRow } from '@/features/data-browser/namespaceSearch.ts'
+import { errorCodeText } from '@/utils/resultError'
 
 export type InventoryStatus = 'idle' | 'building' | 'ready' | 'error'
 
@@ -500,7 +501,7 @@ export const useDataBrowserStore = defineStore('browser', {
       }
 
       const notifier = useNotifier()
-      notifier.error(i18nGlobal.t(`errors.${databases.errorCode}`), { title: i18nGlobal.t('errorTitles.listDatabases'), detail: databases.errorDetail })
+      notifier.error(errorCodeText(databases.errorCode), { title: i18nGlobal.t('errorTitles.listDatabases'), detail: databases.errorDetail })
       return []
     },
     async getCollectionList(
@@ -529,7 +530,7 @@ export const useDataBrowserStore = defineStore('browser', {
       }
 
       const notifier = useNotifier()
-      notifier.error(i18nGlobal.t(`errors.${collections.errorCode}`), { title: i18nGlobal.t('errorTitles.listCollections'), detail: collections.errorDetail })
+      notifier.error(errorCodeText(collections.errorCode), { title: i18nGlobal.t('errorTitles.listCollections'), detail: collections.errorDetail })
       return []
     },
     async getViewList(serverId: string, dbName: string, force: boolean = false): Promise<string[]> {
@@ -554,7 +555,7 @@ export const useDataBrowserStore = defineStore('browser', {
       }
 
       const notifier = useNotifier()
-      notifier.error(i18nGlobal.t(`errors.${views.errorCode}`), { title: i18nGlobal.t('errorTitles.listViews'), detail: views.errorDetail })
+      notifier.error(errorCodeText(views.errorCode), { title: i18nGlobal.t('errorTitles.listViews'), detail: views.errorDetail })
       return []
     },
     // Fetches the server's whole namespace inventory in one call and merges it
@@ -657,7 +658,7 @@ export const useDataBrowserStore = defineStore('browser', {
       if (!result.isSuccess) {
         if (result.errorCode !== 'oidc_login_canceled') {
           const notifier = useNotifier()
-          notifier.error(i18nGlobal.t(`errors.${result.errorCode}`), { title: i18nGlobal.t('errorTitles.connect'), detail: result.errorDetail })
+          notifier.error(errorCodeText(result.errorCode), { title: i18nGlobal.t('errorTitles.connect'), detail: result.errorDetail })
         }
         return {
           success: false,

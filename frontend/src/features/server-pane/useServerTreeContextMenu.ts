@@ -19,6 +19,7 @@ import { type RegisteredServerNode, useServerStore } from '@/features/server-pan
 import { useDialoger, useMessager } from '@/utils/dialog.ts'
 import PlugConnected from '@/features/icon/PlugConnected.vue'
 import PlugDisconnected from '@/features/icon/PlugDisconnected.vue'
+import { resultErrorText } from '@/utils/resultError'
 
 export const MenuKeys = {
   GroupAddServer: 'group_add_server',
@@ -276,7 +277,7 @@ export function useServerTreeContextMenu(
             }
             const result = await oidcProxy.ResetSession(serverId)
             if (!result.isSuccess) {
-              useMessager().error(i18n.t(`errors.${result.errorCode}`))
+              useMessager().error(resultErrorText(result))
               return
             }
             useMessager().success(i18n.t('serverPane.serverTree.resetOIDCSessionSuccess'))

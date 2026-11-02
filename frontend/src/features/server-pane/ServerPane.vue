@@ -38,7 +38,7 @@ async function handleMenuSelect(key: string) {
   if (key === 'import') {
     const result = await serverStore.importServers()
     if (!result.success) {
-      notifier.error(result.msg || t('errors.unknown_error'))
+      notifier.error(result.msg)
     }
   } else if (key === 'export') {
     dialogStore.showNewDialog(DialogType.Export, { serverIDs: null })
@@ -50,7 +50,7 @@ async function handleExport(includeSensitiveData: boolean) {
   const serverIDs = exportData?.serverIDs ?? serverStore.serverTree.map((s) => s.id)
   const result = await serverStore.exportServers(serverIDs, includeSensitiveData)
   if (!result.success) {
-    notifier.error(result.msg || t('errors.unknown_error'))
+    notifier.error(result.msg)
   }
 }
 

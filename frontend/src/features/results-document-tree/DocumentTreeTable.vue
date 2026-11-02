@@ -25,6 +25,7 @@ import DocumentContextMenu from './DocumentContextMenu.vue'
 import DocumentViewDialog from './DocumentViewDialog.vue'
 import DocumentEditDialog from './DocumentEditDialog.vue'
 import * as shellProxy from 'wailsjs/go/api/ShellProxy'
+import { errorCodeText } from '@/utils/resultError'
 
 const PAGE_SIZES = [25, 50, 100, 200, 500]
 
@@ -286,7 +287,7 @@ function handleContextMenuSelect(key: string) {
         if (result.isSuccess) {
           emit('document-changed')
         } else {
-          notifier.error(t(`errors.${result.errorCode}`), {
+          notifier.error(errorCodeText(result.errorCode), {
             title: t('errorTitles.deleteDocument'),
             detail: result.errorDetail,
           })

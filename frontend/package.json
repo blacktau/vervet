@@ -8,7 +8,7 @@
   "private": true,
   "scripts": {
     "lint": "bunx --bun eslint -c ./eslint.config.ts \"./src*/**/*.{ts,js,cjs,mjs,vue}\" && bun run typecheck",
-    "typecheck": "bunx vue-tsc --noEmit -p tsconfig.app.json",
+    "typecheck": "bunx vue-tsc --noEmit -p tsconfig.app.json && bunx vue-tsc --noEmit -p tsconfig.node.json",
     "format": "prettier --write \"**/*.{js,ts,vue,scss,html,md,json}\" --ignore-path .gitignore",
     "test": "vitest",
     "test:ci": "vitest run --coverage",

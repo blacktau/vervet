@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useSettingsStore } from '@/features/settings/settingsStore.ts'
 import { useNotifier } from '@/utils/dialog.ts'
 import * as systemProxy from 'wailsjs/go/api/SystemProxy'
+import { errorCodeText } from '@/utils/resultError'
 
 defineProps<{ loading: boolean }>()
 
@@ -19,7 +20,7 @@ const levelOptions = computed(() =>
 async function revealFolder() {
   const result = await systemProxy.RevealLogsFolder()
   if (!result.isSuccess) {
-    notifier.error(t(`errors.${result.errorCode}`), { detail: result.errorDetail })
+    notifier.error(errorCodeText(result.errorCode), { detail: result.errorDetail })
   }
 }
 

@@ -2,11 +2,11 @@
 import { useI18n } from 'vue-i18n'
 import { computed, reactive, ref, watch, watchEffect } from 'vue'
 import { every, get, includes } from 'lodash'
-import { type FormInst, type FormItemRule, type TreeSelectOption } from 'naive-ui'
+import { type FormInst, type FormItemRule } from 'naive-ui'
 import { DialogType, useDialogStore } from '@/stores/dialog.ts'
 import { type RegisteredServerNode, useServerStore } from '@/features/server-pane/serverStore.ts'
 import { useMessager } from '@/utils/dialog.ts'
-import { filterGroupMap } from '@/features/server-pane/helpers.ts'
+import { filterGroupMap, toTreeSelectOptions } from '@/features/server-pane/helpers.ts'
 import { asCreatePayload, isEditPayload } from '@/features/server-pane/groupDialog.ts'
 
 const dialogStore = useDialogStore()
@@ -149,6 +149,8 @@ const groupOptions = computed(() => {
   return options
 })
 
+const groupTreeOptions = computed(() => toTreeSelectOptions(groupOptions.value))
+
 watch(
   () => groupForm.parentId,
   () => {
@@ -211,7 +213,7 @@ watchEffect(() => {
       <n-form-item :label="$t('serverPane.dialogs.group.parent')" :span="24" required>
         <n-tree-select
           v-model:value="groupForm.parentId"
-          :options="groupOptions as unknown as TreeSelectOption[]"
+          :options="groupTreeOptions"
           key-field="id"
           label-field="name" />
       </n-form-item>

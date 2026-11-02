@@ -16,6 +16,8 @@ const bsonKeyLookup: Record<string, string> = {
   $maxKey: 'maxKey',
 }
 
+const bsonKeyEntries = Object.entries(bsonKeyLookup)
+
 const BINARY_SUBTYPE_UUID_LEGACY = '03'
 const BINARY_SUBTYPE_UUID = '04'
 const BINARY_SUBTYPE_MD5 = '05'
@@ -46,7 +48,7 @@ export function getTypeKey(val: unknown): string {
     return 'array'
   }
   if (typeof val === 'object') {
-    for (const [bsonKey, typeName] of Object.entries(bsonKeyLookup)) {
+    for (const [bsonKey, typeName] of bsonKeyEntries) {
       if (bsonKey in val) {
         if (bsonKey === '$binary') {
           const binary = (val as Record<string, unknown>).$binary as Record<string, unknown>

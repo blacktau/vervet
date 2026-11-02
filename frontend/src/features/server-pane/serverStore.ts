@@ -6,13 +6,12 @@ import { isEmpty } from 'lodash'
 import { useNotifier } from '@/utils/dialog.ts'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 import { i18nGlobal } from '@/i18n'
-import type { AuthMethod, ConnectionConfig, OIDCConfig } from '@/types/ConnectionConfig'
+import { type ConnectionConfig, type OIDCConfig, toAuthMethod } from '@/types/ConnectionConfig'
+import { errorCodeText, resultErrorText } from '@/utils/resultError'
 
-export interface ServerDetails extends models.RegisteredServer {
-  uri: string
-  authMethod: AuthMethod
-  oidcConfig?: OIDCConfig
-}
+export interface ServerDetails extends models.RegisteredServer, Omit<ConnectionConfig, 'refreshToken'> {}
+
+type ServerFileResult = { success: true } | { success: false; msg: string }
 
 export interface RegisteredServerNode extends models.RegisteredServer {
   children?: RegisteredServerNode[]
@@ -41,7 +40,7 @@ export const useServerStore = defineStore('server', {
 
       if (!result.isSuccess) {
         const notifier = useNotifier()
-        notifier.error(i18nGlobal.t(`errors.${result.errorCode}`), { title: i18nGlobal.t('errorTitles.loadServers'), detail: result.errorDetail })
+        notifier.error(errorCodeText(result.errorCode), { title: i18nGlobal.t('errorTitles.loadServers'), detail: result.errorDetail })
         return
       }
 
@@ -85,7 +84,7 @@ export const useServerStore = defineStore('server', {
       const response = await serversProxy.GetServer(id)
       if (!response.isSuccess) {
         const notifier = useNotifier()
-        notifier.error(i18nGlobal.t(`errors.${response.errorCode}`), { title: i18nGlobal.t('errorTitles.loadServerDetails'), detail: response.errorDetail })
+        notifier.error(errorCodeText(response.errorCode), { title: i18nGlobal.t('errorTitles.loadServerDetails'), detail: response.errorDetail })
         return undefined
       }
 
@@ -95,7 +94,7 @@ export const useServerStore = defineStore('server', {
         const uriResponse = await serversProxy.GetURI(id)
         if (!uriResponse.isSuccess) {
           const notifier = useNotifier()
-          notifier.error(i18nGlobal.t(`errors.${uriResponse.errorCode}`), { title: i18nGlobal.t('errorTitles.loadServerDetails'), detail: uriResponse.errorDetail })
+          notifier.error(errorCodeText(uriResponse.errorCode), { title: i18nGlobal.t('errorTitles.loadServerDetails'), detail: uriResponse.errorDetail })
           return undefined
         }
         return {
@@ -108,7 +107,7 @@ export const useServerStore = defineStore('server', {
       return {
         ...response.data,
         uri: configResult.data.uri,
-        authMethod: configResult.data.authMethod as AuthMethod,
+        authMethod: toAuthMethod(configResult.data.authMethod),
         oidcConfig: configResult.data.oidcConfig as OIDCConfig | undefined,
       }
     },
@@ -120,7 +119,7 @@ export const useServerStore = defineStore('server', {
         colour || '',
       )
       if (!result.isSuccess) {
-        return { success: false, msg: i18nGlobal.t(`errors.${result.errorCode}`) }
+        return { success: false, msg: resultErrorText(result) }
       }
 
       await this.refreshServers(true)
@@ -129,7 +128,7 @@ export const useServerStore = defineStore('server', {
     async saveServerWithConfig(name: string, parentId: string, colour: string, config: ConnectionConfig) {
       const result = await serversProxy.SaveServerWithConfig(parentId, name, colour, config)
       if (!result.isSuccess) {
-        return { success: false, msg: i18nGlobal.t(`errors.${result.errorCode}`) }
+        return { success: false, msg: resultErrorText(result) }
       }
       await this.refreshServers(true)
       return { success: true }
@@ -152,7 +151,7 @@ export const useServerStore = defineStore('server', {
         colour || '',
       )
       if (!result.isSuccess) {
-        return { success: false, msg: i18nGlobal.t(`errors.${result.errorCode}`) }
+        return { success: false, msg: resultErrorText(result) }
       }
 
       await this.refreshServers(true)
@@ -164,7 +163,7 @@ export const useServerStore = defineStore('server', {
       }
       const result = await serversProxy.UpdateServerWithConfig(serverId, name, parentId, colour, config)
       if (!result.isSuccess) {
-        return { success: false, msg: i18nGlobal.t(`errors.${result.errorCode}`) }
+        return { success: false, msg: resultErrorText(result) }
       }
       await this.refreshServers(true)
       return { success: true }
@@ -174,7 +173,7 @@ export const useServerStore = defineStore('server', {
       await browserStore.disconnect(serverId)
       const result = await serversProxy.RemoveNode(serverId)
       if (!result.isSuccess) {
-        return { success: false, msg: i18nGlobal.t(`errors.${result.errorCode}`) }
+        return { success: false, msg: resultErrorText(result) }
       }
       await this.refreshServers(true)
       return { success: true }
@@ -182,7 +181,7 @@ export const useServerStore = defineStore('server', {
     async createGroup(name: string, parentId?: string) {
       const result = await serversProxy.CreateGroup(name, parentId || '')
       if (!result.isSuccess) {
-        return { success: false as const, msg: i18nGlobal.t(`errors.${result.errorCode}`) }
+        return { success: false as const, msg: resultErrorText(result) }
       }
       await this.refreshServers(true)
       return { success: true as const, id: result.data }
@@ -199,16 +198,16 @@ export const useServerStore = defineStore('server', {
 
       const result = await serversProxy.UpdateGroup(groupId, newName, parentId || '')
       if (!result.isSuccess) {
-        return { success: false, msg: i18nGlobal.t(`errors.${result.errorCode}`) }
+        return { success: false, msg: resultErrorText(result) }
       }
 
       await this.refreshServers(true)
       return { success: true }
     },
-    async exportServers(serverIDs: string[], includeSensitiveData: boolean) {
+    async exportServers(serverIDs: string[], includeSensitiveData: boolean): Promise<ServerFileResult> {
       const exportResult = await serversProxy.ExportServers(serverIDs, includeSensitiveData)
       if (!exportResult.isSuccess) {
-        return { success: false, msg: i18nGlobal.t(`errors.${exportResult.errorCode}`) }
+        return { success: false, msg: resultErrorText(exportResult) }
       }
 
       const title = i18nGlobal.t('serverPane.exportServers')
@@ -222,12 +221,12 @@ export const useServerStore = defineStore('server', {
 
       const writeResult = await filesProxy.WriteFile(pathResult.data, exportResult.data)
       if (!writeResult.isSuccess) {
-        return { success: false, msg: writeResult.errorDetail || writeResult.errorCode }
+        return { success: false, msg: resultErrorText(writeResult) }
       }
 
       return { success: true }
     },
-    async importServers() {
+    async importServers(): Promise<ServerFileResult> {
       const title = i18nGlobal.t('serverPane.importServers')
       const filters = [
         { displayName: 'JSON', pattern: '*.json' },
@@ -241,12 +240,12 @@ export const useServerStore = defineStore('server', {
 
       const readResult = await filesProxy.ReadFile(pathResult.data)
       if (!readResult.isSuccess) {
-        return { success: false, msg: readResult.errorDetail || readResult.errorCode }
+        return { success: false, msg: resultErrorText(readResult) }
       }
 
       const importResult = await serversProxy.ImportServers(readResult.data)
       if (!importResult.isSuccess) {
-        return { success: false, msg: importResult.errorDetail || importResult.errorCode }
+        return { success: false, msg: resultErrorText(importResult) }
       }
 
       await this.refreshServers(true)
@@ -264,7 +263,7 @@ export const useServerStore = defineStore('server', {
     async deleteGroup(groupId: string) {
       const result = await serversProxy.RemoveNode(groupId)
       if (!result.isSuccess) {
-        return { success: false, msg: i18nGlobal.t(`errors.${result.errorCode}`) }
+        return { success: false, msg: resultErrorText(result) }
       }
       await this.refreshServers(true)
       return { success: true }
