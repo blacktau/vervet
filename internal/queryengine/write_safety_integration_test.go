@@ -65,7 +65,6 @@ func TestIntegration_Writes_BadFiltersAreRejected(t *testing.T) {
 		`db.c.bulkWrite([{ updateOne: { filter: { _id: 1 } } }])`:                       "bulkWrite updateOne requires an update",
 		`db.c.bulkWrite([{ replaceOne: { replacement: { z: 1 } } }])`:                   "bulkWrite replaceOne requires a filter document",
 		`db.c.bulkWrite([{ replaceOne: { filter: { _id: 1 } } }])`:                      "bulkWrite replaceOne replacement must be a document",
-		`db.c.bulkWrite([{ insertOne: {} }])`:                                           "bulkWrite insertOne requires a document",
 		// Valid operations before a bad one must not run either.
 		`db.c.bulkWrite([{ deleteOne: { filter: { _id: 1 } } }, { deleteMany: {} }])`: "bulkWrite deleteMany requires a filter document",
 	}
@@ -90,40 +89,96 @@ func assertUnchanged(t *testing.T, db, script string) {
 	assert.Equal(t, int64(3), n, script)
 }
 
-// An option that is not applied must not be dropped silently.
-func TestIntegration_Writes_UnknownOptionsAreRejected(t *testing.T) {
-	run, db := setupWrites(t)
+// Whatever mongosh accepts must run here too, whichever server it is against, so
+// these match what mongosh does with each input.
+func TestIntegration_Writes_MatchMongoshOnOddOptions(t *testing.T) {
+	run, _ := setupWrites(t)
 	cases := map[string]string{
-		`db.c.updateOne({ _id: 1 }, { $set: { z: 1 } }, { upsrt: true })`:                                  `updateOne option "upsrt" is not supported`,
-		`db.c.replaceOne({ _id: 1 }, { z: 1 }, { bogus: 1 })`:                                              `replaceOne option "bogus" is not supported`,
-		`db.c.deleteOne({ _id: 1 }, { bogus: 1 })`:                                                         `deleteOne option "bogus" is not supported`,
-		`db.c.deleteMany({}, { bogus: 1 })`:                                                                `deleteMany option "bogus" is not supported`,
-		`db.c.findOneAndDelete({}, { bogus: 1 })`:                                                          `findOneAndDelete option "bogus" is not supported`,
-		`db.c.findOneAndUpdate({}, { $set: { z: 1 } }, { bogus: 1 })`:                                      `findOneAndUpdate option "bogus" is not supported`,
-		`db.c.findOneAndReplace({}, { z: 1 }, { bogus: 1 })`:                                               `findOneAndReplace option "bogus" is not supported`,
-		`db.c.bulkWrite([{ deleteOne: { filter: { _id: 1 } } }], { bogus: 1 })`:                            `bulkWrite option "bogus" is not supported`,
-		`db.c.bulkWrite([{ deleteOne: { filter: { _id: 1 }, bogus: 1 } }])`:                                `bulkWrite deleteOne option "bogus" is not supported`,
-		`db.c.bulkWrite([{ updateOne: { filter: { _id: 1 }, update: { $set: { z: 1 } }, upsrt: true } }])`: `bulkWrite updateOne option "upsrt" is not supported`,
-		`db.c.insertOne({ z: 1 }, { bogus: 1 })`:                                                           `insertOne option "bogus" is not supported`,
-		`db.c.insertMany([{ z: 1 }], { bogus: 1 })`:                                                        `insertMany option "bogus" is not supported`,
-		`db.c.countDocuments({}, { bogus: 1 })`:                                                            `countDocuments option "bogus" is not supported`,
-		`db.c.aggregate([], { bogus: 1 })`:                                                                 `aggregate option "bogus" is not supported`,
-		`db.aggregate([{ $documents: [] }], { bogus: 1 })`:                                                 `aggregate option "bogus" is not supported`,
-		`db.c.updateOne({ _id: 1 }, { $set: { z: 1 } }, { upsert: "yes" })`:                                `updateOne upsert must be a boolean`,
-		`db.c.updateOne({ _id: 1 }, { $set: { z: 1 } }, 5)`:                                                `updateOne options must be an object`,
-		`db.c.findOneAndUpdate({}, { $set: { z: 1 } }, { returnDocument: "new" })`:                         `findOneAndUpdate returnDocument must be "before" or "after"`,
+		// Unknown options, and options that are not a document, are ignored.
+		`print(db.c.updateOne({ _id: 1 }, { $set: { z: 1 } }, { upsrt: true }).modifiedCount)`:     "1",
+		`print(db.c.updateOne({ _id: 1 }, { $set: { z: 1 } }, 5).modifiedCount)`:                   "1",
+		`print(db.c.deleteOne({ _id: 1 }, "x").deletedCount)`:                                      "1",
+		`print(db.c.deleteMany({ _id: 1 }, []).deletedCount)`:                                      "1",
+		`print(db.c.deleteOne({ _id: 1 }, { bogus: 1, session: {} }).deletedCount)`:                "1",
+		`print(db.c.replaceOne({ _id: 1 }, { z: 1 }, { bogus: 1 }).modifiedCount)`:                 "1",
+		`print(db.c.findOneAndDelete({ _id: 1 }, { bogus: 1 })._id)`:                               "1",
+		`print(db.c.bulkWrite([{ deleteOne: { filter: { _id: 1 }, bogus: 1 } }], 5).deletedCount)`: "1",
+		`print(db.c.insertOne({ _id: 5 }, { w: 2, j: true }).acknowledged)`:                        "true",
+		`print(db.c.insertMany([{ _id: 5 }], 5).acknowledged)`:                                     "true",
+		`print(db.c.countDocuments({}, { bogus: 1 }))`:                                             "3",
+		`print(db.c.aggregate([], { bogus: 1, writeConcern: { w: 2 } }).toArray().length)`:         "3",
+		`print(db.c.deleteOne({ _id: 1 }, { hint: null, comment: undefined }).deletedCount)`:       "1",
+		// A flag that is not a boolean stays at its default.
+		`print(db.c.updateOne({ _id: 99 }, { $set: { z: 1 } }, { upsert: "yes" }).upsertedCount)`:                                    "0",
+		`print(db.c.updateOne({ _id: 99 }, { $set: { z: 1 } }, { upsert: 1 }).upsertedCount)`:                                        "0",
+		`print(db.c.bulkWrite([{ updateOne: { filter: { _id: 99 }, update: { $set: { z: 1 } }, upsert: 1 } }]).upsertedCount)`:       "0",
+		`try { db.c.insertMany([{ _id: 1 }, { _id: 50 }], { ordered: "no" }) } catch (e) {} print(db.c.countDocuments({ _id: 50 }))`: "0",
+		`print(db.c.aggregate([], { allowDiskUse: "x" }).toArray().length)`:                                                          "3",
+		// A number that is not a number is ignored.
+		`print(db.c.countDocuments({}, { limit: "1" }))`:     "3",
+		`print(db.c.countDocuments({}, { maxTimeMS: "5" }))`: "3",
+		// Every spelling of "return the new version".
+		`print(db.c.findOneAndUpdate({ _id: 1 }, { $set: { p: 50 } }, { returnNewDocument: 1 }).p)`:  "50",
+		`print(db.c.findOneAndUpdate({ _id: 1 }, { $set: { p: 50 } }, { returnOriginal: false }).p)`: "50",
+		`print(db.c.findOneAndUpdate({ _id: 1 }, { $set: { p: 50 } }, { new: true }).p)`:             "50",
+		`print(db.c.findOneAndUpdate({ _id: 1 }, { $set: { p: 50 } }, { remove: true }).p)`:          "1",
+		// Every form of sort.
+		`print(db.c.findOneAndDelete({}, { sort: "p" })._id)`:           "1",
+		`print(db.c.findOneAndDelete({}, { sort: [["p", -1]] })._id)`:   "2",
+		`print(db.c.findOneAndDelete({}, { sort: ["p", -1] })._id)`:     "2",
+		`print(db.c.findOneAndDelete({}, { sort: ["p", "desc"] })._id)`: "2",
+		`print(db.c.findOneAndDelete({}, { sort: ["s", "p"] })._id)`:    "1",
+		// Stages as separate arguments.
+		`print(db.c.aggregate({ $match: { _id: 1 } }, { $limit: 1 }).toArray().length)`: "1",
+		`print(db.c.aggregate({ $sort: { _id: 1 } }, { $limit: 2 }).toArray().length)`:  "2",
+		// Read settings.
+		`print(db.c.countDocuments({}, { readConcern: { level: "local" } }))`:                                                   "3",
+		`print(db.c.aggregate([], { readConcern: { level: "local" }, readPreference: "secondaryPreferred" }).toArray().length)`: "3",
+		// explain gives the plan rather than the documents.
+		`print(db.c.aggregate([], { explain: true }).ok)`:           "1",
+		`print(db.c.aggregate([], { explain: "queryPlanner" }).ok)`: "1",
+		`print(db.c.aggregate([], { explain: false }).length)`:      "3",
+		// A bulk insertOne with no document field inserts its own fields.
+		`db.c.bulkWrite([{ insertOne: { doc: 1 } }]); print(db.c.countDocuments({ doc: 1 }))`: "1",
+		`print(db.c.bulkWrite([{ insertOne: {} }]).insertedCount)`:                            "1",
 	}
 	for script, want := range cases {
+		got, err := run(script)
+		require.NoError(t, err, script)
+		assert.Equal(t, want, got, script)
+	}
+}
+
+// What mongosh refuses is refused here too, by the server where it is the one
+// that decides.
+func TestIntegration_Writes_InvalidOptionValuesFail(t *testing.T) {
+	run, db := setupWrites(t)
+	for _, script := range []string{
+		`db.c.updateOne({ _id: 1 }, { $set: { z: 1 } }, { arrayFilters: 5 })`,
+		`db.c.deleteOne({ _id: 1 }, { collation: 5 })`,
+		`db.c.deleteOne({ _id: 1 }, { hint: 5 })`,
+		`db.c.deleteOne({ _id: 1 }, { let: 5 })`,
+		`db.c.findOneAndDelete({ _id: 1 }, { projection: "p" })`,
+		`db.c.findOneAndUpdate({}, { $set: { z: 1 } }, { returnDocument: "new" })`,
+		`db.c.countDocuments({}, { limit: -1 })`,
+		`db.c.countDocuments({}, { skip: 1.5 })`,
+		`db.c.countDocuments({}, { readConcern: { level: "bogus" } })`,
+		`db.c.aggregate([], { readConcern: { level: "bogus" } })`,
+		`db.aggregate([{ $documents: [] }], { readConcern: { level: "bogus" } })`,
+		`db.c.aggregate([], { batchSize: -1 })`,
+		`db.c.aggregate([], { batchSize: "x" })`,
+		`db.c.aggregate([], { cursor: 5 })`,
+		`db.c.insertOne({ z: 1 }, { writeConcern: { w: -1 } })`,
+		`db.c.insertOne({ z: 1 }, { writeConcern: { w: {} } })`,
+		`db.c.bulkWrite([{ deleteOne: 5 }])`,
+		`db.c.bulkWrite([{ bogusOp: { filter: {} } }])`,
+		`db.c.bulkWrite([])`,
+		`db.c.bulkWrite([{ insertOne: { document: 5 } }])`,
+	} {
 		_, err := run(script)
-		require.Error(t, err, script)
-		assert.Contains(t, err.Error(), want, script)
+		assert.Error(t, err, script)
 		assertUnchanged(t, db, script)
 	}
-
-	// Null and undefined options count as absent.
-	got, err := run(`print(db.c.deleteOne({ _id: 1 }, { hint: null, comment: undefined }).deletedCount)`)
-	require.NoError(t, err)
-	assert.Equal(t, "1", got)
 }
 
 func TestIntegration_Writes_OptionsAreApplied(t *testing.T) {
@@ -180,7 +235,6 @@ func TestIntegration_Writes_OptionsAreApplied(t *testing.T) {
 		"aggregate options": {`print(db.c.aggregate([{ $match: { t: "abc" } }], { allowDiskUse: true, cursor: { batchSize: 1 }, maxTimeMS: 5000 }).toArray().length);
 			db.c.insertOne({ _id: 10, t: "ABC" });
 			print(db.c.aggregate([{ $match: { t: "abc" } }], { collation: { locale: "en", strength: 2 } }).toArray().length)`, "0\n1"},
-		"db.aggregate options":               {`print(db.aggregate([{ $documents: [{ t: "ABC" }] }, { $match: { t: "abc" } }], { collation: { locale: "en", strength: 2 } }).length)`, "1"},
 		"a findOne result works as a filter": {`print(db.c.deleteOne(db.c.findOne({ _id: 1 })).deletedCount)`, "1"},
 	}
 	for name, tc := range cases {
@@ -226,19 +280,18 @@ func TestIntegration_Writes_WriteConcernIsApplied(t *testing.T) {
 		assert.Equal(t, want, got, script)
 	}
 
-	for script, want := range map[string]string{
-		`db.c.insertOne({ z: 1 }, { writeConcern: 5 })`:                      "insertOne writeConcern must be an object",
-		`db.c.insertOne({ z: 1 }, { writeConcern: { w: 1.5 } })`:             "insertOne writeConcern w must be a whole number",
-		`db.c.insertOne({ z: 1 }, { writeConcern: { j: 1 } })`:               "insertOne writeConcern j must be a boolean",
-		`db.c.insertOne({ z: 1 }, { writeConcern: { w: 1, wtimeout: 10 } })`: `insertOne writeConcern option "wtimeout" is not supported`,
-		`db.c.insertOne({ z: 1 }, { writeConcern: { bogus: 1 } })`:           `insertOne writeConcern option "bogus" is not supported`,
-		`db.c.aggregate([], { writeConcern: { w: 1 } })`:                     `aggregate option "writeConcern" is not supported`,
-		`db.c.countDocuments({}, { writeConcern: { w: 1 } })`:                `countDocuments option "writeConcern" is not supported`,
+	// mongosh accepts all of these.
+	for _, script := range []string{
+		`print(db.c.insertOne({ _id: 5 }, { writeConcern: 5 }).acknowledged)`,
+		`print(db.c.insertOne({ _id: 5 }, { writeConcern: { w: 1.5 } }).acknowledged)`,
+		`print(db.c.insertOne({ _id: 5 }, { writeConcern: { j: 1 } }).acknowledged)`,
+		`print(db.c.insertOne({ _id: 5 }, { writeConcern: { fsync: true } }).acknowledged)`,
+		`print(db.c.insertOne({ _id: 5 }, { writeConcern: { w: 1, wtimeout: 100 } }).acknowledged)`,
+		`print(db.c.insertOne({ _id: 5 }, { writeConcern: { w: 1, bogus: 1 } }).acknowledged)`,
 	} {
-		_, err := run(script)
-		require.Error(t, err, script)
-		assert.Contains(t, err.Error(), want, script)
-		assertUnchanged(t, db, script)
+		got, err := run(script)
+		require.NoError(t, err, script)
+		assert.Equal(t, "true", got, script)
 	}
 }
 
@@ -250,7 +303,7 @@ func TestIntegration_Writes_UnacknowledgedWrites(t *testing.T) {
 		`var r = db.c.updateOne({ _id: 2 }, { $set: { z: 1 } }, { writeConcern: { w: 0 } }); print(Object.keys(r).join(), r.acknowledged)`: "acknowledged,insertedId,upsertedCount false",
 		`print(db.c.insertOne({ _id: 5 }, { writeConcern: { w: 0 } }).acknowledged)`:                                                       "false",
 		`print(db.c.insertMany([{ _id: 5 }], { writeConcern: { w: 0 } }).acknowledged)`:                                                    "false",
-		`print(db.c.bulkWrite([{ deleteOne: { filter: { _id: 1 } } }], { writeConcern: { w: 0 } }).acknowledged)`:                          "false",
+		`print(db.c.bulkWrite([{ deleteOne: { filter: { _id: 1 } } }], { writeConcern: { w: 0 } }).acknowledged)`:                          "true",
 		`print(db.c.findOneAndDelete({ _id: 1 }, { writeConcern: { w: 0 } }))`:                                                             "null",
 	}
 	for script, want := range cases {
@@ -267,6 +320,34 @@ func TestIntegration_Writes_UnacknowledgedWrites(t *testing.T) {
 		n, err := testClient.Database(db).Collection("c").CountDocuments(context.Background(), bson.D{{Key: "_id", Value: 1}})
 		return err == nil && n == 0
 	}, 5*time.Second, 10*time.Millisecond)
+}
+
+func TestIntegration_Writes_DbAggregateOptions(t *testing.T) {
+	skipWithoutDocumentsStage(t)
+	run, _ := setupWrites(t)
+	for script, want := range map[string]string{
+		`print(db.aggregate([{ $documents: [{ t: "ABC" }] }, { $match: { t: "abc" } }], { collation: { locale: "en", strength: 2 } }).length)`: "1",
+		`print(db.aggregate({ $documents: [{ t: "ABC" }] }, { $limit: 1 }).length)`:                                                            "1",
+		`print(db.aggregate([{ $documents: [{ t: "ABC" }] }], { bogus: 1 }).length)`:                                                           "1",
+		`print(db.aggregate([{ $documents: [{ t: "ABC" }] }], { explain: true }).ok)`:                                                          "1",
+	} {
+		got, err := run(script)
+		require.NoError(t, err, script)
+		assert.Equal(t, want, got, script)
+	}
+}
+
+// sort on updateOne and replaceOne needs MongoDB 8. The option goes to the server
+// either way, so what happens on an older one is for that server to decide.
+func TestIntegration_Writes_UpdateSortOnMongo8(t *testing.T) {
+	skipBeforeVersion(t, "8")
+	run, _ := setupWrites(t)
+	got, err := run(`db.c.updateOne({ s: "r" }, { $set: { z: 1 } }, { sort: { p: -1 } }); print(db.c.findOne({ z: 1 })._id)`)
+	require.NoError(t, err)
+	assert.Equal(t, "2", got)
+	got, err = run(`db.c.replaceOne({ s: "r" }, { z: 1 }, { sort: "p" }); print(db.c.findOne({ z: 1 })._id)`)
+	require.NoError(t, err)
+	assert.Equal(t, "1", got)
 }
 
 // AffectedCount counts upserts as well as modified documents.

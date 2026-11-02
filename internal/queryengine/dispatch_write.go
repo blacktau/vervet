@@ -216,7 +216,8 @@ func dispatchBulkWrite(ctx context.Context, coll *mongo.Collection, op CapturedO
 	}
 
 	result := singleToResult(bson.D{
-		{Key: "acknowledged", Value: res.Acknowledged},
+		// Always true, as in mongosh, even with w: 0.
+		{Key: "acknowledged", Value: true},
 		{Key: "insertedCount", Value: int(res.InsertedCount)},
 		{Key: "insertedIds", Value: idsByOperation(insertedIDs)},
 		{Key: "matchedCount", Value: int(res.MatchedCount)},
@@ -260,8 +261,8 @@ func dispatchDrop(ctx context.Context, coll *mongo.Collection) (models.QueryResu
 
 // toBulkWriteModel converts a bulkWrite operation ({ insertOne: {...} }) to a
 // mongo.WriteModel. As in mongosh, the operation type is the document's first
-// key; any further keys are ignored. Within the operation, its required fields
-// must be there and any other field must be a supported option.
+// key; any further keys are ignored. Within the operation, the required fields
+// must be there, and options behave as they do on the matching method.
 func toBulkWriteModel(opDoc bson.D) (mongo.WriteModel, error) {
 	if len(opDoc) == 0 {
 		return nil, fmt.Errorf("bulkWrite operation must have a type")
@@ -274,11 +275,17 @@ func toBulkWriteModel(opDoc bson.D) (mongo.WriteModel, error) {
 	name := "bulkWrite " + opType
 
 	if opType == "insertOne" {
-		document, ok := docField(args, "document").(bson.D)
-		if !ok {
-			return nil, fmt.Errorf("%s requires a document", name)
+		// As in mongosh, the operation's own fields are the document when it has
+		// no document field.
+		raw := docField(args, "document")
+		if raw == nil {
+			return mongo.NewInsertOneModel().SetDocument(args), nil
 		}
-		return mongo.NewInsertOneModel().SetDocument(document), applyOptions(name, args, optionSetters{"document": ignoreOpt})
+		document, ok := raw.(bson.D)
+		if !ok {
+			return nil, fmt.Errorf("%s document must be a document", name)
+		}
+		return mongo.NewInsertOneModel().SetDocument(document), nil
 	}
 
 	filter, err := filterDoc(name, docField(args, "filter"))
@@ -294,17 +301,15 @@ func toBulkWriteModel(opDoc bson.D) (mongo.WriteModel, error) {
 	case "updateOne":
 		m := mongo.NewUpdateOneModel().SetFilter(filter).SetUpdate(update)
 		return m, applyOptions(name, args, optionSetters{
-			"filter": ignoreOpt, "update": ignoreOpt,
 			"upsert":       boolOpt(m.SetUpsert),
 			"arrayFilters": arrayFiltersOpt(m.SetArrayFilters),
 			"collation":    collationOpt(m.SetCollation),
 			"hint":         hintOpt(m.SetHint),
-			"sort":         docOpt(m.SetSort),
+			"sort":         sortOpt(m.SetSort),
 		})
 	case "updateMany":
 		m := mongo.NewUpdateManyModel().SetFilter(filter).SetUpdate(update)
 		return m, applyOptions(name, args, optionSetters{
-			"filter": ignoreOpt, "update": ignoreOpt,
 			"upsert":       boolOpt(m.SetUpsert),
 			"arrayFilters": arrayFiltersOpt(m.SetArrayFilters),
 			"collation":    collationOpt(m.SetCollation),
@@ -317,23 +322,20 @@ func toBulkWriteModel(opDoc bson.D) (mongo.WriteModel, error) {
 		}
 		m := mongo.NewReplaceOneModel().SetFilter(filter).SetReplacement(replacement)
 		return m, applyOptions(name, args, optionSetters{
-			"filter": ignoreOpt, "replacement": ignoreOpt,
 			"upsert":    boolOpt(m.SetUpsert),
 			"collation": collationOpt(m.SetCollation),
 			"hint":      hintOpt(m.SetHint),
-			"sort":      docOpt(m.SetSort),
+			"sort":      sortOpt(m.SetSort),
 		})
 	case "deleteOne":
 		m := mongo.NewDeleteOneModel().SetFilter(filter)
 		return m, applyOptions(name, args, optionSetters{
-			"filter":    ignoreOpt,
 			"collation": collationOpt(m.SetCollation),
 			"hint":      hintOpt(m.SetHint),
 		})
 	case "deleteMany":
 		m := mongo.NewDeleteManyModel().SetFilter(filter)
 		return m, applyOptions(name, args, optionSetters{
-			"filter":    ignoreOpt,
 			"collation": collationOpt(m.SetCollation),
 			"hint":      hintOpt(m.SetHint),
 		})
@@ -341,6 +343,3 @@ func toBulkWriteModel(opDoc bson.D) (mongo.WriteModel, error) {
 		return nil, fmt.Errorf("unknown bulkWrite operation type: %s", opType)
 	}
 }
-
-// ignoreOpt marks a required field, which the caller has already read.
-func ignoreOpt(any) error { return nil }

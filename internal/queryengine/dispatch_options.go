@@ -9,28 +9,32 @@ import (
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/mongo/readconcern"
+	"go.mongodb.org/mongo-driver/v2/mongo/readpref"
 	"go.mongodb.org/mongo-driver/v2/mongo/writeconcern"
 )
 
-// Every option a script passes to a collection method is either applied or
-// rejected. Dropping one silently is how `{ upsert: true }` used to write
-// nothing and `{ sort: ... }` used to delete the wrong document.
+// Options behave as they do in mongosh, so a script that runs there runs here,
+// against any server version: anything mongosh applies is applied, and anything
+// it ignores is ignored. Values the server would refuse go to the server, so it
+// is the one to decide what its version supports.
 
 // optionSetters maps each option a method supports to what applies it.
 type optionSetters map[string]func(v any) error
 
 // applyOptions applies an options document in the order the script wrote it, so
-// the first bad option is the one reported. Null and undefined options count as
-// absent. Unlike mongosh, an option it does not know is an error, so a typo such
-// as `upsrt` cannot quietly change what a write does.
+// the first bad option is the one reported. As in mongosh, an options argument
+// that is not a document and options it does not know are ignored, and null and
+// undefined options count as absent.
 func applyOptions(method string, raw any, setters optionSetters) error {
 	if raw == nil {
 		return nil
 	}
 	doc, ok := asBsonDoc(raw)
 	if !ok {
-		return fmt.Errorf("%s options must be an object", method)
+		return nil
 	}
 	for _, e := range doc {
 		if e.Value == nil {
@@ -38,7 +42,7 @@ func applyOptions(method string, raw any, setters optionSetters) error {
 		}
 		set, ok := setters[e.Key]
 		if !ok {
-			return fmt.Errorf("%s option %q is not supported", method, e.Key)
+			continue
 		}
 		if err := set(e.Value); err != nil {
 			return fmt.Errorf("%s %s %w", method, e.Key, err)
@@ -47,23 +51,32 @@ func applyOptions(method string, raw any, setters optionSetters) error {
 	return nil
 }
 
-func boolOpt[B any](set func(bool) B) func(any) error {
-	return func(v any) error {
-		b, ok := v.(bool)
-		if !ok {
-			return errors.New("must be a boolean")
-		}
-		set(b)
-		return nil
+// jsTruthy applies JavaScript truthiness to an exported option value.
+func jsTruthy(v any) bool {
+	switch x := v.(type) {
+	case nil:
+		return false
+	case bool:
+		return x
+	case string:
+		return x != ""
+	case int32:
+		return x != 0
+	case int64:
+		return x != 0
+	case float64:
+		return x != 0 && !math.IsNaN(x)
 	}
+	return true
 }
 
-func docOpt[B any](set func(any) B) func(any) error {
+// boolOpt reads a flag. As in mongosh, a value that is not a boolean leaves it at
+// its default: upsert: 1 does not upsert, and ordered: 0 stays ordered.
+func boolOpt[B any](set func(bool) B) func(any) error {
 	return func(v any) error {
-		if _, ok := v.(bson.D); !ok {
-			return errors.New("must be an object")
+		if b, ok := v.(bool); ok {
+			set(b)
 		}
-		set(v)
 		return nil
 	}
 }
@@ -108,8 +121,13 @@ func arrayFiltersOpt[B any](set func([]any) B) func(any) error {
 	}
 }
 
+// countOpt reads a whole number. As in mongosh, a value that is not a number is
+// ignored rather than refused.
 func countOpt[B any](set func(int64) B) func(any) error {
 	return func(v any) error {
+		if !isNumber(v) {
+			return nil
+		}
 		n, err := wholeNumber(v)
 		if err != nil {
 			return err
@@ -123,6 +141,9 @@ func countOpt[B any](set func(int64) B) func(any) error {
 // a deadline on the context (see withMaxTime), as for a find.
 func maxTimeOpt(d *time.Duration) func(any) error {
 	return func(v any) error {
+		if !isNumber(v) {
+			return nil
+		}
 		n, err := wholeNumber(v)
 		if err != nil {
 			return err
@@ -134,6 +155,71 @@ func maxTimeOpt(d *time.Duration) func(any) error {
 		*d = time.Duration(n) * time.Millisecond
 		return nil
 	}
+}
+
+func isNumber(v any) bool {
+	switch convertToBson(v).(type) {
+	case int32, int64, float64:
+		return true
+	}
+	return false
+}
+
+// sortOpt reads a sort in any form mongosh takes: a document, a field name, an
+// array of field names, a [field, direction] pair, or an array of pairs.
+func sortOpt[B any](set func(any) B) func(any) error {
+	return func(v any) error {
+		sort, err := normalizeSort(v)
+		if err != nil {
+			return err
+		}
+		set(sort)
+		return nil
+	}
+}
+
+func normalizeSort(v any) (any, error) {
+	switch x := v.(type) {
+	case string:
+		return bson.D{{Key: x, Value: int32(1)}}, nil
+	case bson.A:
+		if len(x) == 2 {
+			if field, ok := x[0].(string); ok {
+				if dir, ok := sortDirection(x[1]); ok {
+					return bson.D{{Key: field, Value: dir}}, nil
+				}
+			}
+		}
+		sort := make(bson.D, 0, len(x))
+		for _, item := range x {
+			entry, err := normalizeSort(item)
+			if err != nil {
+				return nil, err
+			}
+			sort = append(sort, entry.(bson.D)...)
+		}
+		return sort, nil
+	case bson.D:
+		return x, nil
+	}
+	return nil, errors.New("must be a document, a field name or an array of them")
+}
+
+func sortDirection(v any) (any, bool) {
+	switch x := v.(type) {
+	case string:
+		switch x {
+		case "asc", "ascending":
+			return int32(1), true
+		case "desc", "descending":
+			return int32(-1), true
+		}
+	case int32, int64, float64:
+		return x, true
+	case bson.D:
+		return x, true // { $meta: "textScore" }
+	}
+	return nil, false
 }
 
 func withMaxTime(ctx context.Context, d time.Duration) (context.Context, context.CancelFunc) {
@@ -214,16 +300,15 @@ var writeConcernArg = map[string]int{
 
 // takeWriteConcern removes the writeConcern from op's options and returns it. The
 // driver's per-operation options have no write concern: it belongs to the
-// collection the operation runs on, so dispatch applies it there. Invalid options
-// documents are left for the method's own decoder to report.
-func takeWriteConcern(op CapturedOp) (CapturedOp, *writeconcern.WriteConcern, error) {
+// collection the operation runs on, so dispatch applies it there.
+func takeWriteConcern(op CapturedOp) (CapturedOp, *writeconcern.WriteConcern) {
 	i, ok := writeConcernArg[op.Method]
 	if !ok {
-		return op, nil, nil
+		return op, nil
 	}
 	doc, ok := asBsonDoc(argAt(op.Args, i))
 	if !ok {
-		return op, nil, nil
+		return op, nil
 	}
 	rest := make(bson.D, 0, len(doc))
 	var wc *writeconcern.WriteConcern
@@ -232,58 +317,122 @@ func takeWriteConcern(op CapturedOp) (CapturedOp, *writeconcern.WriteConcern, er
 			rest = append(rest, e)
 			continue
 		}
-		var err error
-		if wc, err = parseWriteConcern(op.Method, e.Value); err != nil {
-			return op, nil, err
-		}
+		wc = parseWriteConcern(e.Value)
 	}
 	args := slices.Clone(op.Args)
 	args[i] = rest
 	op.Args = args
-	return op, wc, nil
+	return op, wc
 }
 
-// parseWriteConcern reads { w, j }. wtimeout is rejected rather than ignored:
-// this driver version has no such setting, and a script that sets one expects
-// the wait for replication to be bounded.
-func parseWriteConcern(method string, v any) (*writeconcern.WriteConcern, error) {
-	if v == nil {
-		return nil, nil
-	}
+// parseWriteConcern reads { w, j, fsync }, ignoring what mongosh ignores. A value
+// the server would refuse, such as w: -1, goes to the server. fsync is the old
+// spelling of j. wtimeout is accepted but has no effect, because this driver has
+// no such setting, so a write waits on replication until the query is cancelled.
+func parseWriteConcern(v any) *writeconcern.WriteConcern {
 	doc, ok := v.(bson.D)
 	if !ok {
-		return nil, fmt.Errorf("%s writeConcern must be an object", method)
+		return nil
 	}
 	wc := &writeconcern.WriteConcern{}
-	for _, e := range doc {
-		if e.Value == nil {
-			continue
-		}
-		switch e.Key {
-		case "w":
-			if name, ok := e.Value.(string); ok {
-				wc.W = name
-				continue
-			}
-			n, err := wholeNumber(e.Value)
-			if err != nil {
-				return nil, fmt.Errorf("%s writeConcern w %w", method, err)
-			}
-			if n > math.MaxInt32 {
-				return nil, fmt.Errorf("%s writeConcern w must be at most %d", method, math.MaxInt32)
-			}
-			wc.W = int(n)
-		case "j":
-			j, ok := e.Value.(bool)
-			if !ok {
-				return nil, fmt.Errorf("%s writeConcern j must be a boolean", method)
-			}
-			wc.Journal = &j
-		default:
-			return nil, fmt.Errorf("%s writeConcern option %q is not supported", method, e.Key)
+	if w := docField(doc, "w"); w != nil {
+		wc.W = writeConcernW(w)
+	}
+	for _, key := range []string{"fsync", "j"} {
+		if flag := docField(doc, key); flag != nil {
+			journal := jsTruthy(flag)
+			wc.Journal = &journal
 		}
 	}
-	return wc, nil
+	return wc
+}
+
+// writeConcernW gives the driver w as an int or a tag name. Its own validation
+// only takes those, and a fractional w is whole for the server.
+func writeConcernW(w any) any {
+	switch x := w.(type) {
+	case int32:
+		return int(x)
+	case int64:
+		return int(x)
+	case float64:
+		return int(x)
+	}
+	return w
+}
+
+// runOptions are the settings of a read that the driver takes from the collection
+// or context rather than from the method's options.
+type runOptions struct {
+	maxTime        time.Duration
+	readConcern    *readconcern.ReadConcern
+	readPreference *readpref.ReadPref
+	explain        any
+}
+
+func readConcernOpt(rc **readconcern.ReadConcern) func(any) error {
+	return func(v any) error {
+		level, ok := v.(string)
+		if doc, isDoc := v.(bson.D); isDoc {
+			level, ok = docField(doc, "level").(string)
+		}
+		if !ok {
+			return nil
+		}
+		switch level {
+		case "local", "majority", "linearizable", "available", "snapshot":
+			*rc = &readconcern.ReadConcern{Level: level}
+			return nil
+		}
+		return errors.New("level must be either 'local', 'majority', 'linearizable', 'available', or 'snapshot'")
+	}
+}
+
+func readPreferenceOpt(rp **readpref.ReadPref) func(any) error {
+	return func(v any) error {
+		name, ok := v.(string)
+		if doc, isDoc := v.(bson.D); isDoc {
+			name, ok = docField(doc, "mode").(string)
+		}
+		if !ok {
+			return nil
+		}
+		mode, err := readpref.ModeFromString(name)
+		if err != nil {
+			return errors.New("must be a valid read preference mode")
+		}
+		pref, err := readpref.New(mode)
+		if err != nil {
+			return err
+		}
+		*rp = pref
+		return nil
+	}
+}
+
+func (r runOptions) collection(coll *mongo.Collection) *mongo.Collection {
+	if r.readConcern == nil && r.readPreference == nil {
+		return coll
+	}
+	opts := options.Collection()
+	if r.readConcern != nil {
+		opts.SetReadConcern(r.readConcern)
+	}
+	if r.readPreference != nil {
+		opts.SetReadPreference(r.readPreference)
+	}
+	return coll.Clone(opts)
+}
+
+func (r runOptions) database(client *mongo.Client, name string) *mongo.Database {
+	opts := options.Database()
+	if r.readConcern != nil {
+		opts.SetReadConcern(r.readConcern)
+	}
+	if r.readPreference != nil {
+		opts.SetReadPreference(r.readPreference)
+	}
+	return client.Database(name, opts)
 }
 
 func insertOneOptions(raw any) (*options.InsertOneOptionsBuilder, error) {
@@ -310,8 +459,8 @@ func updateOneOptions(raw any) (*options.UpdateOneOptionsBuilder, error) {
 		"arrayFilters":             arrayFiltersOpt(o.SetArrayFilters),
 		"collation":                collationOpt(o.SetCollation),
 		"hint":                     hintOpt(o.SetHint),
-		"let":                      docOpt(o.SetLet),
-		"sort":                     docOpt(o.SetSort),
+		"let":                      anyOpt(o.SetLet),
+		"sort":                     sortOpt(o.SetSort),
 		"bypassDocumentValidation": boolOpt(o.SetBypassDocumentValidation),
 		"comment":                  anyOpt(o.SetComment),
 	})
@@ -324,7 +473,7 @@ func updateManyOptions(raw any) (*options.UpdateManyOptionsBuilder, error) {
 		"arrayFilters":             arrayFiltersOpt(o.SetArrayFilters),
 		"collation":                collationOpt(o.SetCollation),
 		"hint":                     hintOpt(o.SetHint),
-		"let":                      docOpt(o.SetLet),
+		"let":                      anyOpt(o.SetLet),
 		"bypassDocumentValidation": boolOpt(o.SetBypassDocumentValidation),
 		"comment":                  anyOpt(o.SetComment),
 	})
@@ -336,8 +485,8 @@ func replaceOptions(raw any) (*options.ReplaceOptionsBuilder, error) {
 		"upsert":                   boolOpt(o.SetUpsert),
 		"collation":                collationOpt(o.SetCollation),
 		"hint":                     hintOpt(o.SetHint),
-		"let":                      docOpt(o.SetLet),
-		"sort":                     docOpt(o.SetSort),
+		"let":                      anyOpt(o.SetLet),
+		"sort":                     sortOpt(o.SetSort),
 		"bypassDocumentValidation": boolOpt(o.SetBypassDocumentValidation),
 		"comment":                  anyOpt(o.SetComment),
 	})
@@ -348,7 +497,7 @@ func deleteOneOptions(raw any) (*options.DeleteOneOptionsBuilder, error) {
 	return o, applyOptions("deleteOne", raw, optionSetters{
 		"collation": collationOpt(o.SetCollation),
 		"hint":      hintOpt(o.SetHint),
-		"let":       docOpt(o.SetLet),
+		"let":       anyOpt(o.SetLet),
 		"comment":   anyOpt(o.SetComment),
 	})
 }
@@ -358,7 +507,7 @@ func deleteManyOptions(raw any) (*options.DeleteManyOptionsBuilder, error) {
 	return o, applyOptions("deleteMany", raw, optionSetters{
 		"collation": collationOpt(o.SetCollation),
 		"hint":      hintOpt(o.SetHint),
-		"let":       docOpt(o.SetLet),
+		"let":       anyOpt(o.SetLet),
 		"comment":   anyOpt(o.SetComment),
 	})
 }
@@ -368,7 +517,7 @@ func bulkWriteOptions(raw any) (*options.BulkWriteOptionsBuilder, error) {
 	return o, applyOptions("bulkWrite", raw, optionSetters{
 		"ordered":                  boolOpt(o.SetOrdered),
 		"bypassDocumentValidation": boolOpt(o.SetBypassDocumentValidation),
-		"let":                      docOpt(o.SetLet),
+		"let":                      anyOpt(o.SetLet),
 		"comment":                  anyOpt(o.SetComment),
 	})
 }
@@ -377,18 +526,18 @@ func findOneAndDeleteOptions(raw any) (*options.FindOneAndDeleteOptionsBuilder, 
 	o := options.FindOneAndDelete()
 	var maxTime time.Duration
 	err := applyOptions("findOneAndDelete", raw, optionSetters{
-		"sort":       docOpt(o.SetSort),
-		"projection": docOpt(o.SetProjection),
+		"sort":       sortOpt(o.SetSort),
+		"projection": anyOpt(o.SetProjection),
 		"collation":  collationOpt(o.SetCollation),
 		"hint":       hintOpt(o.SetHint),
-		"let":        docOpt(o.SetLet),
+		"let":        anyOpt(o.SetLet),
 		"comment":    anyOpt(o.SetComment),
 		"maxTimeMS":  maxTimeOpt(&maxTime),
 	})
 	return o, maxTime, err
 }
 
-// returnDocumentOpts are the two spellings of "which version to return".
+// returnDocumentOpts are the spellings mongosh takes of "which version to return".
 func returnDocumentOpts[B any](set func(options.ReturnDocument) B) optionSetters {
 	return optionSetters{
 		"returnDocument": func(v any) error {
@@ -403,11 +552,19 @@ func returnDocumentOpts[B any](set func(options.ReturnDocument) B) optionSetters
 			return nil
 		},
 		"returnNewDocument": func(v any) error {
-			after, ok := v.(bool)
-			if !ok {
-				return errors.New("must be a boolean")
+			if jsTruthy(v) {
+				set(options.After)
 			}
-			if after {
+			return nil
+		},
+		"new": func(v any) error {
+			if jsTruthy(v) {
+				set(options.After)
+			}
+			return nil
+		},
+		"returnOriginal": func(v any) error {
+			if v == false {
 				set(options.After)
 			}
 			return nil
@@ -419,13 +576,13 @@ func findOneAndUpdateOptions(raw any) (*options.FindOneAndUpdateOptionsBuilder, 
 	o := options.FindOneAndUpdate()
 	var maxTime time.Duration
 	setters := optionSetters{
-		"sort":                     docOpt(o.SetSort),
-		"projection":               docOpt(o.SetProjection),
+		"sort":                     sortOpt(o.SetSort),
+		"projection":               anyOpt(o.SetProjection),
 		"upsert":                   boolOpt(o.SetUpsert),
 		"arrayFilters":             arrayFiltersOpt(o.SetArrayFilters),
 		"collation":                collationOpt(o.SetCollation),
 		"hint":                     hintOpt(o.SetHint),
-		"let":                      docOpt(o.SetLet),
+		"let":                      anyOpt(o.SetLet),
 		"bypassDocumentValidation": boolOpt(o.SetBypassDocumentValidation),
 		"comment":                  anyOpt(o.SetComment),
 		"maxTimeMS":                maxTimeOpt(&maxTime),
@@ -440,12 +597,12 @@ func findOneAndReplaceOptions(raw any) (*options.FindOneAndReplaceOptionsBuilder
 	o := options.FindOneAndReplace()
 	var maxTime time.Duration
 	setters := optionSetters{
-		"sort":                     docOpt(o.SetSort),
-		"projection":               docOpt(o.SetProjection),
+		"sort":                     sortOpt(o.SetSort),
+		"projection":               anyOpt(o.SetProjection),
 		"upsert":                   boolOpt(o.SetUpsert),
 		"collation":                collationOpt(o.SetCollation),
 		"hint":                     hintOpt(o.SetHint),
-		"let":                      docOpt(o.SetLet),
+		"let":                      anyOpt(o.SetLet),
 		"bypassDocumentValidation": boolOpt(o.SetBypassDocumentValidation),
 		"comment":                  anyOpt(o.SetComment),
 		"maxTimeMS":                maxTimeOpt(&maxTime),
@@ -456,35 +613,75 @@ func findOneAndReplaceOptions(raw any) (*options.FindOneAndReplaceOptionsBuilder
 	return o, maxTime, applyOptions("findOneAndReplace", raw, setters)
 }
 
-func countOptions(raw any) (*options.CountOptionsBuilder, time.Duration, error) {
+func countOptions(raw any) (*options.CountOptionsBuilder, runOptions, error) {
 	o := options.Count()
-	var maxTime time.Duration
+	var run runOptions
 	err := applyOptions("countDocuments", raw, optionSetters{
-		"limit":     countOpt(o.SetLimit),
-		"skip":      countOpt(o.SetSkip),
-		"collation": collationOpt(o.SetCollation),
-		"hint":      hintOpt(o.SetHint),
-		"comment":   anyOpt(o.SetComment),
-		"maxTimeMS": maxTimeOpt(&maxTime),
+		"limit":          countOpt(o.SetLimit),
+		"skip":           countOpt(o.SetSkip),
+		"collation":      collationOpt(o.SetCollation),
+		"hint":           hintOpt(o.SetHint),
+		"comment":        anyOpt(o.SetComment),
+		"maxTimeMS":      maxTimeOpt(&run.maxTime),
+		"readConcern":    readConcernOpt(&run.readConcern),
+		"readPreference": readPreferenceOpt(&run.readPreference),
 	})
-	return o, maxTime, err
+	return o, run, err
 }
 
-func aggregateOptions(raw any) (*options.AggregateOptionsBuilder, time.Duration, error) {
+func aggregateOptions(raw any) (*options.AggregateOptionsBuilder, runOptions, error) {
 	o := options.Aggregate()
-	var maxTime time.Duration
+	var run runOptions
 	err := applyOptions("aggregate", raw, optionSetters{
 		"allowDiskUse":             boolOpt(o.SetAllowDiskUse),
 		"batchSize":                batchSizeOpt(o),
 		"cursor":                   cursorOpt(o),
 		"collation":                collationOpt(o.SetCollation),
 		"hint":                     hintOpt(o.SetHint),
-		"let":                      docOpt(o.SetLet),
+		"let":                      anyOpt(o.SetLet),
 		"bypassDocumentValidation": boolOpt(o.SetBypassDocumentValidation),
 		"comment":                  anyOpt(o.SetComment),
-		"maxTimeMS":                maxTimeOpt(&maxTime),
+		"maxTimeMS":                maxTimeOpt(&run.maxTime),
+		"readConcern":              readConcernOpt(&run.readConcern),
+		"readPreference":           readPreferenceOpt(&run.readPreference),
+		"explain": func(v any) error {
+			if jsTruthy(v) {
+				run.explain = v
+			}
+			return nil
+		},
 	})
-	return o, maxTime, err
+	return o, run, err
+}
+
+// aggregateArgs splits aggregate's arguments as mongosh does: (pipeline, options),
+// or every argument a stage when the first is not an array.
+func aggregateArgs(args []any) (any, any) {
+	switch args[0].(type) {
+	case []any, bson.A:
+		return convertToBson(args[0]), argAt(args, 1)
+	}
+	return convertToBson(args), nil
+}
+
+// explainAggregate runs an aggregate with the explain option. target is the
+// collection name, or 1 for a database-level pipeline.
+func explainAggregate(ctx context.Context, db *mongo.Database, target, pipeline, explain any) (bson.D, error) {
+	verbosity, ok := explain.(string)
+	if !ok {
+		verbosity = "allPlansExecution"
+	}
+	cmd := bson.D{
+		{Key: "explain", Value: bson.D{
+			{Key: "aggregate", Value: target},
+			{Key: "pipeline", Value: pipeline},
+			{Key: "cursor", Value: bson.D{}},
+		}},
+		{Key: "verbosity", Value: verbosity},
+	}
+	var result bson.D
+	err := db.RunCommand(ctx, cmd).Decode(&result)
+	return result, err
 }
 
 func batchSizeOpt(o *options.AggregateOptionsBuilder) func(any) error {

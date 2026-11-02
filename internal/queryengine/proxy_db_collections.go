@@ -126,21 +126,24 @@ func dbAggregate(ec *execContext) func(goja.FunctionCall) goja.Value {
 			panic(ec.rt.NewGoError(fmt.Errorf("aggregate requires a pipeline argument")))
 		}
 
-		pipelineRaw := exportValue(call.Arguments[0])
-		pipeline := convertToBson(pipelineRaw)
-
-		var rawOptions any
-		if len(call.Arguments) > 1 {
-			rawOptions = exportValue(call.Arguments[1])
-		}
-		opts, maxTime, err := aggregateOptions(rawOptions)
+		pipeline, rawOptions := aggregateArgs(exportArgs(call))
+		opts, run, err := aggregateOptions(rawOptions)
 		if err != nil {
 			panic(ec.rt.NewGoError(err))
 		}
-		ctx, cancel := withMaxTime(ec.ctx, maxTime)
+		ctx, cancel := withMaxTime(ec.ctx, run.maxTime)
 		defer cancel()
 
-		cursor, err := ec.client.Database(ec.dbName).Aggregate(ctx, pipeline, opts)
+		database := run.database(ec.client, ec.dbName)
+		if run.explain != nil {
+			plan, err := explainAggregate(ctx, database, 1, pipeline, run.explain)
+			if err != nil {
+				panic(ec.rt.NewGoError(fmt.Errorf("aggregate: %w", err)))
+			}
+			return toJSValue(ec.rt, plan)
+		}
+
+		cursor, err := database.Aggregate(ctx, pipeline, opts)
 		if err != nil {
 			panic(ec.rt.NewGoError(fmt.Errorf("aggregate: %w", err)))
 		}

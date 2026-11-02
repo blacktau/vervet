@@ -17,10 +17,7 @@ import (
 // dispatch_indexes.go; this file keeps the switch plus the conversion helpers
 // shared by all of them.
 func dispatch(ctx context.Context, client *mongo.Client, dbName string, op CapturedOp) (models.QueryResult, error) {
-	op, writeConcern, err := takeWriteConcern(op)
-	if err != nil {
-		return models.QueryResult{}, err
-	}
+	op, writeConcern := takeWriteConcern(op)
 	coll := client.Database(dbName).Collection(op.Collection)
 	if writeConcern != nil {
 		coll = coll.Clone(options.Collection().SetWriteConcern(writeConcern))

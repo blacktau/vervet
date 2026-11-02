@@ -301,14 +301,14 @@ func dispatchCountDocuments(ctx context.Context, coll *mongo.Collection, op Capt
 		filter = toBsonDoc(op.Args[0])
 	}
 
-	opts, maxTime, err := countOptions(argAt(op.Args, 1))
+	opts, run, err := countOptions(argAt(op.Args, 1))
 	if err != nil {
 		return models.QueryResult{}, err
 	}
-	ctx, cancel := withMaxTime(ctx, maxTime)
+	ctx, cancel := withMaxTime(ctx, run.maxTime)
 	defer cancel()
 
-	count, err := coll.CountDocuments(ctx, filter, opts)
+	count, err := run.collection(coll).CountDocuments(ctx, filter, opts)
 	if err != nil {
 		return models.QueryResult{}, fmt.Errorf("countDocuments failed: %w", err)
 	}
@@ -327,16 +327,25 @@ func dispatchAggregate(ctx context.Context, coll *mongo.Collection, op CapturedO
 		return models.QueryResult{}, fmt.Errorf("aggregate requires a pipeline argument")
 	}
 
-	pipeline := convertToBson(op.Args[0])
-
-	opts, maxTime, err := aggregateOptions(argAt(op.Args, 1))
+	pipeline, rawOptions := aggregateArgs(op.Args)
+	opts, run, err := aggregateOptions(rawOptions)
 	if err != nil {
 		return models.QueryResult{}, err
 	}
-	ctx, cancel := withMaxTime(ctx, maxTime)
+	ctx, cancel := withMaxTime(ctx, run.maxTime)
 	defer cancel()
 
-	cursor, err := coll.Aggregate(ctx, pipeline, opts)
+	if run.explain != nil {
+		plan, err := explainAggregate(ctx, coll.Database(), coll.Name(), pipeline, run.explain)
+		if err != nil {
+			return models.QueryResult{}, fmt.Errorf("aggregate failed: %w", err)
+		}
+		result := singleToResult(plan)
+		result.OperationType = "explain"
+		return result, nil
+	}
+
+	cursor, err := run.collection(coll).Aggregate(ctx, pipeline, opts)
 	if err != nil {
 		return models.QueryResult{}, fmt.Errorf("aggregate failed: %w", err)
 	}
