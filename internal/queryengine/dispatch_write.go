@@ -17,10 +17,12 @@ func dispatchInsertOne(ctx context.Context, coll *mongo.Collection, op CapturedO
 	if len(op.Args) < 1 {
 		return models.QueryResult{}, fmt.Errorf("insertOne requires a document argument")
 	}
-	opts, err := insertOneOptions(argAt(op.Args, 1))
+	opts, maxTime, err := insertOneOptions(argAt(op.Args, 1))
 	if err != nil {
 		return models.QueryResult{}, err
 	}
+	ctx, cancel := withMaxTime(ctx, maxTime)
+	defer cancel()
 
 	doc := convertToBson(op.Args[0])
 	res, err := coll.InsertOne(ctx, doc, opts)
@@ -46,10 +48,12 @@ func dispatchInsertMany(ctx context.Context, coll *mongo.Collection, op Captured
 	if !ok {
 		return models.QueryResult{}, fmt.Errorf("insertMany argument must be an array")
 	}
-	opts, err := insertManyOptions(argAt(op.Args, 1))
+	opts, maxTime, err := insertManyOptions(argAt(op.Args, 1))
 	if err != nil {
 		return models.QueryResult{}, err
 	}
+	ctx, cancel := withMaxTime(ctx, maxTime)
+	defer cancel()
 
 	docs := make([]any, len(rawDocs))
 	for i, d := range rawDocs {
@@ -78,10 +82,12 @@ func dispatchUpdateOne(ctx context.Context, coll *mongo.Collection, op CapturedO
 	if len(op.Args) < 2 {
 		return models.QueryResult{}, fmt.Errorf("updateOne requires filter and update arguments")
 	}
-	opts, err := updateOneOptions(argAt(op.Args, 2))
+	opts, maxTime, err := updateOneOptions(argAt(op.Args, 2))
 	if err != nil {
 		return models.QueryResult{}, err
 	}
+	ctx, cancel := withMaxTime(ctx, maxTime)
+	defer cancel()
 
 	res, err := coll.UpdateOne(ctx, filter, convertToBson(op.Args[1]), opts)
 	if err != nil {
@@ -98,10 +104,12 @@ func dispatchUpdateMany(ctx context.Context, coll *mongo.Collection, op Captured
 	if len(op.Args) < 2 {
 		return models.QueryResult{}, fmt.Errorf("updateMany requires filter and update arguments")
 	}
-	opts, err := updateManyOptions(argAt(op.Args, 2))
+	opts, maxTime, err := updateManyOptions(argAt(op.Args, 2))
 	if err != nil {
 		return models.QueryResult{}, err
 	}
+	ctx, cancel := withMaxTime(ctx, maxTime)
+	defer cancel()
 
 	res, err := coll.UpdateMany(ctx, filter, convertToBson(op.Args[1]), opts)
 	if err != nil {
@@ -115,10 +123,12 @@ func dispatchDeleteOne(ctx context.Context, coll *mongo.Collection, op CapturedO
 	if err != nil {
 		return models.QueryResult{}, err
 	}
-	opts, err := deleteOneOptions(argAt(op.Args, 1))
+	opts, maxTime, err := deleteOneOptions(argAt(op.Args, 1))
 	if err != nil {
 		return models.QueryResult{}, err
 	}
+	ctx, cancel := withMaxTime(ctx, maxTime)
+	defer cancel()
 
 	res, err := coll.DeleteOne(ctx, filter, opts)
 	if err != nil {
@@ -132,10 +142,12 @@ func dispatchDeleteMany(ctx context.Context, coll *mongo.Collection, op Captured
 	if err != nil {
 		return models.QueryResult{}, err
 	}
-	opts, err := deleteManyOptions(argAt(op.Args, 1))
+	opts, maxTime, err := deleteManyOptions(argAt(op.Args, 1))
 	if err != nil {
 		return models.QueryResult{}, err
 	}
+	ctx, cancel := withMaxTime(ctx, maxTime)
+	defer cancel()
 
 	res, err := coll.DeleteMany(ctx, filter, opts)
 	if err != nil {
@@ -165,10 +177,12 @@ func dispatchReplaceOne(ctx context.Context, coll *mongo.Collection, op Captured
 	if err != nil {
 		return models.QueryResult{}, err
 	}
-	opts, err := replaceOptions(argAt(op.Args, 2))
+	opts, maxTime, err := replaceOptions(argAt(op.Args, 2))
 	if err != nil {
 		return models.QueryResult{}, err
 	}
+	ctx, cancel := withMaxTime(ctx, maxTime)
+	defer cancel()
 
 	res, err := coll.ReplaceOne(ctx, filter, replacement, opts)
 	if err != nil {
@@ -186,10 +200,12 @@ func dispatchBulkWrite(ctx context.Context, coll *mongo.Collection, op CapturedO
 	if !ok {
 		return models.QueryResult{}, fmt.Errorf("bulkWrite argument must be an array")
 	}
-	opts, err := bulkWriteOptions(argAt(op.Args, 1))
+	opts, maxTime, err := bulkWriteOptions(argAt(op.Args, 1))
 	if err != nil {
 		return models.QueryResult{}, err
 	}
+	ctx, cancel := withMaxTime(ctx, maxTime)
+	defer cancel()
 
 	writeModels := make([]mongo.WriteModel, 0, len(rawOps))
 	insertedIDs := map[int64]any{}
@@ -259,16 +275,27 @@ func dispatchDrop(ctx context.Context, coll *mongo.Collection) (models.QueryResu
 	return models.QueryResult{OperationType: "drop"}, nil
 }
 
+// bulkOperationTypes lists the operation types in the order mongosh looks for them.
+var bulkOperationTypes = []string{"insertOne", "replaceOne", "updateOne", "updateMany", "deleteOne", "deleteMany"}
+
 // toBulkWriteModel converts a bulkWrite operation ({ insertOne: {...} }) to a
-// mongo.WriteModel. As in mongosh, the operation type is the document's first
-// key; any further keys are ignored. Within the operation, the required fields
-// must be there, and options behave as they do on the matching method.
+// mongo.WriteModel. As in mongosh, the operation type is the first of
+// bulkOperationTypes the document has, wherever that key is, even when its value
+// is null, and any other keys are ignored. Within the operation, the required
+// fields must be there, and options behave as they do on the matching method.
 func toBulkWriteModel(opDoc bson.D) (mongo.WriteModel, error) {
-	if len(opDoc) == 0 {
-		return nil, fmt.Errorf("bulkWrite operation must have a type")
+	opType := ""
+	var value any
+	for _, name := range bulkOperationTypes {
+		if v, ok := lookupOption(opDoc, name); ok {
+			opType, value = name, v
+			break
+		}
 	}
-	opType := opDoc[0].Key
-	args, ok := opDoc[0].Value.(bson.D) // asBsonDoc converted nested documents too
+	if opType == "" {
+		return nil, fmt.Errorf("bulkWrite operation must be one of %v", bulkOperationTypes)
+	}
+	args, ok := value.(bson.D) // asBsonDoc converted nested documents too
 	if !ok {
 		return nil, fmt.Errorf("bulkWrite operation %s must be an object", opType)
 	}
@@ -333,13 +360,11 @@ func toBulkWriteModel(opDoc bson.D) (mongo.WriteModel, error) {
 			"collation": collationOpt(m.SetCollation),
 			"hint":      hintOpt(m.SetHint),
 		})
-	case "deleteMany":
-		m := mongo.NewDeleteManyModel().SetFilter(filter)
-		return m, applyOptions(name, args, optionSetters{
-			"collation": collationOpt(m.SetCollation),
-			"hint":      hintOpt(m.SetHint),
-		})
-	default:
-		return nil, fmt.Errorf("unknown bulkWrite operation type: %s", opType)
 	}
+	// deleteMany is the only type left.
+	m := mongo.NewDeleteManyModel().SetFilter(filter)
+	return m, applyOptions(name, args, optionSetters{
+		"collation": collationOpt(m.SetCollation),
+		"hint":      hintOpt(m.SetHint),
+	})
 }
