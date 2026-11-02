@@ -252,10 +252,11 @@ export const useQueryStore = defineStore('query', {
     /**
      * Adds a script's output to Messages in one update and returns how many
      * printed lines of each level there were, or null when there were none.
-     * A notice (text from the engine, not the script) is added but not counted. Past MAX_OUTPUT_ENTRIES the rest are combined into one entry at
-     * their most severe level, after a notice saying so; each combined line
-     * still counts. With before, they go above that message, or at the end if
-     * it has been cleared.
+     * A notice (text from the engine, not the script) is added but not counted.
+     * Past MAX_OUTPUT_ENTRIES the rest are combined into one entry at their most
+     * severe level, after a notice saying so; each combined line still counts.
+     * With before, they go above that message, or at the end if it has been
+     * cleared.
      */
     appendOutput(
       queryId: string,
