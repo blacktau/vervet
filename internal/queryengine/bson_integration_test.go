@@ -32,7 +32,12 @@ func TestMain(m *testing.M) {
 	// defer calls in tests and the TerminateContainer below.
 	os.Setenv("TESTCONTAINERS_RYUK_DISABLED", "true")
 
-	mongoContainer, err := mongodb.Run(ctx, "mongo:7")
+	// VERVET_TEST_MONGO_IMAGE runs the suite against another server version.
+	image := os.Getenv("VERVET_TEST_MONGO_IMAGE")
+	if image == "" {
+		image = "mongo:7"
+	}
+	mongoContainer, err := mongodb.Run(ctx, image)
 	if err != nil {
 		log.Fatalf("failed to start MongoDB container: %v", err)
 	}
@@ -393,6 +398,7 @@ func TestIntegration_FindOneShowsStoredTypes(t *testing.T) {
 // collection created with a long size lists that size as a Long, which still
 // does arithmetic.
 func TestIntegration_CommandReplyLongsAreLongs(t *testing.T) {
+	skipBeforeVersion(t, "5") // MongoDB 4.4 reports a capped size as a double.
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	db := dbName(t)

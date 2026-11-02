@@ -3,8 +3,10 @@
 package queryengine
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
+	"testing"
 
 	"vervet/internal/models"
 )
@@ -28,4 +30,27 @@ func resultText(r models.QueryResult) string {
 	}
 	b, _ := json.Marshal(r.Documents)
 	return string(b)
+}
+
+// skipWithoutDocumentsStage skips a test that needs $documents, which MongoDB 5.0
+// refuses in user requests.
+func skipWithoutDocumentsStage(t *testing.T) {
+	t.Helper()
+	engine := NewGojaEngine(testClient, 0, "")
+	if _, err := engine.ExecuteQuery(context.Background(), testURI, dbName(t), `db.aggregate([{ $documents: [] }])`); err != nil {
+		t.Skipf("server has no $documents: %v", err)
+	}
+}
+
+// skipBeforeVersion skips a test that needs a server of at least major.
+func skipBeforeVersion(t *testing.T, major string) {
+	t.Helper()
+	engine := NewGojaEngine(testClient, 0, "")
+	result, err := engine.ExecuteQuery(context.Background(), testURI, dbName(t), `print(db.version())`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if version := printedText(result); version < major {
+		t.Skipf("needs MongoDB %s, server is %s", major, version)
+	}
 }

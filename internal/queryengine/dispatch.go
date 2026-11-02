@@ -9,6 +9,7 @@ import (
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 // dispatch executes a captured operation against MongoDB using the Go driver.
@@ -16,7 +17,11 @@ import (
 // dispatch_indexes.go; this file keeps the switch plus the conversion helpers
 // shared by all of them.
 func dispatch(ctx context.Context, client *mongo.Client, dbName string, op CapturedOp) (models.QueryResult, error) {
+	op, writeConcern := takeWriteConcern(op)
 	coll := client.Database(dbName).Collection(op.Collection)
+	if writeConcern != nil {
+		coll = coll.Clone(options.Collection().SetWriteConcern(writeConcern))
+	}
 
 	switch op.Method {
 	case "find":
@@ -174,18 +179,25 @@ func singleToResult(doc bson.D) models.QueryResult {
 	return models.QueryResult{Documents: []any{resultDoc(doc)}, Single: true}
 }
 
-// updateResultToQueryResult converts a mongo UpdateResult to a QueryResult.
-// The counts are Go ints, not int64: a count is a plain number in scripts, not
-// a stored long (see dispatchCountDocuments).
-func updateResultToQueryResult(res *mongo.UpdateResult) models.QueryResult {
-	result := bson.D{
-		{Key: "acknowledged", Value: true},
-		{Key: "matchedCount", Value: int(res.MatchedCount)},
-		{Key: "modifiedCount", Value: int(res.ModifiedCount)},
-		{Key: "upsertedCount", Value: int(res.UpsertedCount)},
+// updateResultToQueryResult converts a mongo UpdateResult to a QueryResult, in
+// mongosh's shape: insertedId is the upserted document's id, or null. The counts
+// are Go ints, not int64: a count is a plain number in scripts, not a stored
+// long (see dispatchCountDocuments). An unacknowledged write (w: 0) has no
+// matched or modified counts to report, so they are left out, as in mongosh.
+func updateResultToQueryResult(res *mongo.UpdateResult, method string) models.QueryResult {
+	doc := bson.D{
+		{Key: "acknowledged", Value: res.Acknowledged},
+		{Key: "insertedId", Value: res.UpsertedID},
 	}
-	if res.UpsertedID != nil {
-		result = append(result, bson.E{Key: "upsertedId", Value: res.UpsertedID})
+	if res.Acknowledged {
+		doc = append(doc,
+			bson.E{Key: "matchedCount", Value: int(res.MatchedCount)},
+			bson.E{Key: "modifiedCount", Value: int(res.ModifiedCount)},
+		)
 	}
-	return singleToResult(result)
+	doc = append(doc, bson.E{Key: "upsertedCount", Value: int(res.UpsertedCount)})
+	result := singleToResult(doc)
+	result.OperationType = method
+	result.AffectedCount = int(res.ModifiedCount + res.UpsertedCount)
+	return result
 }
