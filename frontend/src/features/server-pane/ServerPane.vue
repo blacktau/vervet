@@ -77,7 +77,7 @@ const matchingNodes = computed(() => {
 
 watch(matchingNodes, (matches) => {
   if (matches.length > 0 && serverTreeRef.value) {
-    serverTreeRef.value.selectedKeys = [matches[0].id]
+    serverTreeRef.value.selectedKeys = [matches[0]!.id]
   }
 })
 
@@ -97,7 +97,7 @@ const onFilterKeydown = (e: KeyboardEvent) => {
     } else {
       nextIndex = currentIndex > 0 ? currentIndex - 1 : matchingNodes.value.length - 1
     }
-    tree.selectedKeys = [matchingNodes.value[nextIndex].id]
+    tree.selectedKeys = [matchingNodes.value[nextIndex]!.id]
   } else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
     e.preventDefault()
     const currentId = tree.selectedKeys[0]

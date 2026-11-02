@@ -29,7 +29,7 @@ type TabStoreGetters = {
   currentInnerTabIds: () => string[]
 }
 
-type TabUpsertOptions = ServerTabItem & {
+type TabUpsertOptions = Pick<ServerTabItem, 'serverId' | 'title' | 'blank'> & {
   format?: string
   collection?: string
   query?: string

@@ -3,7 +3,7 @@ import { useTabStore } from '@/features/tabs/tabs.ts'
 import { useThemeVars } from 'naive-ui'
 import type { DropdownOption } from 'naive-ui'
 import { get } from 'lodash'
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { type ComponentPublicInstance, computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useServerStore } from '@/features/server-pane/serverStore.ts'
 import { extraTheme } from '@/utils/extraTheme.ts'
 import { useSettingsStore } from '@/features/settings/settingsStore.ts'
@@ -17,12 +17,12 @@ const serverStore = useServerStore()
 const settingsStore = useSettingsStore()
 const themeVars = useThemeVars()
 
-const tabsRef = ref<HTMLElement | null>(null)
+const tabsRef = ref<ComponentPublicInstance | null>(null)
 const isOverflowing = ref(false)
 let resizeObserver: ResizeObserver | null = null
 
 function checkOverflow() {
-  const el = tabsRef.value?.$el ?? tabsRef.value
+  const el = tabsRef.value?.$el
   if (!el) {
     return
   }
@@ -35,7 +35,7 @@ function checkOverflow() {
 
 onMounted(() => {
   resizeObserver = new ResizeObserver(checkOverflow)
-  const el = tabsRef.value?.$el ?? tabsRef.value
+  const el = tabsRef.value?.$el
   if (el) {
     resizeObserver.observe(el)
   }
@@ -116,9 +116,9 @@ const exThemeVars = computed(() => {
     :closeable="true"
     :tabs-padding="3"
     :theme-overrides="{
-      tabGapSmallCard: 0,
-      tabGapMediumCard: 0,
-      tabGapLargeCard: 0,
+      tabGapSmallCard: '0',
+      tabGapMediumCard: '0',
+      tabGapLargeCard: '0',
       tabTextColorCard: themeVars.closeIconColor,
     }"
     size="small"

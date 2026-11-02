@@ -6,8 +6,8 @@ import { useServerStore, type RegisteredServerNode } from '@/features/server-pan
 import { useTabStore } from '@/features/tabs/tabs'
 import { useQueryStore } from '@/features/queries/queryStore'
 import * as databasesProxy from 'wailsjs/go/api/DatabasesProxy'
-import { useNotifier } from '@/utils/dialog'
 import { useI18n } from 'vue-i18n'
+import { notifyResultError } from '@/utils/resultError'
 
 const { t } = useI18n()
 const dialogStore = useDialogStore()
@@ -15,7 +15,6 @@ const browserStore = useDataBrowserStore()
 const serverStore = useServerStore()
 const tabStore = useTabStore()
 const queryStore = useQueryStore()
-const notifier = useNotifier()
 
 const selectedServerId = ref<string | null>(null)
 const selectedDatabase = ref<string | null>(null)
@@ -109,7 +108,7 @@ async function loadDatabases(serverId: string) {
         selectedDatabase.value = 'admin'
       }
     } else {
-      notifier.error(result.errorDetail || result.errorCode)
+      notifyResultError(result)
     }
   } finally {
     loadingDatabases.value = false

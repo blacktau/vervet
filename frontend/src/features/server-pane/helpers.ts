@@ -1,3 +1,4 @@
+import type { TreeSelectOption } from 'naive-ui'
 import type { RegisteredServerNode } from '@/features/server-pane/serverStore.ts'
 
 export const filterGroupMap = (node: RegisteredServerNode) => {
@@ -23,3 +24,9 @@ export const filterGroupMap = (node: RegisteredServerNode) => {
 
   return { ...node, children }
 }
+
+export const toTreeSelectOptions = (nodes: RegisteredServerNode[]): TreeSelectOption[] =>
+  nodes.map((node) => ({
+    ...node,
+    children: node.children && toTreeSelectOptions(node.children),
+  }))

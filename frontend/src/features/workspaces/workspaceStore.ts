@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 import type { TreeOption } from 'naive-ui'
 import * as workspacesProxy from 'wailsjs/go/api/WorkspacesProxy'
 import { useNotifier } from '@/utils/dialog'
+import { resultDetailText } from '@/utils/resultError'
 
 // Temporary local interfaces — will be replaced by generated Wails types
 interface Workspace {
@@ -54,8 +55,7 @@ export const useWorkspaceStore = defineStore('workspaces', () => {
     try {
       const result = await workspacesProxy.GetWorkspaces()
       if (!result.isSuccess) {
-        const notifier = useNotifier()
-        notifier.error(result.errorDetail || result.errorCode)
+        useNotifier().error(resultDetailText(result))
         return
       }
 
@@ -74,8 +74,7 @@ export const useWorkspaceStore = defineStore('workspaces', () => {
   async function createWorkspace(name: string) {
     const result = await workspacesProxy.CreateWorkspace(name)
     if (!result.isSuccess) {
-      const notifier = useNotifier()
-      notifier.error(result.errorDetail || result.errorCode)
+      useNotifier().error(resultDetailText(result))
       return
     }
 
@@ -87,8 +86,7 @@ export const useWorkspaceStore = defineStore('workspaces', () => {
   async function renameWorkspace(id: string, newName: string) {
     const result = await workspacesProxy.RenameWorkspace(id, newName)
     if (!result.isSuccess) {
-      const notifier = useNotifier()
-      notifier.error(result.errorDetail || result.errorCode)
+      useNotifier().error(resultDetailText(result))
       return
     }
 
@@ -101,8 +99,7 @@ export const useWorkspaceStore = defineStore('workspaces', () => {
   async function deleteWorkspace(id: string) {
     const result = await workspacesProxy.DeleteWorkspace(id)
     if (!result.isSuccess) {
-      const notifier = useNotifier()
-      notifier.error(result.errorDetail || result.errorCode)
+      useNotifier().error(resultDetailText(result))
       return
     }
 
@@ -122,8 +119,7 @@ export const useWorkspaceStore = defineStore('workspaces', () => {
   async function setActiveWorkspace(id: string) {
     const result = await workspacesProxy.SetActiveWorkspace(id)
     if (!result.isSuccess) {
-      const notifier = useNotifier()
-      notifier.error(result.errorDetail || result.errorCode)
+      useNotifier().error(resultDetailText(result))
       return
     }
 
@@ -138,8 +134,7 @@ export const useWorkspaceStore = defineStore('workspaces', () => {
 
     const result = await workspacesProxy.AddFolder(activeWorkspaceId.value)
     if (!result.isSuccess) {
-      const notifier = useNotifier()
-      notifier.error(result.errorDetail || result.errorCode)
+      useNotifier().error(resultDetailText(result))
       return
     }
 
@@ -161,8 +156,7 @@ export const useWorkspaceStore = defineStore('workspaces', () => {
 
     const result = await workspacesProxy.RemoveFolder(activeWorkspaceId.value, folderPath)
     if (!result.isSuccess) {
-      const notifier = useNotifier()
-      notifier.error(result.errorDetail || result.errorCode)
+      useNotifier().error(resultDetailText(result))
       return
     }
 
@@ -211,8 +205,7 @@ export const useWorkspaceStore = defineStore('workspaces', () => {
   async function loadDirectory(path: string): Promise<TreeOption[]> {
     const result = await workspacesProxy.ReadDirectory(path)
     if (!result.isSuccess) {
-      const notifier = useNotifier()
-      notifier.error(result.errorDetail || result.errorCode)
+      useNotifier().error(resultDetailText(result))
       return []
     }
 

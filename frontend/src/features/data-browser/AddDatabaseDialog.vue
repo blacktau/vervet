@@ -6,6 +6,7 @@ import { DialogType, useDialogStore } from '@/stores/dialog.ts'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 import { useNotifier } from '@/utils/dialog.ts'
 import * as collectionsProxy from 'wailsjs/go/api/CollectionsProxy'
+import { errorCodeText } from '@/utils/resultError'
 
 const dialogStore = useDialogStore()
 const browserStore = useDataBrowserStore()
@@ -85,7 +86,7 @@ async function onConfirm() {
       form.collectionName,
     )
     if (!result.isSuccess) {
-      notifier.error(i18n.t(`errors.${result.errorCode}`), { title: i18n.t('errorTitles.createDatabase'), detail: result.errorDetail })
+      notifier.error(errorCodeText(result.errorCode), { title: i18n.t('errorTitles.createDatabase'), detail: result.errorDetail })
       return false
     }
 

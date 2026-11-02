@@ -800,6 +800,7 @@ export default {
     operation_not_supported: 'Operation not supported by the current query engine',
     duplicate_group_name: 'A group with this name already exists in this location',
     unknown_error: 'An unexpected error occurred',
+    oidc_login_canceled: 'Sign-in was cancelled',
     configParseError: 'Your server configuration file could not be read. Your server list may appear empty until the file is repaired or new servers are added.',
     saveFailed: 'Could not save server',
   },

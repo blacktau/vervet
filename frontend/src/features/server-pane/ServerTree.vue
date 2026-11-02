@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { type DropdownOption, NIcon, NSpace, NText, useThemeVars } from 'naive-ui'
+import { type DropdownOption, NIcon, NSpace, NText, type TreeOption, useThemeVars } from 'naive-ui'
 import { useRender } from '@/utils/render.ts'
 import { h, nextTick, ref, type VNodeArrayChildren } from 'vue'
 import { type RegisteredServerNode, useServerStore } from '@/features/server-pane/serverStore.ts'
@@ -47,8 +47,10 @@ const { contextMenuParams, openContextMenu, handleSelectContextMenu } = useServe
   connectToServer,
 )
 
-const renderLabel = (x: { option: RegisteredServerNode }) => {
-  return h(NText, {}, () => x.option.name)
+const asServerNode = (option: TreeOption) => option as TreeOption & RegisteredServerNode
+
+const renderLabel = (info: { option: TreeOption }) => {
+  return h(NText, {}, () => asServerNode(info.option).name)
 }
 
 const renderIconMenu = (items: VNodeArrayChildren) => {
@@ -76,7 +78,8 @@ const getServerNodeIcon = (server: RegisteredServerNode) => {
   return ServerIcon
 }
 
-const renderPrefix = ({ option }: { option: RegisteredServerNode }) => {
+const renderPrefix = (info: { option: TreeOption }) => {
+  const option = asServerNode(info.option)
   const iconTransparency = settingsStore.isDark ? 0.75 : 1
   if (option.isGroup) {
     const opened = indexOf(expandedKeys.value, option.id) >= 0
@@ -110,7 +113,8 @@ const renderPrefix = ({ option }: { option: RegisteredServerNode }) => {
   }
 }
 
-const renderSuffix = ({ option }: { option: RegisteredServerNode }) => {
+const renderSuffix = (info: { option: TreeOption }) => {
+  const option = asServerNode(info.option)
   const items: VNodeArrayChildren = []
 
   if (includes(selectedKeys.value, option.id)) {
@@ -191,7 +195,8 @@ const getGroupMenu = () => {
   ]
 }
 
-const nodeProps = ({ option }: { option: RegisteredServerNode }) => {
+const nodeProps = (info: { option: TreeOption }) => {
+  const option = asServerNode(info.option)
   return {
     onDblclick: async () => {
       if (option.isGroup) {
@@ -275,7 +280,7 @@ defineExpose({ connectToServer, selectedKeys, expandKey })
 
     <n-dropdown
       :keyboard="true"
-      :options="contextMenuParams.options"
+      :options="contextMenuParams.options as DropdownOption[]"
       :render-icon="({ icon }: DropdownOption) => render.renderIcon(icon)"
       :render-label="
         ({ label }: DropdownOption) =>

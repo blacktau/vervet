@@ -1,5 +1,11 @@
 <script lang="ts" setup>
-import { NIcon, type FormInst, type FormRules, type TreeSelectRenderLabel, useThemeVars } from 'naive-ui'
+import {
+  NIcon,
+  type FormInst,
+  type FormRules,
+  type TreeSelectRenderLabel,
+  useThemeVars,
+} from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import { computed, h, nextTick, ref, watch } from 'vue'
 import { every, includes, isEmpty } from 'lodash'
@@ -13,10 +19,11 @@ import {
   detectAuthFromUri,
   getUriHost,
 } from '@/features/server-pane/connectionStrings.ts'
-import { filterGroupMap } from '@/features/server-pane/helpers.ts'
+import { filterGroupMap, toTreeSelectOptions } from '@/features/server-pane/helpers.ts'
 import * as connectionsProxy from 'wailsjs/go/api/ConnectionsProxy'
 import type { AuthMethod, OIDCConfig } from '@/types/ConnectionConfig'
 import AuthenticationPanel from './authentication/AuthenticationPanel.vue'
+import { errorCodeText } from '@/utils/resultError'
 
 type EditableRegisteredServer = {
   id: string
@@ -32,7 +39,7 @@ const serverStore = useServerStore()
 const browserStore = useDataBrowserStore()
 const i18n = useI18n()
 
-const editServerID = ref(dialogStore.serverDialogData?.serverId)
+const editServerID = ref<string>()
 const tab = ref('general')
 const serverColors = ref<string[]>([
   '',
@@ -195,6 +202,8 @@ const groupOptions = computed(() => {
   ]
 })
 
+const groupTreeOptions = computed(() => toTreeSelectOptions(groupOptions.value))
+
 const previousParentId = ref('')
 
 function onParentChange(next: string) {
@@ -260,7 +269,7 @@ watch(
           parentId: server.parentID || '',
         }
         previousParentId.value = generalForm.value.parentId
-        authPicker.value = server.authMethod ?? 'password'
+        authPicker.value = server.authMethod
         if (server.oidcConfig) {
           oidcConfig.value = { ...server.oidcConfig }
         }
@@ -353,8 +362,8 @@ const onTestConnection = async () => {
   try {
     const result = await connectionsProxy.TestConnection(generalForm.value.connectionString)
     if (!result.isSuccess) {
-      testingMessage = i18n.t(`errors.${result.errorCode}`)
-      testingDetail = result.errorDetail
+      testingMessage = errorCodeText(result.errorCode)
+      testingDetail = result.errorDetail ?? ''
     }
   } catch (e: unknown) {
     const err = e as Error
@@ -433,7 +442,7 @@ const onTestConnection = async () => {
               <n-form-item-gi :label="$t('serverPane.dialogs.server.group')" :span="24" required>
                 <n-tree-select
                   v-model:value="generalForm.parentId"
-                  :options="groupOptions"
+                  :options="groupTreeOptions"
                   :render-label="renderGroupLabel"
                   key-field="id"
                   label-field="name"

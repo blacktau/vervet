@@ -245,7 +245,7 @@ onMounted(() => {
         <NSpin />
       </div>
       <div v-else-if="state?.error" class="schema-pane__centered schema-pane__error">
-        <span>{{ state.error }}</span>
+        <span class="schema-pane__error-text">{{ state.error }}</span>
         <NButton size="small" @click="run(state.sampleSize)">{{ $t('schemaBrowser.retry') }}</NButton>
       </div>
       <div
@@ -300,6 +300,9 @@ onMounted(() => {
   flex: 1;
   min-height: 0;
   overflow: hidden;
+}
+.schema-pane__error-text {
+  white-space: pre-line;
 }
 .schema-pane__centered {
   display: flex;

@@ -182,7 +182,7 @@ function scan(text: string): Scan {
   const top = () => stack[stack.length - 1]
 
   for (let i = 0; i < text.length; i++) {
-    const ch = text[i]
+    const ch = text[i]!
 
     if (quote) {
       if (ch === '\\') {
@@ -248,7 +248,7 @@ function scan(text: string): Scan {
 /** The innermost call the caret sits inside, e.g. `find` in `db.x.find({ |`. */
 function enclosingCall(stack: Frame[]): Frame | undefined {
   for (let i = stack.length - 1; i >= 0; i--) {
-    if (stack[i].open === '(') {
+    if (stack[i]?.open === '(') {
       return stack[i]
     }
   }
@@ -322,7 +322,7 @@ function analyzeContextCore(textBeforeCursor: string): CompletionContext {
   }
 
   const lastWord = trimmed.match(/(\w*)$/)
-  return { type: 'KEYWORD', prefix: lastWord ? lastWord[1] : '' }
+  return { type: 'KEYWORD', prefix: lastWord?.[1] ?? '' }
 }
 
 /**

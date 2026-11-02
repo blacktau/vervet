@@ -1,6 +1,6 @@
 // The narrow API entrypoint, not the 'monaco-editor' barrel: the barrel pulls in
 // every basic-language contribution, which headless tests can't tear down cleanly.
-import * as monaco from 'monaco-editor/esm/vs/editor/editor.api'
+import * as monaco from 'monaco-editor/esm/vs/editor/editor.api.js'
 import { analyzeContext } from './completionContext'
 import {
   mongoMethods,
@@ -315,7 +315,7 @@ async function getSuggestions(
           range,
         },
       ]
-      return keywords.filter((k) => k.label.startsWith(ctx.prefix))
+      return keywords.filter((k) => k.insertText.startsWith(ctx.prefix))
     }
 
     case 'UPDATE_OPERATOR':

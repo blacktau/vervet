@@ -7,6 +7,7 @@ import { humanizeEjson, toJsExpression } from './humanizeEjson'
 import { formatNamespace } from './useDocumentContextMenu'
 import * as shellProxy from 'wailsjs/go/api/ShellProxy'
 import * as monaco from 'monaco-editor'
+import { errorCodeText } from '@/utils/resultError'
 
 const props = defineProps<{
   show: boolean
@@ -149,7 +150,7 @@ async function save() {
       emit('saved')
       emit('update:show', false)
     } else {
-      notifier.error(t(`errors.${result.errorCode}`), { title: t(props.mode === 'edit' ? 'errorTitles.updateDocument' : 'errorTitles.insertDocument'), detail: result.errorDetail })
+      notifier.error(errorCodeText(result.errorCode), { title: t(props.mode === 'edit' ? 'errorTitles.updateDocument' : 'errorTitles.insertDocument'), detail: result.errorDetail })
     }
   } catch (e) {
     notifier.error(String(e))

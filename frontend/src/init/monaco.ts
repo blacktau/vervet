@@ -22,16 +22,16 @@ export const initMonaco = () => {
 
   // Disable default JavaScript language features so our custom MongoDB
   // completion provider is the only source of suggestions and hovers.
-  monaco.languages.typescript.javascriptDefaults.setCompilerOptions({
+  monaco.typescript.javascriptDefaults.setCompilerOptions({
     noLib: true,
     allowNonTsExtensions: true,
   })
-  monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({
+  monaco.typescript.javascriptDefaults.setDiagnosticsOptions({
     noSemanticValidation: true,
     noSyntaxValidation: true,
   })
-  monaco.languages.typescript.javascriptDefaults.setExtraLibs([])
-  monaco.languages.typescript.javascriptDefaults.setModeConfiguration({
+  monaco.typescript.javascriptDefaults.setExtraLibs([])
+  monaco.typescript.javascriptDefaults.setModeConfiguration({
     completionItems: false,
     hovers: false,
     documentSymbols: false,

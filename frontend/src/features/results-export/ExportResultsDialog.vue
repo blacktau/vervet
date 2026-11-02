@@ -5,6 +5,7 @@ import { ExportResults } from 'wailsjs/go/api/ExportProxy'
 import { useNotifier } from '@/utils/dialog'
 import { useExportStore } from './exportStore'
 import { buildDefaultFilename, type ExportFormat } from './defaultFilename'
+import { resultDetailText } from '@/utils/resultError'
 import {
   buildExportPayload,
   separatorChoiceFromValue,
@@ -86,7 +87,7 @@ async function onExport() {
     const res = await ExportResults(payload)
     if (!res.isSuccess) {
       const notifier = useNotifier()
-      notifier.error(t('export.error', { message: res.errorCode ?? '' }))
+      notifier.error(t('export.error', { message: resultDetailText(res) }))
       return
     }
     if (res.data) {

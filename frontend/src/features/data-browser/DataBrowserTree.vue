@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { h, watch } from 'vue'
-import { NEllipsis, NIcon } from 'naive-ui'
+import { NEllipsis, NIcon, type TreeOption } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import CollectionIcon from '@/features/icon/CollectionIcon.vue'
 import { CircleStackIcon, EyeIcon, FolderIcon, FolderOpenIcon } from '@heroicons/vue/24/outline'
@@ -19,6 +19,7 @@ import {
 } from '@/features/data-browser/statsImpact.ts'
 import * as collectionsProxy from 'wailsjs/go/api/CollectionsProxy'
 import * as databasesProxy from 'wailsjs/go/api/DatabasesProxy'
+import { errorCodeText } from '@/utils/resultError'
 
 const props = defineProps<{
   filterPattern?: string
@@ -50,7 +51,8 @@ const toggleExpandKey = (key: string) => {
 
 defineExpose({ openQueryForNode, toggleExpandKey })
 
-const renderPrefix = ({ option }: { option: DataTreeNode }) => {
+const renderPrefix = (info: { option: TreeOption }) => {
+  const option = info.option as DataTreeNode
   if (option.type === DataNodeType.Database) {
     return h(NIcon, { size: 18 }, () => h(CircleStackIcon))
   }
@@ -176,7 +178,7 @@ async function handleContextMenuSelect(key: string) {
         const doDropDb = async () => {
           const result = await databasesProxy.DropDatabase(serverId, dbName)
           if (!result.isSuccess) {
-            notifier.error(t(`errors.${result.errorCode}`), {
+            notifier.error(errorCodeText(result.errorCode), {
               title: t('errorTitles.dropDatabase'),
               detail: result.errorDetail,
             })
@@ -233,7 +235,7 @@ async function handleContextMenuSelect(key: string) {
         const doDrop = async () => {
           const result = await collectionsProxy.DropCollection(serverId, dbName, collectionName)
           if (!result.isSuccess) {
-            notifier.error(t(`errors.${result.errorCode}`), {
+            notifier.error(errorCodeText(result.errorCode), {
               title: t('errorTitles.dropCollection'),
               detail: result.errorDetail,
             })
@@ -282,18 +284,19 @@ async function handleContextMenuSelect(key: string) {
   }
 }
 
-const renderLabel = ({ option }: { option: DataTreeNode }) => {
+const renderLabel = ({ option }: { option: TreeOption }) => {
   return h(NEllipsis, { tooltip: { placement: 'right' } }, () => option.label)
 }
 
-const nodeProps = ({ option }: { option: DataTreeNode }) => {
+const nodeProps = (info: { option: TreeOption }) => {
+  const option = info.option as DataTreeNode
   return {
     onDblclick() {
       openQueryForNode(option)
     },
     onContextmenu(e: MouseEvent) {
       e.preventDefault()
-      contextMenu.openMenu(option as DataTreeNode, e)
+      contextMenu.openMenu(option, e)
     },
   }
 }

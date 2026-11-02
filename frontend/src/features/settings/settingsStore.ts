@@ -5,6 +5,7 @@ import { cloneDeep, get, isEmpty, set, split } from 'lodash'
 import * as settingsProxy from 'wailsjs/go/api/SettingsProxy'
 import { type models } from 'wailsjs/go/models.ts'
 import { useNotifier } from '@/utils/dialog.ts'
+import { errorCodeText } from '@/utils/resultError'
 
 // Tracks an in-flight font enumeration so the expensive backend call isn't
 // fired twice when the background startup load and a settings-open race.
@@ -214,7 +215,7 @@ export const useSettingsStore = defineStore('settings', {
           const result = await settingsProxy.GetAvailableFonts()
           if (!result.isSuccess) {
             const notifier = useNotifier()
-            notifier.error(i18nGlobal.t(`errors.${result.errorCode}`), { title: i18nGlobal.t('errorTitles.saveSettings'), detail: result.errorDetail })
+            notifier.error(errorCodeText(result.errorCode), { title: i18nGlobal.t('errorTitles.saveSettings'), detail: result.errorDetail })
             return
           }
 
@@ -240,7 +241,7 @@ export const useSettingsStore = defineStore('settings', {
       const result = await settingsProxy.SetSettings(payload)
       if (!result.isSuccess) {
         const notifier = useNotifier()
-        notifier.error(i18nGlobal.t(`errors.${result.errorCode || 'unknown_error'}`), {
+        notifier.error(errorCodeText(result.errorCode), {
           title: i18nGlobal.t('errorTitles.saveSettings'),
           detail: result.errorDetail,
         })
