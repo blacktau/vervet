@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 import { i18nGlobal } from '@/i18n'
-import { errorCodeText, notifyResultError, resultErrorLines, resultErrorText } from './resultError'
+import {
+  errorCodeText,
+  notifyResultError,
+  resultDetailText,
+  resultErrorLines,
+  resultErrorText,
+} from './resultError'
 
 const notifierError = vi.hoisted(() => vi.fn())
 vi.mock('@/utils/dialog', () => ({ useNotifier: () => ({ error: notifierError }) }))
@@ -68,6 +74,19 @@ describe('resultErrorLines', () => {
   it('uses the headline or generic message when there is no detail', () => {
     expect(resultErrorLines({ errorCode: 'not_authorized' })).toBe(notAuthorised())
     expect(resultErrorLines({})).toBe(generic())
+  })
+})
+
+describe('resultDetailText', () => {
+  it('prefers the detail over a known code', () => {
+    expect(resultDetailText({ errorCode: 'connection_failed', errorDetail: 'open x: permission denied' })).toBe(
+      'open x: permission denied',
+    )
+  })
+
+  it('falls back to the headline, then the generic message', () => {
+    expect(resultDetailText({ errorCode: 'not_authorized' })).toBe(notAuthorised())
+    expect(resultDetailText({})).toBe(generic())
   })
 })
 

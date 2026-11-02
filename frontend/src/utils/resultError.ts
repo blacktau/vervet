@@ -26,6 +26,14 @@ export function resultErrorText({ errorCode, errorDetail }: FailedResult): strin
   return translated || errorDetail || errorCodeText()
 }
 
+/**
+ * A message that leads with the real error, for failures that aren't database operations.
+ * Go classifies errors partly by their text, so a code like query_timeout can mislead here.
+ */
+export function resultDetailText({ errorCode, errorDetail }: FailedResult): string {
+  return errorDetail || errorCodeText(errorCode)
+}
+
 /** The whole message as text, for error states that render a string: the headline, then the detail. */
 export function resultErrorLines({ errorCode, errorDetail }: FailedResult): string {
   const headline = errorCode === UNKNOWN_ERROR ? undefined : translateCode(errorCode)

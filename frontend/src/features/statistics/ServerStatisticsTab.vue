@@ -155,6 +155,10 @@ onMounted(() => {
   flex-shrink: 0;
 }
 
+.error-state :deep(.n-result-header__description) {
+  white-space: pre-line;
+}
+
 .error-state {
   display: flex;
   align-items: center;

@@ -2,14 +2,14 @@
 import { h, ref } from 'vue'
 import { NInput, type TreeOption } from 'naive-ui'
 import { useWorkspaceStore } from '@/features/workspaces/workspaceStore'
-import { useDialoger } from '@/utils/dialog'
+import { useDialoger, useNotifier } from '@/utils/dialog'
 import { useDialogStore } from '@/stores/dialog'
 import { useTabStore } from '@/features/tabs/tabs'
 import { useQueryStore } from '@/features/queries/queryStore'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore'
 import { useI18n } from 'vue-i18n'
 import * as workspacesProxy from 'wailsjs/go/api/WorkspacesProxy'
-import { notifyResultError } from '@/utils/resultError'
+import { resultDetailText } from '@/utils/resultError'
 
 const { t } = useI18n()
 const workspaceStore = useWorkspaceStore()
@@ -173,7 +173,7 @@ function handleNewFile(node: TreeOption) {
       const dirPath = node.key as string
       const result = await workspacesProxy.CreateFile(dirPath, fileName)
       if (!result.isSuccess) {
-        notifyResultError(result)
+        useNotifier().error(resultDetailText(result))
         return
       }
 
@@ -194,7 +194,7 @@ function handleNewFolder(node: TreeOption) {
     const dirPath = node.key as string
     const result = await workspacesProxy.CreateFolder(dirPath, folderName)
     if (!result.isSuccess) {
-      notifyResultError(result)
+      useNotifier().error(resultDetailText(result))
       return
     }
 
@@ -245,7 +245,7 @@ function handleRename(node: TreeOption) {
 
       const result = await workspacesProxy.RenameFile(oldPath, newPath)
       if (!result.isSuccess) {
-        notifyResultError(result)
+        useNotifier().error(resultDetailText(result))
         return
       }
 
@@ -265,7 +265,7 @@ function handleDelete(node: TreeOption) {
     onPositiveClick: async () => {
       const result = await workspacesProxy.DeleteFile(node.key as string)
       if (!result.isSuccess) {
-        notifyResultError(result)
+        useNotifier().error(resultDetailText(result))
         return
       }
 

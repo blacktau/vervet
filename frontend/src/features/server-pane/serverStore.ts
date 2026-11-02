@@ -7,7 +7,7 @@ import { useNotifier } from '@/utils/dialog.ts'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 import { i18nGlobal } from '@/i18n'
 import { type ConnectionConfig, type OIDCConfig, toAuthMethod } from '@/types/ConnectionConfig'
-import { errorCodeText, resultErrorText } from '@/utils/resultError'
+import { errorCodeText, resultDetailText, resultErrorText } from '@/utils/resultError'
 
 export interface ServerDetails extends models.RegisteredServer, Omit<ConnectionConfig, 'refreshToken'> {}
 
@@ -207,7 +207,7 @@ export const useServerStore = defineStore('server', {
     async exportServers(serverIDs: string[], includeSensitiveData: boolean): Promise<ServerFileResult> {
       const exportResult = await serversProxy.ExportServers(serverIDs, includeSensitiveData)
       if (!exportResult.isSuccess) {
-        return { success: false, msg: resultErrorText(exportResult) }
+        return { success: false, msg: resultDetailText(exportResult) }
       }
 
       const title = i18nGlobal.t('serverPane.exportServers')
@@ -221,7 +221,7 @@ export const useServerStore = defineStore('server', {
 
       const writeResult = await filesProxy.WriteFile(pathResult.data, exportResult.data)
       if (!writeResult.isSuccess) {
-        return { success: false, msg: writeResult.errorDetail || errorCodeText(writeResult.errorCode) }
+        return { success: false, msg: resultDetailText(writeResult) }
       }
 
       return { success: true }
@@ -240,12 +240,12 @@ export const useServerStore = defineStore('server', {
 
       const readResult = await filesProxy.ReadFile(pathResult.data)
       if (!readResult.isSuccess) {
-        return { success: false, msg: readResult.errorDetail || errorCodeText(readResult.errorCode) }
+        return { success: false, msg: resultDetailText(readResult) }
       }
 
       const importResult = await serversProxy.ImportServers(readResult.data)
       if (!importResult.isSuccess) {
-        return { success: false, msg: importResult.errorDetail || errorCodeText(importResult.errorCode) }
+        return { success: false, msg: resultDetailText(importResult) }
       }
 
       await this.refreshServers(true)
