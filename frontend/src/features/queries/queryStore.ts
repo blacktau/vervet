@@ -388,11 +388,7 @@ export const useQueryStore = defineStore('query', {
         })
 
         // Remove the use line and run any remaining query
-        const remaining = query.replace(/(?:^|\n)\s*use\s+\S+\s*(?:\n|$)/, '\n').trim()
-        if (!remaining || /^\s*(\/\/.*\s*)*$/.test(remaining)) {
-          return
-        }
-        query = remaining
+        query = query.replace(/(?:^|\n)\s*use\s+\S+\s*(?:\n|$)/, '\n').trim()
       }
 
       // Skip if query is empty or only comments
