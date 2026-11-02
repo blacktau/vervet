@@ -44,7 +44,7 @@ func runScript(t *testing.T, engine *GojaEngine, ctx context.Context, db, script
 	t.Helper()
 	result, err := engine.ExecuteQuery(ctx, testURI, db, script)
 	require.NoError(t, err)
-	return result.RawOutput
+	return printedText(result)
 }
 
 // distinct returns a bare array of Longs, as mongosh does — not a {values: ...}
@@ -114,12 +114,12 @@ func TestIntegration_Script_CanRebindDbFromItself(t *testing.T) {
 // explain why. mongosh shows that output; so must we.
 func TestIntegration_Script_KeepsOutputPrintedBeforeAnError(t *testing.T) {
 	engine, db, ctx := setupScriptData(t)
-	_, err := engine.ExecuteQuery(ctx, testURI, db, `
+	result, err := engine.ExecuteQuery(ctx, testURI, db, `
 		print("checked 25 documents");
 		throw new Error("collection is empty. Wrong database.");
 	`)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "checked 25 documents")
+	assert.Equal(t, "checked 25 documents", printedText(result))
 	assert.Contains(t, err.Error(), "Wrong database")
 }
 

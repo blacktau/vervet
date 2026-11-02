@@ -11,6 +11,11 @@ permissions:
 
 env:
   GO_VERSION: '1.26'
+  # The shell tests run the real mongosh, and its output framing depends on
+  # mongosh internals (see outputPreamble), so the version is pinned. Bump both
+  # together: the checksum is of the linux-x64 tarball.
+  MONGOSH_VERSION: '2.7.0'
+  MONGOSH_SHA256: 'b0c21bb6d0c0dfbc0e97df4408a8ee52bcfc922641f5f28e0446c5e71e8da262'
 
 concurrency:
   group: test-${{ github.ref }}
@@ -28,6 +33,17 @@ jobs:
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version: ${{ env.GO_VERSION }}
+
+      # internal/shell's integration tests skip when mongosh is missing, so a
+      # failed install must fail here, not turn into a quiet skip.
+      - name: Install mongosh
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/mongosh.tgz" "https://downloads.mongodb.com/compass/mongosh-${MONGOSH_VERSION}-linux-x64.tgz"
+          echo "${MONGOSH_SHA256}  $RUNNER_TEMP/mongosh.tgz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/mongosh.tgz" -C "$RUNNER_TEMP"
+          bin="$RUNNER_TEMP/mongosh-${MONGOSH_VERSION}-linux-x64/bin"
+          "$bin/mongosh" --version
+          echo "$bin" >> "$GITHUB_PATH"
 
       # The integration tag is a superset: it compiles the unit tests too.
       # Without it, coverage reads ~55% and connections/collections/databases/

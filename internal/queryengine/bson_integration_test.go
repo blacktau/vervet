@@ -355,7 +355,7 @@ func TestIntegration_FindOneOptions(t *testing.T) {
 // A findOne document left as the script's final value is shown with the types
 // the server stored, which a whole-number double loses on its way through JS.
 // Once the script changes the document, it is shown as the script left it.
-// Like a cursor, an unchanged document is shown even when the script printed.
+// What the script printed is returned alongside, whichever way it is shown.
 func TestIntegration_FindOneShowsStoredTypes(t *testing.T) {
 	ctx, db, engine := keyOrderEngine(t)
 
@@ -372,12 +372,20 @@ func TestIntegration_FindOneShowsStoredTypes(t *testing.T) {
 		{`var d = db.c.findOne({ _id: 1 }); d.d; d`, `[{"_id":{"$numberInt":"1"},"d":{"$numberDouble":"5.0"}}]`},
 		{`var d = db.c.findOne({ _id: 1 }); d.x = "y"; d`, `[{"_id":1,"d":5,"x":"y"}]`},
 		{`db.c.findOne({ _id: 2 })`, `[{"_id":{"$numberInt":"2"},"d":{"$numberDouble":"5.0"},"n":{"$numberDouble":"NaN"}}]`},
-		{`print("checking"); db.c.findOne({ _id: 1 })`, `[{"_id":{"$numberInt":"1"},"d":{"$numberDouble":"5.0"}}]`},
-		{`var d = db.c.findOne({ _id: 1 }); d.x = "y"; print("changed"); d`, "changed"},
 	} {
 		result, err := engine.ExecuteQuery(ctx, testURI, db, tc.script)
 		require.NoError(t, err, tc.script)
 		assert.Equal(t, tc.want, resultText(result), tc.script)
+	}
+
+	for _, tc := range []struct{ script, want, printed string }{
+		{`print("checking"); db.c.findOne({ _id: 1 })`, `[{"_id":{"$numberInt":"1"},"d":{"$numberDouble":"5.0"}}]`, "checking"},
+		{`var d = db.c.findOne({ _id: 1 }); d.x = "y"; print("changed"); d`, `[{"_id":1,"d":5,"x":"y"}]`, "changed"},
+	} {
+		result, err := engine.ExecuteQuery(ctx, testURI, db, tc.script)
+		require.NoError(t, err, tc.script)
+		assert.Equal(t, tc.want, resultText(result), tc.script)
+		assert.Equal(t, tc.printed, printedText(result), tc.script)
 	}
 }
 
@@ -539,7 +547,7 @@ func TestIntegration_Issue148_DistinctLongsInScript(t *testing.T) {
 		print(Array.isArray(ids) + ":" + ids.map(v => String(v)).sort().join(","))
 	`)
 	require.NoError(t, err)
-	assert.Equal(t, "true:11788,7151", result.RawOutput)
+	assert.Equal(t, "true:11788,7151", printedText(result))
 }
 
 // --- Write-method results are single objects in scripts, matching mongosh ---
@@ -571,7 +579,7 @@ func TestIntegration_InsertManyResultInScript(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(3), count, "three documents should be inserted")
 
-	assert.Equal(t, "Inserted 3", res.RawOutput,
+	assert.Equal(t, "Inserted 3", printedText(res),
 		"script must see result.insertedIds — regressed if this says 'Inserted 0'")
 }
 
@@ -607,8 +615,8 @@ func TestIntegration_WriteResultsAreObjectsNotArrays(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			res, err := engine.ExecuteQuery(ctx, testURI, db, tc.query)
 			require.NoError(t, err)
-			assert.NotEmpty(t, res.RawOutput)
-			assert.NotContains(t, res.RawOutput, "undefined",
+			assert.NotEmpty(t, printedText(res))
+			assert.NotContains(t, printedText(res), "undefined",
 				"field access on result returned undefined — result is likely still array-wrapped")
 		})
 	}

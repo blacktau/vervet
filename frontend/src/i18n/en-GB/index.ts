@@ -409,6 +409,7 @@ export default {
     cancel: 'Cancel',
     results: 'Results',
     messagesTab: 'Messages',
+    unseenOutput: '{count} printed line(s) not yet viewed',
     messages: {
       executing: 'Executing query...',
       findResult: '{count} document(s) returned in {time}',
@@ -437,6 +438,7 @@ export default {
       commandResult: 'Command completed in {time}',
       switchedDatabase: 'Switched to database \'{name}\'',
       genericResult: 'Query completed in {time}',
+      outputCombined: 'Printed {count} more lines after the first {shown}; they are combined into the next entry',
       resultsStale: 'Document changed. Run the query again to refresh the results.',
       filter: {
         info: 'Info',

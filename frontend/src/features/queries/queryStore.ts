@@ -36,6 +36,28 @@ function resultMessage(operationType: string, count: number, duration: string): 
 
 export type LogLevel = 'info' | 'warning' | 'error'
 
+const levelRank: Record<LogLevel, number> = { info: 0, warning: 1, error: 2 }
+
+/** The backend sends levels as plain strings; anything unknown is info. */
+function toLogLevel(level: string): LogLevel {
+  return level === 'warning' || level === 'error' ? level : 'info'
+}
+
+/** Printed lines added to Messages while the Results tab was showing, by level. */
+export type UnseenOutput = Record<LogLevel, number>
+
+/** What the Messages tab badge shows: a count and the level that colours it. */
+export interface UnseenBadge {
+  count: number
+  level: LogLevel
+}
+
+/**
+ * Printed lines past this many are combined into one Messages entry, so a
+ * script that prints in a long loop does not add tens of thousands of rows.
+ */
+export const MAX_OUTPUT_ENTRIES = 1000
+
 export interface LogMessageQuery {
   text: string
   range: {
@@ -77,6 +99,10 @@ export interface QueryState {
   selectedDatabase: string
   messages: LogMessage[]
   messageFilter: MessageFilter
+  /** Printed lines the user has not seen yet, shown as a badge on the Messages tab */
+  unseenOutput: UnseenOutput | null
+  /** The "Query cancelled" message, so output arriving after it can go above it. */
+  cancelNoticeId: string | null
   activeResultTab: string
   resultView: 'table' | 'json'
   selectedDocIndex: number
@@ -127,6 +153,8 @@ function createQueryState(database: string): QueryState {
     selectedDatabase: database,
     messages: [],
     messageFilter: { info: true, warning: true, error: true },
+    unseenOutput: null,
+    cancelNoticeId: null,
     activeResultTab: 'results',
     resultView: 'table',
     selectedDocIndex: 0,
@@ -204,18 +232,119 @@ export const useQueryStore = defineStore('query', {
       msg: { level: LogLevel; text: string; query?: LogMessageQuery },
     ) {
       const state = this.getQueryState(queryId)
+      const id = makeId()
       state.messages.push({
-        id: makeId(),
+        id,
         timestamp: new Date().toLocaleTimeString(),
         level: msg.level,
         text: msg.text,
         query: msg.query,
       })
+      return id
     },
 
     clearMessages(queryId: string) {
       const state = this.getQueryState(queryId)
       state.messages = []
+      state.unseenOutput = null
+    },
+
+    /**
+     * Adds a script's output to Messages in one update and returns how many
+     * printed lines of each level there were, or null when there were none.
+     * A notice (text from the engine, not the script) is added but not counted.
+     * Past MAX_OUTPUT_ENTRIES the rest are combined into one entry at their most
+     * severe level, after a notice saying so; each combined line still counts.
+     * With before, they go above that message, or at the end if it has been
+     * cleared.
+     */
+    appendOutput(
+      queryId: string,
+      output: models.OutputLine[] | undefined,
+      query: LogMessageQuery,
+      before: string | null = null,
+    ): UnseenOutput | null {
+      if (!output || output.length === 0) {
+        return null
+      }
+      const state = this.getQueryState(queryId)
+      const timestamp = new Date().toLocaleTimeString()
+      const counts: UnseenOutput = { info: 0, warning: 0, error: 0 }
+      const count = (line: models.OutputLine, level: LogLevel) => {
+        if (!line.notice) {
+          counts[level]++
+        }
+      }
+      const entry = (level: LogLevel, text: string): LogMessage => ({
+        id: makeId(),
+        timestamp,
+        level,
+        text,
+        query,
+      })
+
+      const added: LogMessage[] = output.slice(0, MAX_OUTPUT_ENTRIES).map((line) => {
+        const level = toLogLevel(line.level)
+        count(line, level)
+        return entry(level, line.text)
+      })
+
+      const rest = output.slice(MAX_OUTPUT_ENTRIES)
+      if (rest.length > 0) {
+        let level: LogLevel = 'info'
+        for (const line of rest) {
+          const l = toLogLevel(line.level)
+          count(line, l)
+          if (levelRank[l] > levelRank[level]) {
+            level = l
+          }
+        }
+        added.push(
+          entry(
+            'warning',
+            i18nGlobal.t('query.messages.outputCombined', {
+              shown: MAX_OUTPUT_ENTRIES,
+              count: rest.length,
+            }),
+          ),
+        )
+        added.push(entry(level, rest.map((line) => line.text).join('\n')))
+      }
+
+      // One assignment, not a push per line: each push is a reactive update.
+      const at = before === null ? -1 : state.messages.findIndex((m) => m.id === before)
+      state.messages =
+        at < 0
+          ? state.messages.concat(added)
+          : [...state.messages.slice(0, at), ...added, ...state.messages.slice(at)]
+      return counts.info + counts.warning + counts.error > 0 ? counts : null
+    },
+
+    /** Called when the Messages tab is opened: its badge has been seen. */
+    markOutputSeen(queryId: string) {
+      this.getQueryState(queryId).unseenOutput = null
+    },
+
+    /**
+     * The Messages tab badge: unseen printed lines at the levels the Messages
+     * filter shows, coloured by the most severe of them. Null when there are none.
+     */
+    unseenBadge(queryId: string): UnseenBadge | null {
+      const state = this.getQueryState(queryId)
+      const unseen = state.unseenOutput
+      if (!unseen) {
+        return null
+      }
+      let count = 0
+      let level: LogLevel = 'info'
+      for (const l of ['info', 'warning', 'error'] as const) {
+        if (!state.messageFilter[l] || unseen[l] === 0) {
+          continue
+        }
+        count += unseen[l]
+        level = l
+      }
+      return count > 0 ? { count, level } : null
     },
 
     setMessageFilter(queryId: string, level: LogLevel, enabled: boolean) {
@@ -308,6 +437,8 @@ export const useQueryStore = defineStore('query', {
       state._rawJsonCache = null
       state.rawOutput = ''
       state.error = ''
+      state.unseenOutput = null
+      state.cancelNoticeId = null
       state.selectedDocIndex = 0
       state.activeLimit = parseLimit(query)
       state.pageContext = null
@@ -337,7 +468,20 @@ export const useQueryStore = defineStore('query', {
           state.filePath ?? '',
         )
 
-        if (state.cancelled || state.executionId !== thisExecution) {
+        if (state.executionId !== thisExecution) {
+          return
+        }
+        if (state.cancelled) {
+          // What the script printed came before the cancel, so it goes above the notice.
+          const added = this.appendOutput(
+            queryId,
+            result.data?.output,
+            queryPayload,
+            state.cancelNoticeId,
+          )
+          if (state.activeResultTab !== 'messages') {
+            state.unseenOutput = added
+          }
           return
         }
 
@@ -349,7 +493,25 @@ export const useQueryStore = defineStore('query', {
           } else if (data.rawOutput) {
             state.rawOutput = data.rawOutput
           }
-          state.activeResultTab = 'results'
+
+          // What the script printed goes to Messages. A script with no result
+          // opens Messages; otherwise Results stays open and the Messages tab
+          // shows a badge for the lines waiting there. An empty cursor
+          // (pageContext) is still a result.
+          const added = this.appendOutput(queryId, data.output, queryPayload)
+          // hasValue covers an empty result ([] or an empty cursor), which
+          // both engines report the same way; the rest covers older shapes.
+          const hasResult =
+            !!data.hasValue ||
+            (data.documents?.length ?? 0) > 0 ||
+            !!data.rawOutput ||
+            !!data.pageContext
+          if (!hasResult && added !== null) {
+            state.activeResultTab = 'messages'
+          } else {
+            state.activeResultTab = 'results'
+            state.unseenOutput = added
+          }
 
           if (data.pageContext) {
             state.pageContext = data.pageContext
@@ -361,8 +523,9 @@ export const useQueryStore = defineStore('query', {
 
           const elapsed = formatDuration(Date.now() - (state.runStartedAt ?? Date.now()))
           const docCount = data.documents?.length ?? 0
-          const opType = data.operationType || 'find'
-          const msg = resultMessage(opType, data.affectedCount || docCount, elapsed)
+          const msg = hasResult
+            ? resultMessage(data.operationType || 'find', data.affectedCount || docCount, elapsed)
+            : i18nGlobal.t('query.messages.genericResult', { time: elapsed })
           this.appendMessage(queryId, { level: 'info', text: msg, query: queryPayload })
 
           if (isBackgrounded() && state.executionId === thisExecution && !state.cancelled) {
@@ -374,6 +537,8 @@ export const useQueryStore = defineStore('query', {
             )
           }
         } else {
+          // What the script printed before it failed comes first.
+          this.appendOutput(queryId, result.data?.output, queryPayload)
           const translated = translateError(result.errorCode, result.errorDetail)
           state.error = translated
           this.appendMessage(queryId, {
@@ -397,7 +562,10 @@ export const useQueryStore = defineStore('query', {
           }
         }
       } catch (e) {
-        if (state.cancelled || state.executionId !== thisExecution) {
+        if (state.executionId !== thisExecution) {
+          return
+        }
+        if (state.cancelled) {
           return
         }
         const notifier = useNotifier()
@@ -542,7 +710,7 @@ export const useQueryStore = defineStore('query', {
       state.cancelled = true
       state.loading = false
       state.error = ''
-      this.appendMessage(queryId, {
+      state.cancelNoticeId = this.appendMessage(queryId, {
         level: 'warning',
         text: i18nGlobal.t('errors.query_cancelled'),
       })

@@ -9,17 +9,18 @@ import (
 // meaning of its declarations: `const db = db.getSiblingDB(name)` reads the
 // existing global at top level, but throws inside a function body.
 func TestWrapQuery_DoesNotWrapScriptInAFunction(t *testing.T) {
-	got := wrapQuery(`const db = db.getSiblingDB("other");`)
-	if strings.Contains(got, "(() => {") {
-		t.Errorf("script must not be wrapped in an IIFE; got:\n%s", got)
+	got, _ := wrapQuery(`const db = db.getSiblingDB("other");`, "n")
+	lines := strings.Split(got, "\n")
+	if !strings.HasSuffix(lines[0], "})();") {
+		t.Errorf("the preamble must close before the script; got:\n%s", lines[0])
 	}
-	if !strings.Contains(got, `const db = db.getSiblingDB("other");`) {
-		t.Errorf("script body altered; got:\n%s", got)
+	if lines[1] != `const db = db.getSiblingDB("other");` {
+		t.Errorf("the script must be on its own line, unaltered; got:\n%s", lines[1])
 	}
 }
 
 func TestWrapQuery_CapturesLastExpression(t *testing.T) {
-	got := wrapQuery(`db.users.find({})`)
+	got, _ := wrapQuery(`db.users.find({})`, "n")
 	if !strings.Contains(got, resultGlobal+" = db.users.find({})") {
 		t.Errorf("expected the final expression to be captured; got:\n%s", got)
 	}
@@ -28,7 +29,7 @@ func TestWrapQuery_CapturesLastExpression(t *testing.T) {
 // A script whose last statement is a declaration has no value to print, and
 // printing "null" for it adds a bogus line to the script's own output.
 func TestWrapQuery_CapturesNothingForDeclarations(t *testing.T) {
-	got := wrapQuery("print('done');\nconst x = 1;")
+	got, _ := wrapQuery("print('done');\nconst x = 1;", "n")
 	if strings.Contains(got, resultGlobal+" = const") {
 		t.Errorf("declaration must not be captured; got:\n%s", got)
 	}
@@ -41,7 +42,7 @@ func TestWrapQuery_CapturesNothingForDeclarations(t *testing.T) {
 // last real statement, not to the comment (which is a syntax error).
 func TestWrapQuery_IgnoresTrailingComments(t *testing.T) {
 	src := "db.users.find({})\n// closing note\n// more notes"
-	got := wrapQuery(src)
+	got, _ := wrapQuery(src, "n")
 	if !strings.Contains(got, resultGlobal+" = db.users.find({})") {
 		t.Errorf("expected capture on the last real statement; got:\n%s", got)
 	}

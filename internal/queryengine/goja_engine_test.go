@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/v2/bson"
+
+	"vervet/internal/models"
 )
 
 // setupRuntime creates a Goja runtime with a database proxy.
@@ -363,4 +365,70 @@ func TestGojaEngine_RequireFS_MissingFileSurfacesENOENT(t *testing.T) {
 		`require('fs').readFileSync('/definitely/not/here.txt', 'utf8')`)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "ENOENT")
+}
+
+// A script that prints and leaves a value gets both: the printed lines in
+// Output and the value as its result (#310).
+func TestGojaEngine_PrintedOutputKeptWithScalarResult(t *testing.T) {
+	eng := NewGojaEngine(nil, 100, "")
+	res, err := eng.ExecuteQuery(context.Background(), "", "testdb", `print("checking"); 5`)
+	require.NoError(t, err)
+	assert.Equal(t, "5", res.RawOutput)
+	assert.Equal(t, []models.OutputLine{{Level: models.OutputInfo, Text: "checking"}}, res.Output)
+}
+
+func TestGojaEngine_PrintedOutputKeptWithDocumentResult(t *testing.T) {
+	eng := NewGojaEngine(nil, 100, "")
+	res, err := eng.ExecuteQuery(context.Background(), "", "testdb", `print("Top users:"); console.warn("slow"); ({a: 1})`)
+	require.NoError(t, err)
+	require.Len(t, res.Documents, 1)
+	assert.Empty(t, res.RawOutput)
+	assert.Equal(t, []models.OutputLine{
+		{Level: models.OutputInfo, Text: "Top users:"},
+		{Level: models.OutputWarning, Text: "slow"},
+	}, res.Output)
+}
+
+// A script that only prints has no result: its lines are in Output alone.
+func TestGojaEngine_PrintOnlyHasNoResult(t *testing.T) {
+	eng := NewGojaEngine(nil, 100, "")
+	res, err := eng.ExecuteQuery(context.Background(), "", "testdb", `print("a"); print("b")`)
+	require.NoError(t, err)
+	assert.Empty(t, res.RawOutput)
+	assert.Empty(t, res.Documents)
+	assert.Equal(t, []models.OutputLine{
+		{Level: models.OutputInfo, Text: "a"},
+		{Level: models.OutputInfo, Text: "b"},
+	}, res.Output)
+}
+
+// What a failing script printed comes back in Output, not glued into the error.
+func TestGojaEngine_ErrorKeepsPrintedOutputSeparate(t *testing.T) {
+	eng := NewGojaEngine(nil, 100, "")
+	res, err := eng.ExecuteQuery(context.Background(), "", "testdb", `print("checked 25"); throw new Error("Wrong database")`)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "Wrong database")
+	assert.NotContains(t, err.Error(), "checked 25")
+	assert.Equal(t, []models.OutputLine{{Level: models.OutputInfo, Text: "checked 25"}}, res.Output)
+}
+
+// HasValue tells "the script left no value" from "it left an empty one", so
+// both engines show a script that prints and ends in [] the same way.
+func TestGojaEngine_HasValue(t *testing.T) {
+	eng := NewGojaEngine(nil, 100, "")
+	for _, tc := range []struct {
+		script string
+		want   bool
+	}{
+		{`print("x")`, false},
+		{`const x = 1`, false},
+		{`print("x"); []`, true},
+		{`null`, true},
+		{`5`, true},
+		{`({a: 1})`, true},
+	} {
+		res, err := eng.ExecuteQuery(context.Background(), "", "testdb", tc.script)
+		require.NoError(t, err, tc.script)
+		assert.Equal(t, tc.want, res.HasValue, tc.script)
+	}
 }

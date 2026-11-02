@@ -123,12 +123,8 @@ func (qe *QueryExecutor) executeWithGoja(ctx context.Context, serverID, dbName, 
 
 	cfg, _ := qe.settings.GetSettings()
 	engine := queryengine.NewGojaEngine(client, int64(cfg.Query.DefaultPageSize), scriptPath)
-	result, err := engine.ExecuteQuery(ctx, "", dbName, query)
-	if err != nil {
-		return models.QueryResult{}, err
-	}
-
-	return result, nil
+	// On failure the result still carries what the script printed.
+	return engine.ExecuteQuery(ctx, "", dbName, query)
 }
 
 func (qe *QueryExecutor) executeWithMongosh(ctx context.Context, serverID, dbName, query, scriptPath string) (models.QueryResult, error) {
@@ -155,11 +151,8 @@ func (qe *QueryExecutor) executeWithMongosh(ctx context.Context, serverID, dbNam
 		result, err = shell.Execute(ctx, uri, query, shellCfg)
 	}
 
-	if err != nil {
-		return models.QueryResult{}, err
-	}
-
-	return result, nil
+	// On failure the result still carries what the script printed.
+	return result, err
 }
 
 // FetchPage fetches a single page for a previously captured PageContext using
