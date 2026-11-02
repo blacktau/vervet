@@ -101,6 +101,8 @@ export interface QueryState {
   messageFilter: MessageFilter
   /** Printed lines the user has not seen yet, shown as a badge on the Messages tab */
   unseenOutput: UnseenOutput | null
+  /** The "Query cancelled" message, so output arriving after it can go above it. */
+  cancelNoticeId: string | null
   activeResultTab: string
   resultView: 'table' | 'json'
   selectedDocIndex: number
@@ -152,6 +154,7 @@ function createQueryState(database: string): QueryState {
     messages: [],
     messageFilter: { info: true, warning: true, error: true },
     unseenOutput: null,
+    cancelNoticeId: null,
     activeResultTab: 'results',
     resultView: 'table',
     selectedDocIndex: 0,
@@ -229,13 +232,15 @@ export const useQueryStore = defineStore('query', {
       msg: { level: LogLevel; text: string; query?: LogMessageQuery },
     ) {
       const state = this.getQueryState(queryId)
+      const id = makeId()
       state.messages.push({
-        id: makeId(),
+        id,
         timestamp: new Date().toLocaleTimeString(),
         level: msg.level,
         text: msg.text,
         query: msg.query,
       })
+      return id
     },
 
     clearMessages(queryId: string) {
@@ -249,12 +254,14 @@ export const useQueryStore = defineStore('query', {
      * many printed lines of each level there were, or null when there were
      * none. Past MAX_OUTPUT_ENTRIES the rest are combined into one entry at
      * their most severe level, after a notice saying so; each combined line
-     * still counts.
+     * still counts. With before, they go above that message, or at the end if
+     * it has been cleared.
      */
     appendOutput(
       queryId: string,
       output: models.OutputLine[] | undefined,
       query: LogMessageQuery,
+      before: string | null = null,
     ): UnseenOutput | null {
       if (!output || output.length === 0) {
         return null
@@ -299,7 +306,11 @@ export const useQueryStore = defineStore('query', {
       }
 
       // One assignment, not a push per line: each push is a reactive update.
-      state.messages = state.messages.concat(added)
+      const at = before === null ? -1 : state.messages.findIndex((m) => m.id === before)
+      state.messages =
+        at < 0
+          ? state.messages.concat(added)
+          : [...state.messages.slice(0, at), ...added, ...state.messages.slice(at)]
       return counts
     },
 
@@ -421,6 +432,7 @@ export const useQueryStore = defineStore('query', {
       state.rawOutput = ''
       state.error = ''
       state.unseenOutput = null
+      state.cancelNoticeId = null
       state.selectedDocIndex = 0
       state.activeLimit = parseLimit(query)
       state.pageContext = null
@@ -454,8 +466,13 @@ export const useQueryStore = defineStore('query', {
           return
         }
         if (state.cancelled) {
-          // What the script printed before it was cancelled still goes to Messages.
-          const added = this.appendOutput(queryId, result.data?.output, queryPayload)
+          // What the script printed came before the cancel, so it goes above the notice.
+          const added = this.appendOutput(
+            queryId,
+            result.data?.output,
+            queryPayload,
+            state.cancelNoticeId,
+          )
           if (state.activeResultTab !== 'messages') {
             state.unseenOutput = added
           }
@@ -543,11 +560,6 @@ export const useQueryStore = defineStore('query', {
           return
         }
         if (state.cancelled) {
-          // What the script printed before it was cancelled still goes to Messages.
-          const added = this.appendOutput(queryId, result.data?.output, queryPayload)
-          if (state.activeResultTab !== 'messages') {
-            state.unseenOutput = added
-          }
           return
         }
         const notifier = useNotifier()
@@ -692,7 +704,7 @@ export const useQueryStore = defineStore('query', {
       state.cancelled = true
       state.loading = false
       state.error = ''
-      this.appendMessage(queryId, {
+      state.cancelNoticeId = this.appendMessage(queryId, {
         level: 'warning',
         text: i18nGlobal.t('errors.query_cancelled'),
       })

@@ -25,6 +25,7 @@ vi.mock('@/utils/dialog', () => ({
 import * as shellProxy from 'wailsjs/go/api/ShellProxy'
 import { useQueryStore } from '@/features/queries/queryStore'
 import { useTabStore } from '@/features/tabs/tabs'
+import { i18nGlobal } from '@/i18n'
 
 const SERVER_ID = 'srv-1'
 const QUERY_ID = 'q-1'
@@ -116,7 +117,7 @@ describe('queryStore printed output', () => {
       isSuccess: true,
       data: { documents: [], rawOutput: '', output: [{ level: 'info', text: 'done' }] },
     })
-    expect(state.messages.at(-1)!.text).toMatch(/^Query completed in /)
+    expect(state.messages[state.messages.length - 1]!.text).toMatch(/^Query completed in /)
   })
 
   test('mongosh: an empty result after printing is still a result', async () => {
@@ -130,7 +131,7 @@ describe('queryStore printed output', () => {
       },
     })
     expect(state.activeResultTab).toBe('results')
-    expect(state.messages.at(-1)!.text).toMatch(/^0 document\(s\) returned/)
+    expect(state.messages[state.messages.length - 1]!.text).toMatch(/^0 document\(s\) returned/)
     expect(useQueryStore().unseenBadge(QUERY_ID)).toEqual({ count: 1, level: 'info' })
   })
 
@@ -233,8 +234,36 @@ describe('queryStore printed output', () => {
     await running
 
     const state = store.getQueryState(QUERY_ID)
-    expect(state.messages.map((m) => m.text)).toContain('step 1')
-    expect(state.messages.some((m) => m.text === 'context canceled')).toBe(false)
+    // Printed before the cancel, so it reads as coming before the notice.
+    const texts = state.messages.map((m) => m.text)
+    expect(texts.indexOf('step 1')).toBeGreaterThan(0)
+    expect(texts.indexOf('step 1')).toBeLessThan(
+      texts.indexOf(i18nGlobal.t('errors.query_cancelled')),
+    )
+    expect(texts).not.toContain('context canceled')
+  })
+
+  test('a call that rejects after a cancel finishes quietly', async () => {
+    const tabStore = useTabStore()
+    vi.spyOn(tabStore, 'currentTabId', 'get').mockReturnValue(SERVER_ID)
+    vi.spyOn(tabStore, 'currentTab', 'get').mockReturnValue({
+      serverId: SERVER_ID,
+      activeInnerTabId: QUERY_ID,
+    } as never)
+    const store = useQueryStore()
+    store.initQueryState(QUERY_ID, 'mydb')
+    let reject!: (e: unknown) => void
+    executeQuery.mockReturnValue(new Promise((_, r) => (reject = r)))
+
+    const running = store.executeQuery(QUERY_ID, { text: 'script', range })
+    await store.cancelQuery(QUERY_ID)
+    reject(new Error('bridge gone'))
+    await expect(running).resolves.toBeUndefined()
+
+    const state = store.getQueryState(QUERY_ID)
+    expect(state.loading).toBe(false)
+    expect(state.error).toBe('')
+    expect(state.messages.some((m) => m.level === 'error')).toBe(false)
   })
 
   test('clearing messages clears the badge', async () => {
