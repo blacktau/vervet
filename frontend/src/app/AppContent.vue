@@ -167,7 +167,7 @@ watch(
 </script>
 
 <template>
-  <n-spin :show="props.loading" :style="spinStyle" :theme-overrides="{ opacitySpinning: 0 }">
+  <n-spin :show="props.loading" :style="spinStyle" :theme-overrides="{ opacitySpinning: '0' }">
     <div id="app-content-wrapper" :style="wrapperStyle" class="flex-box-v">
       <!-- title bar -->
       <title-bar :nav-menu-width="data.navMenuWidth" :toolbar-height="data.toolbarHeight" />

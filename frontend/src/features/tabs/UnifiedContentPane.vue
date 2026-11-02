@@ -3,7 +3,7 @@ import { useTabStore } from '@/features/tabs/tabs'
 import { useQueryStore } from '@/features/queries/queryStore'
 import { type QueryState } from '@/features/queries/queryStore'
 import { useI18n } from 'vue-i18n'
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { type ComponentPublicInstance, computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ChevronDownIcon, PlusIcon } from '@heroicons/vue/24/outline'
 import { useThemeVars, type DropdownOption } from 'naive-ui'
 import QueryTab from '@/features/queries/QueryTab.vue'
@@ -85,12 +85,12 @@ function openBlankQuery() {
   tabStore.openQuery(serverId, '')
 }
 
-const innerTabsRef = ref<HTMLElement | null>(null)
+const innerTabsRef = ref<ComponentPublicInstance | null>(null)
 const isOverflowing = ref(false)
 let resizeObserver: ResizeObserver | null = null
 
 function checkOverflow() {
-  const el = innerTabsRef.value?.$el ?? innerTabsRef.value
+  const el = innerTabsRef.value?.$el
   if (!el) {
     return
   }
@@ -103,7 +103,7 @@ function checkOverflow() {
 
 onMounted(() => {
   resizeObserver = new ResizeObserver(checkOverflow)
-  const el = innerTabsRef.value?.$el ?? innerTabsRef.value
+  const el = innerTabsRef.value?.$el
   if (el) {
     resizeObserver.observe(el)
   }

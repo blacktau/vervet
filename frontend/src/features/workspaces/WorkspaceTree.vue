@@ -9,6 +9,7 @@ import { useQueryStore } from '@/features/queries/queryStore'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore'
 import { useI18n } from 'vue-i18n'
 import * as workspacesProxy from 'wailsjs/go/api/WorkspacesProxy'
+import { resultErrorText } from '@/utils/resultError'
 
 const { t } = useI18n()
 const workspaceStore = useWorkspaceStore()
@@ -173,7 +174,7 @@ function handleNewFile(node: TreeOption) {
       const dirPath = node.key as string
       const result = await workspacesProxy.CreateFile(dirPath, fileName)
       if (!result.isSuccess) {
-        notifier.error(result.errorDetail || result.errorCode)
+        notifier.error(resultErrorText(result))
         return
       }
 
@@ -194,7 +195,7 @@ function handleNewFolder(node: TreeOption) {
     const dirPath = node.key as string
     const result = await workspacesProxy.CreateFolder(dirPath, folderName)
     if (!result.isSuccess) {
-      notifier.error(result.errorDetail || result.errorCode)
+      notifier.error(resultErrorText(result))
       return
     }
 
@@ -245,7 +246,7 @@ function handleRename(node: TreeOption) {
 
       const result = await workspacesProxy.RenameFile(oldPath, newPath)
       if (!result.isSuccess) {
-        notifier.error(result.errorDetail || result.errorCode)
+        notifier.error(resultErrorText(result))
         return
       }
 
@@ -265,7 +266,7 @@ function handleDelete(node: TreeOption) {
     onPositiveClick: async () => {
       const result = await workspacesProxy.DeleteFile(node.key as string)
       if (!result.isSuccess) {
-        notifier.error(result.errorDetail || result.errorCode)
+        notifier.error(resultErrorText(result))
         return
       }
 

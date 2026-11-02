@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import { computed } from 'vue'
+import { QuestionMarkCircleIcon } from '@heroicons/vue/24/outline'
 import { useI18n } from 'vue-i18n'
 import { useSettingsStore } from '@/features/settings/settingsStore.ts'
 
@@ -26,7 +27,7 @@ const fontOptions = computed(() => [
           {{ $t('settings.common.font') }}
           <n-tooltip trigger="hover">
             <template #trigger>
-              <n-icon component="QuestionMarkCircleIcon" />
+              <n-icon :component="QuestionMarkCircleIcon" />
             </template>
             <div class="text-block">
               {{ $t('settings.common.fontTip') }}

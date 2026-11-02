@@ -15,3 +15,9 @@ declare module 'monaco-editor/esm/vs/language/' {
     constructor();
   }
 }
+
+// monaco-editor ships no declarations for this file.
+declare module 'monaco-editor/esm/vs/basic-languages/javascript/javascript' {
+  import type { languages } from 'monaco-editor'
+  export const conf: languages.LanguageConfiguration
+}

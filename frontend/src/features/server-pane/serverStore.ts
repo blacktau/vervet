@@ -6,7 +6,13 @@ import { isEmpty } from 'lodash'
 import { useNotifier } from '@/utils/dialog.ts'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 import { i18nGlobal } from '@/i18n'
-import type { ConnectionConfig } from '@/types/ConnectionConfig'
+import type { AuthMethod, ConnectionConfig, OIDCConfig } from '@/types/ConnectionConfig'
+
+export interface ServerDetails extends models.RegisteredServer {
+  uri: string
+  authMethod: AuthMethod
+  oidcConfig?: OIDCConfig
+}
 
 export interface RegisteredServerNode extends models.RegisteredServer {
   children?: RegisteredServerNode[]
@@ -71,7 +77,7 @@ export const useServerStore = defineStore('server', {
       tree.sort(nodeComparator)
       this.serverTree = tree
     },
-    async getServerDetails(id?: string) {
+    async getServerDetails(id?: string): Promise<ServerDetails | undefined> {
       if (id == null) {
         return undefined
       }
@@ -95,15 +101,15 @@ export const useServerStore = defineStore('server', {
         return {
           ...response.data,
           uri: uriResponse.data,
-          authMethod: 'password' as const,
+          authMethod: 'password',
         }
       }
 
       return {
         ...response.data,
         uri: configResult.data.uri,
-        authMethod: configResult.data.authMethod,
-        oidcConfig: configResult.data.oidcConfig,
+        authMethod: configResult.data.authMethod as AuthMethod,
+        oidcConfig: configResult.data.oidcConfig as OIDCConfig | undefined,
       }
     },
     async saveServer(name: string, connectionString: string, parentId?: string, colour?: string) {

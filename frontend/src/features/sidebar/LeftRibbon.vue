@@ -145,7 +145,7 @@ const exThemeVars = computed(() => {
     <div class="flex-item-expand"></div>
     <div class="nav-menu-item flex-box-v">
       <n-dropdown
-        :options="settingsOptions"
+        :options="settingsOptions as DropdownOption[]"
         :render-icon="(option: DropdownOption) => render.renderIcon(option.icon!)"
         :render-label="
           (option: DropdownOption) =>

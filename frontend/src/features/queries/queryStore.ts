@@ -16,11 +16,11 @@ function formatDuration(ms: number): string {
   return `${(ms / 1000).toFixed(1)}s`
 }
 
-function translateError(errorCode: string, errorDetail: string): string {
-  const key = `errors.${errorCode}`
+function translateError(errorCode?: string, errorDetail?: string): string {
+  const key = `errors.${errorCode ?? 'unknown_error'}`
   const translated = i18nGlobal.t(key)
   if (translated === key) {
-    return errorDetail || errorCode
+    return errorDetail || errorCode || key
   }
   return translated
 }

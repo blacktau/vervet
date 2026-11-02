@@ -127,7 +127,9 @@ describe('browserStore', () => {
 
       vi.mocked(databasesProxy.GetDatabases).mockResolvedValue({
         isSuccess: false,
-        error: 'Connection failed',
+        data: [],
+        errorCode: 'connection_failed',
+        errorDetail: 'Connection failed',
       } as api.Result___string_)
 
       const result = await store.getDatabaseList('server1', true)

@@ -27,34 +27,34 @@ describe('buildTreeData', () => {
     const result = buildTreeData(docs)
 
     expect(result).toHaveLength(1)
-    expect(result[0].key).toBe('__doc_0')
-    expect(result[0].isDocRoot).toBe(true)
-    expect(result[0].field).toContain('abc123')
-    expect(result[0].children).toHaveLength(2)
+    expect(result[0]?.key).toBe('__doc_0')
+    expect(result[0]?.isDocRoot).toBe(true)
+    expect(result[0]?.field).toContain('abc123')
+    expect(result[0]?.children).toHaveLength(2)
   })
 
   test('builds nested children for subdocuments', () => {
     const docs = [{ address: { city: 'London', zip: '12345' } }]
     const result = buildTreeData(docs)
 
-    const addressChild = result[0].children?.find((c) => c.field === 'address')
+    const addressChild = result[0]?.children?.find((c) => c.field === 'address')
     expect(addressChild).toBeDefined()
     expect(addressChild!.children).toHaveLength(2)
-    expect(addressChild!.children![0].field).toBe('city')
-    expect(addressChild!.children![0].value).toBe('London')
-    expect(addressChild!.children![0].type).toBe('string')
+    expect(addressChild!.children![0]?.field).toBe('city')
+    expect(addressChild!.children![0]?.value).toBe('London')
+    expect(addressChild!.children![0]?.type).toBe('string')
   })
 
   test('builds array children with numeric keys', () => {
     const docs = [{ tags: ['a', 'b', 'c'] }]
     const result = buildTreeData(docs)
 
-    const tagsChild = result[0].children?.find((c) => c.field === 'tags')
+    const tagsChild = result[0]?.children?.find((c) => c.field === 'tags')
     expect(tagsChild).toBeDefined()
     expect(tagsChild!.type).toBe('array')
     expect(tagsChild!.children).toHaveLength(3)
-    expect(tagsChild!.children![0].field).toBe('0')
-    expect(tagsChild!.children![0].value).toBe('a')
+    expect(tagsChild!.children![0]?.field).toBe('0')
+    expect(tagsChild!.children![0]?.value).toBe('a')
   })
 
   test('detects BSON types correctly', () => {
@@ -70,7 +70,7 @@ describe('buildTreeData', () => {
       },
     ]
     const result = buildTreeData(docs)
-    const children = result[0].children!
+    const children = result[0]!.children!
 
     const findChild = (field: string) => children.find((c) => c.field === field)
 
@@ -86,7 +86,7 @@ describe('buildTreeData', () => {
   test('leaf nodes have no children property', () => {
     const docs = [{ name: 'Alice' }]
     const result = buildTreeData(docs)
-    const nameChild = result[0].children?.find((c) => c.field === 'name')
+    const nameChild = result[0]?.children?.find((c) => c.field === 'name')
     expect(nameChild!.children).toBeUndefined()
   })
 
@@ -94,8 +94,8 @@ describe('buildTreeData', () => {
     const docs = [{ a: 1 }, { b: 2 }, { c: 3 }]
     const result = buildTreeData(docs)
     expect(result).toHaveLength(3)
-    expect(result[0].key).toBe('__doc_0')
-    expect(result[1].key).toBe('__doc_1')
-    expect(result[2].key).toBe('__doc_2')
+    expect(result[0]?.key).toBe('__doc_0')
+    expect(result[1]?.key).toBe('__doc_1')
+    expect(result[2]?.key).toBe('__doc_2')
   })
 })

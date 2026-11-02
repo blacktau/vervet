@@ -28,7 +28,7 @@ const emit = defineEmits<{
 const resizing = ref(false)
 const hover = ref(false)
 
-const handleResize = (evt: Event) => {
+const handleResize = (evt: MouseEvent) => {
   if (resizing.value) {
     let size = evt.clientX - props.offset
     if (size < props.minSize) {

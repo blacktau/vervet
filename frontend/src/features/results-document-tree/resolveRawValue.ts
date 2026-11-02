@@ -4,7 +4,7 @@ export function resolveRawValue(documents: unknown[], rowKey: string): unknown {
     return undefined
   }
 
-  const docIndex = parseInt(match[1], 10)
+  const docIndex = parseInt(match[1]!, 10)
   const doc = documents[docIndex]
   if (doc === undefined) {
     return undefined

@@ -75,8 +75,8 @@ const onConnect = async () => {
       const testResult = await connectionsProxy.TestConnection(finalUri)
       if (!testResult.isSuccess) {
         lastError.value = {
-          code: testResult.errorCode,
-          detail: testResult.errorDetail,
+          code: testResult.errorCode ?? 'unknown_error',
+          detail: testResult.errorDetail ?? '',
         }
         return
       }

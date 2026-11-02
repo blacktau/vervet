@@ -7,12 +7,13 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "lint": "bunx --bun eslint -c ./eslint.config.ts \"./src*/**/*.{ts,js,cjs,mjs,vue}\" && bunx --bun vue-tsc --noEmit --strict",
+    "lint": "bunx --bun eslint -c ./eslint.config.ts \"./src*/**/*.{ts,js,cjs,mjs,vue}\" && bun run typecheck",
+    "typecheck": "bunx vue-tsc --noEmit -p tsconfig.app.json",
     "format": "prettier --write \"**/*.{js,ts,vue,scss,html,md,json}\" --ignore-path .gitignore",
     "test": "vitest",
     "test:ci": "vitest run --coverage",
     "dev": "bunx --bun vite",
-    "build": "bunx --bun vue-tsc --noEmit && bunx --bun vite build",
+    "build": "bun run typecheck && bunx --bun vite build",
     "preview": "bunx --bun vite preview"
   },
   "dependencies": {

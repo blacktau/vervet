@@ -10,15 +10,15 @@ describe('validate', () => {
   it('flags an unbalanced brace', () => {
     const markers = validate('db.users.find({ name: "alice"')
     expect(markers.length).toBeGreaterThan(0)
-    expect(markers[0].severity).toBe(8)
-    expect(markers[0].source).toBe('vervet')
-    expect(markers[0].startLineNumber).toBe(1)
+    expect(markers[0]?.severity).toBe(8)
+    expect(markers[0]?.source).toBe('vervet')
+    expect(markers[0]?.startLineNumber).toBe(1)
   })
 
   it('flags a stray comma in an object literal', () => {
     const markers = validate('const x = { a: 1,, b: 2 }')
     expect(markers.length).toBeGreaterThan(0)
-    expect(markers[0].startLineNumber).toBe(1)
+    expect(markers[0]?.startLineNumber).toBe(1)
   })
 
   it('returns multiple markers for multiple distinct errors', () => {
@@ -74,6 +74,6 @@ describe('validate', () => {
     const withSugar = validate('show dbs\ndb.x.find({)')
     expect(without[0]).toBeDefined()
     expect(withSugar[0]).toBeDefined()
-    expect(withSugar[0].startColumn).toBe(without[0].startColumn)
+    expect(withSugar[0]?.startColumn).toBe(without[0]?.startColumn)
   })
 })

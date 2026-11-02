@@ -8,6 +8,7 @@ import { useQueryStore } from '@/features/queries/queryStore'
 import * as databasesProxy from 'wailsjs/go/api/DatabasesProxy'
 import { useNotifier } from '@/utils/dialog'
 import { useI18n } from 'vue-i18n'
+import { resultErrorText } from '@/utils/resultError'
 
 const { t } = useI18n()
 const dialogStore = useDialogStore()
@@ -109,7 +110,7 @@ async function loadDatabases(serverId: string) {
         selectedDatabase.value = 'admin'
       }
     } else {
-      notifier.error(result.errorDetail || result.errorCode)
+      notifier.error(resultErrorText(result))
     }
   } finally {
     loadingDatabases.value = false

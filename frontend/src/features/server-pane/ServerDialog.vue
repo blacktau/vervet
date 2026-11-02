@@ -1,5 +1,12 @@
 <script lang="ts" setup>
-import { NIcon, type FormInst, type FormRules, type TreeSelectRenderLabel, useThemeVars } from 'naive-ui'
+import {
+  NIcon,
+  type FormInst,
+  type FormRules,
+  type TreeSelectOption,
+  type TreeSelectRenderLabel,
+  useThemeVars,
+} from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import { computed, h, nextTick, ref, watch } from 'vue'
 import { every, includes, isEmpty } from 'lodash'
@@ -32,7 +39,8 @@ const serverStore = useServerStore()
 const browserStore = useDataBrowserStore()
 const i18n = useI18n()
 
-const editServerID = ref(dialogStore.serverDialogData?.serverId)
+const initialDialogData = dialogStore.serverDialogData
+const editServerID = ref(initialDialogData?.mode === 'new' ? undefined : initialDialogData?.serverId)
 const tab = ref('general')
 const serverColors = ref<string[]>([
   '',
@@ -354,7 +362,7 @@ const onTestConnection = async () => {
     const result = await connectionsProxy.TestConnection(generalForm.value.connectionString)
     if (!result.isSuccess) {
       testingMessage = i18n.t(`errors.${result.errorCode}`)
-      testingDetail = result.errorDetail
+      testingDetail = result.errorDetail ?? ''
     }
   } catch (e: unknown) {
     const err = e as Error
@@ -433,7 +441,7 @@ const onTestConnection = async () => {
               <n-form-item-gi :label="$t('serverPane.dialogs.server.group')" :span="24" required>
                 <n-tree-select
                   v-model:value="generalForm.parentId"
-                  :options="groupOptions"
+                  :options="groupOptions as unknown as TreeSelectOption[]"
                   :render-label="renderGroupLabel"
                   key-field="id"
                   label-field="name"

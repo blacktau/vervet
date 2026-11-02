@@ -4,7 +4,7 @@
 // narrow editor.api entrypoint rather than the 'monaco-editor' barrel — the
 // barrel loads every basic-language contribution asynchronously and those
 // imports race Vitest's environment teardown.
-import * as monaco from 'monaco-editor/esm/vs/editor/editor.api'
+import * as monaco from 'monaco-editor/esm/vs/editor/editor.api.js'
 // The real JavaScript language configuration, imported directly rather than via
 // its *.contribution module: the contribution registers a lazy async loader that
 // resolves after Vitest tears the environment down. Registering it matters —

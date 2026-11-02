@@ -38,7 +38,7 @@ async function handleMenuSelect(key: string) {
   if (key === 'import') {
     const result = await serverStore.importServers()
     if (!result.success) {
-      notifier.error(result.msg)
+      notifier.error(result.msg || t('errors.unknown_error'))
     }
   } else if (key === 'export') {
     dialogStore.showNewDialog(DialogType.Export, { serverIDs: null })
@@ -50,7 +50,7 @@ async function handleExport(includeSensitiveData: boolean) {
   const serverIDs = exportData?.serverIDs ?? serverStore.serverTree.map((s) => s.id)
   const result = await serverStore.exportServers(serverIDs, includeSensitiveData)
   if (!result.success) {
-    notifier.error(result.msg)
+    notifier.error(result.msg || t('errors.unknown_error'))
   }
 }
 
@@ -77,7 +77,7 @@ const matchingNodes = computed(() => {
 
 watch(matchingNodes, (matches) => {
   if (matches.length > 0 && serverTreeRef.value) {
-    serverTreeRef.value.selectedKeys = [matches[0].id]
+    serverTreeRef.value.selectedKeys = [matches[0]!.id]
   }
 })
 
@@ -97,7 +97,7 @@ const onFilterKeydown = (e: KeyboardEvent) => {
     } else {
       nextIndex = currentIndex > 0 ? currentIndex - 1 : matchingNodes.value.length - 1
     }
-    tree.selectedKeys = [matchingNodes.value[nextIndex].id]
+    tree.selectedKeys = [matchingNodes.value[nextIndex]!.id]
   } else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
     e.preventDefault()
     const currentId = tree.selectedKeys[0]

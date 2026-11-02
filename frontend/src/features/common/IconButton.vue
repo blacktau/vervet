@@ -1,11 +1,12 @@
 <script lang="ts" setup>
+import type { ButtonProps } from 'naive-ui'
 import { computed, type FunctionalComponent, type HTMLAttributes, useSlots, type VNodeProps } from 'vue'
 
 interface Props {
   tooltip?: string
   tTooltip?: string
   tooltipDelay?: number
-  type?: string
+  type?: ButtonProps['type']
   icon?: string | object | FunctionalComponent<HTMLAttributes & VNodeProps>
   size?: number | string
   color?: string
@@ -52,7 +53,7 @@ const hasTooltip = computed(() => {
         :focusable="false"
         :loading="loading"
         :secondary="props.secondary"
-        :size="props.small ? 'small' : ''"
+        :size="props.small ? 'small' : undefined"
         :style="props.buttonStyle"
         :tertiary="props.tertiary"
         :text="!props.border"
@@ -79,7 +80,7 @@ const hasTooltip = computed(() => {
     :focusable="false"
     :loading="loading"
     :secondary="props.secondary"
-    :size="props.small ? 'small' : ''"
+    :size="props.small ? 'small' : undefined"
     :style="props.buttonStyle"
     :tertiary="props.tertiary"
     :text="!props.border"

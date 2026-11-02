@@ -46,7 +46,7 @@ export function getTypeKey(val: unknown): string {
     return 'array'
   }
   if (typeof val === 'object') {
-    for (const bsonKey in bsonKeyLookup) {
+    for (const [bsonKey, typeName] of Object.entries(bsonKeyLookup)) {
       if (bsonKey in val) {
         if (bsonKey === '$binary') {
           const binary = (val as Record<string, unknown>).$binary as Record<string, unknown>
@@ -57,7 +57,7 @@ export function getTypeKey(val: unknown): string {
             return 'md5'
           }
         }
-        return bsonKeyLookup[bsonKey]
+        return typeName
       }
     }
     return 'object'
