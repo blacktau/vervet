@@ -85,8 +85,10 @@ func (e *GojaEngine) ExecuteQuery(ctx context.Context, uri, dbName, query string
 			return fmt.Errorf("script error: %w", err)
 		}
 
+		// Worked out first: showing a fresh cursor resolves it.
+		hasValue := hasFinalValue(val)
 		result, retErr = finalValueResult(ec, val)
-		result.HasValue = val != nil && !goja.IsUndefined(val)
+		result.HasValue = hasValue
 		return
 	}()
 
@@ -95,6 +97,18 @@ func (e *GojaEngine) ExecuteQuery(ctx context.Context, uri, dbName, query string
 	// diagnose without the output from before the error.
 	result.Output = out.lines
 	return result, err
+}
+
+// hasFinalValue reports whether the script left a value to show. A cursor the
+// script has read to the end leaves nothing: its documents went wherever the
+// script sent them, and an empty result would hide that. A cursor that has not
+// run yet is a value even if it turns out to match nothing.
+func hasFinalValue(val goja.Value) bool {
+	if val == nil || goja.IsUndefined(val) {
+		return false
+	}
+	cursor := extractLazyCursor(val)
+	return cursor == nil || !cursor.usedUp()
 }
 
 // finalValueResult turns the script's final value into its result. What the

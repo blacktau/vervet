@@ -259,3 +259,60 @@ func TestExecute_PromisePrintIsItsOwnEntry(t *testing.T) {
 		{Level: models.OutputInfo, Text: "{\n  x: 1\n}"},
 	}, result.Output)
 }
+
+// A cursor read to the end leaves no value, as in the builtin engine, so the
+// UI opens Messages instead of an empty Results tab. A cursor that has not run
+// is a value even when it matches nothing, and a part-read one shows the rest.
+func TestExecute_UsedUpCursorHasNoValue(t *testing.T) {
+	if !CheckMongosh() {
+		t.Skip("mongosh not in PATH")
+	}
+
+	setup := `db.usedup.drop(); db.usedup.insertMany([{ n: 1 }, { n: 2 }]); `
+	for _, tc := range []struct {
+		script   string
+		hasValue bool
+		docs     int
+	}{
+		{`const c = db.usedup.find(); while (c.hasNext()) { printjson(c.next()); } c`, false, 0},
+		{`const c = db.usedup.find(); c.forEach(d => print(d.n)); c`, false, 0},
+		{`const c = db.usedup.find({ n: 99 }); c`, true, 0},
+		{`const c = db.usedup.find(); c.next(); c`, true, 1},
+	} {
+		result, err := Execute(context.Background(), testURI, setup+tc.script, Config{Timeout: 60 * time.Second})
+		require.NoError(t, err, tc.script)
+		assert.Equal(t, tc.hasValue, result.HasValue, tc.script)
+		assert.Len(t, result.Documents, tc.docs, tc.script)
+	}
+}
+
+// The console methods the preamble doesn't wrap by name go through print or
+// console.warn, so each is still its own entry, in order.
+func TestExecute_OtherConsoleMethodsAreFramed(t *testing.T) {
+	if !CheckMongosh() {
+		t.Skip("mongosh not in PATH")
+	}
+
+	query := `console.dir({ d: 1 }); console.count("c"); console.assert(false, "nope"); console.log("end")`
+	result, err := Execute(context.Background(), testURI, query, Config{Timeout: 60 * time.Second})
+	require.NoError(t, err)
+	assert.Equal(t, []models.OutputLine{
+		{Level: models.OutputInfo, Text: "{ d: 1 }"},
+		{Level: models.OutputInfo, Text: "c: 1"},
+		{Level: models.OutputWarning, Text: "Assertion failed: nope"},
+		{Level: models.OutputInfo, Text: "end"},
+	}, result.Output)
+}
+
+// On a failure, text written outside print calls is output, not part of the error.
+func TestExecute_FailureKeepsStdoutWriteOutOfTheError(t *testing.T) {
+	if !CheckMongosh() {
+		t.Skip("mongosh not in PATH")
+	}
+
+	query := `process.stdout.write("note\n"); throw new Error("boom")`
+	result, err := Execute(context.Background(), testURI, query, Config{Timeout: 60 * time.Second})
+	require.Error(t, err)
+	assert.Equal(t, "Error: boom", err.Error())
+	assert.Equal(t, []models.OutputLine{{Level: models.OutputInfo, Text: "note"}}, result.Output)
+}

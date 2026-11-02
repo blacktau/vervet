@@ -85,6 +85,8 @@ func wrapQuery(query, nonce string) (string, capturePos) {
 ;(function () {
   const __result = globalThis.%s;
   if (__result === undefined) { return; }
+  // A cursor the script read to the end leaves nothing to show.
+  if (__result !== null && typeof __result.isExhausted === 'function' && __result.isExhausted()) { return; }
   const __val = (__result !== null && typeof __result.toArray === 'function') ? __result.toArray() : __result;
   const __print = globalThis.__vervetPrint;
   let __out;
@@ -170,8 +172,9 @@ func runMongosh(ctx context.Context, query string, cfg Config, args func(queryFi
 	cmd.Stderr = &stderr
 
 	err = cmd.Run()
+	out, errOut := normalizeNewlines(stdout.String()), normalizeNewlines(stderr.String())
 	if err == nil {
-		return buildResult(stdout.String(), stderr.String(), nonce), nil
+		return buildResult(out, errOut, nonce), nil
 	}
 
 	if execErr, ok := err.(*exec.Error); ok && execErr.Err == exec.ErrNotFound {
@@ -181,12 +184,12 @@ func runMongosh(ctx context.Context, query string, cfg Config, args func(queryFi
 	// What the script printed is kept on every failure, a timeout or cancel
 	// included: progress lines show where a long script stalled.
 	if ctx.Err() == context.DeadlineExceeded {
-		return interruptedRun(stdout.String(), stderr.String(), nonce), ErrQueryTimeout
+		return interruptedRun(out, errOut, nonce), ErrQueryTimeout
 	}
 	if ctx.Err() == context.Canceled {
-		return interruptedRun(stdout.String(), stderr.String(), nonce), ctx.Err()
+		return interruptedRun(out, errOut, nonce), ctx.Err()
 	}
-	result, errMsg := failedRun(stdout.String(), stderr.String(), nonce)
+	result, errMsg := failedRun(out, errOut, nonce)
 	if errMsg == "" {
 		return result, fmt.Errorf("mongosh exited with: %w", err)
 	}

@@ -343,7 +343,8 @@ func TestIntegration_CursorMethodsContinueAfterNext(t *testing.T) {
 		`var c = db.cm.find().sort({ n: 1 }); while (c.hasNext()) { print(c.next().n); } c`)
 	require.NoError(t, err)
 	assert.Equal(t, "0\n1\n2\n3", printedText(result))
-	assert.Equal(t, "[]", resultText(result), "a used-up cursor shows an empty result")
+	assert.Equal(t, "[]", resultText(result))
+	assert.False(t, result.HasValue, "a used-up cursor leaves nothing to show")
 }
 
 // Values from EJSON.parse and command results keep their BSON types, so they
@@ -487,20 +488,26 @@ func TestIntegration_PrintsAndCursorCombinations(t *testing.T) {
 	require.NoError(t, err)
 
 	const some = `[{"n":{"$numberInt":"1"}},{"n":{"$numberInt":"2"}}]`
-	for _, tc := range []struct{ script, docs, printed string }{
-		{`var c = db.some.find({}, { _id: 0 }).sort({ n: 1 }); if (c.hasNext()) { print("found"); } c`, some, "found"},
-		{`var c = db.none.find(); c.forEach(function (d) {}); print("none found"); c`, "[]", "none found"},
-		{`var c = db.none.find(); while (c.hasNext()) { c.next(); } print("none found"); c`, "[]", "none found"},
-		{`var c = db.none.find(); c.toArray(); print("none found"); c`, "[]", "none found"},
-		{`var c = db.none.find(); c.map(function (d) { return d; }); print("none found"); c`, "[]", "none found"},
-		{`var c = db.none.find(); if (!c.hasNext()) { print("none"); } c`, "[]", "none"},
-		{`print("x"); var c = db.none.find(); c`, "[]", "x"},
-		{`var c = db.some.find().sort({ n: 1 }); c.forEach(function (d) { print(d.n); }); print("done"); c`, "[]", "1\n2\ndone"},
+	for _, tc := range []struct {
+		script, docs, printed string
+		hasValue              bool
+	}{
+		{`var c = db.some.find({}, { _id: 0 }).sort({ n: 1 }); if (c.hasNext()) { print("found"); } c`, some, "found", true},
+		{`print("x"); var c = db.none.find(); c`, "[]", "x", true},
+		// A used-up cursor leaves no value, so the UI opens Messages instead of
+		// an empty Results tab.
+		{`var c = db.none.find(); c.forEach(function (d) {}); print("none found"); c`, "[]", "none found", false},
+		{`var c = db.none.find(); while (c.hasNext()) { c.next(); } print("none found"); c`, "[]", "none found", false},
+		{`var c = db.none.find(); c.toArray(); print("none found"); c`, "[]", "none found", false},
+		{`var c = db.none.find(); c.map(function (d) { return d; }); print("none found"); c`, "[]", "none found", false},
+		{`var c = db.none.find(); if (!c.hasNext()) { print("none"); } c`, "[]", "none", false},
+		{`var c = db.some.find().sort({ n: 1 }); c.forEach(function (d) { print(d.n); }); print("done"); c`, "[]", "1\n2\ndone", false},
 	} {
 		result, err := engine.ExecuteQuery(ctx, testURI, db, tc.script)
 		require.NoError(t, err, tc.script)
 		assert.Equal(t, tc.docs, resultText(result), tc.script)
 		assert.Equal(t, tc.printed, printedText(result), tc.script)
+		assert.Equal(t, tc.hasValue, result.HasValue, tc.script)
 	}
 }
 

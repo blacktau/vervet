@@ -130,9 +130,30 @@ func TestFailedRun_SeparatesPrintedOutputFromError(t *testing.T) {
 	assert.Equal(t, "ReferenceError: foo is not defined", errMsg)
 }
 
-func TestFailedRun_StderrComesFirst(t *testing.T) {
-	_, errMsg := failedRun(framed("from stdout"), "from stderr\n", testNonce)
-	assert.Equal(t, "from stderr\nfrom stdout", errMsg)
+// Unframed stdout (process.stdout.write) lands in Output, as on a timeout, in
+// its place among the framed calls. stderr is the error.
+func TestFailedRun_UnframedStdoutIsOutputWhenStderrHasTheError(t *testing.T) {
+	stdout := framed("note", begin("info"), "p", end())
+	got, errMsg := failedRun(stdout, "Error: boom\n", testNonce)
+	assert.Equal(t, "Error: boom", errMsg)
+	assert.Equal(t, []models.OutputLine{
+		{Level: models.OutputInfo, Text: "note"},
+		{Level: models.OutputInfo, Text: "p"},
+	}, got.Output)
+}
+
+func TestNormalizeNewlines_CRLFStillParses(t *testing.T) {
+	stdout := strings.ReplaceAll(framed(begin("info"), "a", end(), result(), `[{"n":1}]`, end()), "\n", "\r\n")
+	got := buildResult(normalizeNewlines(stdout), "", testNonce)
+	assert.Equal(t, []models.OutputLine{{Level: models.OutputInfo, Text: "a"}}, got.Output)
+	assert.Len(t, got.Documents, 1)
+}
+
+func TestNormalizeNewlines_CRLFErrorStillRemaps(t *testing.T) {
+	mongoshErr := "SyntaxError: Unexpected token (2:9)\r\n\r\n> 2 | let x = (;\r\n    |          ^"
+	got := remap(normalizeNewlines(mongoshErr), "let x = (;")
+	assert.Contains(t, got, "(1:9)")
+	assert.Contains(t, got, "> 1 | let x = (;")
 }
 
 // process.stdout.write leaves no newline, so the next marker shares its line.

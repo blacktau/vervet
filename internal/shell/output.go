@@ -173,10 +173,24 @@ func outputLevel(l string) string {
 	}
 }
 
+// normalizeNewlines turns CRLF into LF, so a mongosh that writes CRLF still
+// has markers and error positions that end where the parsers expect.
+func normalizeNewlines(s string) string {
+	return strings.ReplaceAll(s, "\r\n", "\n")
+}
+
+// withStderrNotice adds mongosh's own stderr notices after the script's output,
+// as a warning. The script's console.error output is already in stdout.
+func withStderrNotice(output []models.OutputLine, stderr string) []models.OutputLine {
+	if text := strings.TrimSpace(stderr); text != "" {
+		return append(output, models.OutputLine{Level: models.OutputWarning, Text: text})
+	}
+	return output
+}
+
 // buildResult turns a successful run's stdout and stderr into a QueryResult:
-// the framed calls become Output, and the text after the result marker is
-// parsed as the result. mongosh's own stderr notices follow as a warning;
-// the script's console.error output is already in stdout.
+// the framed calls become Output, and the text between the result markers is
+// parsed as the result.
 func buildResult(stdout, stderr, nonce string) models.QueryResult {
 	output, resultText, hasResult := splitOutput(stdout, nonce)
 
@@ -185,10 +199,7 @@ func buildResult(stdout, stderr, nonce string) models.QueryResult {
 		result = parseResult(resultText)
 		result.HasValue = true
 	}
-	if text := strings.TrimSpace(stderr); text != "" {
-		output = append(output, models.OutputLine{Level: models.OutputWarning, Text: text})
-	}
-	result.Output = output
+	result.Output = withStderrNotice(output, stderr)
 	return result
 }
 
@@ -196,27 +207,32 @@ func buildResult(stdout, stderr, nonce string) models.QueryResult {
 // framed calls, text written outside them (process.stdout.write) and stderr.
 // None of it is an error report, since the run never finished.
 func interruptedRun(stdout, stderr, nonce string) models.QueryResult {
-	return models.QueryResult{Output: buildResult(stdout, stderr, nonce).Output}
+	output, _, _ := splitOutput(stdout, nonce)
+	return models.QueryResult{Output: withStderrNotice(output, stderr)}
 }
 
 // failedRun builds the result and error text for a run mongosh exited from
-// with an error. What the script printed before it failed is returned in
-// Output; the error text is stderr plus any stdout written outside a frame,
-// which is where mongosh reports the error.
+// with an error. mongosh reports the error on stderr, so stdout is all Output,
+// whether framed or not (process.stdout.write), as on a timeout. Only when
+// stderr is empty is unframed stdout taken as the report, so the error is
+// never lost.
 func failedRun(stdout, stderr, nonce string) (models.QueryResult, string) {
 	scanned, _, _ := scanOutput(stdout, nonce)
+	errText := strings.TrimSpace(stderr)
 
-	var printed []models.OutputLine
-	parts := []string{}
-	if text := strings.TrimSpace(stderr); text != "" {
-		parts = append(parts, text)
-	}
+	var (
+		output []models.OutputLine
+		stray  []string
+	)
 	for _, l := range scanned {
-		if l.framed {
-			printed = append(printed, l.OutputLine)
+		if l.framed || errText != "" {
+			output = append(output, l.OutputLine)
 			continue
 		}
-		parts = append(parts, l.Text)
+		stray = append(stray, l.Text)
 	}
-	return models.QueryResult{Output: printed}, strings.Join(parts, "\n")
+	if errText == "" {
+		errText = strings.Join(stray, "\n")
+	}
+	return models.QueryResult{Output: output}, errText
 }

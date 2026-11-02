@@ -112,6 +112,11 @@ func (c *lazyCursor) execute(paged bool) (models.QueryResult, error) {
 	return result, nil
 }
 
+// usedUp reports whether the cursor has run and every document has been read.
+func (c *lazyCursor) usedUp() bool {
+	return c.resolved && c.index >= len(c.results)
+}
+
 // cachedResult returns an already-executed cursor's remaining documents.
 // Script-side reads (paged=false) get everything not yet consumed by next().
 // A cursor read during the script ran unpaged; left as the script's final
