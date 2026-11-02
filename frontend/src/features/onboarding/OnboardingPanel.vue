@@ -12,6 +12,7 @@ import { useDialogStore } from '@/stores/dialog.ts'
 import logoUrl from '@/assets/logo.svg'
 import * as connectionsProxy from 'wailsjs/go/api/ConnectionsProxy'
 import type { RegisteredServerNode } from '@/features/server-pane/serverStore.ts'
+import { errorCodeText } from '@/utils/resultError'
 
 const i18n = useI18n()
 
@@ -22,7 +23,7 @@ const dialogStore = useDialogStore()
 const uri = ref('')
 const name = ref('')
 const connecting = ref(false)
-const lastError = ref<{ code: string; detail: string } | null>(null)
+const lastError = ref<{ code?: string; detail: string } | null>(null)
 
 const nameTouched = ref(false)
 
@@ -75,7 +76,7 @@ const onConnect = async () => {
       const testResult = await connectionsProxy.TestConnection(finalUri)
       if (!testResult.isSuccess) {
         lastError.value = {
-          code: testResult.errorCode ?? 'unknown_error',
+          code: testResult.errorCode,
           detail: testResult.errorDetail ?? '',
         }
         return
@@ -182,7 +183,7 @@ function findNewServerId(
           :title="i18n.t('onboarding.errorTitle')"
           data-test="error-alert"
         >
-          <div>{{ i18n.t('errors.' + lastError.code) }}</div>
+          <div>{{ errorCodeText(lastError.code) }}</div>
           <div v-if="lastError.detail" class="error-detail">{{ lastError.detail }}</div>
         </n-alert>
 

@@ -14,6 +14,10 @@ describe('errorCodeText', () => {
     expect(errorCodeText(undefined)).toBe(generic())
     expect(errorCodeText('')).toBe(generic())
   })
+
+  it('uses the generic message for a code with no translation', () => {
+    expect(errorCodeText('made_up')).toBe(generic())
+  })
 })
 
 describe('resultErrorText', () => {
