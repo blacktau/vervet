@@ -13,7 +13,7 @@ import type { DocumentRow } from '../types'
 function rootMenuKeys(context: CollectionContext | undefined, hasId = true): string[] {
   const menu = useDocumentContextMenu(ref(context), () => hasId)
   menu.openMenu(
-    { isDocRoot: true } as DocumentRow,
+    { kind: 'document' } as DocumentRow,
     {
       preventDefault: () => {},
       clientX: 0,
@@ -57,10 +57,22 @@ describe('useDocumentContextMenu', () => {
     expect(keys).toContain('insertDocument')
   })
 
+  it('offers view as well for a top-level array', () => {
+    const menu = useDocumentContextMenu(ref(context), () => false)
+    menu.openMenu(
+      { kind: 'value', type: 'array' } as DocumentRow,
+      { preventDefault: () => {}, clientX: 0, clientY: 0 } as MouseEvent,
+    )
+
+    const options = menu.menuOptions.value.filter((o) => o.type !== 'divider')
+    expect(options.map((o) => o.key)).toEqual(['viewDocument', 'copyValue', 'exportResults'])
+    expect(options[0]?.label).toBe('query.contextMenu.viewValue')
+  })
+
   it('offers copy and export, and no writes, for a top-level value', () => {
     const menu = useDocumentContextMenu(ref(context), () => false)
     menu.openMenu(
-      { isDocRoot: false, isRootValue: true } as DocumentRow,
+      { kind: 'value', type: 'string' } as DocumentRow,
       { preventDefault: () => {}, clientX: 0, clientY: 0 } as MouseEvent,
     )
 
@@ -71,7 +83,7 @@ describe('useDocumentContextMenu', () => {
   it('offers copy value and copy field for a field inside a document', () => {
     const menu = useDocumentContextMenu(ref(context))
     menu.openMenu(
-      { isDocRoot: false, isRootValue: false } as DocumentRow,
+      { kind: 'field' } as DocumentRow,
       { preventDefault: () => {}, clientX: 0, clientY: 0 } as MouseEvent,
     )
 

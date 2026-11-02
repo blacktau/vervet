@@ -96,7 +96,12 @@ func (s *Service) Export(req api.ExportRequest) (string, error) {
 	return path, nil
 }
 
-// parseEJSON decodes a JSON array of EJSON-encoded documents into []bson.M.
+// nonDocumentField holds a result that isn't a document, such as a string from
+// db.getCollectionNames(), so every exported row is still a document.
+const nonDocumentField = "value"
+
+// parseEJSON decodes a JSON array of EJSON-encoded results into []bson.M. A
+// result that isn't a document is placed under nonDocumentField.
 func parseEJSON(raw string) ([]bson.M, error) {
 	var rawDocs []json.RawMessage
 	if err := json.Unmarshal([]byte(raw), &rawDocs); err != nil {
@@ -105,14 +110,38 @@ func parseEJSON(raw string) ([]bson.M, error) {
 
 	docs := make([]bson.M, len(rawDocs))
 	for i, r := range rawDocs {
-		var d bson.M
-		if err := bson.UnmarshalExtJSON(r, false, &d); err != nil {
+		d, err := parseResult(r)
+		if err != nil {
 			return nil, fmt.Errorf("doc[%d]: %w", i, err)
 		}
 		docs[i] = d
 	}
 
 	return docs, nil
+}
+
+func parseResult(raw json.RawMessage) (bson.M, error) {
+	// A top-level EJSON value can't decode into a bson.M, so read it as a field.
+	wrapped, err := json.Marshal(map[string]json.RawMessage{nonDocumentField: raw})
+	if err != nil {
+		return nil, err
+	}
+
+	var result bson.M
+	if err := bson.UnmarshalExtJSON(wrapped, false, &result); err != nil {
+		return nil, err
+	}
+
+	if _, isDocument := result[nonDocumentField].(bson.D); !isDocument {
+		return result, nil
+	}
+
+	var doc bson.M
+	if err := bson.UnmarshalExtJSON(raw, false, &doc); err != nil {
+		return nil, err
+	}
+
+	return doc, nil
 }
 
 // buildOptions maps the api.ExportRequest fields to export.Options.

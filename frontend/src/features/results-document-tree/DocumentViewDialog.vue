@@ -91,7 +91,7 @@ function close() {
   <n-modal
     :show="props.show"
     preset="card"
-    :title="t('query.dialogs.viewDocument')"
+    :title="t(Array.isArray(document) ? 'query.dialogs.viewValue' : 'query.dialogs.viewDocument')"
     style="width: 700px; max-height: 80vh"
     :mask-closable="true"
     @update:show="emit('update:show', $event)"

@@ -8,7 +8,7 @@ import {
   useDialog,
   useThemeVars,
 } from 'naive-ui'
-import { buildTreeData } from './documentTreeUtils'
+import { buildTreeData, getCopyText } from './documentTreeUtils'
 import type { DocumentRow } from './types'
 import { typeColorMapDark, typeColorMapLight } from '@/features/queries/typeColorMap'
 import {
@@ -179,7 +179,7 @@ const columns = computed<DataTableColumns<DocumentRow>>(() => [
         'span',
         {
           style: {
-            fontWeight: row.isDocRoot ? '600' : undefined,
+            fontWeight: row.kind === 'field' ? undefined : '600',
           },
         },
         row.field,
@@ -307,8 +307,7 @@ function handleContextMenuSelect(key: string) {
 
   if (key === 'copyValue') {
     const val = resolveRawValue(props.documents, row.key)
-    const humanized = humanizeEjson(val)
-    copyToClipboard(typeof humanized === 'string' ? humanized : JSON.stringify(humanized))
+    copyToClipboard(getCopyText(val, row.kind === 'value'))
   }
 
   if (key === 'copyField') {
@@ -365,14 +364,12 @@ function handleCopyShortcut(evt: KeyboardEvent) {
   }
   evt.preventDefault()
   const row = activeRow.value
-  if (row.isDocRoot) {
-    const doc = resolveRawValue(props.documents, row.key)
-    copyToClipboard(JSON.stringify(humanizeEjson(doc), null, 2))
-  } else {
-    const val = resolveRawValue(props.documents, row.key)
-    const humanized = humanizeEjson(val)
-    copyToClipboard(typeof humanized === 'string' ? humanized : JSON.stringify(humanized))
+  const val = resolveRawValue(props.documents, row.key)
+  if (row.kind === 'document') {
+    copyToClipboard(JSON.stringify(humanizeEjson(val), null, 2))
+    return
   }
+  copyToClipboard(getCopyText(val, row.kind === 'value'))
 }
 
 onMounted(() => {
@@ -413,7 +410,7 @@ function handleCheckedKeysUpdate(keys: DataTableRowKey[]) {
 }
 
 function rowClassName(row: DocumentRow): string {
-  if (row.isDocRoot) {
+  if (row.kind !== 'field') {
     return 'doc-root-row'
   }
   if (checkedKeys.value.includes(row.key)) {

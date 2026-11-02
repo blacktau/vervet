@@ -11,6 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // --- mock SaveDialog ---
@@ -151,4 +152,59 @@ func TestService_CSVTabSeparator(t *testing.T) {
 	data := writer.written["/tmp/results.csv"]
 	content := string(data)
 	assert.True(t, strings.Contains(content, "a\tb"), "expected tab-separated content, got: %q", content)
+}
+
+func TestParseEJSON_ValuesThatAreNotDocuments(t *testing.T) {
+	oid, err := bson.ObjectIDFromHex("507f1f77bcf86cd799439011")
+	require.NoError(t, err)
+
+	docs, err := parseEJSON(`["theaters", 7, 2.5, true, null, {"$oid":"507f1f77bcf86cd799439011"}, {"$numberLong":"9007199254740993"}, [1, 2]]`)
+	require.NoError(t, err)
+
+	values := make([]any, len(docs))
+	for i, d := range docs {
+		require.Len(t, d, 1)
+		values[i] = d[nonDocumentField]
+	}
+	require.Equal(t, []any{
+		"theaters", int32(7), 2.5, true, nil, oid, int64(9007199254740993), bson.A{int32(1), int32(2)},
+	}, values)
+}
+
+func TestParseEJSON_DocumentsAreUnchanged(t *testing.T) {
+	docs, err := parseEJSON(`[{"a":1},{},{"value":"x"}]`)
+	require.NoError(t, err)
+	require.Equal(t, []bson.M{{"a": int32(1)}, {}, {"value": "x"}}, docs)
+}
+
+func TestSerialize_ValuesThatAreNotDocuments(t *testing.T) {
+	const input = `["theaters", null, {"a":1}]`
+
+	tests := []struct {
+		name string
+		opts Options
+		want string
+	}{
+		{
+			name: "csv",
+			opts: Options{Format: FormatCSV, CSV: CSVOptions{IncludeHeader: true}},
+			want: "a,value\n,theaters\n,\n1,\n",
+		},
+		{
+			name: "ndjson",
+			opts: Options{Format: FormatNDJSON},
+			want: `{"value":"theaters"}` + "\n" + `{"value":null}` + "\n" + `{"a":1}` + "\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			docs, err := parseEJSON(input)
+			require.NoError(t, err)
+
+			data, err := Serialize(docs, tt.opts)
+			require.NoError(t, err)
+			require.Equal(t, tt.want, string(data))
+		})
+	}
 }

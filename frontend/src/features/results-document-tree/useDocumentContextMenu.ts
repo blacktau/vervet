@@ -54,7 +54,7 @@ export function useDocumentContextMenu(
       return []
     }
 
-    if (targetRow.value.isDocRoot) {
+    if (targetRow.value.kind === 'document') {
       const targetable = rowHasId(targetRow.value)
       const options: DropdownOption[] = [
         { label: t('query.contextMenu.viewDocument'), key: 'viewDocument' },
@@ -83,8 +83,13 @@ export function useDocumentContextMenu(
       return options
     }
 
-    if (targetRow.value.isRootValue) {
+    if (targetRow.value.kind === 'value') {
+      const view: DropdownOption[] =
+        targetRow.value.type === 'array'
+          ? [{ label: t('query.contextMenu.viewValue'), key: 'viewDocument' }]
+          : []
       return [
+        ...view,
         { label: t('query.contextMenu.copyValue'), key: 'copyValue' },
         { type: 'divider', key: 'd1' },
         { label: t('export.contextMenu'), key: 'exportResults' },

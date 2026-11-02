@@ -476,6 +476,7 @@ export default {
     },
     contextMenu: {
       viewDocument: 'View Document',
+      viewValue: 'View Value',
       editDocument: 'Edit Document',
       insertDocument: 'Insert Document',
       copyDocument: 'Copy Document',
@@ -486,6 +487,7 @@ export default {
     },
     dialogs: {
       viewDocument: 'View Document',
+      viewValue: 'View Value',
       editDocument: 'Edit Document',
       deleteConfirmTitle: 'Delete Document',
       editDocumentIn: 'Edit Document in {namespace}',
@@ -518,6 +520,10 @@ export default {
       boolean: 'Boolean',
       minKey: 'MinKey',
       maxKey: 'MaxKey',
+      code: 'Code',
+      symbol: 'Symbol',
+      undefined: 'Undefined',
+      dbPointer: 'DBPointer',
     },
     openFile: 'Open',
     saveFile: 'Save',

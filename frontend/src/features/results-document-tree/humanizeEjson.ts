@@ -1,3 +1,5 @@
+import { binaryToText, epochMsToText, getBsonWrapperType } from './bsonValue'
+
 /**
  * Converts canonical Extended JSON (EJSON) values into human-readable equivalents,
  * matching the display logic in documentTreeUtils.getDisplayValue().
@@ -31,6 +33,10 @@ export function humanizeEjson(value: unknown): unknown {
   if (typeof value === 'object') {
     const obj = value as Record<string, unknown>
 
+    if (!getBsonWrapperType(obj)) {
+      return humanizeFields(obj)
+    }
+
     if ('$oid' in obj && typeof obj.$oid === 'string') {
       return obj.$oid
     }
@@ -41,8 +47,7 @@ export function humanizeEjson(value: unknown): unknown {
         return dateVal
       }
       if (typeof dateVal === 'object' && dateVal !== null && '$numberLong' in dateVal) {
-        const ms = Number((dateVal as Record<string, unknown>).$numberLong)
-        return new Date(ms).toISOString()
+        return epochMsToText(String((dateVal as Record<string, unknown>).$numberLong))
       }
       return String(dateVal)
     }
@@ -69,16 +74,8 @@ export function humanizeEjson(value: unknown): unknown {
 
     if ('$binary' in obj) {
       const binary = obj.$binary as Record<string, unknown>
-      if (typeof binary?.base64 === 'string') {
-        if (binary.subType === '04' || binary.subType === '03') {
-          return base64ToUUID(binary.base64)
-        }
-        if (binary.subType === '05') {
-          return base64ToHex(binary.base64)
-        }
-      }
       // Non-UUID/MD5 binary: keep as-is
-      return value
+      return binaryToText(String(binary.base64), binary.subType) ?? value
     }
 
     if ('$regularExpression' in obj) {
@@ -91,14 +88,18 @@ export function humanizeEjson(value: unknown): unknown {
     }
 
     // $timestamp, $minKey, $maxKey: keep as EJSON (not cleanly representable as a primitive)
-    const result: Record<string, unknown> = {}
-    for (const [k, v] of Object.entries(obj)) {
-      result[k] = humanizeEjson(v)
-    }
-    return result
+    return humanizeFields(obj)
   }
 
   return value
+}
+
+function humanizeFields(obj: Record<string, unknown>): Record<string, unknown> {
+  const result: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(obj)) {
+    result[k] = humanizeEjson(v)
+  }
+  return result
 }
 
 /**

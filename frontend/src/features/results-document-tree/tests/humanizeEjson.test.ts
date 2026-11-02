@@ -322,3 +322,21 @@ describe('toJsExpression', () => {
     expect(toJsExpression(oid)).toBe('ObjectId("507f1f77bcf86cd799439011")')
   })
 })
+
+describe('humanizeEjson with documents that only look like BSON wrappers', () => {
+  it('keeps a document that has a field named like a wrapper', () => {
+    const doc = { _id: 1, name: 'x', $date: '2024-01-01' }
+
+    expect(humanizeEjson(doc)).toEqual(doc)
+  })
+
+  it.each([[{ $regularExpression: null }], [{ $binary: null }]])('does not throw on %j', (doc) => {
+    expect(humanizeEjson(doc)).toEqual(doc)
+  })
+
+  it('keeps a UUID with invalid base64 instead of throwing', () => {
+    const value = { $binary: { base64: '!!!', subType: '04' } }
+
+    expect(humanizeEjson(value)).toEqual(value)
+  })
+})
