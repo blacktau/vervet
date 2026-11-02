@@ -10,11 +10,12 @@ import (
 // existing global at top level, but throws inside a function body.
 func TestWrapQuery_DoesNotWrapScriptInAFunction(t *testing.T) {
 	got, _ := wrapQuery(`const db = db.getSiblingDB("other");`, "n")
-	if strings.Contains(got, "(() => {") {
-		t.Errorf("script must not be wrapped in an IIFE; got:\n%s", got)
+	lines := strings.Split(got, "\n")
+	if !strings.HasSuffix(lines[0], "})();") {
+		t.Errorf("the preamble must close before the script; got:\n%s", lines[0])
 	}
-	if !strings.Contains(got, `const db = db.getSiblingDB("other");`) {
-		t.Errorf("script body altered; got:\n%s", got)
+	if lines[1] != `const db = db.getSiblingDB("other");` {
+		t.Errorf("the script must be on its own line, unaltered; got:\n%s", lines[1])
 	}
 }
 

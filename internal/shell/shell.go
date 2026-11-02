@@ -77,8 +77,9 @@ func CheckMongosh() bool {
 // correct positions on that line.
 func wrapQuery(query, nonce string) (string, capturePos) {
 	trimmed := strings.TrimSpace(query)
-	body, at := prependToLastStatement(trimmed, capturePrefix)
-	capture := capturePosition(trimmed, at)
+	src := blankHashbang(trimmed)
+	body, at := prependToLastStatement(src, capturePrefix)
+	capture := capturePosition(src, at)
 
 	return fmt.Sprintf(`%s
 %s
@@ -104,6 +105,19 @@ func wrapQuery(query, nonce string) (string, capturePos) {
   __print(%[4]q + "R\n" + __out + "\n" + %[4]q + "E");
 })();
 `, outputPreamble(nonce), body, resultGlobal, frameMarker(nonce)), capture
+}
+
+// blankHashbang empties a leading #! line, which JavaScript only allows at the
+// very start of a file, and the preamble comes first. The line stays, empty, so
+// line numbers still match the user's.
+func blankHashbang(src string) string {
+	if !strings.HasPrefix(src, "#!") {
+		return src
+	}
+	if i := strings.IndexByte(src, '\n'); i >= 0 {
+		return src[i:]
+	}
+	return ""
 }
 
 // capturePos is the user line (1-based) and column (0-based) where wrapQuery
@@ -202,6 +216,12 @@ func parseResult(output string) models.QueryResult {
 	output = strings.TrimSpace(output)
 	if output == "" {
 		return models.QueryResult{}
+	}
+
+	// null would decode into an empty array below, but it is a value: findOne
+	// with no match, shown as the builtin engine shows it.
+	if output == "null" {
+		return models.QueryResult{RawOutput: output}
 	}
 
 	// Try parsing as a single JSON array

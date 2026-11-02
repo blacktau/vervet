@@ -50,7 +50,7 @@ func remapError(errMsg, userQuery string, capture capturePos) string {
 
 	out := make([]string, 0, len(inLines))
 	out = append(out, inLines[:header]...)
-	out = append(out, remapPosition(inLines[header], len(userLines), capture))
+	out = append(out, remapPosition(inLines[header], userLines, capture))
 
 	i := header + 1
 	if i < len(inLines) && strings.TrimSpace(inLines[i]) == "" {
@@ -75,7 +75,11 @@ func remapError(errMsg, userQuery string, capture capturePos) string {
 			continue
 		}
 		if m := caretLineRE.FindStringSubmatch(line); m != nil {
-			if highlightLine > 0 && highlightLine == capture.line {
+			// With its source line dropped, a caret points at nothing.
+			if highlightLine == 0 {
+				continue
+			}
+			if highlightLine == capture.line {
 				line = adjustCaretColumn(line, m, capture.col)
 			}
 			highlightLine = 0
@@ -87,7 +91,8 @@ func remapError(errMsg, userQuery string, capture capturePos) string {
 	}
 	out = append(out, inLines[i:]...)
 
-	return strings.Join(out, "\n")
+	// A frame with no lines left would leave the blank line that came before it.
+	return strings.TrimRight(strings.Join(out, "\n"), "\n")
 }
 
 // codeFrameHeader returns the index of the line that heads mongosh's code
@@ -117,8 +122,10 @@ func shiftsColumn(col int, capture capturePos) bool {
 
 // remapPosition rewrites a trailing (line:col) from wrapped-script terms to
 // the user's: the preamble line is taken off, and so is the capture prefix
-// when the position lies past it.
-func remapPosition(line string, userLineCount int, capture capturePos) string {
+// when the position lies past it. A position past the script's last line means
+// the script ended too soon (an unclosed block runs on into the epilogue), so
+// it becomes the end of the script.
+func remapPosition(line string, userLines []string, capture capturePos) string {
 	m := positionRE.FindStringSubmatchIndex(line)
 	if m == nil {
 		return line
@@ -126,8 +133,12 @@ func remapPosition(line string, userLineCount int, capture capturePos) string {
 	wrappedLine, _ := strconv.Atoi(line[m[2]:m[3]])
 	col, _ := strconv.Atoi(line[m[4]:m[5]])
 	userLine := wrappedLine - 1
-	if userLine < 1 || userLine > userLineCount {
+	if userLine < 1 {
 		return line
+	}
+	if userLine > len(userLines) {
+		userLine = len(userLines)
+		return line[:m[0]] + fmt.Sprintf("(%d:%d)", userLine, len(userLines[userLine-1]))
 	}
 	if userLine == capture.line && shiftsColumn(col, capture) {
 		col -= len(capturePrefix)

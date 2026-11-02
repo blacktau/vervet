@@ -46,21 +46,29 @@ func newNonce() (string, error) {
 // output is sure to be on stdout, in its place among the other lines. trace
 // prints only its message, as in the builtin engine: mongosh's own stack has
 // line numbers from its transpiled copy of the script, which match nothing
-// the user wrote. The original print is kept as __vervetPrint for the
-// epilogue, which must write the result unframed.
+// the user wrote. __vervetPrint is for the epilogue, which writes the result
+// unframed.
 //
-// The framing function is built with new Function so mongosh does not
-// rewrite it. mongosh makes every call in the script's own code async, so a
-// promise callback could otherwise print between a call's start marker and
-// its text, and its line would be merged into that call's entry. Code from
-// new Function runs as plain JavaScript: the three writes happen together.
+// mongosh's print returns a promise and may write after it returns: a cursor
+// or an insert result is formatted asynchronously. So the end marker waits for
+// that promise, and every write goes through one queue so that nothing, a
+// promise callback's print included, can land inside another call's frame. The
+// queue's promises carry mongosh's synthetic-promise mark, which is what makes
+// the script wait for them, so its statements still run in order. The queue is
+// built with new Function because mongosh does not rewrite that code to await
+// its calls: the frame's writes stay under the queue's control.
 func outputPreamble(nonce string) string {
 	return `;(function () { const M = "\x1eVV:` + nonce + `:", P = globalThis.print, J = globalThis.printjson; ` +
-		`const frame = new Function("P", "M", "l", "f", "return function (...a) { P(M + 'B:' + l); try { return f.apply(this, a); } finally { P(M + 'E'); } }"); ` +
-		`const w = (l, f) => frame(P, M, l, f); ` +
+		`const out = new Function("P", "M", "S", "let tail = Promise.resolve(); ` +
+		`const q = (fn) => { const p = tail.then(fn); tail = p.catch(() => {}); p[S] = true; return p; }; ` +
+		`return { raw: (s) => q(() => P(s)), ` +
+		`frame: (l, f) => function (...a) { return q(() => { P(M + 'B:' + l); let r; ` +
+		`try { r = f.apply(this, a); } catch (e) { P(M + 'E'); throw e; } ` +
+		`return Promise.resolve(r).finally(() => P(M + 'E')); }); } };")(P, M, Symbol.for("@@mongosh.syntheticPromise")); ` +
+		`const w = out.frame; ` +
 		`globalThis.print = w("info", P); globalThis.printjson = w("info", J); ` +
 		`for (const [k, l] of [["log", "info"], ["info", "info"], ["debug", "info"], ["trace", "info"], ["warn", "warning"], ["error", "error"]]) { console[k] = w(l, P); } ` +
-		`globalThis.__vervetPrint = P; })();`
+		`globalThis.__vervetPrint = out.raw; })();`
 }
 
 // scannedLine is one entry of a run's stdout. framed is false for text written
@@ -179,11 +187,13 @@ func normalizeNewlines(s string) string {
 	return strings.ReplaceAll(s, "\r\n", "\n")
 }
 
-// withStderrNotice adds mongosh's own stderr notices after the script's output,
-// as a warning. The script's console.error output is already in stdout.
+// withStderrNotice adds what mongosh wrote to stderr after the script's output,
+// as a warning. The script's console.error output is already in stdout, so this
+// is mongosh's own text (a Node deprecation warning, say): it is marked as a
+// notice, because the script did not print it.
 func withStderrNotice(output []models.OutputLine, stderr string) []models.OutputLine {
 	if text := strings.TrimSpace(stderr); text != "" {
-		return append(output, models.OutputLine{Level: models.OutputWarning, Text: text})
+		return append(output, models.OutputLine{Level: models.OutputWarning, Text: text, Notice: true})
 	}
 	return output
 }

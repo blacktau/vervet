@@ -38,6 +38,9 @@ const (
 type OutputLine struct {
 	Level string `json:"level"`
 	Text  string `json:"text"`
+	// Notice marks text the engine wrote rather than the script. It is shown in
+	// Messages but doesn't open that tab or count towards its badge.
+	Notice bool `json:"notice,omitempty"`
 }
 
 // QueryResult holds the parsed output of a query.

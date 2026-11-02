@@ -213,3 +213,23 @@ func TestRemapError_StopsAtTheEndOfTheFrame(t *testing.T) {
 		t.Errorf("lines after the frame should be unchanged; got:\n%s", got)
 	}
 }
+
+// An unclosed block runs on into the epilogue, so mongosh reports a line past
+// the end of the script. It becomes the end of the script, and the caret goes
+// with the source line it pointed at.
+func TestRemapError_PositionPastTheEndOfTheScript(t *testing.T) {
+	userQuery := "function f() {\n  print(1)"
+	mongoshErr := "SyntaxError: Unexpected token (26:0)\n\n  25 | })();\n> 26 |\n     | ^"
+
+	got := remap(mongoshErr, userQuery)
+
+	if !strings.Contains(got, "(2:10)") {
+		t.Errorf("expected the end of the script, line 2 column 10; got:\n%s", got)
+	}
+	if strings.Contains(got, "^") {
+		t.Errorf("a caret with no source line should be dropped; got:\n%s", got)
+	}
+	if strings.HasSuffix(got, "\n") {
+		t.Errorf("no blank line should be left where the frame was; got %q", got)
+	}
+}

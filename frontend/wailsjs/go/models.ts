@@ -297,6 +297,7 @@ export namespace models {
 	export interface OutputLine {
 	    level: string;
 	    text: string;
+	    notice?: boolean;
 	}
 	export interface PageContext {
 	    database: string;

@@ -104,7 +104,7 @@ func TestBuildResult_TextResult(t *testing.T) {
 func TestBuildResult_StderrIsAWarning(t *testing.T) {
 	got := buildResult(framed(result(), `[{"n":1}]`), "  deprecated thing\n", testNonce)
 	assert.Len(t, got.Documents, 1)
-	assert.Equal(t, []models.OutputLine{{Level: models.OutputWarning, Text: "deprecated thing"}}, got.Output)
+	assert.Equal(t, []models.OutputLine{{Level: models.OutputWarning, Text: "deprecated thing", Notice: true}}, got.Output)
 }
 
 func TestWrapQuery_FramesOutputWithNonce(t *testing.T) {
@@ -219,11 +219,36 @@ func TestInterruptedRun_KeepsEverything(t *testing.T) {
 	assert.Equal(t, []models.OutputLine{
 		{Level: models.OutputInfo, Text: "step 1"},
 		{Level: models.OutputInfo, Text: "50%"},
-		{Level: models.OutputWarning, Text: "notice"},
+		{Level: models.OutputWarning, Text: "notice", Notice: true},
 	}, got.Output)
 }
 
 func TestWrapQuery_ResultHasAnEndMarker(t *testing.T) {
 	got, _ := wrapQuery("1", testNonce)
 	assert.Contains(t, got, `"\n" + "\x1eVV:`+testNonce+`:" + "E")`)
+}
+
+// JavaScript allows a hashbang only at the very start of a file, and the
+// preamble comes first. The line stays, empty, so line numbers still match.
+func TestWrapQuery_BlanksTheHashbang(t *testing.T) {
+	got, capture := wrapQuery("#!/usr/bin/env mongosh\nprint('a')\n[1]", testNonce)
+	assert.NotContains(t, got, "#!")
+	lines := strings.Split(got, "\n")
+	assert.Equal(t, "", lines[1])
+	assert.Equal(t, "print('a')", lines[2])
+	assert.Equal(t, capturePos{line: 3, col: 0}, capture)
+}
+
+func TestWrapQuery_OnlyAHashbang(t *testing.T) {
+	got, capture := wrapQuery("#!/usr/bin/env mongosh", testNonce)
+	assert.NotContains(t, got, "#!")
+	assert.Equal(t, capturePos{}, capture)
+}
+
+// findOne with no match leaves null, which is a value and not an empty result.
+func TestBuildResult_NullIsAValue(t *testing.T) {
+	got := buildResult(framed(result(), "null", end()), "", testNonce)
+	assert.Equal(t, "null", got.RawOutput)
+	assert.Empty(t, got.Documents)
+	assert.True(t, got.HasValue)
 }

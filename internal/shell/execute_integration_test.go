@@ -316,3 +316,88 @@ func TestExecute_FailureKeepsStdoutWriteOutOfTheError(t *testing.T) {
 	assert.Equal(t, "Error: boom", err.Error())
 	assert.Equal(t, []models.OutputLine{{Level: models.OutputInfo, Text: "note"}}, result.Output)
 }
+
+// mongosh formats a cursor or insert result after print returns. All of it
+// stays in the one entry, at its level, and the next statement comes after.
+func TestExecute_PrintingAsyncValuesIsOneEntry(t *testing.T) {
+	if !CheckMongosh() {
+		t.Skip("mongosh not in PATH")
+	}
+
+	query := `db.asyncprint.drop(); print(db.asyncprint.find()); print("next"); ` +
+		`console.error(db.asyncprint.insertOne({ _id: 1 })); print("after"); 1`
+	result, err := Execute(context.Background(), testURI, query, Config{Timeout: 60 * time.Second})
+	require.NoError(t, err)
+	require.Len(t, result.Output, 4, "%+v", result.Output)
+	assert.Equal(t, models.OutputLine{Level: models.OutputInfo, Text: "next"}, result.Output[1])
+	assert.Equal(t, models.OutputError, result.Output[2].Level)
+	assert.Contains(t, result.Output[2].Text, "acknowledged: true")
+	assert.Equal(t, models.OutputLine{Level: models.OutputInfo, Text: "after"}, result.Output[3])
+}
+
+// Calls from callbacks and loops stay in the order they ran.
+func TestExecute_PrintOrderInLoopsAndCallbacks(t *testing.T) {
+	if !CheckMongosh() {
+		t.Skip("mongosh not in PATH")
+	}
+
+	query := `[1, 2].forEach(n => print(n)); for (let i = 3; i < 5; i++) { print(i); } print("end")`
+	result, err := Execute(context.Background(), testURI, query, Config{Timeout: 60 * time.Second})
+	require.NoError(t, err)
+	var got []string
+	for _, l := range result.Output {
+		got = append(got, l.Text)
+	}
+	assert.Equal(t, []string{"1", "2", "3", "4", "end"}, got)
+}
+
+// What was printed before quit() is not lost in the queue.
+func TestExecute_PrintBeforeQuit(t *testing.T) {
+	if !CheckMongosh() {
+		t.Skip("mongosh not in PATH")
+	}
+
+	result, err := Execute(context.Background(), testURI, `print("bye"); quit()`, Config{Timeout: 60 * time.Second})
+	require.NoError(t, err)
+	assert.Equal(t, []models.OutputLine{{Level: models.OutputInfo, Text: "bye"}}, result.Output)
+}
+
+// A saved script's hashbang is fine, and lines keep the user's numbers.
+func TestExecute_Hashbang(t *testing.T) {
+	if !CheckMongosh() {
+		t.Skip("mongosh not in PATH")
+	}
+
+	result, err := Execute(context.Background(), testURI, "#!/usr/bin/env mongosh\nprint(\"a\");\n[{ n: 1 }]", Config{Timeout: 60 * time.Second})
+	require.NoError(t, err)
+	assert.Len(t, result.Documents, 1)
+	assert.Equal(t, []models.OutputLine{{Level: models.OutputInfo, Text: "a"}}, result.Output)
+
+	_, err = Execute(context.Background(), testURI, "#!/usr/bin/env mongosh\nlet x = (;", Config{Timeout: 60 * time.Second})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "> 2 | let x = (;")
+}
+
+func TestExecute_UnclosedBlockPointsAtTheEndOfTheScript(t *testing.T) {
+	if !CheckMongosh() {
+		t.Skip("mongosh not in PATH")
+	}
+
+	_, err := Execute(context.Background(), testURI, "function f() {\n  print(1)", Config{Timeout: 60 * time.Second})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "(2:10)")
+	assert.NotContains(t, err.Error(), "^")
+	assert.NotContains(t, err.Error(), "__vervet")
+}
+
+// findOne with no match shows null, as in the builtin engine.
+func TestExecute_FindOneNoMatchIsNull(t *testing.T) {
+	if !CheckMongosh() {
+		t.Skip("mongosh not in PATH")
+	}
+
+	result, err := Execute(context.Background(), testURI, `db.nomatch.findOne({ _id: 1 })`, Config{Timeout: 60 * time.Second})
+	require.NoError(t, err)
+	assert.Equal(t, "null", result.RawOutput)
+	assert.True(t, result.HasValue)
+}
