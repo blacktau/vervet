@@ -56,6 +56,36 @@ describe('script expressions', () => {
   })
 })
 
+describe('fields named __proto__', () => {
+  const doc = JSON.parse('{"a":{"$numberInt":"1"},"__proto__":{"$numberLong":"7"}}')
+
+  it('reach the editor text as a field', () => {
+    expect(JSON.stringify(toEditableEjson(doc))).toBe('{"a":1,"__proto__":{"$numberLong":"7"}}')
+  })
+
+  it('stay in an _id filter', () => {
+    const id = JSON.parse('{"a":1,"__proto__":{"b":1}}')
+
+    expect(documentIdFilter(id)).toContain('__proto__')
+    expect(hasDocumentId({ _id: id })).toBe(true)
+  })
+})
+
+describe('$numberInt outside int32', () => {
+  it.each(['9007199254740993', '2147483648', '-2147483649', '007', '-0'])(
+    'is an ordinary object, not rounded: %s',
+    ($numberInt) => {
+      expect(toEditableEjson({ $numberInt })).toEqual({ $numberInt })
+      expect(isDocumentEditable({ _id: 1, x: { $numberInt } })).toBe(false)
+    },
+  )
+
+  it.each(['2147483647', '-2147483648', '0'])('is an int32 at %s', ($numberInt) => {
+    expect(toEditableEjson({ $numberInt })).toBe(Number($numberInt))
+    expect(isDocumentEditable({ _id: 1, x: { $numberInt } })).toBe(true)
+  })
+})
+
 describe('documentIdFilter', () => {
   it('refuses a missing _id rather than matching any document', () => {
     expect(() => documentIdFilter(undefined)).toThrow()

@@ -1,6 +1,11 @@
-import { binaryToText, BINARY_SUBTYPE_UUID, dateEpochMs, getBsonWrapperType } from './bsonValue'
+import {
+  binaryToText,
+  BINARY_SUBTYPE_UUID,
+  dateEpochMs,
+  getBsonWrapperType,
+  isInt32Text,
+} from './bsonValue'
 
-const INT32_TEXT = /^-?\d+$/
 const MIN_ISO_YEAR = 1
 const MAX_ISO_YEAR = 9999
 
@@ -23,7 +28,7 @@ export function toEditableEjson(value: unknown): unknown {
     case undefined:
       return Object.fromEntries(Object.entries(obj).map(([k, v]) => [k, toEditableEjson(v)]))
     case 'int32':
-      return INT32_TEXT.test(String(obj.$numberInt)) ? Number(obj.$numberInt) : value
+      return isInt32Text(obj.$numberInt) ? Number(obj.$numberInt) : value
     case 'double': {
       const number = Number(obj.$numberDouble)
       return Number.isFinite(number) && !Number.isInteger(number) ? number : value

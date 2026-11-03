@@ -37,7 +37,7 @@ const container = ref<HTMLElement | null>(null)
 const editor = shallowRef<monaco.editor.IStandaloneCodeEditor | null>(null)
 const jsonError = ref('')
 const saving = ref(false)
-const documentId = ref<unknown>(null)
+const documentId = ref<unknown>(undefined)
 
 const namespace = computed(() => formatNamespace(props.dbName, props.collectionName))
 
@@ -48,7 +48,7 @@ const title = computed(() =>
 )
 
 const idDisplay = computed(() => {
-  if (!documentId.value) {
+  if (documentId.value === undefined) {
     return ''
   }
   return JSON.stringify(documentId.value)
@@ -62,7 +62,7 @@ function prepareDocument(doc: unknown): string {
   const editable = toEditableEjson(doc) as Record<string, unknown>
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { _id, ...rest } = editable
-  documentId.value = (doc as Record<string, unknown>)?._id ?? null
+  documentId.value = (doc as Record<string, unknown>)?._id
   return JSON.stringify(rest, null, 2)
 }
 
@@ -98,7 +98,7 @@ watch(
         editor.value.dispose()
         editor.value = null
       }
-      documentId.value = null
+      documentId.value = undefined
     }
   },
   // The table mounts this dialog when it first opens, already shown
@@ -115,7 +115,8 @@ watch(
 )
 
 async function save() {
-  if (!editor.value) {
+  // Ctrl+S reaches here while a save is running, and would insert the document twice
+  if (!editor.value || saving.value) {
     return
   }
 

@@ -360,3 +360,42 @@ func TestEJSON_StrictValuesMatchMongosh(t *testing.T) {
 		assert.Equal(t, want, got.String(), script)
 	}
 }
+
+// A field named __proto__ is an ordinary field: it must not set the prototype, which
+// loses the field and, for a wrapper value, turns the document into that value.
+func TestEJSON_StrictParseKeepsProtoField(t *testing.T) {
+	cases := map[string]bson.D{
+		`{"a":1,"__proto__":{"b":1},"c":2}`: {
+			{Key: "a", Value: int32(1)},
+			{Key: "__proto__", Value: bson.D{{Key: "b", Value: int32(1)}}},
+			{Key: "c", Value: int32(2)},
+		},
+		`{"z":1,"__proto__":{"$numberLong":"7"},"y":2,"x":3,"w":4}`: {
+			{Key: "z", Value: int32(1)},
+			{Key: "__proto__", Value: int64(7)},
+			{Key: "y", Value: int32(2)},
+			{Key: "x", Value: int32(3)},
+			{Key: "w", Value: int32(4)},
+		},
+	}
+	for text, want := range cases {
+		// Map iteration made the order random, so one pass could pass by luck.
+		for range 20 {
+			rt := setupEJSONRuntime(t)
+			require.NoError(t, rt.Set("text", text))
+			val, err := rt.RunString(`EJSON.parse(text, { relaxed: false })`)
+			require.NoError(t, err)
+			assert.Equal(t, want, toBsonDoc(exportValue(val)), text)
+		}
+	}
+}
+
+// A script can still set a prototype, and inheriting from a wrapper doesn't make an
+// object that value.
+func TestExportValue_InheritedBSONValueIsADocument(t *testing.T) {
+	rt := setupEJSONRuntime(t)
+	require.NoError(t, registerBSONTypes(rt))
+	val, err := rt.RunString(`({ __proto__: NumberLong("7"), a: 1 })`)
+	require.NoError(t, err)
+	assert.Equal(t, bson.D{{Key: "a", Value: int32(1)}}, toBsonDoc(exportValue(val)))
+}

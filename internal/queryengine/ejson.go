@@ -226,6 +226,8 @@ func ejsonRelaxed(call goja.FunctionCall) bool {
 //
 // Not relaxed: every value keeps its BSON type, as a wrapper where a plain script
 // value would lose it (see typedScalarToJS). The edit dialog saves through this.
+// That holds for the text given: EJSON.deserialize first relaxes its input, so
+// Double(5) comes back as an Int32, as it does in mongosh.
 func parsedExtJSONValue(rt *goja.Runtime, data []byte, relaxed bool, fn string) goja.Value {
 	// The driver would decode null to an empty document, which a replaceOne
 	// would then store over the whole document.

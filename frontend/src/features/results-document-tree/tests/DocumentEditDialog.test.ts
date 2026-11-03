@@ -205,6 +205,72 @@ describe('DocumentEditDialog save checks', () => {
     expect(wrapper!.emitted('update:show')).toBeUndefined()
   })
 
+  it('sends one insert when Ctrl+S is pressed again during a save', async () => {
+    let finish: (reply: unknown) => void = () => {}
+    vi.mocked(shellProxy.ExecuteQuery).mockClear()
+    vi.mocked(shellProxy.ExecuteQuery).mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve
+      }) as never,
+    )
+    const addCommand = vi.fn()
+    vi.mocked(monaco.editor.create).mockReturnValueOnce({
+      addCommand,
+      setValue: vi.fn(),
+      getValue: () => '{"a":1}',
+      dispose: vi.fn(),
+    } as never)
+    const DocumentEditDialog = (await import('../DocumentEditDialog.vue')).default
+    wrapper = mount(DocumentEditDialog, {
+      props: {
+        show: true,
+        document: {},
+        mode: 'insert',
+        serverId: 'server-1',
+        dbName: 'shop',
+        collectionName: 'orders',
+      },
+      global: { plugins: [naive, i18n] },
+      attachTo: document.body,
+    })
+    await flushPromises()
+    const pressCtrlS = addCommand.mock.lastCall![1]
+
+    pressCtrlS()
+    pressCtrlS()
+    await flushPromises()
+    expect(shellProxy.ExecuteQuery).toHaveBeenCalledTimes(1)
+
+    finish({ isSuccess: true })
+    await flushPromises()
+    expect(wrapper.emitted('saved')).toHaveLength(1)
+  })
+
+  it('refuses to save an edit of a document with no _id', async () => {
+    vi.mocked(shellProxy.ExecuteQuery).mockClear()
+    const DocumentEditDialog = (await import('../DocumentEditDialog.vue')).default
+    wrapper = mount(DocumentEditDialog, {
+      props: {
+        show: true,
+        document: { name: 'a' },
+        mode: 'edit',
+        serverId: 'server-1',
+        dbName: 'shop',
+        collectionName: 'orders',
+      },
+      global: { plugins: [naive, i18n] },
+      attachTo: document.body,
+    })
+    await flushPromises()
+    ;[...document.body.querySelectorAll('button')]
+      .find((b) => b.textContent?.trim() === 'Save')!
+      .click()
+    await flushPromises()
+
+    expect(shellProxy.ExecuteQuery).not.toHaveBeenCalled()
+    expect(wrapper.emitted('saved')).toBeUndefined()
+  })
+
   it('closes when the save matched', async () => {
     await saveWithText('{"a":1}', { isSuccess: true, data: { documents: [{ matchedCount: 1 }] } })
 

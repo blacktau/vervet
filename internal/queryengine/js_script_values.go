@@ -53,13 +53,13 @@ func jsValue(rt *goja.Runtime, v any, mode jsMode) goja.Value {
 	case map[string]any:
 		obj := rt.NewObject()
 		for k, elem := range val {
-			_ = obj.Set(k, jsValue(rt, elem, mode))
+			setOwnField(obj, k, jsValue(rt, elem, mode))
 		}
 		return obj
 	case bson.D:
 		obj := rt.NewObject()
 		for _, e := range val {
-			_ = obj.Set(e.Key, jsValue(rt, e.Value, mode))
+			setOwnField(obj, e.Key, jsValue(rt, e.Value, mode))
 		}
 		return obj
 	case bson.A:
@@ -78,6 +78,12 @@ func jsValue(rt *goja.Runtime, v any, mode jsMode) goja.Value {
 		}
 	}
 	return rt.ToValue(v)
+}
+
+// setOwnField sets a field read from a document. obj.Set would run the __proto__
+// setter for a field with that name, losing the field and changing the prototype.
+func setOwnField(obj *goja.Object, key string, val goja.Value) {
+	_ = obj.DefineDataProperty(key, val, goja.FLAG_TRUE, goja.FLAG_TRUE, goja.FLAG_TRUE)
 }
 
 // jsArray uses NewArray rather than ToValue: a reflected Go slice is not a

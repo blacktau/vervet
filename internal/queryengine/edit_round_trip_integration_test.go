@@ -147,6 +147,46 @@ func TestIntegration_EditRoundTrip_BadWrapperFails(t *testing.T) {
 	assert.Equal(t, bson.D{{Key: "_id", Value: int32(1)}, {Key: "keep", Value: true}}, got)
 }
 
+// A field named __proto__ survives a save, and an _id holding one is not confused
+// with the document whose _id lacks it.
+func TestIntegration_EditRoundTrip_ProtoField(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	db := dbName(t)
+	defer testClient.Database(db).Drop(ctx)
+	engine := NewGojaEngine(testClient, 0, "")
+	coll := testClient.Database(db).Collection("c")
+
+	proto := bson.D{{Key: "a", Value: int32(1)}, {Key: "__proto__", Value: bson.D{{Key: "b", Value: int32(1)}}}}
+	plain := bson.D{{Key: "a", Value: int32(1)}}
+	_, err := coll.InsertMany(ctx, []any{
+		bson.D{{Key: "_id", Value: plain}, {Key: "who", Value: "plain"}},
+		bson.D{{Key: "_id", Value: proto}, {Key: "who", Value: "proto"}, {Key: "__proto__", Value: int64(7)}, {Key: "z", Value: true}},
+	})
+	require.NoError(t, err)
+	filter := ejsonParseScript(t, `{"_id":{"a":{"$numberInt":"1"},"__proto__":{"b":{"$numberInt":"1"}}}}`)
+
+	_, err = engine.ExecuteQuery(ctx, testURI, db, fmt.Sprintf(`db.getCollection("c").replaceOne(%s, %s)`, filter,
+		ejsonParseScript(t, `{"who":"saved","__proto__":{"$numberLong":"7"},"z":true}`)))
+	require.NoError(t, err)
+
+	var saved bson.D
+	require.NoError(t, coll.FindOne(ctx, bson.D{{Key: "_id", Value: proto}}).Decode(&saved))
+	assert.Equal(t, bson.D{{Key: "who", Value: "saved"}, {Key: "__proto__", Value: int64(7)}, {Key: "z", Value: true}}, saved[1:])
+	var other bson.D
+	require.NoError(t, coll.FindOne(ctx, bson.D{{Key: "_id", Value: plain}}).Decode(&other))
+	assert.Equal(t, "plain", other[1].Value)
+
+	_, err = engine.ExecuteQuery(ctx, testURI, db, fmt.Sprintf(`db.getCollection("c").deleteOne(%s)`, filter))
+	require.NoError(t, err)
+	count, err := coll.CountDocuments(ctx, bson.D{{Key: "_id", Value: plain}})
+	require.NoError(t, err)
+	assert.EqualValues(t, 1, count)
+	count, err = coll.CountDocuments(ctx, bson.D{{Key: "_id", Value: proto}})
+	require.NoError(t, err)
+	assert.Zero(t, count)
+}
+
 // The dialog reads these counts to tell a save that matched nothing from a real one.
 func TestIntegration_EditRoundTrip_MissReportsZero(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

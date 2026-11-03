@@ -130,6 +130,18 @@ export function hasUnwritableDate(value: unknown): boolean {
 }
 
 const INTEGER_TEXT = /^-?\d+$/
+const INT32_MIN = -2147483648
+const INT32_MAX = 2147483647
+
+/** Whether text is an int32 as canonical Extended JSON writes it, so it fits and converts exactly. */
+export function isInt32Text(text: unknown): boolean {
+  if (typeof text !== 'string' || !INTEGER_TEXT.test(text)) {
+    return false
+  }
+  const number = Number(text)
+  return number >= INT32_MIN && number <= INT32_MAX && String(number) === text
+}
+
 const SPECIAL_DOUBLE_TEXT = /^(NaN|-?Infinity)$/
 const DECIMAL_TEXT = /^[-+]?(\d|\.\d|NaN|Inf)/i
 const OBJECT_ID_TEXT = /^[0-9a-f]{24}$/
@@ -151,7 +163,7 @@ const canonicalPayloads = new Map<string, (v: unknown) => boolean>([
       typeof v.$numberLong === 'string' &&
       INTEGER_TEXT.test(v.$numberLong),
   ],
-  ['$numberInt', (v) => typeof v === 'string' && INTEGER_TEXT.test(v)],
+  ['$numberInt', isInt32Text],
   ['$numberLong', (v) => typeof v === 'string' && INTEGER_TEXT.test(v)],
   [
     '$numberDouble',
