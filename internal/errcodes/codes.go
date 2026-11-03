@@ -14,6 +14,7 @@ const (
 	OIDCLoginCanceled     = "oidc_login_canceled"
 	OperationNotSupported = "operation_not_supported"
 	DuplicateGroupName    = "duplicate_group_name"
+	ConfigMissing         = "connection_config_missing"
 	UnknownError          = "unknown_error"
 )
 

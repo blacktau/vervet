@@ -15,8 +15,6 @@ export function GetServer(arg1:string):Promise<api.Result_vervet_internal_models
 
 export function GetServers():Promise<api.Result___vervet_internal_models_RegisteredServer_>;
 
-export function GetURI(arg1:string):Promise<api.Result_string_>;
-
 export function ImportServers(arg1:string):Promise<api.Result_vervet_internal_servers_ImportResult_>;
 
 export function RemoveNode(arg1:string):Promise<api.EmptyResult>;

@@ -50,17 +50,6 @@ func (m *MockConnectionStringsStore) StoreRegisteredServerURI(id, uri string) er
 	return nil
 }
 
-func (m *MockConnectionStringsStore) GetRegisteredServerURI(id string) (string, error) {
-	if m.err != nil {
-		return "", m.err
-	}
-	uri, ok := m.uris[id]
-	if !ok {
-		return "", errors.New("URI not found")
-	}
-	return uri, nil
-}
-
 func (m *MockConnectionStringsStore) DeleteRegisteredServerURI(id string) error {
 	if m.err != nil {
 		return m.err
@@ -298,10 +287,6 @@ func (m *countingConnectionStringsStore) StoreRegisteredServerURI(id, uri string
 	return m.inner.StoreRegisteredServerURI(id, uri)
 }
 
-func (m *countingConnectionStringsStore) GetRegisteredServerURI(id string) (string, error) {
-	return m.inner.GetRegisteredServerURI(id)
-}
-
 func (m *countingConnectionStringsStore) DeleteRegisteredServerURI(id string) error {
 	return m.inner.DeleteRegisteredServerURI(id)
 }
@@ -312,32 +297,6 @@ func (m *countingConnectionStringsStore) GetConnectionConfig(id string) (models.
 
 func (m *countingConnectionStringsStore) UpdateRefreshToken(id, refreshToken, binding string) error {
 	return m.inner.UpdateRefreshToken(id, refreshToken, binding)
-}
-
-func TestGetURI(t *testing.T) {
-	t.Run("successful get uri", func(t *testing.T) {
-		mockCSStore := &MockConnectionStringsStore{
-			uris: map[string]string{"1": "mongodb://localhost"},
-		}
-		sm := newTestServerService(&mockServerStore{}, mockCSStore)
-
-		uri, err := sm.GetURI("1")
-
-		assert.NoError(t, err)
-		assert.Equal(t, "mongodb://localhost", uri)
-	})
-
-	t.Run("uri not found", func(t *testing.T) {
-		mockCSStore := &MockConnectionStringsStore{
-			uris: make(map[string]string),
-		}
-		sm := newTestServerService(&mockServerStore{}, mockCSStore)
-
-		uri, err := sm.GetURI("1")
-
-		assert.Error(t, err)
-		assert.Empty(t, uri)
-	})
 }
 
 func TestBuildFullConnectionString_VerbatimAuthMethods(t *testing.T) {

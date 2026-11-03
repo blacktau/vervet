@@ -326,15 +326,6 @@ func (sm *ServerService) RemoveNode(id string) error {
 	return nil
 }
 
-func (sm *ServerService) GetURI(id string) (string, error) {
-	uri, err := sm.connectionStrings.GetRegisteredServerURI(id)
-	if err != nil {
-		return "", fmt.Errorf("failed to get uri for registered server: %w", err)
-	}
-
-	return uri, nil
-}
-
 // BuildFullConnectionString returns the stored URI for a registered server,
 // synthesizing missing auth-mechanism parameters for OIDC. Other auth methods
 // return the URI verbatim. Returns an error if the server is not registered or
