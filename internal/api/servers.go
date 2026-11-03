@@ -12,7 +12,6 @@ type ServersProvider interface {
 	AddServer(parentID, name, uri, colour string) error
 	UpdateServer(serverID, name, uri, parentID, colour string) error
 	RemoveNode(id string) error
-	GetURI(id string) (string, error)
 	CreateGroup(parentID, name string) (string, error)
 	UpdateGroup(groupID, name, parentID string) error
 	GetServer(id string) (*models.RegisteredServer, error)
@@ -141,16 +140,6 @@ func (sp *ServersProxy) GetConnectionConfig(id string) Result[models.ConnectionC
 	// Strip refresh token — sensitive credential should not reach the frontend
 	cfg.RefreshToken = ""
 	return SuccessResult(cfg)
-}
-
-func (sp *ServersProxy) GetURI(id string) Result[string] {
-	uri, err := sp.sm.GetURI(id)
-	if err != nil {
-		logFail(sp.log, "GetURI", err)
-		return FailResult[string](err)
-	}
-
-	return SuccessResult(uri)
 }
 
 func (sp *ServersProxy) ExportServers(serverIDs []string, includeSensitiveData bool) Result[string] {

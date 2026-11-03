@@ -90,18 +90,9 @@ export const useServerStore = defineStore('server', {
 
       const configResult = await serversProxy.GetConnectionConfig(id)
       if (!configResult.isSuccess) {
-        // Fallback to legacy URI fetch
-        const uriResponse = await serversProxy.GetURI(id)
-        if (!uriResponse.isSuccess) {
-          const notifier = useNotifier()
-          notifier.error(errorCodeText(uriResponse.errorCode), { title: i18nGlobal.t('errorTitles.loadServerDetails'), detail: uriResponse.errorDetail })
-          return undefined
-        }
-        return {
-          ...response.data,
-          uri: uriResponse.data,
-          authMethod: 'password',
-        }
+        const notifier = useNotifier()
+        notifier.error(errorCodeText(configResult.errorCode), { title: i18nGlobal.t('errorTitles.loadServerDetails'), detail: configResult.errorDetail })
+        return undefined
       }
 
       return {

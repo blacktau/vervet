@@ -260,21 +260,27 @@ watch(
     if (data?.mode === 'edit' || data?.mode === 'clone') {
       editServerID.value = data.serverId
       const server = await serverStore.getServerDetails(data.serverId)
-      if (server != null) {
-        generalForm.value = {
-          id: server.id,
-          name: server.name,
-          colour: server.colour,
-          connectionString: server.uri,
-          parentId: server.parentID || '',
-        }
-        previousParentId.value = generalForm.value.parentId
-        authPicker.value = server.authMethod
-        if (server.oidcConfig) {
-          oidcConfig.value = { ...server.oidcConfig }
-        }
-        nameWasEdited.value = true
+      if (editServerID.value !== data.serverId) {
+        return
       }
+      if (server == null) {
+        // Without the stored config, saving would overwrite it with a blank form.
+        onClose()
+        return
+      }
+      generalForm.value = {
+        id: server.id,
+        name: server.name,
+        colour: server.colour,
+        connectionString: server.uri,
+        parentId: server.parentID || '',
+      }
+      previousParentId.value = generalForm.value.parentId
+      authPicker.value = server.authMethod
+      if (server.oidcConfig) {
+        oidcConfig.value = { ...server.oidcConfig }
+      }
+      nameWasEdited.value = true
       return
     }
     if (data?.mode === 'new') {

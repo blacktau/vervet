@@ -314,32 +314,6 @@ func (m *countingConnectionStringsStore) UpdateRefreshToken(id string, refreshTo
 	return m.inner.UpdateRefreshToken(id, refreshToken)
 }
 
-func TestGetURI(t *testing.T) {
-	t.Run("successful get uri", func(t *testing.T) {
-		mockCSStore := &MockConnectionStringsStore{
-			uris: map[string]string{"1": "mongodb://localhost"},
-		}
-		sm := newTestServerService(&mockServerStore{}, mockCSStore)
-
-		uri, err := sm.GetURI("1")
-
-		assert.NoError(t, err)
-		assert.Equal(t, "mongodb://localhost", uri)
-	})
-
-	t.Run("uri not found", func(t *testing.T) {
-		mockCSStore := &MockConnectionStringsStore{
-			uris: make(map[string]string),
-		}
-		sm := newTestServerService(&mockServerStore{}, mockCSStore)
-
-		uri, err := sm.GetURI("1")
-
-		assert.Error(t, err)
-		assert.Empty(t, uri)
-	})
-}
-
 func TestBuildFullConnectionString_VerbatimAuthMethods(t *testing.T) {
 	cases := []struct {
 		name   string
