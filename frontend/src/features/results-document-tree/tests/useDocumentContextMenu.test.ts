@@ -5,6 +5,7 @@ vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 
 import {
   hasDocumentId,
+  hasEditBlockingFieldName,
   isDocumentEditable,
   useDocumentContextMenu,
   type CollectionContext,
@@ -141,5 +142,46 @@ describe('documents holding dates a script cannot write', () => {
     const keys = menu.menuOptions.value.map((o) => String(o.key))
     expect(keys).not.toContain('editDocument')
     expect(keys).toContain('deleteDocument')
+  })
+})
+
+describe('Edit on a document with a field named like a BSON type', () => {
+  const context = {
+    serverId: 's',
+    dbName: 'd',
+    collectionName: 'c',
+    collectionFromTab: false,
+    canEdit: true,
+  }
+  const row = { key: '0', kind: 'document', field: '', value: '', type: 'document' } as DocumentRow
+  const event = { preventDefault: () => {}, clientX: 0, clientY: 0 } as MouseEvent
+
+  function editOption(canEdit: boolean, blockedByName: boolean) {
+    const menu = useDocumentContextMenu(
+      ref({ ...context, canEdit }),
+      () => true,
+      () => false,
+      () => blockedByName,
+    )
+    menu.openMenu(row, event)
+    return menu.menuOptions.value.find((option) => option.key === 'editDocument')
+  }
+
+  it('shows Edit disabled, saying why', () => {
+    const option = editOption(true, true)
+
+    expect(option?.disabled).toBe(true)
+    expect(option?.props?.title).toBeTruthy()
+  })
+
+  it('keeps Edit hidden for other reasons, and where results can never be edited', () => {
+    expect(editOption(true, false)).toBeUndefined()
+    expect(editOption(false, true)).toBeUndefined()
+  })
+
+  it('flags that document and no other', () => {
+    expect(hasEditBlockingFieldName({ _id: 1, filter: { name: { $regex: '^a' } } })).toBe(true)
+    expect(hasEditBlockingFieldName({ _id: 1, name: 'a' })).toBe(false)
+    expect(hasEditBlockingFieldName({ filter: { $regex: '^a' } })).toBe(false)
   })
 })

@@ -14,6 +14,7 @@ import { typeColorMapDark, typeColorMapLight } from '@/features/queries/typeColo
 import {
   formatNamespace,
   hasDocumentId,
+  hasEditBlockingFieldName,
   isDocumentEditable,
   useDocumentContextMenu,
   type CollectionContext,
@@ -77,6 +78,7 @@ const contextMenu = useDocumentContextMenu(
   collectionContextRef as Ref<CollectionContext | undefined>,
   (row) => hasDocumentId(resolveRawValue(props.documents, row.key)),
   (row) => isDocumentEditable(resolveRawValue(props.documents, row.key)),
+  (row) => hasEditBlockingFieldName(resolveRawValue(props.documents, row.key)),
 )
 const notifier = useNotifier()
 const dialog = useDialog()
@@ -459,6 +461,7 @@ function rowClassName(row: DocumentRow): string {
         v-model:show="showViewDialog"
         :document="viewDocument"
         :can-edit="!!collectionContext?.canEdit && isDocumentEditable(viewDocument)"
+        :edit-blocked-by-field-name="!!collectionContext?.canEdit && hasEditBlockingFieldName(viewDocument)"
         @edit="switchToEdit" />
       <DocumentEditDialog
         v-if="editContext"

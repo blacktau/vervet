@@ -498,6 +498,8 @@ export default {
         "These results don't say which database and collection they came from, so changes go to {namespace}. Check that's where you mean.",
       save: 'Save',
       invalidJson: 'Invalid JSON: {error}',
+      editBlockedByFieldName:
+        "Can't edit this document: a field is named like a BSON type, such as $date or $regex, so saving could change or reject it.",
       documentMustBeObject: 'A document must be a JSON object.',
       documentNotFound:
         'No document was changed: this document was not found in {namespace}. It may have been deleted or changed.',

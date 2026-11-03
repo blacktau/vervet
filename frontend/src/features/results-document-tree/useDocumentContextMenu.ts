@@ -38,10 +38,19 @@ export function isDocumentEditable(doc: unknown): boolean {
   return hasDocumentId(doc) && !hasUnwritableDate(doc) && !hasAmbiguousEjsonField(doc)
 }
 
+/**
+ * Whether Edit is off because of a field's name. The document looks ordinary, so
+ * unlike the other cases Edit stays visible and says why it can't be used.
+ */
+export function hasEditBlockingFieldName(doc: unknown): boolean {
+  return hasDocumentId(doc) && hasAmbiguousEjsonField(doc)
+}
+
 export function useDocumentContextMenu(
   collectionContext: Ref<CollectionContext | undefined>,
   rowHasId: (row: DocumentRow) => boolean = () => true,
   rowIsEditable: (row: DocumentRow) => boolean = rowHasId,
+  rowHasBlockingFieldName: (row: DocumentRow) => boolean = () => false,
 ) {
   const { t } = useI18n()
   const showMenu = ref(false)
@@ -75,6 +84,13 @@ export function useDocumentContextMenu(
 
       if (collectionContext.value?.canEdit && rowIsEditable(targetRow.value)) {
         options.push({ label: t('query.contextMenu.editDocument'), key: 'editDocument' })
+      } else if (collectionContext.value?.canEdit && rowHasBlockingFieldName(targetRow.value)) {
+        options.push({
+          label: t('query.contextMenu.editDocument'),
+          key: 'editDocument',
+          disabled: true,
+          props: { title: t('query.dialogs.editBlockedByFieldName') },
+        })
       }
       if (collectionContext.value) {
         options.push({ label: t('query.contextMenu.insertDocument'), key: 'insertDocument' })
