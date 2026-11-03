@@ -3,6 +3,8 @@ export type CompletionContextType =
   | 'COLLECTION_NAME_STRING'
   | 'METHOD_NAME'
   | 'CURSOR_METHOD'
+  | 'ARRAY_CURSOR_METHOD'
+  | 'ARRAY_METHOD'
   | 'FIELD_NAME'
   | 'QUERY_OPERATOR'
   | 'AGG_STAGE'
@@ -105,7 +107,7 @@ function currentStatement(text: string): string {
   return out.slice(start)
 }
 
-export function analyzeContext(textBeforeCursor: string): CompletionContext {
+export function analyzeContext(textBeforeCursor: string, mongosh = false): CompletionContext {
   // Normalise every db.getCollection('name') → db.__gc0__, db.__gc1__, ... so all
   // regexes below work unchanged, then restore the real collection name in the
   // result. Every occurrence must be rewritten: leaving a later one intact makes
@@ -116,7 +118,7 @@ export function analyzeContext(textBeforeCursor: string): CompletionContext {
     (_match, name: string) => `db.__gc${collectionNames.push(name) - 1}__`,
   )
 
-  const ctx = analyzeContextCore(currentStatement(normalised))
+  const ctx = analyzeContextCore(currentStatement(normalised), mongosh)
 
   const placeholder = ctx.collection?.match(/^__gc(\d+)__$/)
   if (placeholder) {
@@ -127,16 +129,107 @@ export function analyzeContext(textBeforeCursor: string): CompletionContext {
 }
 
 /**
- * Methods that return a document (or null) rather than a cursor, so cursor
- * methods chained onto them would fail.
+ * What a call evaluates to, which decides what can follow its dot:
+ * - `cursor`: the find cursor, with every cursor method
+ * - `arrayCursor`: the shorter cursor from aggregate and the like
+ * - `array`: a plain JavaScript array
+ * - `value`: a document, number, boolean or undefined, so suggest nothing
+ *
+ * A call that isn't known has no kind, and gets the find cursor's list.
  */
-const DOCUMENT_METHODS = new Set([
-  'findOne',
-  'findOneAndDelete',
-  'findOneAndReplace',
-  'findOneAndUpdate',
-  'findAndModify',
+type ResultKind = 'cursor' | 'arrayCursor' | 'array' | 'value'
+
+const withKind = (kind: ResultKind, names: string[]) =>
+  names.map((name): [string, ResultKind] => [name, kind])
+
+const RESULT_KINDS = new Map<string, ResultKind>([
+  ['find', 'cursor'],
+  ...withKind('arrayCursor', ['aggregate', 'listIndexes', 'getCollectionInfos']),
+  ...withKind('array', ['toArray', 'distinct', 'getIndexes', 'getCollectionNames']),
+  ...withKind('value', [
+    // Documents
+    'findOne',
+    'findOneAndDelete',
+    'findOneAndReplace',
+    'findOneAndUpdate',
+    'findAndModify',
+    'next',
+    'tryNext',
+    'explain',
+    // Numbers and booleans
+    'count',
+    'countDocuments',
+    'estimatedDocumentCount',
+    'size',
+    'itcount',
+    'objsLeftInBatch',
+    'hasNext',
+    'isClosed',
+    'isExhausted',
+    // Undefined
+    'close',
+    'forEach',
+    // Write results
+    'insertOne',
+    'insertMany',
+    'updateOne',
+    'updateMany',
+    'deleteOne',
+    'deleteMany',
+    'replaceOne',
+    'bulkWrite',
+  ]),
 ])
+
+/** Array.prototype methods that give another array. */
+const ARRAY_RETURNING = new Set([
+  'concat',
+  'filter',
+  'flatMap',
+  'map',
+  'reverse',
+  'slice',
+  'sort',
+  'toArray',
+])
+
+/** Calls that keep mongosh's aggregation cursor, which the builtin array lacks. */
+const MONGOSH_AGGREGATE_MODIFIERS = new Set([
+  'batchSize',
+  'maxTimeMS',
+  'projection',
+  'skip',
+  'sort',
+])
+
+function resultOf(callee: string, receiver: ResultKind | undefined, mongosh: boolean) {
+  if (receiver === 'value') {
+    return 'value'
+  }
+  if (receiver === 'arrayCursor') {
+    const keepsCursor =
+      callee === 'map' ||
+      callee === 'pretty' ||
+      (mongosh && MONGOSH_AGGREGATE_MODIFIERS.has(callee))
+    if (keepsCursor) {
+      return 'arrayCursor'
+    }
+  }
+  if (receiver === 'array' || receiver === 'arrayCursor') {
+    return ARRAY_RETURNING.has(callee) ? 'array' : 'value'
+  }
+  if (callee === 'map') {
+    // The builtin engine reads a find cursor to map it; mongosh's stays a cursor.
+    if (receiver !== 'cursor') {
+      return 'array'
+    }
+    return mongosh ? 'cursor' : 'arrayCursor'
+  }
+  if (callee === 'getCollectionInfos' && mongosh) {
+    return 'array'
+  }
+  return RESULT_KINDS.get(callee) ?? receiver
+}
 
 /** Methods whose second argument is an update document. */
 const UPDATE_METHODS = new Set(['updateOne', 'updateMany', 'findOneAndUpdate'])
@@ -147,6 +240,8 @@ interface Frame {
   key?: string
   /** For '(': the method being called, e.g. `find`. */
   callee?: string
+  /** For '(': what this call evaluates to, when known. */
+  result?: ResultKind
   /** Top-level commas seen inside this frame — the argument/element index. */
   commas: number
 }
@@ -158,8 +253,8 @@ interface Scan {
   insideQuotes: boolean
   /** The caret sits in a value position: the last token was a `:`. */
   afterColon: boolean
-  /** The method of the call most recently closed, e.g. `find` after `find({})`. */
-  closedCallee?: string
+  /** What the call most recently closed evaluates to, when known. */
+  closedResult?: ResultKind
 }
 
 /**
@@ -170,14 +265,14 @@ interface Scan {
  * the enclosing brace. Ordered regexes can't see that, which is how nested
  * operator objects came to kill completions for the rest of the document.
  */
-function scan(text: string): Scan {
+function scan(text: string, mongosh: boolean): Scan {
   const stack: Frame[] = []
   let quote: string | null = null
   let quoteStart = 0
   let lastIdent = ''
   let afterColon = false
   let word = ''
-  let closedCallee: string | undefined
+  let closedResult: ResultKind | undefined
 
   const top = () => stack[stack.length - 1]
 
@@ -207,7 +302,8 @@ function scan(text: string): Scan {
     }
 
     if (word) {
-      lastIdent = word
+      // Spaces can follow a dot: `aggregate([]). pretty()` still chains.
+      lastIdent = lastIdent.endsWith('.') ? lastIdent + word : word
       word = ''
     }
 
@@ -216,12 +312,18 @@ function scan(text: string): Scan {
       afterColon = false
       lastIdent = ''
     } else if (ch === '(') {
-      stack.push({ open: ch, callee: lastIdent.split('.').pop(), commas: 0 })
+      const callee = lastIdent.split('.').pop()
+      // A leading dot means this call chains onto the one just closed.
+      const receiver = lastIdent.startsWith('.') ? closedResult : undefined
+      const result = callee ? resultOf(callee, receiver, mongosh) : undefined
+      stack.push({ open: ch, callee, result, commas: 0 })
       afterColon = false
       lastIdent = ''
     } else if (ch === '}' || ch === ']' || ch === ')') {
       const closed = stack.pop()
-      closedCallee = closed?.open === '(' ? closed.callee : undefined
+      // Plain grouping brackets evaluate to whatever is inside them.
+      const isGroup = closed?.open === '(' && !closed.callee
+      closedResult = isGroup ? closedResult : closed?.result
       afterColon = false
       lastIdent = ''
     } else if (ch === ',') {
@@ -241,7 +343,7 @@ function scan(text: string): Scan {
     prefix: quote ? text.slice(quoteStart) : word,
     insideQuotes: quote !== null,
     afterColon,
-    closedCallee,
+    closedResult,
   }
 }
 
@@ -263,7 +365,7 @@ function enclosingStage(stack: Frame[]): string | undefined {
   return stack.find((f) => f.key?.startsWith('$'))?.key
 }
 
-function analyzeContextCore(textBeforeCursor: string): CompletionContext {
+function analyzeContextCore(textBeforeCursor: string, mongosh: boolean): CompletionContext {
   // use <database> — checked before trimming so a trailing space is preserved
   const useMatch = textBeforeCursor.match(/(?:^|\n)\s*use\s+(\w*)$/)
   if (useMatch) {
@@ -282,7 +384,7 @@ function analyzeContextCore(textBeforeCursor: string): CompletionContext {
     }
   }
 
-  const scanned = scan(textBeforeCursor)
+  const scanned = scan(textBeforeCursor, mongosh)
   const braceContext = analyzeBraces(textBeforeCursor, scanned)
   if (braceContext) {
     return braceContext
@@ -294,13 +396,18 @@ function analyzeContextCore(textBeforeCursor: string): CompletionContext {
     return { type: 'EJSON_METHOD', prefix: ejsonMatch[1] || '' }
   }
 
-  // db.collection.method(...).| → CURSOR_METHOD (chained modifiers), unless
-  // the method returns a document, which has no cursor methods
+  // db.collection.method(...).| → the methods of whatever that call returns
   const cursorMethodMatch = trimmed.match(/\)\s*\.(\w*)$/)
   if (cursorMethodMatch) {
     const prefix = cursorMethodMatch[1] || ''
-    if (DOCUMENT_METHODS.has(scanned.closedCallee ?? '')) {
+    if (scanned.closedResult === 'value') {
       return { type: 'NONE', prefix }
+    }
+    if (scanned.closedResult === 'array') {
+      return { type: 'ARRAY_METHOD', prefix }
+    }
+    if (scanned.closedResult === 'arrayCursor') {
+      return { type: 'ARRAY_CURSOR_METHOD', prefix }
     }
     return { type: 'CURSOR_METHOD', prefix }
   }

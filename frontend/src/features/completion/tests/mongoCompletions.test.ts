@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { useTabStore } from '@/features/tabs/tabs'
 import { useQueryStore } from '@/features/queries/queryStore'
+import { useSettingsStore } from '@/features/settings/settingsStore'
 import { completionsAt, labelsAt, filterTextFor } from './monacoHarness'
 
 // The schema cache talks to the backend over wailsjs. Everything it returns is
@@ -78,6 +79,92 @@ describe('methods', () => {
 
   it('suggests cursor methods after a find()', async () => {
     expect(await labelsAt('db.users.find({}).|')).toEqual(expect.arrayContaining(['limit', 'sort']))
+  })
+
+  it('suggests every cursor method the engine runs after a find()', async () => {
+    expect(await labelsAt('db.users.find({}).|')).toEqual(
+      expect.arrayContaining([
+        'close',
+        'isClosed',
+        'isExhausted',
+        'itcount',
+        'max',
+        'min',
+        'size',
+        'noCursorTimeout',
+        'returnKey',
+        'showRecordId',
+        'readConcern',
+        'readPref',
+        'tailable',
+        'objsLeftInBatch',
+        'tryNext',
+        'projection',
+        'allowDiskUse',
+        'allowPartialResults',
+        'addOption',
+      ]),
+    )
+  })
+
+  it('filters cursor methods by the typed prefix', async () => {
+    expect(await labelsAt('db.users.find({}).isE|')).toEqual(['isExhausted'])
+  })
+
+  const arrayCursorLabels = [
+    'close',
+    'forEach',
+    'hasNext',
+    'isClosed',
+    'isExhausted',
+    'itcount',
+    'map',
+    'next',
+    'objsLeftInBatch',
+    'pretty',
+    'toArray',
+    'tryNext',
+  ]
+
+  it.each([
+    'db.users.aggregate([]).|',
+    'db.users.listIndexes().|',
+    'db.getCollectionInfos().|',
+    'db.users.find({}).map(f).|',
+  ])('suggests only what an array-backed cursor has at %s', async (text) => {
+    expect((await labelsAt(text)).sort()).toEqual(arrayCursorLabels)
+  })
+
+  it('suggests nothing after a call that returns a value', async () => {
+    expect(await labelsAt('db.users.find({}).size().|')).toEqual([])
+  })
+
+  it('suggests only array methods after toArray', async () => {
+    expect((await labelsAt('db.users.find({}).toArray().|')).sort()).toEqual(['forEach', 'map'])
+  })
+
+  describe('with the mongosh engine', () => {
+    beforeEach(() => {
+      useSettingsStore().query.queryEngine = 'mongosh'
+    })
+
+    it('suggests what its aggregation cursor has', async () => {
+      expect((await labelsAt('db.users.aggregate([]).|')).sort()).toEqual(
+        [
+          ...arrayCursorLabels,
+          'batchSize',
+          'explain',
+          'maxTimeMS',
+          'projection',
+          'skip',
+          'sort',
+        ].sort(),
+      )
+    })
+
+    it('keeps the full list after find().map()', async () => {
+      expect(await labelsAt('db.users.find({}).map(f).|')).toContain('tailable')
+    })
   })
 
   it('resolves the collection through db.getCollection', async () => {

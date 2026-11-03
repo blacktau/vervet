@@ -256,6 +256,81 @@ describe('analyzeContext', () => {
     expect(ctx.type).toBe('CURSOR_METHOD')
   })
 
+  it.each([
+    'db.users.aggregate([]).',
+    'db.aggregate([]).',
+    'db.getSiblingDB("x").users.aggregate([]).',
+    'db.users.listIndexes().',
+    'db.users.find({}).map(f).',
+    'db.users.aggregate([]).map(f).',
+    'db.users.aggregate([{ $match: { a: f() } }]).map(g(1)).',
+    'db.users\n  .aggregate([])\n  .map(f)\n  .',
+    'db.getCollectionInfos().',
+    'db.users.aggregate([]).pretty().',
+    'db.users.aggregate([]). pretty().',
+    '(db.users.aggregate([])).',
+  ])('returns ARRAY_CURSOR_METHOD after %s', (text) => {
+    expect(analyzeContext(text).type).toBe('ARRAY_CURSOR_METHOD')
+  })
+
+  it.each([
+    'db.users.find({ a: db.other.aggregate([]) }).',
+    'db.users.find({}).limit(db.other.aggregate([]).length).',
+    'db.users.find().sort({ a: 1 }).',
+  ])('returns CURSOR_METHOD after %s', (text) => {
+    expect(analyzeContext(text).type).toBe('CURSOR_METHOD')
+  })
+
+  it.each([
+    'db.users.find({}).next().',
+    'db.users.find({}).tryNext().',
+    'db.users.find({}).size().',
+    'db.users.find({}).count().',
+    'db.users.find({}).itcount().',
+    'db.users.find({}).hasNext().',
+    'db.users.find({}).isClosed().',
+    'db.users.find({}).isExhausted().',
+    'db.users.find({}).objsLeftInBatch().',
+    'db.users.find({}).close().',
+    'db.users.find({}).forEach(f).',
+    'db.users.find({}).explain().',
+    'db.users.aggregate([]).next().',
+    'db.users.aggregate([]).itcount().',
+    'db.users.aggregate([]).hasNext().',
+    'db.users.aggregate([]).close().',
+    'db.users.aggregate([]).find(f).',
+    'db.users.countDocuments({}).',
+    'db.users.insertOne({}).',
+    '(db.users.findOne({})).',
+  ])('suggests nothing after a value: %s', (text) => {
+    expect(analyzeContext(text).type).toBe('NONE')
+  })
+
+  it.each([
+    'db.users.find({}).toArray().',
+    'db.users.aggregate([]).toArray().',
+    'db.users.distinct("a").',
+    'db.getCollectionNames().',
+    'db.getCollectionNames().map(f).',
+    '[1, 2].map(f).',
+    'db.users.aggregate([]).filter(f).',
+  ])('returns ARRAY_METHOD after an array: %s', (text) => {
+    expect(analyzeContext(text).type).toBe('ARRAY_METHOD')
+  })
+
+  describe('with the mongosh engine', () => {
+    it.each([
+      ['db.users.find({}).map(f).', 'CURSOR_METHOD'],
+      ['db.users.aggregate([]).', 'ARRAY_CURSOR_METHOD'],
+      ['db.users.aggregate([]).map(f).', 'ARRAY_CURSOR_METHOD'],
+      ['db.users.aggregate([]).sort({ a: 1 }).', 'ARRAY_CURSOR_METHOD'],
+      ['db.getCollectionInfos().', 'ARRAY_METHOD'],
+      ['db.users.aggregate([]).next().', 'NONE'],
+    ])('%s is %s', (text, type) => {
+      expect(analyzeContext(text, true).type).toBe(type)
+    })
+  })
+
   it('returns CURSOR_METHOD after chained sort().', () => {
     const ctx = analyzeContext('db.users.find({}).sort({ name: 1 }).')
     expect(ctx.type).toBe('CURSOR_METHOD')

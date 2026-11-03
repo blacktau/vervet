@@ -194,6 +194,30 @@ func TestIntegration_Cursor_MatchesMongosh(t *testing.T) {
 	}
 }
 
+// The editor suggests these, from completionData.ts. Keep the two in step: a method
+// removed here would otherwise go on being suggested and fail when run.
+func TestIntegration_SuggestedCursorMethodsExist(t *testing.T) {
+	run := setupFinds(t)
+	cursorMethods := []string{"limit", "skip", "sort", "toArray", "count", "forEach", "pretty", "explain", "hint", "batchSize", "maxTimeMS", "collation", "comment", "map", "hasNext", "next", "tryNext", "projection", "min", "max", "returnKey", "showRecordId", "readConcern", "readPref", "allowDiskUse", "allowPartialResults", "noCursorTimeout", "tailable", "addOption", "size", "itcount", "objsLeftInBatch", "isExhausted", "isClosed", "close"}
+	arrayCursorMethods := []string{"close", "forEach", "hasNext", "isClosed", "isExhausted", "itcount", "map", "next", "objsLeftInBatch", "pretty", "toArray", "tryNext"}
+	for expr, methods := range map[string][]string{
+		`db.c.find()`:                                       cursorMethods,
+		`db.c.aggregate([])`:                                arrayCursorMethods,
+		`db.c.listIndexes()`:                                arrayCursorMethods,
+		`db.getCollectionInfos()`:                           arrayCursorMethods,
+		`db.c.find().map(function (d) { return d })`:        arrayCursorMethods,
+		`db.c.aggregate([]).map(function (d) { return d })`: arrayCursorMethods,
+		`db.c.aggregate([]).pretty()`:                       arrayCursorMethods,
+	} {
+		for _, method := range methods {
+			script := `print(typeof (` + expr + `).` + method + `)`
+			got, err := run(script)
+			require.NoError(t, err, script)
+			assert.Equal(t, "function", got, script)
+		}
+	}
+}
+
 // aggregate reads eagerly here, so its result is an array that also works as the
 // cursor mongosh returns.
 func TestIntegration_AggregateCursorMethods(t *testing.T) {
