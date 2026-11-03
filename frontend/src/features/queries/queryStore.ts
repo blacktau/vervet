@@ -113,6 +113,11 @@ export interface QueryState {
   pageContext: PageContext | null
   /** Where the current results are stored, when the engine knows. Edits and deletes go here. */
   resultsNamespace: ResultNamespace | null
+  /**
+   * A document was edited and the results can't be re-fetched, so its row is out of
+   * date. Saving from that row would replace the document with the old values.
+   */
+  resultsStale: boolean
   page: number
   pageSize: number
   total: number | null
@@ -160,6 +165,7 @@ function createQueryState(database: string): QueryState {
     _rawJsonCache: null,
     pageContext: null,
     resultsNamespace: null,
+    resultsStale: false,
     page: 0,
     pageSize: 25,
     total: null,
@@ -423,6 +429,7 @@ export const useQueryStore = defineStore('query', {
       state.executionId = thisExecution
       state.documents = []
       state.resultsNamespace = null
+      state.resultsStale = false
       state._rawJsonCache = null
       state.rawOutput = ''
       state.error = ''
@@ -655,12 +662,13 @@ export const useQueryStore = defineStore('query', {
      * Refresh the results after a document was edited, inserted or deleted. Only paged
      * results can be re-fetched safely; re-running the query text could repeat writes.
      */
-    async refreshResults(queryId: string) {
+    async refreshResults(queryId: string, edited = false) {
       const state = this.getQueryState(queryId)
       if (state.loading) {
         return
       }
       if (!state.pageContext) {
+        state.resultsStale = state.resultsStale || edited
         this.appendMessage(queryId, {
           level: 'info',
           text: i18nGlobal.t('query.messages.resultsStale'),

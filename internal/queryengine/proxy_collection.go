@@ -188,7 +188,7 @@ func newCollectionProxy(ec *execContext, collName string) goja.Value {
 				return goja.Null()
 			}
 			val := withCursorMethods(ec.rt, m, toGojaValue(ec.rt, result))
-			if m == "aggregate" && result.Namespace != nil {
+			if m == "aggregate" {
 				ec.rememberRead(val, result)
 			}
 			return val

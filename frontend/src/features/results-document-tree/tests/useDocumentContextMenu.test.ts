@@ -45,10 +45,42 @@ describe('useDocumentContextMenu', () => {
     expect(keys).toEqual(expect.arrayContaining(['insertDocument', 'deleteDocument']))
   })
 
-  it('offers no writes without a collection context', () => {
-    const keys = rootMenuKeys(undefined)
+  it('offers no writes without a collection context, and says why', () => {
+    const menu = useDocumentContextMenu(ref(undefined))
+    menu.openMenu(
+      { kind: 'document' } as DocumentRow,
+      {
+        preventDefault: () => {},
+        clientX: 0,
+        clientY: 0,
+      } as MouseEvent,
+    )
+    const options = menu.menuOptions.value
+    const keys = options.map((o) => o.key)
     expect(keys).not.toContain('insertDocument')
     expect(keys).not.toContain('deleteDocument')
+    const edit = options.find((o) => o.key === 'editDocument')
+    expect(edit?.disabled).toBe(true)
+    expect(edit?.props?.title).toBeTruthy()
+  })
+
+  it('shows Edit disabled, saying why, once the results are out of date', () => {
+    const menu = useDocumentContextMenu(ref({ ...context, canEdit: false, stale: true }))
+    menu.openMenu(
+      { kind: 'document' } as DocumentRow,
+      {
+        preventDefault: () => {},
+        clientX: 0,
+        clientY: 0,
+      } as MouseEvent,
+    )
+    const options = menu.menuOptions.value
+    const edit = options.find((o) => o.key === 'editDocument')
+    expect(edit?.disabled).toBe(true)
+    expect(edit?.props?.title).toBeTruthy()
+    expect(options.map((o) => o.key)).toEqual(
+      expect.arrayContaining(['insertDocument', 'deleteDocument']),
+    )
   })
 
   it('hides edit and delete, but keeps insert, for a document without an _id', () => {
@@ -149,7 +181,7 @@ describe('Edit on a document with a field named like a BSON type', () => {
     serverId: 's',
     dbName: 'd',
     collectionName: 'c',
-      canEdit: true,
+    canEdit: true,
   }
   const row = { key: '0', kind: 'document', field: '', value: '', type: 'document' } as DocumentRow
   const event = { preventDefault: () => {}, clientX: 0, clientY: 0 } as MouseEvent

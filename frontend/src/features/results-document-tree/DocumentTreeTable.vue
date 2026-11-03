@@ -48,7 +48,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'update:checkedKeys', keys: DataTableRowKey[]): void
-  (e: 'document-changed'): void
+  (e: 'document-changed', edited: boolean): void
   (e: 'export-requested'): void
   (e: 'update:page', page: number): void
   (e: 'update:page-size', size: number): void
@@ -284,7 +284,7 @@ function handleContextMenuSelect(key: string) {
           if (writeCount(result.data?.documents, 'deletedCount') === 0) {
             notifier.error(t('query.dialogs.documentNotFound', { namespace }))
           }
-          emit('document-changed')
+          emit('document-changed', false)
         } else {
           notifier.error(errorCodeText(result.errorCode), {
             title: t('errorTitles.deleteDocument'),
@@ -346,7 +346,7 @@ function openEditDialog(mode: 'edit' | 'insert', doc: unknown) {
 }
 
 function handleDocumentSaved() {
-  emit('document-changed')
+  emit('document-changed', editMode.value === 'edit')
 }
 
 function handleCopyShortcut(evt: KeyboardEvent) {

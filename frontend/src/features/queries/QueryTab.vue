@@ -78,7 +78,8 @@ const collectionContext = computed<CollectionContext | undefined>(() => {
     serverId: tab.serverId,
     dbName: namespace.database,
     collectionName: namespace.collection,
-    canEdit: namespace.wholeDocuments,
+    canEdit: namespace.wholeDocuments && !queryState.value.resultsStale,
+    stale: queryState.value.resultsStale,
   }
 })
 
@@ -328,8 +329,8 @@ function openExport() {
   })
 }
 
-async function handleDocumentChanged() {
-  await queryStore.refreshResults(props.queryId)
+async function handleDocumentChanged(edited: boolean) {
+  await queryStore.refreshResults(props.queryId, edited)
 }
 
 watch(

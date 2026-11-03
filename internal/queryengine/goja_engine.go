@@ -122,9 +122,9 @@ func finalValueResult(ec *execContext, val goja.Value) (models.QueryResult, erro
 	// What a read returned, left unchanged as the final value, keeps the types
 	// it was stored with and says where it came from.
 	var raw any
-	if ec.isLastRead(val) {
+	if read := ec.rememberedRead(val); read != nil {
 		raw = exportValue(val)
-		if found, ok := ec.readDisplay(raw); ok {
+		if found, ok := ec.readDisplay(read, raw); ok {
 			return found, nil
 		}
 	}

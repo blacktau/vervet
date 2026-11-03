@@ -104,6 +104,58 @@ describe('queryStore refreshResults', () => {
     expect(store.getQueryState(QUERY_ID).resultsNamespace).toBeNull()
   })
 
+  async function runUnpagedQuery() {
+    const store = useQueryStore()
+    store.initQueryState(QUERY_ID, 'dbA')
+    executeQuery.mockResolvedValueOnce({ isSuccess: true, data: { documents: [{ _id: 1, a: 1 }] } })
+    await store.executeQuery(QUERY_ID, { text: 'db.c.findOne()', range: RANGE })
+    return store
+  }
+
+  test('marks results that cannot be re-fetched as stale after an edit', async () => {
+    const store = await runUnpagedQuery()
+
+    await store.refreshResults(QUERY_ID, true)
+
+    expect(store.getQueryState(QUERY_ID).resultsStale).toBe(true)
+  })
+
+  test('stays stale when a later change is not an edit', async () => {
+    const store = await runUnpagedQuery()
+
+    await store.refreshResults(QUERY_ID, true)
+    await store.refreshResults(QUERY_ID, false)
+
+    expect(store.getQueryState(QUERY_ID).resultsStale).toBe(true)
+  })
+
+  test('does not mark results stale for an insert or delete', async () => {
+    const store = await runUnpagedQuery()
+
+    await store.refreshResults(QUERY_ID, false)
+
+    expect(store.getQueryState(QUERY_ID).resultsStale).toBe(false)
+  })
+
+  test('running the query again clears stale results', async () => {
+    const store = await runUnpagedQuery()
+    await store.refreshResults(QUERY_ID, true)
+
+    executeQuery.mockResolvedValueOnce({ isSuccess: true, data: { documents: [{ _id: 1, a: 2 }] } })
+    await store.executeQuery(QUERY_ID, { text: 'db.c.findOne()', range: RANGE })
+
+    expect(store.getQueryState(QUERY_ID).resultsStale).toBe(false)
+  })
+
+  test('paged results are re-fetched, so an edit does not make them stale', async () => {
+    const store = await runPagedQuery()
+    fetchPage.mockResolvedValue(pageOf({ a: 2 }))
+
+    await store.refreshResults(QUERY_ID, true)
+
+    expect(store.getQueryState(QUERY_ID).resultsStale).toBe(false)
+  })
+
   test('re-fetches the current page and count without replaying the query', async () => {
     const store = await runPagedQuery()
     const state = store.getQueryState(QUERY_ID)

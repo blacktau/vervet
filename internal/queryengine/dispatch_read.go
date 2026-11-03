@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"vervet/internal/models"
@@ -282,14 +283,38 @@ func dispatchCountDocuments(ctx context.Context, coll *mongo.Collection, op Capt
 
 // findNamespace gives the namespace of documents read by a find. They are stored
 // documents, but a projection or returnKey leaves out fields, and showRecordId
-// adds one that isn't stored.
+// adds one that isn't stored. It gives none when the _id shown might not be the
+// stored one, since edits and deletes find their document by _id.
 func findNamespace(database, collection string, projection any, extras findExtras) *models.ResultNamespace {
 	doc, _ := asBsonDoc(projection)
+	if !projectionKeepsID(doc) {
+		return nil
+	}
 	return &models.ResultNamespace{
 		Database:       database,
 		Collection:     collection,
 		WholeDocuments: len(doc) == 0 && !extras.ReturnKey && !extras.ShowRecordID,
 	}
+}
+
+// projectionKeepsID reports whether a projection shows _id as stored or not at
+// all. Anything else computes it: { _id: "$customerId" } shows another field's
+// value as the _id.
+func projectionKeepsID(projection bson.D) bool {
+	for _, field := range projection {
+		if strings.HasPrefix(field.Key, "_id.") {
+			return false
+		}
+		if field.Key != "_id" {
+			continue
+		}
+		switch field.Value.(type) {
+		case bool, int32, int64, float64:
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 // wholeDocumentStages are the aggregation stages that only choose and order

@@ -43,6 +43,12 @@ func TestResultNamespace(t *testing.T) {
 		{"paged find", `db.customers.find()`, whole},
 		{"find with a projection", `db.customers.find({}, { score: 1 })`, partial},
 		{"find with a cursor projection", `db.customers.find().projection({ score: 1 })`, partial},
+		{"find with _id from another field", `db.customers.find({}, { _id: "$score" })`, nil},
+		{"findOne with _id from another field", `db.customers.findOne({}, { _id: "$score" })`, nil},
+		{"toArray with _id from another field", `db.customers.find({}, { _id: "$score" }).toArray()`, nil},
+		{"find showing _id", `db.customers.find({}, { _id: 1, score: 1 })`, partial},
+		{"earlier read left as the final value", `var a = db.customers.findOne(); var b = db.customers.aggregate([]); a`, whole},
+		{"earlier read from another database", `var a = db.getSiblingDB("` + sibling + `").orders.findOne(); db.customers.findOne(); a`, inSibling},
 		{"find with returnKey", `db.customers.find().returnKey(true)`, partial},
 		{"find on a sibling database", `db.getSiblingDB("` + sibling + `").orders.find()`, inSibling},
 		{"partly read cursor", `var c = db.customers.find(); c.hasNext(); c`, whole},
@@ -90,9 +96,17 @@ func TestAggregateFinalValueKeepsStoredTypes(t *testing.T) {
 	t.Cleanup(func() { _ = testClient.Database(db).Drop(ctx) })
 
 	engine := NewGojaEngine(testClient, 25, "")
-	result, err := engine.ExecuteQuery(ctx, testURI, db, `db.c.aggregate([{ $match: {} }])`)
-	require.NoError(t, err)
-	data, err := json.Marshal(result.Documents)
-	require.NoError(t, err)
-	assert.Contains(t, string(data), `{"$numberDouble":"5.0"}`)
+	for _, script := range []string{
+		`db.c.aggregate([{ $match: {} }])`,
+		// No namespace here, but a field shouldn't change type with the pipeline.
+		`db.c.aggregate([{ $project: { score: 1 } }])`,
+		// Not the script's last read.
+		`var a = db.c.findOne(); db.c.findOne({ _id: 2 }); a`,
+	} {
+		result, err := engine.ExecuteQuery(ctx, testURI, db, script)
+		require.NoError(t, err)
+		data, err := json.Marshal(result.Documents)
+		require.NoError(t, err)
+		assert.Contains(t, string(data), `{"$numberDouble":"5.0"}`, script)
+	}
 }

@@ -498,6 +498,10 @@ export default {
       invalidJson: 'Invalid JSON: {error}',
       editBlockedByFieldName:
         "Can't edit this document: a field is named like a BSON type, such as $date or $regex, so saving could change or reject it.",
+      editBlockedByUnknownCollection:
+        "Can't change this document here: these results don't say which collection they came from.",
+      editBlockedByStaleResults:
+        "Can't edit yet: a document was saved and these results don't show it. Run the query again, as saving now could undo that change.",
       documentMustBeObject: 'A document must be a JSON object.',
       documentNotFound:
         'No document was changed: this document was not found in {namespace}. It may have been deleted or changed.',

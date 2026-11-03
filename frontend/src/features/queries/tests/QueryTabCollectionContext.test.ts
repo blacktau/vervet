@@ -121,7 +121,20 @@ describe('QueryTab collection context', () => {
       dbName: 'shop',
       collectionName: 'orders',
       canEdit: true,
+      stale: false,
     })
+    wrapper.unmount()
+  })
+
+  it('turns off edit once the results are out of date', async () => {
+    const wrapper = await mountQueryTab(queryId)
+    showResults('shop', 'orders')
+    useQueryStore().getQueryState(queryId).resultsStale = true
+    await flushPromises()
+
+    const context = wrapper.findComponent(TableStub).props('collectionContext')
+    expect(context.canEdit).toBe(false)
+    expect(context.stale).toBe(true)
     wrapper.unmount()
   })
 

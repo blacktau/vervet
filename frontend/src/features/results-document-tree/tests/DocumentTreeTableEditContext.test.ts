@@ -100,4 +100,45 @@ describe('DocumentTreeTable edit context', () => {
     expect(dialog.props('dbName')).toBe('shop')
     wrapper.unmount()
   })
+
+  it.each([
+    ['editDocument', true],
+    ['insertDocument', false],
+  ])('after saving from %s, reports edited as %s', async (action, edited) => {
+    const DocumentTreeTable = (await import('../DocumentTreeTable.vue')).default
+    const wrapper = mount(
+      {
+        render: () =>
+          h(NDialogProvider, null, {
+            default: () =>
+              h(DocumentTreeTable, {
+                documents: [{ _id: 1, name: 'a' }],
+                enableContextMenu: true,
+                collectionContext: shopOrders,
+              }),
+          }),
+      },
+      {
+        global: {
+          plugins: [naive, i18n],
+          stubs: {
+            DocumentEditDialog: EditDialogStub,
+            DocumentContextMenu: ContextMenuStub,
+            DocumentViewDialog: true,
+            DataTable: DataTableStub,
+          },
+        },
+      },
+    )
+    await flushPromises()
+
+    await wrapper.find('.row').trigger('contextmenu')
+    wrapper.findComponent(ContextMenuStub).vm.$emit('select', action)
+    await flushPromises()
+    wrapper.findComponent(EditDialogStub).vm.$emit('saved')
+    await flushPromises()
+
+    expect(wrapper.findComponent(DocumentTreeTable).emitted('document-changed')).toEqual([[edited]])
+    wrapper.unmount()
+  })
 })
