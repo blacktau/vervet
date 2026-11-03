@@ -161,6 +161,17 @@ func maxTimeOpt(d *time.Duration) func(any) error {
 	}
 }
 
+// requiredMaxTimeOpt reads maxTimeMS for the findOneAnd* methods. These are the
+// ones where mongosh refuses a value that is not a number rather than ignoring it.
+func requiredMaxTimeOpt(d *time.Duration) func(any) error {
+	return func(v any) error {
+		if !isNumber(v) {
+			return errors.New("must be a number")
+		}
+		return maxTimeOpt(d)(v)
+	}
+}
+
 func isNumber(v any) bool {
 	switch convertToBson(v).(type) {
 	case int32, int64, float64:
@@ -549,7 +560,7 @@ func findOneAndDeleteOptions(raw any) (*options.FindOneAndDeleteOptionsBuilder, 
 		"hint":       hintOpt(o.SetHint),
 		"let":        anyOpt(o.SetLet),
 		"comment":    anyOpt(o.SetComment),
-		"maxTimeMS":  maxTimeOpt(&maxTime),
+		"maxTimeMS":  requiredMaxTimeOpt(&maxTime),
 	})
 	return o, maxTime, err
 }
@@ -618,7 +629,7 @@ func findOneAndUpdateOptions(raw any) (*options.FindOneAndUpdateOptionsBuilder, 
 		"let":                      anyOpt(o.SetLet),
 		"bypassDocumentValidation": boolOpt(o.SetBypassDocumentValidation),
 		"comment":                  anyOpt(o.SetComment),
-		"maxTimeMS":                maxTimeOpt(&maxTime),
+		"maxTimeMS":                requiredMaxTimeOpt(&maxTime),
 	})
 	if err != nil {
 		return o, maxTime, err
@@ -638,7 +649,7 @@ func findOneAndReplaceOptions(raw any) (*options.FindOneAndReplaceOptionsBuilder
 		"let":                      anyOpt(o.SetLet),
 		"bypassDocumentValidation": boolOpt(o.SetBypassDocumentValidation),
 		"comment":                  anyOpt(o.SetComment),
-		"maxTimeMS":                maxTimeOpt(&maxTime),
+		"maxTimeMS":                requiredMaxTimeOpt(&maxTime),
 	})
 	if err != nil {
 		return o, maxTime, err
