@@ -2,6 +2,7 @@ package queryengine
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/dop251/goja"
@@ -182,13 +183,13 @@ func setCollectionInfoMethods(obj *goja.Object, ec *execContext, collName string
 
 	_ = obj.Set("findAndModify", func(call goja.FunctionCall) goja.Value {
 		requireClient(ec)
-		op, err := findAndModifyOp(collName, argAt(exportArgs(call), 0))
+		op, err := findAndModifyOp(collName, exportDefinedFields(call.Argument(0)))
 		if err != nil {
 			panic(rt.NewGoError(err))
 		}
 		result, err := dispatch(ec.ctx, ec.client, ec.dbName, op)
 		if err != nil {
-			panic(rt.NewGoError(err))
+			panic(rt.NewGoError(findAndModifyError(op.Method, err)))
 		}
 		if len(result.Documents) == 0 {
 			return goja.Null()
@@ -196,6 +197,37 @@ func setCollectionInfoMethods(obj *goja.Object, ec *execContext, collName string
 		return toGojaValue(rt, result)
 	})
 }
+
+// exportDefinedFields exports an argument, leaving out the fields of a plain object
+// that are undefined. Exported values can't tell undefined from null, and for
+// findAndModify a field set to undefined counts as absent, but one set to null doesn't.
+func exportDefinedFields(arg goja.Value) any {
+	exported := exportValue(arg)
+	doc, ok := exported.(bson.D)
+	if !ok {
+		return exported
+	}
+	obj := arg.(*goja.Object)
+	return slices.DeleteFunc(doc, func(e bson.E) bool { return goja.IsUndefined(obj.Get(e.Key)) })
+}
+
+// findAndModifyError names findAndModify in an error from the method it ran, since
+// that is the one the script called. The error's chain is kept.
+func findAndModifyError(method string, err error) error {
+	rest, ok := strings.CutPrefix(err.Error(), method)
+	if !ok {
+		return err
+	}
+	return renamedError{message: "findAndModify" + rest, err: err}
+}
+
+type renamedError struct {
+	message string
+	err     error
+}
+
+func (e renamedError) Error() string { return e.message }
+func (e renamedError) Unwrap() error { return e.err }
 
 // findAndModifyOp turns a findAndModify spec into the findOneAnd* method mongosh
 // would call for it, so that its options behave as they do on that method. Without
@@ -205,9 +237,13 @@ func findAndModifyOp(collName string, rawSpec any) (CapturedOp, error) {
 	if !ok {
 		return CapturedOp{}, fmt.Errorf("findAndModify requires a spec document")
 	}
-	filter, err := filterDoc("findAndModify", docField(spec, "query"))
-	if err != nil {
-		return CapturedOp{}, err
+	query := docField(spec, "query")
+	if query == nil {
+		return CapturedOp{}, fmt.Errorf("findAndModify requires a query; use query: {} to match every document")
+	}
+	filter, ok := asBsonDoc(query)
+	if !ok {
+		return CapturedOp{}, fmt.Errorf("findAndModify query must be a document")
 	}
 	fields, hasFields := lookupOption(spec, "fields")
 	if _, hasProjection := lookupOption(spec, "projection"); hasFields && hasProjection {
@@ -234,21 +270,23 @@ func findAndModifyOp(collName string, rawSpec any) (CapturedOp, error) {
 	if !jsTruthy(update) {
 		return CapturedOp{}, fmt.Errorf("findAndModify requires either remove or an update")
 	}
-	method := "findOneAndReplace"
 	if isUpdateDocument(update) {
-		method = "findOneAndUpdate"
+		return CapturedOp{Collection: collName, Method: "findOneAndUpdate", Args: []any{filter, update, opts}}, nil
 	}
-	return CapturedOp{Collection: collName, Method: method, Args: []any{filter, update, opts}}, nil
+	if _, ok := update.(bson.D); !ok {
+		return CapturedOp{}, fmt.Errorf("findAndModify update must be a document or a pipeline")
+	}
+	return CapturedOp{Collection: collName, Method: "findOneAndReplace", Args: []any{filter, update, opts}}, nil
 }
 
-// isUpdateDocument reports whether update is a pipeline or starts with an update
-// operator, rather than being a replacement document.
+// isUpdateDocument reports whether update is a pipeline or has an update operator,
+// rather than being a replacement document. As in mongosh, any key can make it one.
 func isUpdateDocument(update any) bool {
 	switch u := update.(type) {
 	case bson.A:
 		return true
 	case bson.D:
-		return len(u) > 0 && strings.HasPrefix(u[0].Key, "$")
+		return slices.ContainsFunc(u, func(e bson.E) bool { return strings.HasPrefix(e.Key, "$") })
 	}
 	return false
 }

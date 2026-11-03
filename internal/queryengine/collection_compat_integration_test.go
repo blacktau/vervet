@@ -47,6 +47,12 @@ func TestIntegration_FindAndModify_BadSpecsChangeNothing(t *testing.T) {
 		`db.c.findAndModify({ query: {}, collation: 5, remove: true })`,
 		`db.c.findAndModify({ query: {}, arrayFilters: 5, update: { $set: { z: 1 } } })`,
 		`db.c.findAndModify({ query: {}, returnDocument: "bad", update: { $set: { z: 1 } } })`,
+		// An operator on any key makes it an update, not a replacement.
+		`db.c.findAndModify({ query: {}, update: { tag: "x", $inc: { z: 1 } } })`,
+		`db.c.findAndModify({ query: {}, update: { $inc: { z: 1 }, tag: "x" } })`,
+		// A null counts as present, unlike undefined.
+		`db.c.findAndModify({ query: {}, fields: { p: 1 }, projection: null, remove: true })`,
+		`db.c.findAndModify({ query: {}, fields: null, projection: { p: 1 }, remove: true })`,
 		// The findOneAnd* methods refuse this too.
 		`db.c.findOneAndDelete({}, { maxTimeMS: "x" })`,
 		`db.c.findOneAndUpdate({}, { $set: { z: 1 } }, { maxTimeMS: "x" })`,
@@ -55,6 +61,27 @@ func TestIntegration_FindAndModify_BadSpecsChangeNothing(t *testing.T) {
 		_, err := run(script)
 		assert.Error(t, err, script)
 		assertUnchanged(t, db, script)
+	}
+}
+
+// Errors name findAndModify and its options, not the method it runs underneath.
+func TestIntegration_FindAndModify_ErrorsNameWhatTheScriptWrote(t *testing.T) {
+	run, _ := setupWrites(t)
+	cases := map[string]string{
+		`db.c.findAndModify({ remove: true })`:                                        "findAndModify requires a query; use query: {}",
+		`db.c.findAndModify({ query: null, remove: true })`:                           "findAndModify requires a query; use query: {}",
+		`db.c.findAndModify({ query: 5, remove: true })`:                              "findAndModify query must be a document",
+		`db.c.findAndModify({ query: {}, update: 5 })`:                                "findAndModify update must be a document or a pipeline",
+		`db.c.findAndModify({ query: {}, sort: 5, remove: true })`:                    "findAndModify sort",
+		`db.c.findAndModify({ query: {}, hint: "nope", remove: true })`:               "findAndModify failed",
+		`db.c.findAndModify({ query: {}, hint: "nope", update: { $set: { z: 1 } } })`: "findAndModify failed",
+		`db.c.findAndModify({ query: {}, hint: "nope", update: { z: 1 } })`:           "findAndModify failed",
+	}
+	for script, want := range cases {
+		_, err := run(script)
+		require.Error(t, err, script)
+		assert.Contains(t, err.Error(), want, script)
+		assert.NotContains(t, err.Error(), "findOneAnd", script)
 	}
 }
 
@@ -83,6 +110,10 @@ func TestIntegration_FindAndModify_MatchesMongosh(t *testing.T) {
 		`print(db.c.findAndModify({ query: { _id: 2 }, update: [{ $set: { m: 1 } }], new: true }).m)`:         "1",
 		`print(db.c.findAndModify({ query: { _id: 99 }, update: { m: 1 }, upsert: true, new: true }).m)`:      "1",
 		`print(db.c.findAndModify({ query: { _id: 99 }, update: { $set: { m: 1 } }, upsert: 1, new: true }))`: "null",
+		// An undefined field counts as absent, as when a helper passes options through.
+		`print(Object.keys(db.c.findAndModify({ query: { _id: 2 }, fields: { p: 1 }, projection: undefined, remove: true })).join())`:  "_id,p",
+		`print(Object.keys(db.c.findAndModify({ query: { _id: 2 }, fields: undefined, projection: { p: 1 }, remove: true })).join())`:  "_id,p",
+		`print(Object.keys(db.c.findAndModify({ query: { _id: 2 }, fields: undefined, projection: undefined, remove: true })).join())`: "_id,s,p,a",
 		// Options that used to be dropped.
 		`print(Object.keys(db.c.findAndModify({ query: { _id: 2 }, fields: { p: 1 }, remove: true })).join())`:                                  "_id,p",
 		`print(Object.keys(db.c.findAndModify({ query: { _id: 2 }, projection: { p: 1 }, update: { $set: { m: 1 } } })).join())`:                "_id,p",
