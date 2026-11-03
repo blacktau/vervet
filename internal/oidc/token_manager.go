@@ -159,6 +159,29 @@ func (tm *TokenManager) CleanupServer(serverID string) {
 	delete(tm.cache, serverID)
 }
 
+// ForgetSession drops what this process holds for a server's OIDC session: its
+// cached access token and any browser login in progress. Use it when the
+// server's connection details change, so the next connect can't send an old
+// token to a new host, or a login for the old details can't complete into the
+// new ones. A login in progress for another server is left alone.
+func (tm *TokenManager) ForgetSession(serverID string) {
+	tm.cancelLoginFor(serverID)
+	tm.CleanupServer(serverID)
+}
+
+func (tm *TokenManager) cancelLoginFor(serverID string) {
+	tm.browserMu.Lock()
+	active := tm.activeServer != nil && tm.activeServer.serverID == serverID
+	if active {
+		tm.canceled = true
+	}
+	tm.browserMu.Unlock()
+
+	if active {
+		tm.closeBrowserServer()
+	}
+}
+
 // Shutdown cancels any in-flight browser login and releases its listener.
 // Call this on application exit.
 func (tm *TokenManager) Shutdown() {

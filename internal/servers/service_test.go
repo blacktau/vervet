@@ -495,3 +495,58 @@ func TestRemoveNode_DisconnectsRemovedServers(t *testing.T) {
 		assert.Empty(t, disconnector.disconnected)
 	})
 }
+
+type fakeOIDCSessions struct {
+	forgotten []string
+}
+
+func (f *fakeOIDCSessions) ForgetSession(serverID string) {
+	f.forgotten = append(f.forgotten, serverID)
+}
+
+func TestUpdateServerWithConfig_EndsOIDCSession(t *testing.T) {
+	newService := func(csStore *MockConnectionStringsStore) (*ServerService, *fakeOIDCSessions) {
+		sessions := &fakeOIDCSessions{}
+		sm := newTestServerService(&mockServerStore{servers: []models.RegisteredServer{{ID: "1", Name: "Server"}}}, csStore)
+		sm.oidcSessions = sessions
+		return sm, sessions
+	}
+
+	t.Run("forgets the session and never stores a refresh token", func(t *testing.T) {
+		csStore := &MockConnectionStringsStore{uris: map[string]string{}}
+		sm, sessions := newService(csStore)
+
+		err := sm.UpdateServerWithConfig("1", "Renamed", "", "", models.ConnectionConfig{
+			URI:          "mongodb://new-host",
+			AuthMethod:   models.AuthOIDC,
+			RefreshToken: "old-token",
+		})
+
+		assert.NoError(t, err)
+		assert.Equal(t, []string{"1"}, sessions.forgotten)
+		assert.Empty(t, csStore.configs["1"].RefreshToken)
+	})
+
+	t.Run("keeps the session when the config could not be stored", func(t *testing.T) {
+		sm, sessions := newService(&MockConnectionStringsStore{uris: map[string]string{}, err: errors.New("keyring locked")})
+
+		err := sm.UpdateServerWithConfig("1", "Renamed", "", "", models.ConnectionConfig{URI: "mongodb://new-host"})
+
+		assert.Error(t, err)
+		assert.Empty(t, sessions.forgotten)
+	})
+}
+
+func TestUpdateServer_EndsOIDCSession(t *testing.T) {
+	sessions := &fakeOIDCSessions{}
+	sm := newTestServerService(
+		&mockServerStore{servers: []models.RegisteredServer{{ID: "1", Name: "Server"}}},
+		&MockConnectionStringsStore{uris: map[string]string{}},
+	)
+	sm.oidcSessions = sessions
+
+	err := sm.UpdateServer("1", "Renamed", "mongodb://new-host", "", "")
+
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"1"}, sessions.forgotten)
+}

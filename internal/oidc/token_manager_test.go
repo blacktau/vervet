@@ -287,3 +287,45 @@ func TestSuppressLogin_Nested(t *testing.T) {
 		t.Fatal("suppression outlived the outer release")
 	}
 }
+
+func TestForgetSession_RemovesCachedToken(t *testing.T) {
+	tm := NewTokenManager(slog.Default(), nil)
+	tm.cacheToken("server-1", &CachedToken{AccessToken: "old", ExpiresAt: time.Now().Add(10 * time.Minute)})
+	tm.cacheToken("server-2", &CachedToken{AccessToken: "other", ExpiresAt: time.Now().Add(10 * time.Minute)})
+
+	tm.ForgetSession("server-1")
+
+	if tm.getCachedToken("server-1") != nil {
+		t.Error("expected server-1's cached token to be gone")
+	}
+	if tm.getCachedToken("server-2") == nil {
+		t.Error("expected server-2's cached token to survive")
+	}
+}
+
+func TestForgetSession_CancelsOnlyThatServersLogin(t *testing.T) {
+	tm := NewTokenManager(slog.Default(), nil)
+	loginCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	tm.browserMu.Lock()
+	tm.activeServer = &activeCallbackServer{serverID: "server-1", server: &http.Server{}, cancel: cancel}
+	tm.browserMu.Unlock()
+
+	tm.ForgetSession("server-2")
+
+	if loginCtx.Err() != nil {
+		t.Fatal("another server's edit must not cancel this login")
+	}
+	if tm.consumeCanceled() {
+		t.Fatal("another server's edit must not mark the login as cancelled")
+	}
+
+	tm.ForgetSession("server-1")
+
+	if loginCtx.Err() == nil {
+		t.Error("expected the login to be cancelled")
+	}
+	if !tm.consumeCanceled() {
+		t.Error("expected the login to report as cancelled, not failed")
+	}
+}

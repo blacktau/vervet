@@ -23,12 +23,17 @@ type Disconnector interface {
 	Disconnect(serverID string) error
 }
 
+// OIDCSessions forgets what is held in memory for a server's OIDC session.
+type OIDCSessions interface {
+	ForgetSession(serverID string)
+}
+
 type ServerService struct {
 	ctx               context.Context
 	log               *slog.Logger
 	store             ServerStore
 	connectionStrings connectionStrings.Store
-	tokenManager      *oidc.TokenManager
+	oidcSessions      OIDCSessions
 	disconnector      Disconnector
 	mu                sync.RWMutex
 }
@@ -46,7 +51,7 @@ func NewService(log *slog.Logger, store ServerStore, connectionStrings connectio
 		mu:                sync.RWMutex{},
 		store:             store,
 		connectionStrings: connectionStrings,
-		tokenManager:      tokenManager,
+		oidcSessions:      tokenManager,
 	}
 }
 
@@ -149,6 +154,7 @@ func (sm *ServerService) UpdateServer(serverID, name, uri, parentID, colour stri
 	if err != nil {
 		return fmt.Errorf("failed to securely store registeredServer URI: %w", err)
 	}
+	sm.forgetOIDCSession(serverID)
 
 	server.Name = name
 	server.ParentID = parentID
@@ -217,10 +223,14 @@ func (sm *ServerService) UpdateServerWithConfig(serverID, name, parentID, colour
 		return fmt.Errorf("failed to find registered server with ID %s", serverID)
 	}
 
+	// An edit ends the OIDC session: the stored refresh token goes with the old
+	// config, so it can never be sent to a provider the user has since changed.
+	cfg.RefreshToken = ""
 	err = sm.connectionStrings.StoreConnectionConfig(serverID, cfg)
 	if err != nil {
 		return fmt.Errorf("failed to securely store connection config: %w", err)
 	}
+	sm.forgetOIDCSession(serverID)
 
 	server.Name = name
 	server.ParentID = parentID
@@ -232,6 +242,12 @@ func (sm *ServerService) UpdateServerWithConfig(serverID, name, parentID, colour
 	}
 
 	return nil
+}
+
+func (sm *ServerService) forgetOIDCSession(serverID string) {
+	if sm.oidcSessions != nil {
+		sm.oidcSessions.ForgetSession(serverID)
+	}
 }
 
 func (sm *ServerService) GetConnectionConfig(serverID string) (models.ConnectionConfig, error) {
@@ -285,9 +301,7 @@ func (sm *ServerService) RemoveNode(id string) error {
 			if err := sm.connectionStrings.DeleteRegisteredServerURI(rid); err != nil {
 				sm.log.Warn("failed to delete keyring entry for removed server", slog.String("serverID", rid), slog.Any("error", err))
 			}
-			if sm.tokenManager != nil {
-				sm.tokenManager.CleanupServer(rid)
-			}
+			sm.forgetOIDCSession(rid)
 		}
 	}
 

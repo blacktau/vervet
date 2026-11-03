@@ -45,6 +45,7 @@ type BrowserFlowResult struct {
 // also unblocks the pending select when the user never completes (or
 // cancels) the provider flow.
 type activeCallbackServer struct {
+	serverID string
 	server   *http.Server
 	listener net.Listener
 	cancel   context.CancelFunc
@@ -146,7 +147,7 @@ func (tm *TokenManager) browserLogin(ctx context.Context, serverID, providerURL,
 
 	// Track the active server so it can be closed externally.
 	tm.browserMu.Lock()
-	tm.activeServer = &activeCallbackServer{server: server, listener: listener, cancel: cancel}
+	tm.activeServer = &activeCallbackServer{serverID: serverID, server: server, listener: listener, cancel: cancel}
 	tm.browserMu.Unlock()
 
 	go server.Serve(listener)
