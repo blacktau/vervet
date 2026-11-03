@@ -17,6 +17,7 @@ func TestTokenBinding(t *testing.T) {
 		"provider":    func(c *ConnectionConfig) { c.OIDCConfig.ProviderURL = "https://other" },
 		"client":      func(c *ConnectionConfig) { c.OIDCConfig.ClientID = "other" },
 		"scopes":      func(c *ConnectionConfig) { c.OIDCConfig.Scopes = []string{"a"} },
+		"prompt":      func(c *ConnectionConfig) { c.OIDCConfig.Prompt = "select_account" },
 	}
 	for name, change := range changed {
 		t.Run("changes with "+name, func(t *testing.T) {
@@ -29,7 +30,6 @@ func TestTokenBinding(t *testing.T) {
 	}
 
 	unchanged := map[string]func(*ConnectionConfig){
-		"prompt":        func(c *ConnectionConfig) { c.OIDCConfig.Prompt = "login" },
 		"manual url":    func(c *ConnectionConfig) { c.OIDCConfig.ManualURLMode = true },
 		"refresh token": func(c *ConnectionConfig) { c.RefreshToken = "token" },
 		"scope order":   func(c *ConnectionConfig) { c.OIDCConfig.Scopes = []string{"b", "a"} },

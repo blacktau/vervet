@@ -37,8 +37,9 @@ type ConnectionConfig struct {
 
 // TokenBinding identifies the details an OIDC token was issued for. A token may
 // only be used, kept or stored while its binding matches the current config, so
-// it can't reach a host or provider the user has since changed. Details that
-// don't affect where a token goes, such as the prompt, aren't included.
+// it can't reach a host or provider the user has since changed. The prompt is
+// included so that choosing to force the account picker takes effect, rather than
+// refreshing silently into the old account.
 func (c ConnectionConfig) TokenBinding() string {
 	details := struct {
 		URI         string
@@ -46,10 +47,12 @@ func (c ConnectionConfig) TokenBinding() string {
 		ProviderURL string
 		ClientID    string
 		Scopes      []string
+		Prompt      string
 	}{URI: c.URI, AuthMethod: c.AuthMethod, Scopes: []string{}}
 	if c.OIDCConfig != nil {
 		details.ProviderURL = c.OIDCConfig.ProviderURL
 		details.ClientID = c.OIDCConfig.ClientID
+		details.Prompt = c.OIDCConfig.Prompt
 		details.Scopes = append(details.Scopes, c.OIDCConfig.Scopes...)
 		slices.Sort(details.Scopes)
 	}

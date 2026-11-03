@@ -41,7 +41,8 @@ type store struct {
 	log *slog.Logger
 	mu  sync.Mutex
 	// entryMu makes UpdateRefreshToken's read and write atomic against saves, so
-	// a late token can't restore a config the user has since replaced.
+	// a late token can't restore a config the user has since replaced. It doesn't
+	// cover a write that outlives keyringTimeout, which can still land later.
 	entryMu          sync.Mutex
 	keyringAvailable bool
 	lastCheck        time.Time
