@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"vervet/internal/models"
@@ -21,6 +22,7 @@ func dispatchFind(ctx context.Context, coll *mongo.Collection, op CapturedOp) (m
 	}
 	result := docsToResult(results)
 	result.OperationType = "find"
+	result.Namespace = findNamespace(coll.Database().Name(), coll.Name(), argAt(op.Args, 1), op.findExtras)
 	return result, nil
 }
 
@@ -239,6 +241,7 @@ func dispatchFindOne(ctx context.Context, client *mongo.Client, dbName string, c
 	result := docsToResult(docs)
 	result.OperationType = "findOne"
 	result.Single = len(docs) > 0
+	result.Namespace = findNamespace(dbName, op.Collection, argAt(findOp.Args, 1), findOp.findExtras)
 	return result, nil
 }
 
@@ -278,6 +281,68 @@ func dispatchCountDocuments(ctx context.Context, coll *mongo.Collection, op Capt
 	return result, nil
 }
 
+// findNamespace gives the namespace of documents read by a find. They are stored
+// documents, but a projection or returnKey leaves out fields, and showRecordId
+// adds one that isn't stored. It gives none when the _id shown might not be the
+// stored one, since edits and deletes find their document by _id.
+func findNamespace(database, collection string, projection any, extras findExtras) *models.ResultNamespace {
+	doc, _ := asBsonDoc(projection)
+	if !projectionKeepsID(doc) {
+		return nil
+	}
+	return &models.ResultNamespace{
+		Database:       database,
+		Collection:     collection,
+		WholeDocuments: len(doc) == 0 && !extras.ReturnKey && !extras.ShowRecordID,
+	}
+}
+
+// projectionKeepsID reports whether a projection shows _id as stored or not at
+// all. Anything else computes it: { _id: "$customerId" } shows another field's
+// value as the _id.
+func projectionKeepsID(projection bson.D) bool {
+	for _, field := range projection {
+		if strings.HasPrefix(field.Key, "_id.") {
+			return false
+		}
+		if field.Key != "_id" {
+			continue
+		}
+		switch field.Value.(type) {
+		case bool, int32, int64, float64:
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+// wholeDocumentStages are the aggregation stages that only choose and order
+// documents, leaving each one as it is stored.
+var wholeDocumentStages = map[string]bool{
+	"$match": true,
+	"$sort":  true,
+	"$limit": true,
+	"$skip":  true,
+}
+
+// keepsDocumentsWhole reports whether a pipeline's output is stored documents.
+// Any other stage might reshape them ($project, $addFields) or make new ones
+// ($group), and an edit or delete could then change an unrelated document.
+func keepsDocumentsWhole(pipeline any) bool {
+	stages, ok := pipeline.(bson.A)
+	if !ok {
+		return false
+	}
+	for _, stage := range stages {
+		doc, ok := stage.(bson.D)
+		if !ok || len(doc) != 1 || !wholeDocumentStages[doc[0].Key] {
+			return false
+		}
+	}
+	return true
+}
+
 func dispatchAggregate(ctx context.Context, coll *mongo.Collection, op CapturedOp) (models.QueryResult, error) {
 	if len(op.Args) < 1 {
 		return models.QueryResult{}, fmt.Errorf("aggregate requires a pipeline argument")
@@ -314,6 +379,13 @@ func dispatchAggregate(ctx context.Context, coll *mongo.Collection, op CapturedO
 
 	result := docsToResult(results)
 	result.OperationType = "aggregate"
+	if keepsDocumentsWhole(pipeline) {
+		result.Namespace = &models.ResultNamespace{
+			Database:       coll.Database().Name(),
+			Collection:     coll.Name(),
+			WholeDocuments: true,
+		}
+	}
 	return result, nil
 }
 

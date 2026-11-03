@@ -21,7 +21,6 @@ const props = defineProps<{
   serverId: string
   dbName: string
   collectionName: string
-  collectionFromTab?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -186,9 +185,6 @@ function close() {
     :mask-closable="false"
     @update:show="emit('update:show', $event)"
   >
-    <n-alert v-if="collectionFromTab" type="warning" class="target-note">
-      {{ t('query.dialogs.collectionFromTab', { namespace }) }}
-    </n-alert>
     <div v-if="mode === 'edit' && idDisplay" class="id-display">
       <n-text depth="3">_id: {{ idDisplay }}</n-text>
     </div>
@@ -219,10 +215,6 @@ function close() {
   border: 1px solid var(--n-border-color);
   font-family: monospace;
   font-size: 13px;
-}
-
-.target-note {
-  margin-bottom: 8px;
 }
 
 .editor-container {

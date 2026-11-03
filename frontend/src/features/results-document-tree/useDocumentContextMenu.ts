@@ -8,10 +8,10 @@ export interface CollectionContext {
   serverId: string
   dbName: string
   collectionName: string
-  /** The query's own collection is unknown, so collectionName is the tab's */
-  collectionFromTab: boolean
-  /** False when the results hide fields: replacing would delete them */
+  /** False when the results hide fields, or are out of date: replacing would lose data */
   canEdit: boolean
+  /** A document was saved and these results can't show it, so they are out of date */
+  stale?: boolean
 }
 
 export function formatNamespace(dbName: string, collectionName: string): string {
@@ -90,6 +90,20 @@ export function useDocumentContextMenu(
           key: 'editDocument',
           disabled: true,
           props: { title: t('query.dialogs.editBlockedByFieldName') },
+        })
+      } else if (!collectionContext.value) {
+        options.push({
+          label: t('query.contextMenu.editDocument'),
+          key: 'editDocument',
+          disabled: true,
+          props: { title: t('query.dialogs.editBlockedByUnknownCollection') },
+        })
+      } else if (collectionContext.value.stale && rowIsEditable(targetRow.value)) {
+        options.push({
+          label: t('query.contextMenu.editDocument'),
+          key: 'editDocument',
+          disabled: true,
+          props: { title: t('query.dialogs.editBlockedByStaleResults') },
         })
       }
       if (collectionContext.value) {

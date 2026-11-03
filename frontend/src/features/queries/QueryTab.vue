@@ -67,27 +67,19 @@ const queryTabItem = computed(() => {
 })
 
 const collectionContext = computed<CollectionContext | undefined>(() => {
-  const item = queryTabItem.value
   const tab = tabStore.currentTab
-  const dbName = queryState.value.resultsDatabase
-  // Edits must target where the results came from, not the tab's starting
-  // database or a collection the query didn't read
-  const pageContext = queryState.value.pageContext
-  const pagedCollection = pageContext?.collection
-  const projection = pageContext?.projection
-  const collectionName = pagedCollection ?? item?.collectionName
-  if (!collectionName || !tab || !dbName) {
+  // Only the engine knows where results came from. Without that, nothing can be
+  // written: the tab's own database and collection may have nothing to do with them.
+  const namespace = queryState.value.resultsNamespace
+  if (!tab || !namespace) {
     return undefined
   }
   return {
     serverId: tab.serverId,
-    dbName,
-    collectionName,
-    collectionFromTab: !pagedCollection,
-    // Saving replaces the whole document, so only results known to be whole
-    // documents can be edited. Until results carry their namespace (#313),
-    // that's a paged find with no projection.
-    canEdit: !!pagedCollection && (!projection || projection === '{}'),
+    dbName: namespace.database,
+    collectionName: namespace.collection,
+    canEdit: namespace.wholeDocuments && !queryState.value.resultsStale,
+    stale: queryState.value.resultsStale,
   }
 })
 
@@ -337,8 +329,8 @@ function openExport() {
   })
 }
 
-async function handleDocumentChanged() {
-  await queryStore.refreshResults(props.queryId)
+async function handleDocumentChanged(edited: boolean) {
+  await queryStore.refreshResults(props.queryId, edited)
 }
 
 watch(

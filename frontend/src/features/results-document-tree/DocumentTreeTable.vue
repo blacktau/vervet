@@ -2,7 +2,6 @@
 import { computed, h, onBeforeUnmount, onMounted, reactive, ref, toRef, watch, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
-  NText,
   type DataTableColumns,
   type DataTableRowKey,
   useDialog,
@@ -49,7 +48,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'update:checkedKeys', keys: DataTableRowKey[]): void
-  (e: 'document-changed'): void
+  (e: 'document-changed', edited: boolean): void
   (e: 'export-requested'): void
   (e: 'update:page', page: number): void
   (e: 'update:page-size', size: number): void
@@ -267,14 +266,6 @@ function handleContextMenuSelect(key: string) {
         h('div', [
           h('p', t('query.dialogs.deleteConfirmContent', { namespace })),
           h('p', `_id: ${idDisplay}`),
-          context.collectionFromTab
-            ? h(
-                'p',
-                h(NText, { type: 'warning' }, () =>
-                  t('query.dialogs.collectionFromTab', { namespace }),
-                ),
-              )
-            : null,
         ]),
       positiveText: t('common.confirm'),
       negativeText: t('common.cancel'),
@@ -293,7 +284,7 @@ function handleContextMenuSelect(key: string) {
           if (writeCount(result.data?.documents, 'deletedCount') === 0) {
             notifier.error(t('query.dialogs.documentNotFound', { namespace }))
           }
-          emit('document-changed')
+          emit('document-changed', false)
         } else {
           notifier.error(errorCodeText(result.errorCode), {
             title: t('errorTitles.deleteDocument'),
@@ -355,7 +346,7 @@ function openEditDialog(mode: 'edit' | 'insert', doc: unknown) {
 }
 
 function handleDocumentSaved() {
-  emit('document-changed')
+  emit('document-changed', editMode.value === 'edit')
 }
 
 function handleCopyShortcut(evt: KeyboardEvent) {
@@ -471,7 +462,6 @@ function rowClassName(row: DocumentRow): string {
         :server-id="editContext.serverId"
         :db-name="editContext.dbName"
         :collection-name="editContext.collectionName"
-        :collection-from-tab="editContext.collectionFromTab"
         @saved="handleDocumentSaved" />
     </template>
   </div>

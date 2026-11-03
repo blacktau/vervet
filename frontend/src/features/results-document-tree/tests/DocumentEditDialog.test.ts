@@ -39,7 +39,6 @@ let wrapper: VueWrapper | undefined
 
 async function openDialog(props: {
   mode: 'edit' | 'insert'
-  collectionFromTab?: boolean
   collectionName?: string
 }) {
   const DocumentEditDialog = (await import('../DocumentEditDialog.vue')).default
@@ -72,19 +71,13 @@ afterEach(() => {
 
 describe('DocumentEditDialog target', () => {
   it('names the namespace an edit is saved to', async () => {
-    const text = await openDialog({ mode: 'edit', collectionFromTab: false })
+    const text = await openDialog({ mode: 'edit' })
     expect(text).toContain('Edit Document in shop.orders')
-    expect(text).not.toContain("don't say which collection")
   })
 
   it('names the namespace an insert goes into', async () => {
-    const text = await openDialog({ mode: 'insert', collectionFromTab: false })
+    const text = await openDialog({ mode: 'insert' })
     expect(text).toContain('Insert Document into shop.orders')
-  })
-
-  it("warns when the collection is the tab's fallback", async () => {
-    const text = await openDialog({ mode: 'edit', collectionFromTab: true })
-    expect(text).toContain('changes go to shop.orders')
   })
 })
 

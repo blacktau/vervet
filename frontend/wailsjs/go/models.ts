@@ -314,6 +314,11 @@ export namespace models {
 	    comment?: string;
 	    findExtras?: string;
 	}
+	export interface ResultNamespace {
+	    database: string;
+	    collection: string;
+	    wholeDocuments: boolean;
+	}
 	export interface QueryResult {
 	    documents: any[];
 	    rawOutput: string;
@@ -322,6 +327,7 @@ export namespace models {
 	    operationType?: string;
 	    affectedCount?: number;
 	    pageContext?: PageContext;
+	    namespace?: ResultNamespace;
 	}
 	export interface QuerySettings {
 	    defaultLimit: number;
@@ -337,6 +343,7 @@ export namespace models {
 	    isCluster: boolean;
 	    isSrv: boolean;
 	}
+	
 	export interface UpdatesSettings {
 	    frequency: string;
 	    lastCheckedAt: string;

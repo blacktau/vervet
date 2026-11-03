@@ -90,17 +90,17 @@ beforeEach(() => {
   queryId = tabStore.openQuery('server-1', 'shop', 'db.orders.find()', 'orders')!
 })
 
-function showResults(database: string, collection?: string, projection?: string) {
+function showResults(database: string, collection?: string, wholeDocuments = true) {
   const state = useQueryStore().getQueryState(queryId)
   state.documents = [{ _id: 1 }]
-  state.resultsDatabase = database
-  state.pageContext = collection ? { database, collection, projection } : null
+  state.resultsNamespace = collection ? { database, collection, wholeDocuments } : null
+  state.pageContext = collection ? { database, collection } : null
 }
 
 describe('QueryTab collection context', () => {
-  it('turns off edit, but not insert or delete, for a projected find', async () => {
+  it('turns off edit, but not insert or delete, when documents may be partial', async () => {
     const wrapper = await mountQueryTab(queryId)
-    showResults('shop', 'orders', '{"name":{"$numberInt":"1"}}')
+    showResults('shop', 'orders', false)
     await flushPromises()
 
     const context = wrapper.findComponent(TableStub).props('collectionContext')
@@ -109,7 +109,7 @@ describe('QueryTab collection context', () => {
     wrapper.unmount()
   })
 
-  it('allows edits on a tab opened without a collection when the find names one', async () => {
+  it('allows edits on a tab opened without a collection when the result names one', async () => {
     const tabStore = useTabStore()
     queryId = tabStore.openQuery('server-1', 'shop', 'db.orders.find()')!
     const wrapper = await mountQueryTab(queryId)
@@ -120,32 +120,38 @@ describe('QueryTab collection context', () => {
       serverId: 'server-1',
       dbName: 'shop',
       collectionName: 'orders',
-      collectionFromTab: false,
       canEdit: true,
+      stale: false,
     })
     wrapper.unmount()
   })
 
-  it('targets the database the results were read from', async () => {
+  it('turns off edit once the results are out of date', async () => {
     const wrapper = await mountQueryTab(queryId)
-    useQueryStore().setDatabase(queryId, 'archive')
-    showResults('archive')
+    showResults('shop', 'orders')
+    useQueryStore().getQueryState(queryId).resultsStale = true
     await flushPromises()
 
-    expect(wrapper.findComponent(TableStub).props('collectionContext')).toEqual({
-      serverId: 'server-1',
-      dbName: 'archive',
-      collectionName: 'orders',
-      collectionFromTab: true,
-      // Not a paged find, so nothing says the documents are whole
-      canEdit: false,
-    })
+    const context = wrapper.findComponent(TableStub).props('collectionContext')
+    expect(context.canEdit).toBe(false)
+    expect(context.stale).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('targets the namespace the results came from, not the tab', async () => {
+    const wrapper = await mountQueryTab(queryId)
+    showResults('archive', 'customers')
+    await flushPromises()
+
+    const context = wrapper.findComponent(TableStub).props('collectionContext')
+    expect(context.dbName).toBe('archive')
+    expect(context.collectionName).toBe('customers')
     wrapper.unmount()
   })
 
   it('keeps targeting that database after the dropdown changes', async () => {
     const wrapper = await mountQueryTab(queryId)
-    showResults('shop')
+    showResults('shop', 'orders')
     useQueryStore().setDatabase(queryId, 'archive')
     await flushPromises()
 
@@ -153,14 +159,12 @@ describe('QueryTab collection context', () => {
     wrapper.unmount()
   })
 
-  it('targets the collection a paged find read from', async () => {
+  it("does not fall back to the tab's collection when results have no namespace", async () => {
     const wrapper = await mountQueryTab(queryId)
-    showResults('shop', 'customers')
+    showResults('shop')
     await flushPromises()
 
-    const context = wrapper.findComponent(TableStub).props('collectionContext')
-    expect(context.collectionName).toBe('customers')
-    expect(context.collectionFromTab).toBe(false)
+    expect(wrapper.findComponent(TableStub).props('collectionContext')).toBeUndefined()
     wrapper.unmount()
   })
 })

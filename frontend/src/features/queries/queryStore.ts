@@ -9,6 +9,7 @@ import { i18nGlobal } from '@/i18n'
 import { errorCodeText, notifyResultError, resultErrorText } from '@/utils/resultError'
 
 export type PageContext = models.PageContext
+export type ResultNamespace = models.ResultNamespace
 
 function formatDuration(ms: number): string {
   if (ms < 1000) {
@@ -110,8 +111,13 @@ export interface QueryState {
   _rawJsonCache: string | null
   /** Server-side paging state. Populated when the engine returns a PageContext. */
   pageContext: PageContext | null
-  /** The database the current results were read from */
-  resultsDatabase: string
+  /** Where the current results are stored, when the engine knows. Edits and deletes go here. */
+  resultsNamespace: ResultNamespace | null
+  /**
+   * A document was edited and the results can't be re-fetched, so its row is out of
+   * date. Saving from that row would replace the document with the old values.
+   */
+  resultsStale: boolean
   page: number
   pageSize: number
   total: number | null
@@ -158,7 +164,8 @@ function createQueryState(database: string): QueryState {
     activeLimit: null,
     _rawJsonCache: null,
     pageContext: null,
-    resultsDatabase: '',
+    resultsNamespace: null,
+    resultsStale: false,
     page: 0,
     pageSize: 25,
     total: null,
@@ -421,7 +428,8 @@ export const useQueryStore = defineStore('query', {
       state.cancelled = false
       state.executionId = thisExecution
       state.documents = []
-      state.resultsDatabase = state.selectedDatabase
+      state.resultsNamespace = null
+      state.resultsStale = false
       state._rawJsonCache = null
       state.rawOutput = ''
       state.error = ''
@@ -501,10 +509,9 @@ export const useQueryStore = defineStore('query', {
             state.unseenOutput = added
           }
 
+          state.resultsNamespace = data.namespace ?? null
           if (data.pageContext) {
             state.pageContext = data.pageContext
-            // getSiblingDB() can read from a database other than the selected one
-            state.resultsDatabase = data.pageContext.database || state.resultsDatabase
             state.page = 0
             void this.fetchCount(queryId)
           }
@@ -655,12 +662,13 @@ export const useQueryStore = defineStore('query', {
      * Refresh the results after a document was edited, inserted or deleted. Only paged
      * results can be re-fetched safely; re-running the query text could repeat writes.
      */
-    async refreshResults(queryId: string) {
+    async refreshResults(queryId: string, edited = false) {
       const state = this.getQueryState(queryId)
       if (state.loading) {
         return
       }
       if (!state.pageContext) {
+        state.resultsStale = state.resultsStale || edited
         this.appendMessage(queryId, {
           level: 'info',
           text: i18nGlobal.t('query.messages.resultsStale'),

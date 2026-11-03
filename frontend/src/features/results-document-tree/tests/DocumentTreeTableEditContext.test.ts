@@ -16,7 +16,7 @@ vi.mock('@/utils/dialog', () => ({ useNotifier: () => ({ error: vi.fn(), success
 
 const EditDialogStub = defineComponent({
   name: 'DocumentEditDialog',
-  props: ['show', 'document', 'mode', 'serverId', 'dbName', 'collectionName', 'collectionFromTab'],
+  props: ['show', 'document', 'mode', 'serverId', 'dbName', 'collectionName'],
   render: () => h('div'),
 })
 const ContextMenuStub = defineComponent({
@@ -47,7 +47,6 @@ const shopOrders: CollectionContext = {
   serverId: 'server-1',
   dbName: 'shop',
   collectionName: 'orders',
-  collectionFromTab: false,
   canEdit: true,
 }
 
@@ -93,13 +92,53 @@ describe('DocumentTreeTable edit context', () => {
     expect(wrapper.findComponent(EditDialogStub).props('dbName')).toBe('shop')
 
     // A new query starts while the dialog is open
-    context.value = { ...shopOrders, dbName: 'archive', collectionFromTab: true }
+    context.value = { ...shopOrders, dbName: 'archive' }
     await flushPromises()
 
     const dialog = wrapper.findComponent(EditDialogStub)
     expect(dialog.exists()).toBe(true)
     expect(dialog.props('dbName')).toBe('shop')
-    expect(dialog.props('collectionFromTab')).toBe(false)
+    wrapper.unmount()
+  })
+
+  it.each([
+    ['editDocument', true],
+    ['insertDocument', false],
+  ])('after saving from %s, reports edited as %s', async (action, edited) => {
+    const DocumentTreeTable = (await import('../DocumentTreeTable.vue')).default
+    const wrapper = mount(
+      {
+        render: () =>
+          h(NDialogProvider, null, {
+            default: () =>
+              h(DocumentTreeTable, {
+                documents: [{ _id: 1, name: 'a' }],
+                enableContextMenu: true,
+                collectionContext: shopOrders,
+              }),
+          }),
+      },
+      {
+        global: {
+          plugins: [naive, i18n],
+          stubs: {
+            DocumentEditDialog: EditDialogStub,
+            DocumentContextMenu: ContextMenuStub,
+            DocumentViewDialog: true,
+            DataTable: DataTableStub,
+          },
+        },
+      },
+    )
+    await flushPromises()
+
+    await wrapper.find('.row').trigger('contextmenu')
+    wrapper.findComponent(ContextMenuStub).vm.$emit('select', action)
+    await flushPromises()
+    wrapper.findComponent(EditDialogStub).vm.$emit('saved')
+    await flushPromises()
+
+    expect(wrapper.findComponent(DocumentTreeTable).emitted('document-changed')).toEqual([[edited]])
     wrapper.unmount()
   })
 })
