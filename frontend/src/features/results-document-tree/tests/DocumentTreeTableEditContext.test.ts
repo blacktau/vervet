@@ -16,7 +16,7 @@ vi.mock('@/utils/dialog', () => ({ useNotifier: () => ({ error: vi.fn(), success
 
 const EditDialogStub = defineComponent({
   name: 'DocumentEditDialog',
-  props: ['show', 'document', 'mode', 'serverId', 'dbName', 'collectionName', 'collectionFromTab'],
+  props: ['show', 'document', 'mode', 'serverId', 'dbName', 'collectionName'],
   render: () => h('div'),
 })
 const ContextMenuStub = defineComponent({
@@ -47,7 +47,6 @@ const shopOrders: CollectionContext = {
   serverId: 'server-1',
   dbName: 'shop',
   collectionName: 'orders',
-  collectionFromTab: false,
   canEdit: true,
 }
 
@@ -93,13 +92,12 @@ describe('DocumentTreeTable edit context', () => {
     expect(wrapper.findComponent(EditDialogStub).props('dbName')).toBe('shop')
 
     // A new query starts while the dialog is open
-    context.value = { ...shopOrders, dbName: 'archive', collectionFromTab: true }
+    context.value = { ...shopOrders, dbName: 'archive' }
     await flushPromises()
 
     const dialog = wrapper.findComponent(EditDialogStub)
     expect(dialog.exists()).toBe(true)
     expect(dialog.props('dbName')).toBe('shop')
-    expect(dialog.props('collectionFromTab')).toBe(false)
     wrapper.unmount()
   })
 })

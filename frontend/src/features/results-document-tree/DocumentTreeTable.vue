@@ -2,7 +2,6 @@
 import { computed, h, onBeforeUnmount, onMounted, reactive, ref, toRef, watch, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
-  NText,
   type DataTableColumns,
   type DataTableRowKey,
   useDialog,
@@ -267,14 +266,6 @@ function handleContextMenuSelect(key: string) {
         h('div', [
           h('p', t('query.dialogs.deleteConfirmContent', { namespace })),
           h('p', `_id: ${idDisplay}`),
-          context.collectionFromTab
-            ? h(
-                'p',
-                h(NText, { type: 'warning' }, () =>
-                  t('query.dialogs.collectionFromTab', { namespace }),
-                ),
-              )
-            : null,
         ]),
       positiveText: t('common.confirm'),
       negativeText: t('common.cancel'),
@@ -471,7 +462,6 @@ function rowClassName(row: DocumentRow): string {
         :server-id="editContext.serverId"
         :db-name="editContext.dbName"
         :collection-name="editContext.collectionName"
-        :collection-from-tab="editContext.collectionFromTab"
         @saved="handleDocumentSaved" />
     </template>
   </div>

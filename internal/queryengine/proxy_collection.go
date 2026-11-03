@@ -175,9 +175,7 @@ func newCollectionProxy(ec *execContext, collName string) goja.Value {
 			return goja.Null()
 		}
 		val := toGojaValue(ec.rt, result)
-		if obj, ok := val.(*goja.Object); ok {
-			ec.rememberFindOne(obj, result)
-		}
+		ec.rememberRead(val, result)
 		return val
 	})
 
@@ -189,7 +187,11 @@ func newCollectionProxy(ec *execContext, collName string) goja.Value {
 			if findAndModifyMethods[m] && len(result.Documents) == 0 {
 				return goja.Null()
 			}
-			return withCursorMethods(ec.rt, m, toGojaValue(ec.rt, result))
+			val := withCursorMethods(ec.rt, m, toGojaValue(ec.rt, result))
+			if m == "aggregate" && result.Namespace != nil {
+				ec.rememberRead(val, result)
+			}
+			return val
 		})
 	}
 

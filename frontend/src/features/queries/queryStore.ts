@@ -9,6 +9,7 @@ import { i18nGlobal } from '@/i18n'
 import { errorCodeText, notifyResultError, resultErrorText } from '@/utils/resultError'
 
 export type PageContext = models.PageContext
+export type ResultNamespace = models.ResultNamespace
 
 function formatDuration(ms: number): string {
   if (ms < 1000) {
@@ -110,8 +111,8 @@ export interface QueryState {
   _rawJsonCache: string | null
   /** Server-side paging state. Populated when the engine returns a PageContext. */
   pageContext: PageContext | null
-  /** The database the current results were read from */
-  resultsDatabase: string
+  /** Where the current results are stored, when the engine knows. Edits and deletes go here. */
+  resultsNamespace: ResultNamespace | null
   page: number
   pageSize: number
   total: number | null
@@ -158,7 +159,7 @@ function createQueryState(database: string): QueryState {
     activeLimit: null,
     _rawJsonCache: null,
     pageContext: null,
-    resultsDatabase: '',
+    resultsNamespace: null,
     page: 0,
     pageSize: 25,
     total: null,
@@ -421,7 +422,7 @@ export const useQueryStore = defineStore('query', {
       state.cancelled = false
       state.executionId = thisExecution
       state.documents = []
-      state.resultsDatabase = state.selectedDatabase
+      state.resultsNamespace = null
       state._rawJsonCache = null
       state.rawOutput = ''
       state.error = ''
@@ -501,10 +502,9 @@ export const useQueryStore = defineStore('query', {
             state.unseenOutput = added
           }
 
+          state.resultsNamespace = data.namespace ?? null
           if (data.pageContext) {
             state.pageContext = data.pageContext
-            // getSiblingDB() can read from a database other than the selected one
-            state.resultsDatabase = data.pageContext.database || state.resultsDatabase
             state.page = 0
             void this.fetchCount(queryId)
           }

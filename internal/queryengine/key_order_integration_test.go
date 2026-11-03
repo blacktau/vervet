@@ -187,11 +187,12 @@ func TestIntegration_EmptyArraysSurviveResults(t *testing.T) {
 		`db.ea.insertOne({ _id: 1, tags: [], meta: {}, nested: { list: [] } })`)
 	require.NoError(t, err)
 
-	// The aggregate result passes through the script, where an int32 is a
-	// plain number, so its _id is shown untyped.
+	// An aggregate that reshapes documents passes through the script, where an
+	// int32 is a plain number, so its _id is shown untyped.
 	for q, want := range map[string]string{
 		`db.ea.find()`:                      `[{"_id":{"$numberInt":"1"},"tags":[],"meta":{},"nested":{"list":[]}}]`,
-		`db.ea.aggregate([{ $match: {} }])`: `[{"_id":1,"tags":[],"meta":{},"nested":{"list":[]}}]`,
+		`db.ea.aggregate([{ $match: {} }])`: `[{"_id":{"$numberInt":"1"},"tags":[],"meta":{},"nested":{"list":[]}}]`,
+		`db.ea.aggregate([{ $project: { tags: 1, meta: 1, nested: 1 } }])`: `[{"_id":1,"tags":[],"meta":{},"nested":{"list":[]}}]`,
 	} {
 		result, err := engine.ExecuteQuery(ctx, testURI, db, q)
 		require.NoError(t, err)

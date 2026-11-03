@@ -119,12 +119,12 @@ func finalValueResult(ec *execContext, val goja.Value) (models.QueryResult, erro
 		return cursor.execute(true)
 	}
 
-	// An unchanged findOne document left as the final value keeps the types
-	// it was stored with.
+	// What a read returned, left unchanged as the final value, keeps the types
+	// it was stored with and says where it came from.
 	var raw any
-	if ec.isLastFindOne(val) {
+	if ec.isLastRead(val) {
 		raw = exportValue(val)
-		if found, ok := ec.findOneDisplay(raw); ok {
+		if found, ok := ec.readDisplay(raw); ok {
 			return found, nil
 		}
 	}

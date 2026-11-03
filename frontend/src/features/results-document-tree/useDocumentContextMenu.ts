@@ -8,8 +8,6 @@ export interface CollectionContext {
   serverId: string
   dbName: string
   collectionName: string
-  /** The query's own collection is unknown, so collectionName is the tab's */
-  collectionFromTab: boolean
   /** False when the results hide fields: replacing would delete them */
   canEdit: boolean
 }

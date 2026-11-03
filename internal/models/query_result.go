@@ -45,6 +45,16 @@ type OutputLine struct {
 	Notice bool `json:"notice,omitempty"`
 }
 
+// ResultNamespace says where a result's documents are stored, so that edits and
+// deletes can go back to them. A result without one has nothing to write to.
+type ResultNamespace struct {
+	Database   string `json:"database"`
+	Collection string `json:"collection"`
+	// WholeDocuments is false when documents may be missing fields, as with a
+	// projection. Saving replaces the whole document, which would delete them.
+	WholeDocuments bool `json:"wholeDocuments"`
+}
+
 // QueryResult holds the parsed output of a query.
 // Documents contains structured data when the engine returns documents.
 // RawOutput contains a text result (a scalar, a string, null); it never holds
@@ -60,6 +70,8 @@ type QueryResult struct {
 	OperationType string       `json:"operationType,omitempty"`
 	AffectedCount int          `json:"affectedCount,omitempty"`
 	PageContext   *PageContext `json:"pageContext,omitempty"`
+	// Namespace is set only when the engine knows the documents are stored ones.
+	Namespace *ResultNamespace `json:"namespace,omitempty"`
 	// Single marks results that semantically represent one object (write acks,
 	// counts, findOneAnd* matches, explain output) rather than a document list.
 	// Consumed by the Goja engine so scripts see `result.insertedIds` instead

@@ -176,6 +176,7 @@ func (c *lazyCursor) cachedResult(paged bool) (models.QueryResult, error) {
 		result.Documents = remaining[:c.ec.pageSize]
 	}
 	result.PageContext = pageCtx
+	result.Namespace = findNamespace(c.ec.dbName, c.collection, c.projection, c.findExtras)
 	return result, nil
 }
 
@@ -394,7 +395,13 @@ func (c *lazyCursor) toGojaObject() goja.Value {
 		if err != nil {
 			panic(rt.NewGoError(err))
 		}
-		return toJSValue(rt, docs)
+		val := toJSValue(rt, docs)
+		c.ec.rememberRead(val, models.QueryResult{
+			Documents:     docs,
+			OperationType: "find",
+			Namespace:     findNamespace(c.ec.dbName, c.collection, c.projection, c.findExtras),
+		})
+		return val
 	})
 
 	_ = obj.Set("forEach", func(call goja.FunctionCall) goja.Value {

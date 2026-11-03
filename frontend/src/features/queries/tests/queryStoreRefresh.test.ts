@@ -73,17 +73,35 @@ describe('queryStore refreshResults', () => {
     countForPage.mockResolvedValue({ isSuccess: true, data: { count: 60, estimated: false } })
   })
 
-  test('records the database the results were read from', async () => {
+  test('records the namespace the engine reports for the results', async () => {
     const store = await runPagedQuery()
+    const namespace = { database: 'dbC', collection: 'c', wholeDocuments: true }
     executeQuery.mockResolvedValueOnce({
       isSuccess: true,
-      data: { documents: [{ a: 1 }], operationType: 'aggregate' },
+      data: { documents: [{ a: 1 }], operationType: 'aggregate', namespace },
     })
     await store.executeQuery(QUERY_ID, { text: 'use dbC\ndb.c.aggregate([])', range: RANGE })
 
-    expect(store.getQueryState(QUERY_ID).resultsDatabase).toBe('dbC')
+    expect(store.getQueryState(QUERY_ID).resultsNamespace).toEqual(namespace)
     store.setDatabase(QUERY_ID, 'dbB')
-    expect(store.getQueryState(QUERY_ID).resultsDatabase).toBe('dbC')
+    expect(store.getQueryState(QUERY_ID).resultsNamespace).toEqual(namespace)
+  })
+
+  test('clears the namespace when the next result has none', async () => {
+    const store = useQueryStore()
+    store.initQueryState(QUERY_ID, 'dbA')
+    executeQuery.mockResolvedValueOnce({
+      isSuccess: true,
+      data: {
+        documents: [{ a: 1 }],
+        namespace: { database: 'dbA', collection: 'c', wholeDocuments: true },
+      },
+    })
+    await store.executeQuery(QUERY_ID, { text: 'db.c.findOne()', range: RANGE })
+    executeQuery.mockResolvedValueOnce({ isSuccess: true, data: { documents: [{ a: 1 }] } })
+    await store.executeQuery(QUERY_ID, { text: '[{ a: 1 }]', range: RANGE })
+
+    expect(store.getQueryState(QUERY_ID).resultsNamespace).toBeNull()
   })
 
   test('re-fetches the current page and count without replaying the query', async () => {
@@ -113,7 +131,6 @@ describe('queryStore refreshResults', () => {
     expect(fetchPage.mock.calls[0]![1].database).toBe('dbA')
     const countCalls = countForPage.mock.calls
     expect(countCalls[countCalls.length - 1]![1].database).toBe('dbA')
-    expect(store.getQueryState(QUERY_ID).resultsDatabase).toBe('dbA')
   })
 
   test('reads pages from the database a sibling find ran on', async () => {
@@ -132,7 +149,6 @@ describe('queryStore refreshResults', () => {
 
     await store.refreshResults(QUERY_ID)
 
-    expect(store.getQueryState(QUERY_ID).resultsDatabase).toBe('archive')
     expect(fetchPage.mock.calls[0]![1]).toEqual(siblingContext)
   })
 

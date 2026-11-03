@@ -29,7 +29,6 @@ const context: CollectionContext = {
   serverId: 's',
   dbName: 'shop',
   collectionName: 'orders',
-  collectionFromTab: false,
   canEdit: true,
 }
 
@@ -150,8 +149,7 @@ describe('Edit on a document with a field named like a BSON type', () => {
     serverId: 's',
     dbName: 'd',
     collectionName: 'c',
-    collectionFromTab: false,
-    canEdit: true,
+      canEdit: true,
   }
   const row = { key: '0', kind: 'document', field: '', value: '', type: 'document' } as DocumentRow
   const event = { preventDefault: () => {}, clientX: 0, clientY: 0 } as MouseEvent
