@@ -14,8 +14,9 @@ import (
 
 const serviceName = "Vervet"
 
-// ErrConfigNotFound means the keyring works but holds no entry for the server,
-// as opposed to the keyring being locked or unavailable.
+// ErrConfigNotFound means no entry for the server was found in the keyring
+// searched. The entry may still exist in a locked or different keyring, so this
+// doesn't make it safe to overwrite without asking.
 var ErrConfigNotFound = keyring.ErrNotFound
 
 // keyringTimeout is intentionally generous: on Linux the OS secret service may

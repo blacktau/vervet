@@ -11,8 +11,9 @@ vi.mock('wailsjs/go/api/ConnectionsProxy', () => ({ TestConnection: vi.fn() }))
 
 const getServerDetails = vi.fn()
 const updateServerWithConfig = vi.fn()
+const saveServerWithConfig = vi.fn()
 vi.mock('@/features/server-pane/serverStore.ts', () => ({
-  useServerStore: () => ({ getServerDetails, updateServerWithConfig, serverTree: [] }),
+  useServerStore: () => ({ getServerDetails, updateServerWithConfig, saveServerWithConfig, serverTree: [] }),
 }))
 
 const disconnect = vi.fn()
@@ -63,7 +64,7 @@ const globalOptions = () => ({
   plugins: [createI18n({ legacy: false, locale: 'en-GB', missingWarn: false, fallbackWarn: false })],
   mocks: { $t: (key: string) => key },
   // Naive UI's own component names, without the N prefix.
-  stubs: { Modal: modalStub, Button: buttonStub, Spin: spinStub, Form: formStub },
+  stubs: { Modal: modalStub, Button: buttonStub, Spin: spinStub, Form: formStub, Alert: spinStub },
 })
 
 function mountDialog() {
@@ -151,7 +152,7 @@ describe('ServerDialog loading an existing server', () => {
     await flushPromises()
 
     expect(isOpen()).toBe(true)
-    expect(notifyWarning).toHaveBeenCalledTimes(1)
+    expect(wrapper.text()).toContain('serverPane.dialogs.server.configMissing')
     expect(notifyError).not.toHaveBeenCalled()
     expect(vm.generalForm).toMatchObject({ name: 'Server', colour: '#F75B52', parentId: 'g1', connectionString: '' })
     expect(saveButton().attributes('disabled')).toBeDefined()
@@ -214,7 +215,6 @@ describe('ServerDialog loading an existing server', () => {
 
     expect(isOpen()).toBe(false)
     expect(notifyError).toHaveBeenCalledTimes(1)
-    expect(notifyWarning).not.toHaveBeenCalled()
   })
 
   test('blocks the keyboard as well as the mouse until the load settles', async () => {
@@ -241,12 +241,13 @@ describe('ServerDialog loading an existing server', () => {
       return mount(App, { global: globalOptions() })
     }
 
-    test('cancelling during the load leaves the server connected', async () => {
+    test('a cancelled load leaves the server connected', async () => {
+      isConnected.mockReturnValue(true)
       const load = deferred()
       getServerDetails.mockReturnValue(load.promise)
       mountLikeApp()
 
-      await dialogStore.showServerEditDialog('s1', { disconnectOnLoad: true })
+      await dialogStore.showServerEditDialog('s1')
       await flushPromises()
       dialogStore.hide(DialogType.Server)
       await flushPromises()
@@ -343,66 +344,107 @@ describe('ServerDialog loading an existing server', () => {
   })
 
   describe('editing a connected server', () => {
-    test('can cancel during the load, but not while disconnecting', async () => {
+    beforeEach(() => {
       isConnected.mockReturnValue(true)
-      const load = deferred()
-      const closing = deferred()
-      getServerDetails.mockReturnValue(load.promise)
-      disconnect.mockReturnValue(closing.promise)
-      const { cancelButton, saveButton } = mountDialog()
-
-      await dialogStore.showServerEditDialog('s1', { disconnectOnLoad: true })
-      await flushPromises()
-      expect(cancelButton().attributes('disabled')).toBeUndefined()
-
-      load.resolve(loaded)
-      await flushPromises()
-      expect(cancelButton().attributes('disabled')).toBeDefined()
-      expect(saveButton().attributes('disabled')).toBeDefined()
-
-      closing.resolve(true)
-      await flushPromises()
-      expect(cancelButton().attributes('disabled')).toBeUndefined()
+      updateServerWithConfig.mockReset().mockResolvedValue({ success: true })
     })
 
-    test('disconnects only once the load has succeeded', async () => {
+    async function openLoaded() {
+      getServerDetails.mockResolvedValue(loaded)
+      const dialog = mountDialog()
+      await dialogStore.showServerEditDialog('s1')
+      await flushPromises()
+      return dialog
+    }
+
+    test('stays connected when cancelled, during the load or after it', async () => {
       const load = deferred()
       getServerDetails.mockReturnValue(load.promise)
-      mountDialog()
+      const { cancelButton } = mountDialog()
 
-      await dialogStore.showServerEditDialog('s1', { disconnectOnLoad: true })
+      await dialogStore.showServerEditDialog('s1')
       await flushPromises()
-      expect(disconnect).not.toHaveBeenCalled()
+      expect(cancelButton().attributes('disabled')).toBeUndefined()
 
       load.resolve(loaded)
+      await flushPromises()
+      await cancelButton().trigger('click')
+      await flushPromises()
+
+      expect(isOpen()).toBe(false)
+      expect(disconnect).not.toHaveBeenCalled()
+    })
+
+    test.each([
+      ['fails', failed],
+      ['finds no saved details', { status: 'configMissing', server: metadata }],
+    ])('stays connected when the load %s', async (_name, result) => {
+      getServerDetails.mockResolvedValue(result)
+      mountDialog()
+
+      await dialogStore.showServerEditDialog('s1')
+      await flushPromises()
+
+      expect(disconnect).not.toHaveBeenCalled()
+    })
+
+    test('warns before saving, then saves and disconnects in that order', async () => {
+      const { saveButton } = await openLoaded()
+
+      expect(saveButton().attributes('disabled')).toBeUndefined()
+      await saveButton().trigger('click')
+      await flushPromises()
+
+      expect(confirmWarning.mock.calls[0]?.[0]).toContain('saveClosesConnection')
+      expect(updateServerWithConfig).not.toHaveBeenCalled()
+      expect(disconnect).not.toHaveBeenCalled()
+
+      await confirmWarning.mock.calls[0]?.[1]()
       await flushPromises()
 
       expect(disconnect).toHaveBeenCalledWith('s1')
+      expect(updateServerWithConfig.mock.invocationCallOrder[0]).toBeLessThan(disconnect.mock.invocationCallOrder[0]!)
+      expect(isOpen()).toBe(false)
     })
 
-    test('stays connected when the load fails', async () => {
-      getServerDetails.mockResolvedValue(failed)
-      mountDialog()
+    test('stays connected and open when the save fails', async () => {
+      updateServerWithConfig.mockResolvedValue({ success: false, msg: 'keyring locked' })
+      const { saveButton } = await openLoaded()
 
-      await dialogStore.showServerEditDialog('s1', { disconnectOnLoad: true })
+      await saveButton().trigger('click')
+      await flushPromises()
+      await confirmWarning.mock.calls[0]?.[1]()
       await flushPromises()
 
       expect(disconnect).not.toHaveBeenCalled()
+      expect(isOpen()).toBe(true)
     })
 
-    test('stays connected when cancelled during the load', async () => {
-      const load = deferred()
-      getServerDetails.mockReturnValue(load.promise)
-      mountDialog()
+    test('reports a rejected disconnect after saving, without getting stuck', async () => {
+      disconnect.mockRejectedValue(new Error('bridge down'))
+      const { saveButton } = await openLoaded()
 
-      await dialogStore.showServerEditDialog('s1', { disconnectOnLoad: true })
+      await saveButton().trigger('click')
       await flushPromises()
-      dialogStore.hide(DialogType.Server)
-      await flushPromises()
-
-      load.resolve(loaded)
+      await confirmWarning.mock.calls[0]?.[1]()
       await flushPromises()
 
+      expect(isOpen()).toBe(false)
+      expect(notifyWarning.mock.calls[0]?.[1]).toMatchObject({ detail: 'bridge down' })
+    })
+
+    test('a clone does not disconnect the original', async () => {
+      getServerDetails.mockResolvedValue(loaded)
+      saveServerWithConfig.mockResolvedValue({ success: true })
+      const { saveButton } = mountDialog()
+      await dialogStore.showCloneServerDialog('s1')
+      await flushPromises()
+
+      await saveButton().trigger('click')
+      await flushPromises()
+
+      expect(confirmWarning).not.toHaveBeenCalled()
+      expect(saveServerWithConfig).toHaveBeenCalledTimes(1)
       expect(disconnect).not.toHaveBeenCalled()
     })
   })

@@ -589,8 +589,6 @@ export default {
       cloneServer: 'Clone Server',
       deleteServer: 'Delete Server',
       connectServer: 'Connect',
-      editDisconnectConfirmation:
-        'Relevant open connections must be closed before editing. Continue?',
       empty: 'No Mongo Servers Added',
       deleteGroupTooltip: 'Are you sure you want to delete group "{name}"?',
       deleteGroupWithChildrenTooltip: 'Delete "{name}" and all its sub-groups and servers?',
@@ -629,7 +627,8 @@ export default {
         oidcProviderUrl: 'Provider URL (optional)',
         oidcClientId: 'Client ID (optional)',
         oidcScopes: 'Scopes (optional)',
-        configMissing: "Vervet couldn't find this server's saved connection details. If your keyring is locked, or a different one is in use, cancel and try again once it's available. Otherwise, enter the connection string and authentication settings again. Saving replaces anything stored for this server.",
+        configMissing: "Vervet couldn't find this server's saved connection details. If your keyring is locked, or a different one is in use, cancel and try again once it's available. Otherwise, enter the connection string and authentication settings again.",
+        saveClosesConnection: "Saving will close this server's open connection and its tab.",
         configMissingConfirm: "Vervet couldn't find this server's saved connection details, but they may still exist in a locked or different keyring. Saving will replace them. Save anyway?",
         testOIDCUnsupported: 'Test connection is not available for OIDC — save the server and connect instead.',
         oidcWorkloadIdentity: 'Workload Identity',

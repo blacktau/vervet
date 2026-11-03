@@ -62,7 +62,6 @@ const generalForm = ref<EditableRegisteredServer>({
 const generalFormRef = ref<FormInst | undefined>(undefined)
 const testing = ref(false)
 const loading = ref(false)
-const disconnecting = ref(false)
 const configMissing = ref(false)
 let loadGeneration = 0
 
@@ -114,15 +113,7 @@ const generalFormRules = () => {
 
 const isEditMode = computed(() => dialogStore.serverDialogData?.mode === 'edit')
 
-const closingConnection = computed(() => {
-  if (!isEditMode.value) {
-    return false
-  }
-  if (isEmpty(editServerID.value)) {
-    return false
-  }
-  return browserStore.isConnected(editServerID.value)
-})
+const isServerConnected = () => isEditMode.value && !isEmpty(editServerID.value) && browserStore.isConnected(editServerID.value!)
 
 const onSaveServer = async () => {
   await generalFormRef.value?.validate((err) => {
@@ -131,10 +122,17 @@ const onSaveServer = async () => {
     }
   })
 
+  const warnings: string[] = []
+  if (isServerConnected()) {
+    warnings.push(i18n.t('serverPane.dialogs.server.saveClosesConnection'))
+  }
   // A locked or different keyring can look the same as a missing entry, so the
   // real details may still exist. Saving would replace them.
   if (configMissing.value) {
-    useDialoger().warning(i18n.t('serverPane.dialogs.server.configMissingConfirm'), saveServer)
+    warnings.push(i18n.t('serverPane.dialogs.server.configMissingConfirm'))
+  }
+  if (warnings.length > 0) {
+    useDialoger().warning(warnings.join(' '), saveServer)
     return
   }
 
@@ -142,6 +140,8 @@ const onSaveServer = async () => {
 }
 
 const saveServer = async () => {
+  const serverId = editServerID.value
+  const wasConnected = isServerConnected()
   const cfg = {
     uri: generalForm.value.connectionString,
     authMethod: authPicker.value,
@@ -176,6 +176,21 @@ const saveServer = async () => {
 
   messager.success(i18n.t('common.dialog.handleSuccess'))
   onClose()
+
+  // Only now, so a failed save leaves the connection as it was.
+  if (wasConnected && serverId) {
+    await closeSavedServerConnection(serverId)
+  }
+}
+
+const closeSavedServerConnection = async (serverId: string) => {
+  try {
+    await browserStore.disconnect(serverId)
+  } catch (e: unknown) {
+    useNotifier().warning(i18n.t('errorTitles.disconnect'), {
+      detail: e instanceof Error ? e.message : String(e),
+    })
+  }
 }
 
 const NEW_GROUP_SENTINEL = '__new_group__'
@@ -300,19 +315,11 @@ async function loadExistingServer(data: ServerDialogData, generation: number) {
     return
   }
 
-  if (data.disconnectOnLoad) {
-    disconnecting.value = true
-    browserStore.disconnect(data.serverId).finally(() => {
-      disconnecting.value = false
-    })
-  }
-
   if (result.status === 'configMissing') {
     // Let the user re-enter the details and keep the server.
     fillFromServer(result.server, '')
     authPicker.value = 'password'
     configMissing.value = true
-    useNotifier().warning(i18n.t('serverPane.dialogs.server.configMissing'))
     return
   }
 
@@ -467,7 +474,10 @@ const onTestConnection = async () => {
     style="width: 600px"
     transform-origin="center"
     @esc="onClose">
-    <n-spin :show="closingConnection || loading">
+    <n-spin :show="loading">
+      <n-alert v-if="configMissing" class="config-missing-alert" type="warning">
+        {{ $t('serverPane.dialogs.server.configMissing') }}
+      </n-alert>
       <div :inert="loading || undefined">
         <n-tabs
           v-model:value="tab"
@@ -562,7 +572,7 @@ const onTestConnection = async () => {
     <template #action>
       <div class="flex-item-expand">
         <n-button
-          :disabled="closingConnection || loading || !generalForm.connectionString"
+          :disabled="loading || !generalForm.connectionString"
           :focusable="false"
           :loading="testing"
           @click="onTestConnection">
@@ -570,11 +580,11 @@ const onTestConnection = async () => {
         </n-button>
       </div>
       <div class="flex-item n-dialog__action">
-        <n-button :disabled="disconnecting" :focusable="false" @click="onClose">
+        <n-button :focusable="false" @click="onClose">
           {{ $t('common.cancel') }}
         </n-button>
         <n-button
-          :disabled="closingConnection || loading || !generalForm.name || !generalForm.connectionString"
+          :disabled="loading || !generalForm.name || !generalForm.connectionString"
           :focusable="false"
           type="primary"
           @click="onSaveServer">
@@ -586,6 +596,10 @@ const onTestConnection = async () => {
 </template>
 
 <style lang="scss" scoped>
+.config-missing-alert {
+  margin-bottom: 12px;
+}
+
 .color-preset-item {
   width: 24px;
   height: 24px;

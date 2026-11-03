@@ -229,13 +229,7 @@ export function useServerTreeContextMenu(
         connectToServer(serverId).then(() => {})
         break
       case MenuKeys.ServerEdit:
-        if (browserStore.isConnected(serverId)) {
-          useDialoger().warning(i18n.t('serverPane.serverTree.editDisconnectConfirmation'), () => {
-            dialogStore.showServerEditDialog(serverId, { disconnectOnLoad: true })
-          })
-        } else {
-          dialogStore.showServerEditDialog(serverId)
-        }
+        dialogStore.showServerEditDialog(serverId)
         break
       case MenuKeys.ServerClone:
         dialogStore.showCloneServerDialog(serverId)
