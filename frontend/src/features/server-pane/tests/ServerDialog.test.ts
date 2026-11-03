@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
-import { flushPromises, shallowMount } from '@vue/test-utils'
+import { flushPromises, mount, shallowMount } from '@vue/test-utils'
+import { defineComponent } from 'vue'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
@@ -14,8 +15,9 @@ vi.mock('@/features/server-pane/serverStore.ts', () => ({
 }))
 
 const disconnect = vi.fn()
+const isConnected = vi.fn()
 vi.mock('@/features/data-browser/browserStore.ts', () => ({
-  useDataBrowserStore: () => ({ isConnected: () => false, disconnect }),
+  useDataBrowserStore: () => ({ isConnected, disconnect }),
 }))
 
 const notifyError = vi.fn()
@@ -52,15 +54,17 @@ function deferred() {
 
 const modalStub = { template: '<div><slot /><slot name="action" /></div>' }
 const buttonStub = { props: ['disabled'], template: '<button :disabled="disabled"><slot /></button>' }
+const spinStub = { template: '<div><slot /></div>' }
+const globalOptions = () => ({
+  plugins: [createI18n({ legacy: false, locale: 'en-GB', missingWarn: false, fallbackWarn: false })],
+  mocks: { $t: (key: string) => key },
+  // Naive UI's own component names, without the N prefix.
+  stubs: { Modal: modalStub, Button: buttonStub, Spin: spinStub },
+})
 
 function mountDialog() {
   const wrapper = shallowMount(ServerDialog, {
-    global: {
-      plugins: [createI18n({ legacy: false, locale: 'en-GB', missingWarn: false, fallbackWarn: false })],
-      mocks: { $t: (key: string) => key },
-      // Naive UI's own component names, without the N prefix.
-      stubs: { Modal: modalStub, Button: buttonStub },
-    },
+    global: globalOptions(),
   })
   const buttons = () => wrapper.findAll('button')
   return {
@@ -80,6 +84,8 @@ describe('ServerDialog loading an existing server', () => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
     getServerDetails.mockReset()
+    disconnect.mockReset().mockResolvedValue(true)
+    isConnected.mockReset().mockReturnValue(false)
     dialogStore = useDialogStore()
   })
 
@@ -153,6 +159,78 @@ describe('ServerDialog loading an existing server', () => {
     expect(saveButton().attributes('disabled')).toBeUndefined()
   })
 
+  test('a clone of a server with a missing keyring entry closes, as there is nothing to copy', async () => {
+    getServerDetails.mockResolvedValue({ status: 'configMissing', server: metadata })
+    mountDialog()
+
+    await dialogStore.showCloneServerDialog('s1')
+    await flushPromises()
+
+    expect(isOpen()).toBe(false)
+    expect(notifyError).toHaveBeenCalledTimes(1)
+    expect(notifyWarning).not.toHaveBeenCalled()
+  })
+
+  test('blocks the keyboard as well as the mouse until the load settles', async () => {
+    const load = deferred()
+    getServerDetails.mockReturnValue(load.promise)
+    const { wrapper } = mountDialog()
+
+    await dialogStore.showServerEditDialog('s1')
+    await flushPromises()
+    expect(wrapper.find('[inert]').exists()).toBe(true)
+
+    load.resolve(loaded)
+    await flushPromises()
+    expect(wrapper.find('[inert]').exists()).toBe(false)
+  })
+
+  describe('mounted with v-if, as App.vue does', () => {
+    function mountLikeApp() {
+      const App = defineComponent({
+        components: { ServerDialog },
+        setup: () => ({ dialogStore, DialogType: 'server' }),
+        template: '<ServerDialog v-if="dialogStore.isVisible(DialogType)" />',
+      })
+      return mount(App, { global: globalOptions() })
+    }
+
+    test('cancelling during the load leaves the server connected', async () => {
+      const load = deferred()
+      getServerDetails.mockReturnValue(load.promise)
+      mountLikeApp()
+
+      await dialogStore.showServerEditDialog('s1', { disconnectOnLoad: true })
+      await flushPromises()
+      dialogStore.hide(DialogType.Server)
+      await flushPromises()
+
+      load.resolve(loaded)
+      await flushPromises()
+
+      expect(disconnect).not.toHaveBeenCalled()
+    })
+
+    test('a cancelled load that fails shows nothing and leaves the next dialog open', async () => {
+      const load = deferred()
+      getServerDetails.mockReturnValueOnce(load.promise)
+      mountLikeApp()
+
+      await dialogStore.showServerEditDialog('s1')
+      await flushPromises()
+      dialogStore.hide(DialogType.Server)
+      await flushPromises()
+      dialogStore.showNewServerDialog()
+      await flushPromises()
+
+      load.resolve(failed)
+      await flushPromises()
+
+      expect(notifyError).not.toHaveBeenCalled()
+      expect(isOpen()).toBe(true)
+    })
+  })
+
   describe('a load from an earlier open', () => {
     async function reopenWhileLoading(secondLoad: unknown) {
       const first = deferred()
@@ -219,6 +297,28 @@ describe('ServerDialog loading an existing server', () => {
   })
 
   describe('editing a connected server', () => {
+    test('can cancel during the load, but not while disconnecting', async () => {
+      isConnected.mockReturnValue(true)
+      const load = deferred()
+      const closing = deferred()
+      getServerDetails.mockReturnValue(load.promise)
+      disconnect.mockReturnValue(closing.promise)
+      const { cancelButton, saveButton } = mountDialog()
+
+      await dialogStore.showServerEditDialog('s1', { disconnectOnLoad: true })
+      await flushPromises()
+      expect(cancelButton().attributes('disabled')).toBeUndefined()
+
+      load.resolve(loaded)
+      await flushPromises()
+      expect(cancelButton().attributes('disabled')).toBeDefined()
+      expect(saveButton().attributes('disabled')).toBeDefined()
+
+      closing.resolve(true)
+      await flushPromises()
+      expect(cancelButton().attributes('disabled')).toBeUndefined()
+    })
+
     test('disconnects only once the load has succeeded', async () => {
       const load = deferred()
       getServerDetails.mockReturnValue(load.promise)

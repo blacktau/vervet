@@ -629,7 +629,7 @@ export default {
         oidcProviderUrl: 'Provider URL (optional)',
         oidcClientId: 'Client ID (optional)',
         oidcScopes: 'Scopes (optional)',
-        configMissing: "This server's saved connection details are missing. Enter its connection string and authentication settings again, then save.",
+        configMissing: "Vervet couldn't find this server's saved connection details. If your keyring is locked, or a different one is in use, cancel and try again once it's available. Otherwise, enter the connection string and authentication settings again. Saving replaces anything stored for this server.",
         testOIDCUnsupported: 'Test connection is not available for OIDC — save the server and connect instead.',
         oidcWorkloadIdentity: 'Workload Identity',
         oidcWorkloadIdentityDesc: 'Use environment credentials (Azure/GCP)',
