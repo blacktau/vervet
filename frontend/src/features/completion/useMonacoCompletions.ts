@@ -5,6 +5,7 @@ import { analyzeContext } from './completionContext'
 import {
   mongoMethods,
   cursorMethods,
+  arrayCursorMethods,
   queryOperators,
   aggStages,
   updateOperators,
@@ -232,7 +233,8 @@ async function getSuggestions(
         }))
 
     case 'CURSOR_METHOD':
-      return cursorMethods
+    case 'ARRAY_CURSOR_METHOD':
+      return (ctx.type === 'CURSOR_METHOD' ? cursorMethods : arrayCursorMethods)
         .filter((m) => m.label.startsWith(ctx.prefix))
         .map((m) => ({
           label: m.label,

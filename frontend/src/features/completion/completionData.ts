@@ -203,7 +203,11 @@ export const queryOperators = [
 export const cursorMethods = [
   { label: 'limit', detail: '(n) - Limit number of results', snippet: 'limit($1)$0' },
   { label: 'skip', detail: '(n) - Skip first n results', snippet: 'skip($1)$0' },
-  { label: 'sort', detail: '(sortSpec) - Sort results, e.g. { field: 1 }', snippet: 'sort({$1})$0' },
+  {
+    label: 'sort',
+    detail: '(sortSpec) - Sort results, e.g. { field: 1 }',
+    snippet: 'sort({$1})$0',
+  },
   { label: 'toArray', detail: '() - Convert cursor to array', snippet: 'toArray()$0' },
   { label: 'count', detail: '() - Count the results', snippet: 'count()$0' },
   { label: 'forEach', detail: '(fn) - Iterate with a callback', snippet: 'forEach($1)$0' },
@@ -217,7 +221,108 @@ export const cursorMethods = [
   { label: 'map', detail: '(fn) - Transform each document', snippet: 'map($1)$0' },
   { label: 'hasNext', detail: '() - Check if cursor has more documents', snippet: 'hasNext()$0' },
   { label: 'next', detail: '() - Get next document from cursor', snippet: 'next()$0' },
+  { label: 'tryNext', detail: '() - Get next document, or null', snippet: 'tryNext()$0' },
+  {
+    label: 'projection',
+    detail: '(spec) - Choose the fields to return',
+    snippet: 'projection({$1})$0',
+  },
+  {
+    label: 'min',
+    detail: '(indexBounds) - Inclusive lower index bound; needs hint()',
+    snippet: 'min({$1})$0',
+  },
+  {
+    label: 'max',
+    detail: '(indexBounds) - Exclusive upper index bound; needs hint()',
+    snippet: 'max({$1})$0',
+  },
+  {
+    label: 'returnKey',
+    detail: '(true) - Return only the index keys',
+    snippet: 'returnKey(true)$0',
+  },
+  {
+    label: 'showRecordId',
+    detail: '() - Add the record id to each document',
+    snippet: 'showRecordId()$0',
+  },
+  {
+    label: 'readConcern',
+    detail: '(level) - Set the read concern level',
+    snippet: 'readConcern("$1")$0',
+  },
+  { label: 'readPref', detail: '(mode) - Set the read preference', snippet: 'readPref("$1")$0' },
+  {
+    label: 'allowDiskUse',
+    detail: '() - Let a sort use temporary files; needs sort()',
+    snippet: 'allowDiskUse()$0',
+  },
+  {
+    label: 'allowPartialResults',
+    detail: '() - Return partial results if a shard is down',
+    snippet: 'allowPartialResults()$0',
+  },
+  {
+    label: 'noCursorTimeout',
+    detail: '() - Stop the server timing out the cursor',
+    snippet: 'noCursorTimeout()$0',
+  },
+  {
+    label: 'tailable',
+    detail: '() - Keep the cursor open on a capped collection',
+    snippet: 'tailable()$0',
+  },
+  {
+    label: 'addOption',
+    detail: '(flag) - Set a cursor flag by number',
+    snippet: 'addOption($1)$0',
+  },
+  {
+    label: 'size',
+    detail: '() - Count the results, honouring skip and limit',
+    snippet: 'size()$0',
+  },
+  {
+    label: 'itcount',
+    detail: '() - Count the remaining documents by iterating',
+    snippet: 'itcount()$0',
+  },
+  {
+    label: 'objsLeftInBatch',
+    detail: '() - Documents left in the current batch',
+    snippet: 'objsLeftInBatch()$0',
+  },
+  {
+    label: 'isExhausted',
+    detail: '() - Check if the cursor is used up or closed',
+    snippet: 'isExhausted()$0',
+  },
+  { label: 'isClosed', detail: '() - Check if the cursor is closed', snippet: 'isClosed()$0' },
+  { label: 'close', detail: '() - Close the cursor', snippet: 'close()$0' },
 ]
+
+/**
+ * What the array-backed cursor from aggregate, listIndexes and find().map()
+ * offers (`withCursorMethods` in internal/queryengine/proxy_collection.go). It
+ * has no query modifiers, so `limit` and the like would fail on it.
+ */
+const arrayCursorMethodNames = new Set([
+  'close',
+  'forEach',
+  'hasNext',
+  'isClosed',
+  'isExhausted',
+  'itcount',
+  'map',
+  'next',
+  'objsLeftInBatch',
+  'pretty',
+  'toArray',
+  'tryNext',
+])
+
+export const arrayCursorMethods = cursorMethods.filter((m) => arrayCursorMethodNames.has(m.label))
 
 export const aggStages = [
   { label: '$addFields', detail: 'Add new fields' },

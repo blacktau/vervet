@@ -256,6 +256,27 @@ describe('analyzeContext', () => {
     expect(ctx.type).toBe('CURSOR_METHOD')
   })
 
+  it.each([
+    'db.users.aggregate([]).',
+    'db.aggregate([]).',
+    'db.getSiblingDB("x").users.aggregate([]).',
+    'db.users.listIndexes().',
+    'db.users.find({}).map(f).',
+    'db.users.aggregate([]).map(f).',
+    'db.users.aggregate([{ $match: { a: f() } }]).map(g(1)).',
+    'db.users\n  .aggregate([])\n  .map(f)\n  .',
+  ])('returns ARRAY_CURSOR_METHOD after %s', (text) => {
+    expect(analyzeContext(text).type).toBe('ARRAY_CURSOR_METHOD')
+  })
+
+  it.each([
+    'db.users.find({ a: db.other.aggregate([]) }).',
+    'db.users.find({}).limit(db.other.aggregate([]).length).',
+    'db.users.find().sort({ a: 1 }).',
+  ])('returns CURSOR_METHOD after %s', (text) => {
+    expect(analyzeContext(text).type).toBe('CURSOR_METHOD')
+  })
+
   it('returns CURSOR_METHOD after chained sort().', () => {
     const ctx = analyzeContext('db.users.find({}).sort({ name: 1 }).')
     expect(ctx.type).toBe('CURSOR_METHOD')

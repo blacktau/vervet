@@ -3,6 +3,7 @@ export type CompletionContextType =
   | 'COLLECTION_NAME_STRING'
   | 'METHOD_NAME'
   | 'CURSOR_METHOD'
+  | 'ARRAY_CURSOR_METHOD'
   | 'FIELD_NAME'
   | 'QUERY_OPERATOR'
   | 'AGG_STAGE'
@@ -138,6 +139,9 @@ const DOCUMENT_METHODS = new Set([
   'findAndModify',
 ])
 
+/** Methods that return an array-backed cursor, which lacks the query modifiers. */
+const ARRAY_CURSOR_METHODS = new Set(['aggregate', 'listIndexes', 'map'])
+
 /** Methods whose second argument is an update document. */
 const UPDATE_METHODS = new Set(['updateOne', 'updateMany', 'findOneAndUpdate'])
 
@@ -147,6 +151,8 @@ interface Frame {
   key?: string
   /** For '(': the method being called, e.g. `find`. */
   callee?: string
+  /** For '(': this call returns an array-backed cursor. */
+  arrayCursor?: boolean
   /** Top-level commas seen inside this frame — the argument/element index. */
   commas: number
 }
@@ -160,6 +166,8 @@ interface Scan {
   afterColon: boolean
   /** The method of the call most recently closed, e.g. `find` after `find({})`. */
   closedCallee?: string
+  /** The call most recently closed returned an array-backed cursor. */
+  closedArrayCursor: boolean
 }
 
 /**
@@ -178,6 +186,7 @@ function scan(text: string): Scan {
   let afterColon = false
   let word = ''
   let closedCallee: string | undefined
+  let closedArrayCursor = false
 
   const top = () => stack[stack.length - 1]
 
@@ -216,12 +225,17 @@ function scan(text: string): Scan {
       afterColon = false
       lastIdent = ''
     } else if (ch === '(') {
-      stack.push({ open: ch, callee: lastIdent.split('.').pop(), commas: 0 })
+      const callee = lastIdent.split('.').pop()
+      // A leading dot means this call chains onto the one just closed.
+      const inherited = lastIdent.startsWith('.') && closedArrayCursor && callee !== 'find'
+      const arrayCursor = ARRAY_CURSOR_METHODS.has(callee ?? '') || inherited
+      stack.push({ open: ch, callee, arrayCursor, commas: 0 })
       afterColon = false
       lastIdent = ''
     } else if (ch === '}' || ch === ']' || ch === ')') {
       const closed = stack.pop()
       closedCallee = closed?.open === '(' ? closed.callee : undefined
+      closedArrayCursor = closed?.arrayCursor ?? false
       afterColon = false
       lastIdent = ''
     } else if (ch === ',') {
@@ -242,6 +256,7 @@ function scan(text: string): Scan {
     insideQuotes: quote !== null,
     afterColon,
     closedCallee,
+    closedArrayCursor,
   }
 }
 
@@ -301,6 +316,9 @@ function analyzeContextCore(textBeforeCursor: string): CompletionContext {
     const prefix = cursorMethodMatch[1] || ''
     if (DOCUMENT_METHODS.has(scanned.closedCallee ?? '')) {
       return { type: 'NONE', prefix }
+    }
+    if (scanned.closedArrayCursor) {
+      return { type: 'ARRAY_CURSOR_METHOD', prefix }
     }
     return { type: 'CURSOR_METHOD', prefix }
   }

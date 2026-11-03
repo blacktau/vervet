@@ -80,6 +80,47 @@ describe('methods', () => {
     expect(await labelsAt('db.users.find({}).|')).toEqual(expect.arrayContaining(['limit', 'sort']))
   })
 
+  it('suggests every cursor method the engine runs after a find()', async () => {
+    expect(await labelsAt('db.users.find({}).|')).toEqual(
+      expect.arrayContaining([
+        'close',
+        'isClosed',
+        'isExhausted',
+        'itcount',
+        'max',
+        'min',
+        'size',
+        'noCursorTimeout',
+        'returnKey',
+        'showRecordId',
+        'readConcern',
+        'readPref',
+        'tailable',
+        'objsLeftInBatch',
+        'tryNext',
+        'projection',
+        'allowDiskUse',
+        'allowPartialResults',
+        'addOption',
+      ]),
+    )
+  })
+
+  it('filters cursor methods by the typed prefix', async () => {
+    expect(await labelsAt('db.users.find({}).isE|')).toEqual(['isExhausted'])
+  })
+
+  it.each(['db.users.aggregate([]).|', 'db.users.listIndexes().|', 'db.users.find({}).map(f).|'])(
+    'suggests only what an array-backed cursor has at %s',
+    async (text) => {
+      const labels = await labelsAt(text)
+      expect(labels).toEqual(expect.arrayContaining(['toArray', 'next', 'itcount', 'close']))
+      for (const missing of ['limit', 'sort', 'min', 'tailable', 'size', 'explain']) {
+        expect(labels).not.toContain(missing)
+      }
+    },
+  )
+
   it('resolves the collection through db.getCollection', async () => {
     expect(await labelsAt('db.getCollection("users").|')).toContain('find')
   })

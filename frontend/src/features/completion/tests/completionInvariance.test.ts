@@ -21,6 +21,8 @@ const carets: [string, string][] = [
   ['CURSOR_METHOD', 'db.users.find({}).'],
   ['CURSOR_METHOD/gc', 'db.getCollection("users").find({}).'],
   ['CURSOR_METHOD/chain', 'db.users.find({}).sort({ a: 1 }).'],
+  ['ARRAY_CURSOR_METHOD', 'db.users.aggregate([]).'],
+  ['ARRAY_CURSOR_METHOD/gc', 'db.getCollection("users").aggregate([]).'],
   ['FIELD_NAME', 'db.users.find({ '],
   ['FIELD_NAME/gc', 'db.getCollection("users").find({ '],
   ['FIELD_NAME/quoted', 'db.users.find({ "'],
