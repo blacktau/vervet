@@ -24,8 +24,7 @@ func dispatchInsertOne(ctx context.Context, coll *mongo.Collection, op CapturedO
 	ctx, cancel := withMaxTime(ctx, maxTime)
 	defer cancel()
 
-	doc := convertToBson(op.Args[0])
-	res, err := coll.InsertOne(ctx, doc, opts)
+	res, err := coll.InsertOne(ctx, insertDocument(op.Args[0]), opts)
 	if err != nil {
 		return models.QueryResult{}, fmt.Errorf("insertOne failed: %w", err)
 	}
@@ -57,7 +56,7 @@ func dispatchInsertMany(ctx context.Context, coll *mongo.Collection, op Captured
 
 	docs := make([]any, len(rawDocs))
 	for i, d := range rawDocs {
-		docs[i] = convertToBson(d)
+		docs[i] = insertDocument(d)
 	}
 
 	res, err := coll.InsertMany(ctx, docs, opts)
@@ -247,15 +246,33 @@ func dispatchBulkWrite(ctx context.Context, coll *mongo.Collection, op CapturedO
 	return result, nil
 }
 
-// withDocumentID returns doc with its _id, generating one first if it has none.
-// The driver would add one itself but does not report it for a bulk write, so
-// generating it here is the only way to return it in insertedIds.
+// insertDocument converts a document to insert, giving it an _id when it has none.
+func insertDocument(raw any) any {
+	converted := convertToBson(raw)
+	doc, ok := converted.(bson.D)
+	if !ok {
+		return converted
+	}
+	withID, _ := withDocumentID(doc)
+	return withID
+}
+
+// withDocumentID returns doc with its _id, generating one first if it has none. As
+// in mongosh, an _id of null or undefined counts as none. The driver would add a
+// missing one itself, but would store a null, and does not report what it generates
+// for a bulk write, so generating it here is the only way to return it in insertedIds.
 func withDocumentID(doc bson.D) (bson.D, any) {
-	if id := docField(doc, "_id"); id != nil {
-		return doc, id
+	i := slices.IndexFunc(doc, func(e bson.E) bool { return e.Key == "_id" })
+	if i >= 0 && doc[i].Value != nil {
+		return doc, doc[i].Value
 	}
 	id := bson.NewObjectID()
-	return append(bson.D{{Key: "_id", Value: id}}, doc...), id
+	if i < 0 {
+		return append(bson.D{{Key: "_id", Value: id}}, doc...), id
+	}
+	doc = slices.Clone(doc)
+	doc[i].Value = id
+	return doc, id
 }
 
 // idsByOperation gives ids as mongosh does: a document keyed by the index of

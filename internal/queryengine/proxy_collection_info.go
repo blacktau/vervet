@@ -2,11 +2,10 @@ package queryengine
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/dop251/goja"
 	"go.mongodb.org/mongo-driver/v2/bson"
-	"go.mongodb.org/mongo-driver/v2/mongo"
-	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 // collStatsDoc runs the collStats command and returns the result document.
@@ -183,89 +182,73 @@ func setCollectionInfoMethods(obj *goja.Object, ec *execContext, collName string
 
 	_ = obj.Set("findAndModify", func(call goja.FunctionCall) goja.Value {
 		requireClient(ec)
-		if len(call.Arguments) < 1 {
-			panic(rt.NewGoError(fmt.Errorf("findAndModify requires a spec document")))
-		}
-		spec, ok := asMap(exportValue(call.Arguments[0]))
-		if !ok {
-			panic(rt.NewGoError(fmt.Errorf("findAndModify: spec must be an object")))
-		}
-		result, err := runFindAndModify(ec, collName, spec)
+		op, err := findAndModifyOp(collName, argAt(exportArgs(call), 0))
 		if err != nil {
 			panic(rt.NewGoError(err))
 		}
-		if result == nil {
+		result, err := dispatch(ec.ctx, ec.client, ec.dbName, op)
+		if err != nil {
+			panic(rt.NewGoError(err))
+		}
+		if len(result.Documents) == 0 {
 			return goja.Null()
 		}
-		return toJSValue(rt, result)
+		return toGojaValue(rt, result)
 	})
 }
 
-// runFindAndModify executes the legacy findAndModify operation against the named collection.
-// Delegates to FindOneAndDelete when spec.remove is truthy, otherwise FindOneAndUpdate.
-func runFindAndModify(ec *execContext, collName string, spec map[string]any) (bson.D, error) {
-	coll := ec.client.Database(ec.dbName).Collection(collName)
-	filter := bson.D{}
-	if q, ok := spec["query"]; ok && q != nil {
-		filter = toBsonDoc(q)
+// findAndModifyOp turns a findAndModify spec into the findOneAnd* method mongosh
+// would call for it, so that its options behave as they do on that method. Without
+// a usable query it must fail, as treating it as {} would change the first document.
+func findAndModifyOp(collName string, rawSpec any) (CapturedOp, error) {
+	spec, ok := asBsonDoc(rawSpec)
+	if !ok {
+		return CapturedOp{}, fmt.Errorf("findAndModify requires a spec document")
 	}
-
-	returnNew := false
-	if v, ok := spec["new"].(bool); ok {
-		returnNew = v
-	}
-	upsert := false
-	if v, ok := spec["upsert"].(bool); ok {
-		upsert = v
-	}
-
-	if remove, _ := spec["remove"].(bool); remove {
-		opts := options.FindOneAndDelete()
-		if sort, ok := spec["sort"]; ok && sort != nil {
-			opts.SetSort(toBsonDoc(sort))
-		}
-		if fields, ok := spec["fields"]; ok && fields != nil {
-			opts.SetProjection(toBsonDoc(fields))
-		}
-		var result bson.D
-		err := coll.FindOneAndDelete(ec.ctx, filter, opts).Decode(&result)
-		if err == mongo.ErrNoDocuments {
-			return nil, nil
-		}
-		if err != nil {
-			return nil, fmt.Errorf("findAndModify: %w", err)
-		}
-		return result, nil
-	}
-
-	update, ok := spec["update"]
-	if !ok || update == nil {
-		return nil, fmt.Errorf("findAndModify requires either remove: true or an update document")
-	}
-
-	opts := options.FindOneAndUpdate()
-	if returnNew {
-		opts.SetReturnDocument(options.After)
-	} else {
-		opts.SetReturnDocument(options.Before)
-	}
-	if upsert {
-		opts.SetUpsert(true)
-	}
-	if sort, ok := spec["sort"]; ok && sort != nil {
-		opts.SetSort(toBsonDoc(sort))
-	}
-	if fields, ok := spec["fields"]; ok && fields != nil {
-		opts.SetProjection(toBsonDoc(fields))
-	}
-
-	var result bson.D
-	err := coll.FindOneAndUpdate(ec.ctx, filter, convertToBson(update), opts).Decode(&result)
-	if err == mongo.ErrNoDocuments {
-		return nil, nil
-	}
+	filter, err := filterDoc("findAndModify", docField(spec, "query"))
 	if err != nil {
-		return nil, fmt.Errorf("findAndModify: %w", err)
+		return CapturedOp{}, err
 	}
-	return result, nil
+	fields, hasFields := lookupOption(spec, "fields")
+	if _, hasProjection := lookupOption(spec, "projection"); hasFields && hasProjection {
+		return CapturedOp{}, fmt.Errorf("findAndModify cannot have both fields and projection")
+	}
+
+	opts := make(bson.D, 0, len(spec))
+	for _, e := range spec {
+		switch e.Key {
+		case "query", "update", "remove":
+		case "fields":
+			if jsTruthy(fields) {
+				opts = append(opts, bson.E{Key: "projection", Value: fields})
+			}
+		default:
+			opts = append(opts, e)
+		}
+	}
+
+	if jsTruthy(docField(spec, "remove")) {
+		return CapturedOp{Collection: collName, Method: "findOneAndDelete", Args: []any{filter, opts}}, nil
+	}
+	update := docField(spec, "update")
+	if !jsTruthy(update) {
+		return CapturedOp{}, fmt.Errorf("findAndModify requires either remove or an update")
+	}
+	method := "findOneAndReplace"
+	if isUpdateDocument(update) {
+		method = "findOneAndUpdate"
+	}
+	return CapturedOp{Collection: collName, Method: method, Args: []any{filter, update, opts}}, nil
+}
+
+// isUpdateDocument reports whether update is a pipeline or starts with an update
+// operator, rather than being a replacement document.
+func isUpdateDocument(update any) bool {
+	switch u := update.(type) {
+	case bson.A:
+		return true
+	case bson.D:
+		return len(u) > 0 && strings.HasPrefix(u[0].Key, "$")
+	}
+	return false
 }
