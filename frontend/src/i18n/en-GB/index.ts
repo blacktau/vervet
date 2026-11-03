@@ -630,6 +630,7 @@ export default {
         oidcClientId: 'Client ID (optional)',
         oidcScopes: 'Scopes (optional)',
         configMissing: "Vervet couldn't find this server's saved connection details. If your keyring is locked, or a different one is in use, cancel and try again once it's available. Otherwise, enter the connection string and authentication settings again. Saving replaces anything stored for this server.",
+        configMissingConfirm: "Vervet couldn't find this server's saved connection details, but they may still exist in a locked or different keyring. Saving will replace them. Save anyway?",
         testOIDCUnsupported: 'Test connection is not available for OIDC — save the server and connect instead.',
         oidcWorkloadIdentity: 'Workload Identity',
         oidcWorkloadIdentityDesc: 'Use environment credentials (Azure/GCP)',

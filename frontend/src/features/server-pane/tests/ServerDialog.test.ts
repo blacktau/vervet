@@ -10,8 +10,9 @@ import { DialogType, useDialogStore } from '@/stores/dialog.ts'
 vi.mock('wailsjs/go/api/ConnectionsProxy', () => ({ TestConnection: vi.fn() }))
 
 const getServerDetails = vi.fn()
+const updateServerWithConfig = vi.fn()
 vi.mock('@/features/server-pane/serverStore.ts', () => ({
-  useServerStore: () => ({ getServerDetails, serverTree: [] }),
+  useServerStore: () => ({ getServerDetails, updateServerWithConfig, serverTree: [] }),
 }))
 
 const disconnect = vi.fn()
@@ -22,9 +23,11 @@ vi.mock('@/features/data-browser/browserStore.ts', () => ({
 
 const notifyError = vi.fn()
 const notifyWarning = vi.fn()
+const confirmWarning = vi.fn()
 vi.mock('@/utils/dialog.ts', () => ({
   useNotifier: () => ({ error: notifyError, warning: notifyWarning }),
   useMessager: () => ({ error: vi.fn(), success: vi.fn() }),
+  useDialoger: () => ({ warning: confirmWarning }),
 }))
 
 const metadata = { id: 's1', name: 'Server', colour: '#F75B52', parentID: 'g1' }
@@ -55,11 +58,12 @@ function deferred() {
 const modalStub = { template: '<div><slot /><slot name="action" /></div>' }
 const buttonStub = { props: ['disabled'], template: '<button :disabled="disabled"><slot /></button>' }
 const spinStub = { template: '<div><slot /></div>' }
+const formStub = { template: '<div><slot /></div>', methods: { validate: () => Promise.resolve() } }
 const globalOptions = () => ({
   plugins: [createI18n({ legacy: false, locale: 'en-GB', missingWarn: false, fallbackWarn: false })],
   mocks: { $t: (key: string) => key },
   // Naive UI's own component names, without the N prefix.
-  stubs: { Modal: modalStub, Button: buttonStub, Spin: spinStub },
+  stubs: { Modal: modalStub, Button: buttonStub, Spin: spinStub, Form: formStub },
 })
 
 function mountDialog() {
@@ -157,6 +161,48 @@ describe('ServerDialog loading an existing server', () => {
 
     expect(vm.generalForm.name).toBe('Server')
     expect(saveButton().attributes('disabled')).toBeUndefined()
+  })
+
+  describe('saving', () => {
+    const savedUri = () => updateServerWithConfig.mock.calls[0]?.[4]?.uri
+
+    beforeEach(() => {
+      updateServerWithConfig.mockReset().mockResolvedValue({ success: true })
+    })
+
+    test('a normally loaded server saves without asking', async () => {
+      getServerDetails.mockResolvedValue(loaded)
+      const { saveButton } = mountDialog()
+      await dialogStore.showServerEditDialog('s1')
+      await flushPromises()
+
+      await saveButton().trigger('click')
+      await flushPromises()
+
+      expect(confirmWarning).not.toHaveBeenCalled()
+      expect(savedUri()).toBe('mongodb://host')
+    })
+
+    test('a server with a missing keyring entry only saves once confirmed', async () => {
+      getServerDetails.mockResolvedValue({ status: 'configMissing', server: metadata })
+      const { wrapper, vm, saveButton } = mountDialog()
+      await dialogStore.showServerEditDialog('s1')
+      await flushPromises()
+      vm.generalForm.connectionString = 'mongodb://new-host'
+      await wrapper.vm.$nextTick()
+
+      await saveButton().trigger('click')
+      await flushPromises()
+
+      expect(confirmWarning).toHaveBeenCalledTimes(1)
+      expect(updateServerWithConfig).not.toHaveBeenCalled()
+      expect(isOpen()).toBe(true)
+
+      await confirmWarning.mock.calls[0]?.[1]()
+      await flushPromises()
+
+      expect(savedUri()).toBe('mongodb://new-host')
+    })
   })
 
   test('a clone of a server with a missing keyring entry closes, as there is nothing to copy', async () => {

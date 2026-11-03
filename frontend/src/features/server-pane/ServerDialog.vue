@@ -13,7 +13,7 @@ import { FolderPlusIcon, XCircleIcon } from '@heroicons/vue/24/outline'
 import { DialogType, type ServerDialogData, useDialogStore } from '@/stores/dialog.ts'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 import { type RegisteredServerNode, useServerStore } from '@/features/server-pane/serverStore.ts'
-import { useMessager, useNotifier } from '@/utils/dialog.ts'
+import { useDialoger, useMessager, useNotifier } from '@/utils/dialog.ts'
 import {
   parseUri,
   detectAuthFromUri,
@@ -63,6 +63,7 @@ const generalFormRef = ref<FormInst | undefined>(undefined)
 const testing = ref(false)
 const loading = ref(false)
 const disconnecting = ref(false)
+const configMissing = ref(false)
 let loadGeneration = 0
 
 const authPicker = ref<AuthMethod>('password')
@@ -130,6 +131,17 @@ const onSaveServer = async () => {
     }
   })
 
+  // A locked or different keyring can look the same as a missing entry, so the
+  // real details may still exist. Saving would replace them.
+  if (configMissing.value) {
+    useDialoger().warning(i18n.t('serverPane.dialogs.server.configMissingConfirm'), saveServer)
+    return
+  }
+
+  await saveServer()
+}
+
+const saveServer = async () => {
   const cfg = {
     uri: generalForm.value.connectionString,
     authMethod: authPicker.value,
@@ -240,6 +252,7 @@ const resetForm = () => {
   previousParentId.value = ''
   generalFormRef.value?.restoreValidation()
   testing.value = false
+  configMissing.value = false
   authPicker.value = 'password'
   nameWasEdited.value = false
   oidcConfig.value = {
@@ -298,6 +311,7 @@ async function loadExistingServer(data: ServerDialogData, generation: number) {
     // Let the user re-enter the details and keep the server.
     fillFromServer(result.server, '')
     authPicker.value = 'password'
+    configMissing.value = true
     useNotifier().warning(i18n.t('serverPane.dialogs.server.configMissing'))
     return
   }
