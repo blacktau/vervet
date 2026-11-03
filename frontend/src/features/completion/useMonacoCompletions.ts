@@ -6,6 +6,8 @@ import {
   mongoMethods,
   cursorMethods,
   arrayCursorMethods,
+  arrayMethods,
+  mongoshAggregateCursorMethods,
   queryOperators,
   aggStages,
   updateOperators,
@@ -14,6 +16,7 @@ import {
   ejsonMethods,
 } from './completionData'
 import { getCollectionSchema, getCollectionNames, getDatabaseNames } from './useSchemaCache'
+import { useSettingsStore } from '@/features/settings/settingsStore'
 import { useTabStore } from '@/features/tabs/tabs'
 import { useQueryStore } from '@/features/queries/queryStore'
 import type { CompletionContext } from './completionContext'
@@ -118,6 +121,10 @@ export function registerMongoCompletions(
   }
 }
 
+function useMongosh(): boolean {
+  return useSettingsStore().query.queryEngine === 'mongosh'
+}
+
 /**
  * The completion provider's body, split out so tests can drive it with a real
  * Monaco text model instead of a live editor.
@@ -134,7 +141,7 @@ export async function provideMongoCompletions(
     endColumn: position.column,
   })
 
-  const ctx = analyzeContext(textBeforeCursor)
+  const ctx = analyzeContext(textBeforeCursor, useMongosh())
 
   const word = model.getWordUntilPosition(position)
   let range: monaco.IRange = {
@@ -234,7 +241,13 @@ async function getSuggestions(
 
     case 'CURSOR_METHOD':
     case 'ARRAY_CURSOR_METHOD':
-      return (ctx.type === 'CURSOR_METHOD' ? cursorMethods : arrayCursorMethods)
+    case 'ARRAY_METHOD': {
+      const methods = {
+        CURSOR_METHOD: cursorMethods,
+        ARRAY_CURSOR_METHOD: useMongosh() ? mongoshAggregateCursorMethods : arrayCursorMethods,
+        ARRAY_METHOD: arrayMethods,
+      }[ctx.type]
+      return methods
         .filter((m) => m.label.startsWith(ctx.prefix))
         .map((m) => ({
           label: m.label,
@@ -244,6 +257,7 @@ async function getSuggestions(
           insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
           range,
         }))
+    }
 
     case 'FIELD_NAME': {
       if (!serverId || !dbName || !ctx.collection) {

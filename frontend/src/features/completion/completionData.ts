@@ -255,7 +255,7 @@ export const cursorMethods = [
   { label: 'readPref', detail: '(mode) - Set the read preference', snippet: 'readPref("$1")$0' },
   {
     label: 'allowDiskUse',
-    detail: '() - Let a sort use temporary files; needs sort()',
+    detail: '() - Let a sort use temporary files; call after sort()',
     snippet: 'allowDiskUse()$0',
   },
   {
@@ -303,9 +303,11 @@ export const cursorMethods = [
 ]
 
 /**
- * What the array-backed cursor from aggregate, listIndexes and find().map()
- * offers (`withCursorMethods` in internal/queryengine/proxy_collection.go). It
- * has no query modifiers, so `limit` and the like would fail on it.
+ * What the builtin engine's array-backed cursor from aggregate, listIndexes,
+ * getCollectionInfos and find().map() offers (`withCursorMethods` in
+ * internal/queryengine/proxy_collection.go). It has no query modifiers, so `limit`
+ * and the like would fail on it. TestIntegration_SuggestedCursorMethodsExist
+ * holds a copy of this list and of cursorMethods; change them together.
  */
 const arrayCursorMethodNames = new Set([
   'close',
@@ -323,6 +325,23 @@ const arrayCursorMethodNames = new Set([
 ])
 
 export const arrayCursorMethods = cursorMethods.filter((m) => arrayCursorMethodNames.has(m.label))
+
+/** mongosh's aggregation cursor has these on top, but not limit, min, size and the like. */
+const mongoshAggregateOnly = new Set([
+  'batchSize',
+  'explain',
+  'maxTimeMS',
+  'projection',
+  'skip',
+  'sort',
+])
+
+export const mongoshAggregateCursorMethods = cursorMethods.filter(
+  (m) => arrayCursorMethodNames.has(m.label) || mongoshAggregateOnly.has(m.label),
+)
+
+/** What a plain array shares with a cursor. */
+export const arrayMethods = cursorMethods.filter((m) => m.label === 'forEach' || m.label === 'map')
 
 export const aggStages = [
   { label: '$addFields', detail: 'Add new fields' },
