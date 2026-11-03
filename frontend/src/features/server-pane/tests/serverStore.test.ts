@@ -4,6 +4,8 @@ import { createPinia, setActivePinia } from 'pinia'
 vi.mock('wailsjs/go/api/ServersProxy', () => ({
   CreateGroup: vi.fn(),
   GetServers: vi.fn().mockResolvedValue({ isSuccess: true, data: [] }),
+  GetServer: vi.fn(),
+  GetConnectionConfig: vi.fn(),
 }))
 
 vi.mock('wailsjs/go/api/FilesProxy', () => ({}))
@@ -54,5 +56,58 @@ describe('serverStore.createGroup', () => {
     if (!result.success) {
       expect(result.msg).toBeTruthy()
     }
+  })
+})
+
+describe('serverStore.getServerDetails', () => {
+  const server = { id: 's1', name: 'Server', colour: '', isGroup: false, isCluster: false, isSrv: false }
+
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    vi.mocked(serversProxy.GetServer).mockResolvedValue({ isSuccess: true, data: server } as never)
+  })
+
+  test('returns the stored auth method and OIDC settings', async () => {
+    const oidcConfig = { providerUrl: 'https://idp', clientId: 'vervet', scopes: [] }
+    vi.mocked(serversProxy.GetConnectionConfig).mockResolvedValue({
+      isSuccess: true,
+      data: { uri: 'mongodb://host', authMethod: 'oidc', oidcConfig },
+    } as never)
+
+    const result = await useServerStore().getServerDetails('s1')
+
+    expect(result).toMatchObject({
+      status: 'loaded',
+      server: { uri: 'mongodb://host', authMethod: 'oidc', oidcConfig },
+    })
+  })
+
+  test('reports a failed config load rather than assuming password auth', async () => {
+    const failure = { isSuccess: false, errorCode: 'unknown_error', errorDetail: 'keyring locked' }
+    vi.mocked(serversProxy.GetConnectionConfig).mockResolvedValue(failure as never)
+
+    const result = await useServerStore().getServerDetails('s1')
+
+    expect(result).toEqual({ status: 'failed', error: failure })
+  })
+
+  test('tells a missing keyring entry apart, keeping the server metadata', async () => {
+    vi.mocked(serversProxy.GetConnectionConfig).mockResolvedValue({
+      isSuccess: false,
+      errorCode: 'connection_config_missing',
+    } as never)
+
+    const result = await useServerStore().getServerDetails('s1')
+
+    expect(result).toEqual({ status: 'configMissing', server })
+  })
+
+  test('reports a rejected bridge call as a failure', async () => {
+    vi.mocked(serversProxy.GetConnectionConfig).mockRejectedValue(new Error('bridge down'))
+
+    const result = await useServerStore().getServerDetails('s1')
+
+    expect(result).toEqual({ status: 'failed', error: { errorDetail: 'bridge down' } })
   })
 })

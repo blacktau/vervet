@@ -43,13 +43,6 @@ func (m *MockServersProvider) RemoveNode(id string) error {
 	return m.err
 }
 
-func (m *MockServersProvider) GetURI(id string) (string, error) {
-	if m.err != nil {
-		return "", m.err
-	}
-	return "mongodb://localhost", nil
-}
-
 func (m *MockServersProvider) BuildFullConnectionString(id string) (string, error) {
 	if m.err != nil {
 		return "", m.err
@@ -274,30 +267,6 @@ func TestServersProxy_RemoveNode(t *testing.T) {
 		proxy := NewServersProxy(testLogger(), provider)
 
 		result := proxy.RemoveNode("1")
-
-		assert.False(t, result.IsSuccess)
-		assert.NotEmpty(t, result.ErrorCode)
-	})
-}
-
-func TestServersProxy_GetURI(t *testing.T) {
-	t.Run("successful get URI", func(t *testing.T) {
-		provider := &MockServersProvider{}
-		proxy := NewServersProxy(testLogger(), provider)
-
-		result := proxy.GetURI("1")
-
-		assert.True(t, result.IsSuccess)
-		assert.Equal(t, "mongodb://localhost", result.Data)
-	})
-
-	t.Run("get URI error", func(t *testing.T) {
-		provider := &MockServersProvider{
-			err: errors.New("failed to get URI"),
-		}
-		proxy := NewServersProxy(testLogger(), provider)
-
-		result := proxy.GetURI("1")
 
 		assert.False(t, result.IsSuccess)
 		assert.NotEmpty(t, result.ErrorCode)

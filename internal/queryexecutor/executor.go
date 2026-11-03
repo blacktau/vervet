@@ -217,22 +217,6 @@ func (qe *QueryExecutor) CheckMongosh() bool {
 	return shell.CheckMongosh()
 }
 
-func (qe *QueryExecutor) getURI(serverID, dbName string) (string, error) {
-	uri, err := qe.store.GetRegisteredServerURI(serverID)
-	if err != nil {
-		return "", fmt.Errorf("failed to get URI: %w", err)
-	}
-
-	if dbName != "" {
-		if !validDBName.MatchString(dbName) {
-			return "", fmt.Errorf("invalid database name: %q", dbName)
-		}
-		uri = appendDatabase(uri, dbName)
-	}
-
-	return uri, nil
-}
-
 // validDBName matches valid MongoDB database names: letters, digits, underscores, hyphens, dots.
 var validDBName = regexp.MustCompile(`^[a-zA-Z0-9_\-\.]+$`)
 

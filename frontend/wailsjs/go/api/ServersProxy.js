@@ -26,10 +26,6 @@ export function GetServers() {
   return window['go']['api']['ServersProxy']['GetServers']();
 }
 
-export function GetURI(arg1) {
-  return window['go']['api']['ServersProxy']['GetURI'](arg1);
-}
-
 export function ImportServers(arg1) {
   return window['go']['api']['ServersProxy']['ImportServers'](arg1);
 }

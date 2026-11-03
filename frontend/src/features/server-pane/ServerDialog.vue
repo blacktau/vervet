@@ -7,13 +7,13 @@ import {
   useThemeVars,
 } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
-import { computed, h, nextTick, ref, watch } from 'vue'
+import { computed, h, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { every, includes, isEmpty } from 'lodash'
 import { FolderPlusIcon, XCircleIcon } from '@heroicons/vue/24/outline'
-import { DialogType, useDialogStore } from '@/stores/dialog.ts'
+import { DialogType, type ServerDialogData, useDialogStore } from '@/stores/dialog.ts'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 import { type RegisteredServerNode, useServerStore } from '@/features/server-pane/serverStore.ts'
-import { useMessager, useNotifier } from '@/utils/dialog.ts'
+import { useDialoger, useMessager, useNotifier } from '@/utils/dialog.ts'
 import {
   parseUri,
   detectAuthFromUri,
@@ -23,7 +23,7 @@ import { filterGroupMap, toTreeSelectOptions } from '@/features/server-pane/help
 import * as connectionsProxy from 'wailsjs/go/api/ConnectionsProxy'
 import type { AuthMethod, OIDCConfig } from '@/types/ConnectionConfig'
 import AuthenticationPanel from './authentication/AuthenticationPanel.vue'
-import { errorCodeText } from '@/utils/resultError'
+import { errorCodeText, notifyResultError } from '@/utils/resultError'
 
 type EditableRegisteredServer = {
   id: string
@@ -61,6 +61,9 @@ const generalForm = ref<EditableRegisteredServer>({
 
 const generalFormRef = ref<FormInst | undefined>(undefined)
 const testing = ref(false)
+const loading = ref(false)
+const configMissing = ref(false)
+let loadGeneration = 0
 
 const authPicker = ref<AuthMethod>('password')
 const lastChangeSource = ref<'uri' | 'picker' | null>(null)
@@ -110,15 +113,7 @@ const generalFormRules = () => {
 
 const isEditMode = computed(() => dialogStore.serverDialogData?.mode === 'edit')
 
-const closingConnection = computed(() => {
-  if (!isEditMode.value) {
-    return false
-  }
-  if (isEmpty(editServerID.value)) {
-    return false
-  }
-  return browserStore.isConnected(editServerID.value)
-})
+const isServerConnected = () => isEditMode.value && !isEmpty(editServerID.value) && browserStore.isConnected(editServerID.value!)
 
 const onSaveServer = async () => {
   await generalFormRef.value?.validate((err) => {
@@ -127,6 +122,26 @@ const onSaveServer = async () => {
     }
   })
 
+  const warnings: string[] = []
+  if (isServerConnected()) {
+    warnings.push(i18n.t('serverPane.dialogs.server.saveClosesConnection'))
+  }
+  // A locked or different keyring can look the same as a missing entry, so the
+  // real details may still exist. Saving would replace them.
+  if (configMissing.value) {
+    warnings.push(i18n.t('serverPane.dialogs.server.configMissingConfirm'))
+  }
+  if (warnings.length > 0) {
+    useDialoger().warning(warnings.join(' '), saveServer)
+    return
+  }
+
+  await saveServer()
+}
+
+const saveServer = async () => {
+  const serverId = editServerID.value
+  const wasConnected = isServerConnected()
   const cfg = {
     uri: generalForm.value.connectionString,
     authMethod: authPicker.value,
@@ -161,6 +176,21 @@ const onSaveServer = async () => {
 
   messager.success(i18n.t('common.dialog.handleSuccess'))
   onClose()
+
+  // Only now, so a failed save leaves the connection as it was.
+  if (wasConnected && serverId) {
+    await closeSavedServerConnection(serverId)
+  }
+}
+
+const closeSavedServerConnection = async (serverId: string) => {
+  try {
+    await browserStore.disconnect(serverId)
+  } catch (e: unknown) {
+    useNotifier().warning(i18n.t('errorTitles.disconnect'), {
+      detail: e instanceof Error ? e.message : String(e),
+    })
+  }
 }
 
 const NEW_GROUP_SENTINEL = '__new_group__'
@@ -237,6 +267,7 @@ const resetForm = () => {
   previousParentId.value = ''
   generalFormRef.value?.restoreValidation()
   testing.value = false
+  configMissing.value = false
   authPicker.value = 'password'
   nameWasEdited.value = false
   oidcConfig.value = {
@@ -249,32 +280,74 @@ const resetForm = () => {
   }
 }
 
+function fillFromServer(server: RegisteredServerNode, uri: string) {
+  generalForm.value = {
+    id: server.id,
+    name: server.name,
+    colour: server.colour,
+    connectionString: uri,
+    parentId: server.parentID || '',
+  }
+  previousParentId.value = generalForm.value.parentId
+  nameWasEdited.value = true
+}
+
+async function loadExistingServer(data: ServerDialogData, generation: number) {
+  editServerID.value = data.serverId
+  loading.value = true
+  const result = await serverStore.getServerDetails(data.serverId)
+  if (generation !== loadGeneration) {
+    return
+  }
+  loading.value = false
+
+  if (result.status === 'failed') {
+    // Without the stored config, saving would overwrite it with a blank form.
+    notifyResultError(result.error, i18n.t('errorTitles.loadServerDetails'))
+    onClose()
+    return
+  }
+
+  if (result.status === 'configMissing' && data.mode === 'clone') {
+    // There's nothing to copy, and saving would add a server without repairing this one.
+    notifyResultError({ errorCode: 'connection_config_missing' }, i18n.t('errorTitles.loadServerDetails'))
+    onClose()
+    return
+  }
+
+  if (result.status === 'configMissing') {
+    // Let the user re-enter the details and keep the server.
+    fillFromServer(result.server, '')
+    authPicker.value = 'password'
+    configMissing.value = true
+    return
+  }
+
+  fillFromServer(result.server, result.server.uri)
+  authPicker.value = result.server.authMethod
+  if (result.server.oidcConfig) {
+    oidcConfig.value = { ...result.server.oidcConfig }
+  }
+}
+
+// App.vue mounts this dialog with v-if, so closing it unmounts it and stops the
+// watcher below. Without this, a load still running would act on a closed dialog.
+onBeforeUnmount(() => {
+  loadGeneration++
+})
+
 watch(
   () => dialogStore.dialogs[DialogType.Server].visible,
   async (visible: boolean) => {
+    const generation = ++loadGeneration
+    loading.value = false
     if (!visible) {
       return
     }
     resetForm()
     const data = dialogStore.serverDialogData
     if (data?.mode === 'edit' || data?.mode === 'clone') {
-      editServerID.value = data.serverId
-      const server = await serverStore.getServerDetails(data.serverId)
-      if (server != null) {
-        generalForm.value = {
-          id: server.id,
-          name: server.name,
-          colour: server.colour,
-          connectionString: server.uri,
-          parentId: server.parentID || '',
-        }
-        previousParentId.value = generalForm.value.parentId
-        authPicker.value = server.authMethod
-        if (server.oidcConfig) {
-          oidcConfig.value = { ...server.oidcConfig }
-        }
-        nameWasEdited.value = true
-      }
+      await loadExistingServer(data, generation)
       return
     }
     if (data?.mode === 'new') {
@@ -401,100 +474,105 @@ const onTestConnection = async () => {
     style="width: 600px"
     transform-origin="center"
     @esc="onClose">
-    <n-spin :show="closingConnection">
-      <n-tabs
-        v-model:value="tab"
-        animated
-        pane-style="min-height: 50vh;"
-        placement="left"
-        tab-style="justify-content: right; font-weight: 420;"
-        type="line">
-        <n-tab-pane
-          :tab="$t('serverPane.dialogs.server.generalTab')"
-          display-directive="show:lazy"
-          name="general">
-          <n-form
-            ref="generalFormRef"
-            :model="generalForm"
-            :rules="generalFormRules()"
-            :show-require-mark="false"
-            label-placement="top">
-            <n-grid :x-gap="10">
-              <n-form-item-gi
-                :label="$t('serverPane.dialogs.server.connectionString')"
-                :span="24"
-                path="connectionString"
-                required>
-                <n-input
-                  v-model:value="generalForm.connectionString"
-                  :placeholder="$t('serverPane.dialogs.server.connectionStringTip')" />
-              </n-form-item-gi>
-              <n-form-item-gi
-                :label="$t('serverPane.dialogs.server.name')"
-                :span="24"
-                path="name"
-                required>
-                <n-input
-                  v-model:value="generalForm.name"
-                  :placeholder="$t('serverPane.dialogs.server.nameTip')"
-                  @input="nameWasEdited = true" />
-              </n-form-item-gi>
-              <n-form-item-gi :label="$t('serverPane.dialogs.server.group')" :span="24" required>
-                <n-tree-select
-                  v-model:value="generalForm.parentId"
-                  :options="groupTreeOptions"
-                  :render-label="renderGroupLabel"
-                  key-field="id"
-                  label-field="name"
-                  @update:value="onParentChange" />
-              </n-form-item-gi>
-              <n-form-item-gi
-                :label="$t('serverPane.dialogs.server.colour')"
-                :span="24"
-                path="colour">
-                <div
-                  v-for="colour in serverColors"
-                  :key="colour"
-                  :style="{
-                    backgroundColor: colour,
-                    borderColor:
-                      generalForm.colour === colour
-                        ? themeVars.textColorBase
-                        : themeVars.borderColor,
-                  }"
-                  class="color-preset-item"
-                  @click="generalForm.colour = colour">
-                  <n-icon v-if="isEmpty(colour)" :component="XCircleIcon" size="24" />
-                </div>
-              </n-form-item-gi>
-              <n-form-item-gi :span="24" :show-feedback="false">
-                <n-text depth="3" style="font-size: 12px">
-                  {{ $t('serverPane.dialogs.server.auth.hint', { mechanism: hintMechanismLabel }) }}
-                </n-text>
-              </n-form-item-gi>
-            </n-grid>
-          </n-form>
-        </n-tab-pane>
-        <n-tab-pane
-          :tab="$t('serverPane.dialogs.server.authenticationTab')"
-          display-directive="show:lazy"
-          name="authentication">
-          <AuthenticationPanel
-            :uri="generalForm.connectionString"
-            :method="authPicker"
-            :oidc-config="oidcConfig"
-            @update:uri="onPanelUriChange"
-            @update:method="onPanelMethodChange"
-            @update:oidc-config="onOidcConfigChange"
-          />
-        </n-tab-pane>
-      </n-tabs>
+    <n-spin :show="loading">
+      <n-alert v-if="configMissing" class="config-missing-alert" type="warning">
+        {{ $t('serverPane.dialogs.server.configMissing') }}
+      </n-alert>
+      <div :inert="loading || undefined">
+        <n-tabs
+          v-model:value="tab"
+          animated
+          pane-style="min-height: 50vh;"
+          placement="left"
+          tab-style="justify-content: right; font-weight: 420;"
+          type="line">
+          <n-tab-pane
+            :tab="$t('serverPane.dialogs.server.generalTab')"
+            display-directive="show:lazy"
+            name="general">
+            <n-form
+              ref="generalFormRef"
+              :model="generalForm"
+              :rules="generalFormRules()"
+              :show-require-mark="false"
+              label-placement="top">
+              <n-grid :x-gap="10">
+                <n-form-item-gi
+                  :label="$t('serverPane.dialogs.server.connectionString')"
+                  :span="24"
+                  path="connectionString"
+                  required>
+                  <n-input
+                    v-model:value="generalForm.connectionString"
+                    :placeholder="$t('serverPane.dialogs.server.connectionStringTip')" />
+                </n-form-item-gi>
+                <n-form-item-gi
+                  :label="$t('serverPane.dialogs.server.name')"
+                  :span="24"
+                  path="name"
+                  required>
+                  <n-input
+                    v-model:value="generalForm.name"
+                    :placeholder="$t('serverPane.dialogs.server.nameTip')"
+                    @input="nameWasEdited = true" />
+                </n-form-item-gi>
+                <n-form-item-gi :label="$t('serverPane.dialogs.server.group')" :span="24" required>
+                  <n-tree-select
+                    v-model:value="generalForm.parentId"
+                    :options="groupTreeOptions"
+                    :render-label="renderGroupLabel"
+                    key-field="id"
+                    label-field="name"
+                    @update:value="onParentChange" />
+                </n-form-item-gi>
+                <n-form-item-gi
+                  :label="$t('serverPane.dialogs.server.colour')"
+                  :span="24"
+                  path="colour">
+                  <div
+                    v-for="colour in serverColors"
+                    :key="colour"
+                    :style="{
+                      backgroundColor: colour,
+                      borderColor:
+                        generalForm.colour === colour
+                          ? themeVars.textColorBase
+                          : themeVars.borderColor,
+                    }"
+                    class="color-preset-item"
+                    @click="generalForm.colour = colour">
+                    <n-icon v-if="isEmpty(colour)" :component="XCircleIcon" size="24" />
+                  </div>
+                </n-form-item-gi>
+                <n-form-item-gi :span="24" :show-feedback="false">
+                  <n-text depth="3" style="font-size: 12px">
+                    {{ $t('serverPane.dialogs.server.auth.hint', { mechanism: hintMechanismLabel }) }}
+                  </n-text>
+                </n-form-item-gi>
+              </n-grid>
+            </n-form>
+          </n-tab-pane>
+          <n-tab-pane
+            :tab="$t('serverPane.dialogs.server.authenticationTab')"
+            display-directive="show:lazy"
+            name="authentication">
+            <AuthenticationPanel
+              :uri="generalForm.connectionString"
+              :method="authPicker"
+              :oidc-config="oidcConfig"
+              @update:uri="onPanelUriChange"
+              @update:method="onPanelMethodChange"
+              @update:oidc-config="onOidcConfigChange"
+            />
+          </n-tab-pane>
+        </n-tabs>
+      </div>
 
     </n-spin>
     <template #action>
       <div class="flex-item-expand">
         <n-button
-          :disabled="closingConnection || !generalForm.connectionString"
+          :disabled="loading || !generalForm.connectionString"
           :focusable="false"
           :loading="testing"
           @click="onTestConnection">
@@ -502,11 +580,11 @@ const onTestConnection = async () => {
         </n-button>
       </div>
       <div class="flex-item n-dialog__action">
-        <n-button :disabled="closingConnection" :focusable="false" @click="onClose">
+        <n-button :focusable="false" @click="onClose">
           {{ $t('common.cancel') }}
         </n-button>
         <n-button
-          :disabled="closingConnection || !generalForm.name || !generalForm.connectionString"
+          :disabled="loading || !generalForm.name || !generalForm.connectionString"
           :focusable="false"
           type="primary"
           @click="onSaveServer">
@@ -518,6 +596,10 @@ const onTestConnection = async () => {
 </template>
 
 <style lang="scss" scoped>
+.config-missing-alert {
+  margin-bottom: 12px;
+}
+
 .color-preset-item {
   width: 24px;
   height: 24px;
