@@ -3,7 +3,12 @@ import { ref, watch, computed, nextTick, shallowRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useNotifier } from '@/utils/dialog'
 import { useSettingsStore } from '@/features/settings/settingsStore'
-import { humanizeEjson, toJsExpression } from './humanizeEjson'
+import {
+  documentIdFilter,
+  ejsonParseExpression,
+  toEditableEjson,
+  writeCount,
+} from './editableEjson'
 import { formatNamespace } from './useDocumentContextMenu'
 import * as shellProxy from 'wailsjs/go/api/ShellProxy'
 import * as monaco from 'monaco-editor'
@@ -32,7 +37,7 @@ const container = ref<HTMLElement | null>(null)
 const editor = shallowRef<monaco.editor.IStandaloneCodeEditor | null>(null)
 const jsonError = ref('')
 const saving = ref(false)
-const documentId = ref<unknown>(null)
+const documentId = ref<unknown>(undefined)
 
 const namespace = computed(() => formatNamespace(props.dbName, props.collectionName))
 
@@ -43,7 +48,7 @@ const title = computed(() =>
 )
 
 const idDisplay = computed(() => {
-  if (!documentId.value) {
+  if (documentId.value === undefined) {
     return ''
   }
   return JSON.stringify(documentId.value)
@@ -54,10 +59,10 @@ function prepareDocument(doc: unknown): string {
     return '{\n  \n}'
   }
 
-  const humanized = humanizeEjson(doc) as Record<string, unknown>
+  const editable = toEditableEjson(doc) as Record<string, unknown>
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { _id, ...rest } = humanized
-  documentId.value = (doc as Record<string, unknown>)?._id ?? null
+  const { _id, ...rest } = editable
+  documentId.value = (doc as Record<string, unknown>)?._id
   return JSON.stringify(rest, null, 2)
 }
 
@@ -93,7 +98,7 @@ watch(
         editor.value.dispose()
         editor.value = null
       }
-      documentId.value = null
+      documentId.value = undefined
     }
   },
   // The table mounts this dialog when it first opens, already shown
@@ -110,7 +115,8 @@ watch(
 )
 
 async function save() {
-  if (!editor.value) {
+  // Ctrl+S reaches here while a save is running, and would insert the document twice
+  if (!editor.value || saving.value) {
     return
   }
 
@@ -124,15 +130,18 @@ async function save() {
     jsonError.value = t('query.dialogs.invalidJson', { error: (e as Error).message })
     return
   }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    jsonError.value = t('query.dialogs.documentMustBeObject')
+    return
+  }
 
   saving.value = true
   try {
-    // Convert humanized JSON to JS expression with BSON constructors
-    const jsBody = toJsExpression(parsed)
+    const jsBody = ejsonParseExpression(text)
     let query: string
     const collection = JSON.stringify(props.collectionName)
     if (props.mode === 'edit') {
-      const filter = `{ _id: ${toJsExpression(documentId.value)} }`
+      const filter = documentIdFilter(documentId.value)
       query = `db.getCollection(${collection}).replaceOne(${filter}, ${jsBody})`
     } else {
       query = `db.getCollection(${collection}).insertOne(${jsBody})`
@@ -146,6 +155,11 @@ async function save() {
       '',
     )
     if (result.isSuccess) {
+      // Keep the dialog open, so the edits aren't lost
+      if (props.mode === 'edit' && writeCount(result.data?.documents, 'matchedCount') === 0) {
+        jsonError.value = t('query.dialogs.documentNotFound', { namespace: namespace.value })
+        return
+      }
       emit('saved')
       emit('update:show', false)
     } else {
@@ -179,6 +193,7 @@ function close() {
       <n-text depth="3">_id: {{ idDisplay }}</n-text>
     </div>
     <div ref="container" class="editor-container" />
+    <n-text depth="3" class="ejson-hint">{{ t('query.dialogs.extendedJsonHint') }}</n-text>
     <n-text v-if="jsonError" type="error" style="display: block; margin-top: 8px; font-size: 12px">
       {{ jsonError }}
     </n-text>
@@ -213,5 +228,11 @@ function close() {
 .editor-container {
   height: 400px;
   width: 100%;
+}
+
+.ejson-hint {
+  display: block;
+  margin-top: 8px;
+  font-size: 12px;
 }
 </style>

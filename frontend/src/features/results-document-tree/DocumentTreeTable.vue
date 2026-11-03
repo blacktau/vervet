@@ -14,6 +14,7 @@ import { typeColorMapDark, typeColorMapLight } from '@/features/queries/typeColo
 import {
   formatNamespace,
   hasDocumentId,
+  hasEditBlockingFieldName,
   isDocumentEditable,
   useDocumentContextMenu,
   type CollectionContext,
@@ -21,7 +22,8 @@ import {
 import { useSettingsStore } from '@/features/settings/settingsStore'
 import { useNotifier } from '@/utils/dialog'
 import { resolveRawValue } from './resolveRawValue'
-import { humanizeEjson, toJsExpression } from './humanizeEjson'
+import { humanizeEjson } from './humanizeEjson'
+import { documentIdFilter, writeCount } from './editableEjson'
 import DocumentContextMenu from './DocumentContextMenu.vue'
 import DocumentViewDialog from './DocumentViewDialog.vue'
 import DocumentEditDialog from './DocumentEditDialog.vue'
@@ -76,6 +78,7 @@ const contextMenu = useDocumentContextMenu(
   collectionContextRef as Ref<CollectionContext | undefined>,
   (row) => hasDocumentId(resolveRawValue(props.documents, row.key)),
   (row) => isDocumentEditable(resolveRawValue(props.documents, row.key)),
+  (row) => hasEditBlockingFieldName(resolveRawValue(props.documents, row.key)),
 )
 const notifier = useNotifier()
 const dialog = useDialog()
@@ -277,7 +280,7 @@ function handleContextMenuSelect(key: string) {
       negativeText: t('common.cancel'),
       onPositiveClick: async () => {
         const { serverId, dbName, collectionName } = context
-        const filter = `{ _id: ${toJsExpression(doc._id)} }`
+        const filter = documentIdFilter(doc._id)
         const query = `db.getCollection(${JSON.stringify(collectionName)}).deleteOne(${filter})`
         const result = await shellProxy.ExecuteQuery(
           serverId,
@@ -287,6 +290,9 @@ function handleContextMenuSelect(key: string) {
           '',
         )
         if (result.isSuccess) {
+          if (writeCount(result.data?.documents, 'deletedCount') === 0) {
+            notifier.error(t('query.dialogs.documentNotFound', { namespace }))
+          }
           emit('document-changed')
         } else {
           notifier.error(errorCodeText(result.errorCode), {
@@ -455,6 +461,7 @@ function rowClassName(row: DocumentRow): string {
         v-model:show="showViewDialog"
         :document="viewDocument"
         :can-edit="!!collectionContext?.canEdit && isDocumentEditable(viewDocument)"
+        :edit-blocked-by-field-name="!!collectionContext?.canEdit && hasEditBlockingFieldName(viewDocument)"
         @edit="switchToEdit" />
       <DocumentEditDialog
         v-if="editContext"

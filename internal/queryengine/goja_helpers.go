@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"slices"
 	"vervet/internal/models"
 
 	"github.com/dop251/goja"
@@ -62,7 +63,7 @@ func exportValue(val goja.Value) any {
 		return scriptNumber(val.Export())
 	case "Object":
 		// Already-wrapped BSON values pass through as-is
-		if bv := obj.Get("__bsonValue"); bv != nil && !goja.IsUndefined(bv) {
+		if isBSONWrapper(obj) {
 			return val.Export()
 		}
 		// Reflected Go values (e.g. a bson.Binary from a db command result)
@@ -76,6 +77,15 @@ func exportValue(val goja.Value) any {
 	default:
 		return val.Export()
 	}
+}
+
+// isBSONWrapper reports whether obj is itself a wrapped BSON value, rather than an
+// object that only inherits __bsonValue, as { __proto__: ObjectId() } does.
+func isBSONWrapper(obj *goja.Object) bool {
+	if bv := obj.Get("__bsonValue"); bv == nil || goja.IsUndefined(bv) {
+		return false
+	}
+	return slices.Contains(obj.Keys(), "__bsonValue")
 }
 
 // scriptNumber types a JS number the way js-bson (and so mongosh) does: int32

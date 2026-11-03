@@ -69,6 +69,7 @@ func TestEJSON_ParseAndDeserialize_KeepExplicitLongs(t *testing.T) {
 }
 
 // With { relaxed: false } every integer keeps its BSON type, as in mongosh.
+// Doubles are wrapped too, as in mongosh, so a whole-number double stays a double.
 func TestEJSON_NotRelaxed_KeepsIntegerTypes(t *testing.T) {
 	rt := setupEJSONRuntime(t)
 	for _, script := range []string{
@@ -80,7 +81,7 @@ func TestEJSON_NotRelaxed_KeepsIntegerTypes(t *testing.T) {
 		require.NoError(t, rt.Set("v", val))
 		got, err := rt.RunString(`[typeof v.l, String(v.l), typeof v.big, typeof v.n, v.n + 1, typeof v.a[0], typeof v.d].join()`)
 		require.NoError(t, err)
-		assert.Equal(t, "object,9007199254740993,object,object,8,object,number", got.String(), script)
+		assert.Equal(t, "object,9007199254740993,object,object,8,object,object", got.String(), script)
 		assert.Equal(t, bson.D{
 			{Key: "l", Value: int64(9007199254740993)},
 			{Key: "big", Value: int64(5000000000)},
@@ -292,4 +293,109 @@ func TestEJSON_HasAllMethods(t *testing.T) {
 		require.NoError(t, err, "method %s", m)
 		assert.Equal(t, "function", val.Export(), "EJSON.%s should be a function", m)
 	}
+}
+
+// EJSON.parse of null must not become an empty document: a replaceOne given one
+// would erase every field.
+func TestEJSON_ParseNullIsNull(t *testing.T) {
+	rt := setupEJSONRuntime(t)
+	for _, script := range []string{`EJSON.parse('null') === null`, `EJSON.parse(' null ', { relaxed: false }) === null`} {
+		got, err := rt.RunString(script)
+		require.NoError(t, err, script)
+		assert.True(t, got.ToBoolean(), script)
+	}
+}
+
+// mongosh reads $date text with Date.parse, so these are accepted as it accepts them.
+func TestEJSON_ParseDateText(t *testing.T) {
+	zone := time.FixedZone("test", -5*60*60)
+	oldLocal := time.Local
+	time.Local = zone
+	t.Cleanup(func() { time.Local = oldLocal })
+
+	cases := map[string]string{
+		"2024-01-23":                "2024-01-23T00:00:00.000Z",
+		"2024-01-23T10:13:20":       "2024-01-23T15:13:20.000Z",
+		"2024-01-23T10:13:20+01:00": "2024-01-23T09:13:20.000Z",
+		"2024-01-23T10:13:20Z":      "2024-01-23T10:13:20.000Z",
+	}
+	rt := setupEJSONRuntime(t)
+	for text, want := range cases {
+		got, err := rt.RunString(`EJSON.parse('{"a":[{"d":{"$date":"` + text + `"}}]}', { relaxed: false }).a[0].d.toISOString()`)
+		require.NoError(t, err, text)
+		assert.Equal(t, want, got.String(), text)
+	}
+}
+
+func TestEJSON_ParseUnreadableDateFails(t *testing.T) {
+	rt := setupEJSONRuntime(t)
+	_, err := rt.RunString(`EJSON.parse('{"d":{"$date":"nope"}}', { relaxed: false })`)
+	assert.Error(t, err)
+}
+
+// Text that merely mentions a date wrapper is left alone when a real one is rewritten.
+func TestEJSON_ParseDateTextIgnoresStrings(t *testing.T) {
+	rt := setupEJSONRuntime(t)
+	got, err := rt.RunString(`EJSON.parse(JSON.stringify({ s: '{"$date":"2024-01-23"}', d: { $date: "2024-01-23" } }), { relaxed: false }).s`)
+	require.NoError(t, err)
+	assert.Equal(t, `{"$date":"2024-01-23"}`, got.String())
+}
+
+// These match what mongosh 2.7 gives for a strict parse.
+func TestEJSON_StrictValuesMatchMongosh(t *testing.T) {
+	rt := setupEJSONRuntime(t)
+	cases := map[string]string{
+		`String(EJSON.parse('{"d":{"$numberDouble":"Infinity"}}', { relaxed: false }).d)`:                         "Infinity",
+		`String(EJSON.parse('{"d":{"$numberDouble":"1e+20"}}', { relaxed: false }).d)`:                            "100000000000000000000",
+		`JSON.stringify(EJSON.parse('{"d":{"$numberDouble":"1.5"}}', { relaxed: false }))`:                        `{"d":1.5}`,
+		`JSON.stringify(EJSON.parse('{"d":{"$numberDouble":"5.0"}}', { relaxed: false }))`:                        `{"d":5}`,
+		`EJSON.parse('{"r":{"$regularExpression":{"pattern":"a","options":"i"}}}', { relaxed: false }).r.pattern`: "a",
+		`EJSON.parse('{"r":{"$regularExpression":{"pattern":"a","options":"i"}}}', { relaxed: false }).r.options`: "i",
+		`EJSON.parse('{"s":{"$symbol":"z"}}', { relaxed: false }).s.value`:                                        "z",
+		`typeof EJSON.parse('{"s":{"$symbol":"z"}}', { relaxed: false }).s.valueOf()`:                             "string",
+	}
+	for script, want := range cases {
+		got, err := rt.RunString(script)
+		require.NoError(t, err, script)
+		assert.Equal(t, want, got.String(), script)
+	}
+}
+
+// A field named __proto__ is an ordinary field: it must not set the prototype, which
+// loses the field and, for a wrapper value, turns the document into that value.
+func TestEJSON_StrictParseKeepsProtoField(t *testing.T) {
+	cases := map[string]bson.D{
+		`{"a":1,"__proto__":{"b":1},"c":2}`: {
+			{Key: "a", Value: int32(1)},
+			{Key: "__proto__", Value: bson.D{{Key: "b", Value: int32(1)}}},
+			{Key: "c", Value: int32(2)},
+		},
+		`{"z":1,"__proto__":{"$numberLong":"7"},"y":2,"x":3,"w":4}`: {
+			{Key: "z", Value: int32(1)},
+			{Key: "__proto__", Value: int64(7)},
+			{Key: "y", Value: int32(2)},
+			{Key: "x", Value: int32(3)},
+			{Key: "w", Value: int32(4)},
+		},
+	}
+	for text, want := range cases {
+		// Map iteration made the order random, so one pass could pass by luck.
+		for range 20 {
+			rt := setupEJSONRuntime(t)
+			require.NoError(t, rt.Set("text", text))
+			val, err := rt.RunString(`EJSON.parse(text, { relaxed: false })`)
+			require.NoError(t, err)
+			assert.Equal(t, want, toBsonDoc(exportValue(val)), text)
+		}
+	}
+}
+
+// A script can still set a prototype, and inheriting from a wrapper doesn't make an
+// object that value.
+func TestExportValue_InheritedBSONValueIsADocument(t *testing.T) {
+	rt := setupEJSONRuntime(t)
+	require.NoError(t, registerBSONTypes(rt))
+	val, err := rt.RunString(`({ __proto__: NumberLong("7"), a: 1 })`)
+	require.NoError(t, err)
+	assert.Equal(t, bson.D{{Key: "a", Value: int32(1)}}, toBsonDoc(exportValue(val)))
 }

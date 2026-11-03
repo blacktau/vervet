@@ -4,7 +4,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/dop251/goja"
@@ -133,7 +132,7 @@ func bsonDouble(rt *goja.Runtime) func(goja.FunctionCall) goja.Value {
 				n = arg.ToFloat()
 			}
 		}
-		return bsonObject(rt, n, strconv.FormatFloat(n, 'g', -1, 64))
+		return doubleValue(rt, n)
 	}
 }
 

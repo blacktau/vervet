@@ -105,6 +105,179 @@ describe('DocumentEditDialog save', () => {
   )
 })
 
+describe('DocumentEditDialog keeps BSON types', () => {
+  async function mountEdit(doc: unknown) {
+    vi.mocked(monaco.editor.create).mockClear()
+    const DocumentEditDialog = (await import('../DocumentEditDialog.vue')).default
+    wrapper = mount(DocumentEditDialog, {
+      props: {
+        show: true,
+        document: doc,
+        mode: 'edit',
+        serverId: 'server-1',
+        dbName: 'shop',
+        collectionName: 'orders',
+      },
+      global: { plugins: [naive, i18n] },
+      attachTo: document.body,
+    })
+    await flushPromises()
+  }
+
+  it('shows types plain JSON cannot hold as Extended JSON, without the _id', async () => {
+    await mountEdit({
+      _id: { $oid: '507f1f77bcf86cd799439011' },
+      long: { $numberLong: '7' },
+      whole: { $numberDouble: '5.0' },
+      int: { $numberInt: '5' },
+    })
+
+    const shown = vi.mocked(monaco.editor.create).mock.lastCall![1]!.value!
+    expect(JSON.parse(shown)).toEqual({
+      long: { $numberLong: '7' },
+      whole: { $numberDouble: '5.0' },
+      int: 5,
+    })
+  })
+
+  it('saves through a strict EJSON.parse of the editor text', async () => {
+    await mountEdit({ _id: { $oid: '507f1f77bcf86cd799439011' }, name: 'a' })
+
+    const save = [...document.body.querySelectorAll('button')].find(
+      (b) => b.textContent?.trim() === 'Save',
+    )
+    save!.click()
+    await flushPromises()
+
+    expect(vi.mocked(shellProxy.ExecuteQuery).mock.lastCall![3]).toBe(
+      'db.getCollection("orders").replaceOne(' +
+        'EJSON.parse("{\\"_id\\":{\\"$oid\\":\\"507f1f77bcf86cd799439011\\"}}", { relaxed: false }), ' +
+        'EJSON.parse("{}", { relaxed: false }))',
+    )
+  })
+})
+
+describe('DocumentEditDialog save checks', () => {
+  async function saveWithText(text: string, reply?: unknown) {
+    vi.mocked(monaco.editor.create).mockReturnValueOnce({
+      addCommand: vi.fn(),
+      setValue: vi.fn(),
+      getValue: () => text,
+      dispose: vi.fn(),
+    } as never)
+    vi.mocked(shellProxy.ExecuteQuery).mockClear()
+    if (reply) {
+      vi.mocked(shellProxy.ExecuteQuery).mockResolvedValueOnce(reply as never)
+    }
+    const DocumentEditDialog = (await import('../DocumentEditDialog.vue')).default
+    wrapper = mount(DocumentEditDialog, {
+      props: {
+        show: true,
+        document: { _id: 1, name: 'a' },
+        mode: 'edit',
+        serverId: 'server-1',
+        dbName: 'shop',
+        collectionName: 'orders',
+      },
+      global: { plugins: [naive, i18n] },
+      attachTo: document.body,
+    })
+    await flushPromises()
+    ;[...document.body.querySelectorAll('button')]
+      .find((b) => b.textContent?.trim() === 'Save')!
+      .click()
+    await flushPromises()
+  }
+
+  it.each(['null', '[1]', '5', '"a"'])('does not save %s, which is not a document', async (text) => {
+    await saveWithText(text)
+
+    expect(shellProxy.ExecuteQuery).not.toHaveBeenCalled()
+    expect(document.body.textContent).toContain('A document must be a JSON object.')
+    expect(wrapper!.emitted('saved')).toBeUndefined()
+  })
+
+  it('says so and stays open when the save matched nothing', async () => {
+    await saveWithText('{"a":1}', { isSuccess: true, data: { documents: [{ matchedCount: 0 }] } })
+
+    expect(document.body.textContent).toContain('this document was not found in shop.orders')
+    expect(wrapper!.emitted('saved')).toBeUndefined()
+    expect(wrapper!.emitted('update:show')).toBeUndefined()
+  })
+
+  it('sends one insert when Ctrl+S is pressed again during a save', async () => {
+    let finish: (reply: unknown) => void = () => {}
+    vi.mocked(shellProxy.ExecuteQuery).mockClear()
+    vi.mocked(shellProxy.ExecuteQuery).mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve
+      }) as never,
+    )
+    const addCommand = vi.fn()
+    vi.mocked(monaco.editor.create).mockReturnValueOnce({
+      addCommand,
+      setValue: vi.fn(),
+      getValue: () => '{"a":1}',
+      dispose: vi.fn(),
+    } as never)
+    const DocumentEditDialog = (await import('../DocumentEditDialog.vue')).default
+    wrapper = mount(DocumentEditDialog, {
+      props: {
+        show: true,
+        document: {},
+        mode: 'insert',
+        serverId: 'server-1',
+        dbName: 'shop',
+        collectionName: 'orders',
+      },
+      global: { plugins: [naive, i18n] },
+      attachTo: document.body,
+    })
+    await flushPromises()
+    const pressCtrlS = addCommand.mock.lastCall![1]
+
+    pressCtrlS()
+    pressCtrlS()
+    await flushPromises()
+    expect(shellProxy.ExecuteQuery).toHaveBeenCalledTimes(1)
+
+    finish({ isSuccess: true })
+    await flushPromises()
+    expect(wrapper.emitted('saved')).toHaveLength(1)
+  })
+
+  it('refuses to save an edit of a document with no _id', async () => {
+    vi.mocked(shellProxy.ExecuteQuery).mockClear()
+    const DocumentEditDialog = (await import('../DocumentEditDialog.vue')).default
+    wrapper = mount(DocumentEditDialog, {
+      props: {
+        show: true,
+        document: { name: 'a' },
+        mode: 'edit',
+        serverId: 'server-1',
+        dbName: 'shop',
+        collectionName: 'orders',
+      },
+      global: { plugins: [naive, i18n] },
+      attachTo: document.body,
+    })
+    await flushPromises()
+    ;[...document.body.querySelectorAll('button')]
+      .find((b) => b.textContent?.trim() === 'Save')!
+      .click()
+    await flushPromises()
+
+    expect(shellProxy.ExecuteQuery).not.toHaveBeenCalled()
+    expect(wrapper.emitted('saved')).toBeUndefined()
+  })
+
+  it('closes when the save matched', async () => {
+    await saveWithText('{"a":1}', { isSuccess: true, data: { documents: [{ matchedCount: 1 }] } })
+
+    expect(wrapper!.emitted('saved')).toHaveLength(1)
+  })
+})
+
 describe('DocumentEditDialog mounted open', () => {
   // The table mounts the dialog the first time it opens, so it starts shown
   it('builds the editor and shows the _id', async () => {

@@ -31,8 +31,8 @@ const (
 	// is still a long when the script writes it back. Long's valueOf keeps
 	// arithmetic such as db.stats().storageSize / 1024 working.
 	jsScript
-	// jsTyped is jsScript with int32 kept as an Int32 wrapper rather than a plain
-	// number, for EJSON.parse with { relaxed: false }.
+	// jsTyped is jsScript with every value keeping its exact BSON type when written
+	// back, for EJSON.parse with { relaxed: false }. See typedScalarToJS.
 	jsTyped
 )
 
@@ -53,13 +53,13 @@ func jsValue(rt *goja.Runtime, v any, mode jsMode) goja.Value {
 	case map[string]any:
 		obj := rt.NewObject()
 		for k, elem := range val {
-			_ = obj.Set(k, jsValue(rt, elem, mode))
+			setOwnField(obj, k, jsValue(rt, elem, mode))
 		}
 		return obj
 	case bson.D:
 		obj := rt.NewObject()
 		for _, e := range val {
-			_ = obj.Set(e.Key, jsValue(rt, e.Value, mode))
+			setOwnField(obj, e.Key, jsValue(rt, e.Value, mode))
 		}
 		return obj
 	case bson.A:
@@ -67,8 +67,10 @@ func jsValue(rt *goja.Runtime, v any, mode jsMode) goja.Value {
 	case []any:
 		return jsArray(rt, val, mode)
 	}
-	if n, ok := v.(int32); ok && mode == jsTyped {
-		return numberValue(rt, n, int64(n))
+	if mode == jsTyped {
+		if converted, ok := typedScalarToJS(rt, v); ok {
+			return converted
+		}
 	}
 	if mode != jsPlain {
 		if converted, ok := bsonScalarToJS(rt, v); ok {
@@ -76,6 +78,12 @@ func jsValue(rt *goja.Runtime, v any, mode jsMode) goja.Value {
 		}
 	}
 	return rt.ToValue(v)
+}
+
+// setOwnField sets a field read from a document. obj.Set would run the __proto__
+// setter for a field with that name, losing the field and changing the prototype.
+func setOwnField(obj *goja.Object, key string, val goja.Value) {
+	_ = obj.DefineDataProperty(key, val, goja.FLAG_TRUE, goja.FLAG_TRUE, goja.FLAG_TRUE)
 }
 
 // jsArray uses NewArray rather than ToValue: a reflected Go slice is not a
@@ -86,6 +94,35 @@ func jsArray(rt *goja.Runtime, val []any, mode jsMode) goja.Value {
 		items[i] = jsValue(rt, elem, mode)
 	}
 	return rt.NewArray(items...)
+}
+
+// typedScalarToJS wraps the values that bsonScalarToJS would change the type of
+// on the way back to BSON: a whole-number double would be stored as an int, a
+// symbol as a string, undefined as null, and a regex goes through a JS RegExp,
+// which rewrites an empty pattern and rejects the x option. As in mongosh, a
+// regex here is not a JS RegExp.
+func typedScalarToJS(rt *goja.Runtime, v any) (goja.Value, bool) {
+	switch x := v.(type) {
+	case int32:
+		return numberValue(rt, x, int64(x)), true
+	case float64:
+		return doubleValue(rt, x), true
+	case bson.Symbol:
+		obj := bsonObject(rt, x, string(x))
+		_ = obj.Set("value", string(x))
+		_ = obj.Set("valueOf", func() string { return string(x) })
+		return obj, true
+	case bson.Undefined:
+		// mongosh gives null here and so can't write undefined back. Keeping the
+		// type means this is truthy, unlike null: objects always are.
+		return namedBSONValue(rt, x, "undefined"), true
+	case bson.Regex:
+		obj := bsonObject(rt, x, "/"+x.Pattern+"/"+x.Options)
+		_ = obj.Set("pattern", x.Pattern)
+		_ = obj.Set("options", x.Options)
+		return obj, true
+	}
+	return nil, false
 }
 
 // bsonScalarToJS converts a native BSON value into its mongosh script form.
@@ -185,6 +222,17 @@ func numberValue(rt *goja.Runtime, val any, n int64) goja.Value {
 	obj := bsonObject(rt, val, strconv.FormatInt(n, 10))
 	_ = obj.Set("toNumber", func() float64 { return float64(n) })
 	_ = obj.Set("valueOf", func() float64 { return float64(n) })
+	return obj
+}
+
+// doubleValue wraps a float64 so it stays a double when written back, whatever its
+// value. Its text and JSON are those of a JS number, as in mongosh, and valueOf
+// keeps arithmetic working, as it does for numberValue.
+func doubleValue(rt *goja.Runtime, n float64) goja.Value {
+	obj := bsonObject(rt, n, rt.ToValue(n).String())
+	_ = obj.Set("toJSON", func() float64 { return n })
+	_ = obj.Set("toNumber", func() float64 { return n })
+	_ = obj.Set("valueOf", func() float64 { return n })
 	return obj
 }
 

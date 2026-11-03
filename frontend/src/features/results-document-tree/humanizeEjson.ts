@@ -8,7 +8,8 @@ import {
 
 /**
  * Converts canonical Extended JSON (EJSON) values into human-readable equivalents,
- * matching the display logic in documentTreeUtils.getDisplayValue().
+ * matching the display logic in documentTreeUtils.getDisplayValue(). This is for
+ * reading only and loses BSON types: the edit dialog uses toEditableEjson instead.
  *
  * - { "$oid": "..." }                        → "..." (plain hex string)
  * - { "$date": "..." }                       → "..." (ISO string)
@@ -48,7 +49,7 @@ export function humanizeEjson(value: unknown): unknown {
     }
 
     if ('$date' in obj) {
-      // Text would lose the type if it were saved, and no text form can hold this
+      // No text form can hold this date
       if (hasUnwritableDate(obj)) {
         return value
       }
@@ -104,174 +105,6 @@ function humanizeFields(obj: Record<string, unknown>): Record<string, unknown> {
     result[k] = humanizeEjson(v)
   }
   return result
-}
-
-/**
- * Converts a value (humanized or raw EJSON) into a JavaScript expression string
- * using the BSON constructor functions available in the Go query engine:
- * ObjectId(), ISODate(), UUID(), NumberLong(), NumberDecimal(), Timestamp(),
- * MinKey(), MaxKey(), BinData().
- *
- * Handles both:
- * - Raw EJSON values (e.g. { $oid: "..." } → ObjectId("..."))
- * - Humanized values (e.g. ISO date string → ISODate("..."))
- */
-export function toJsExpression(value: unknown): string {
-  if (value === null) {
-    return 'null'
-  }
-  if (value === undefined) {
-    return 'undefined'
-  }
-
-  if (Array.isArray(value)) {
-    const items = value.map(toJsExpression)
-    return `[${items.join(', ')}]`
-  }
-
-  if (typeof value === 'object') {
-    const obj = value as Record<string, unknown>
-
-    if (!getBsonWrapperType(obj)) {
-      return toJsObject(obj)
-    }
-
-    // EJSON types → BSON constructors
-    if ('$oid' in obj && typeof obj.$oid === 'string') {
-      return `ObjectId("${obj.$oid}")`
-    }
-
-    if ('$date' in obj) {
-      const dateVal = obj.$date
-      if (typeof dateVal === 'string') {
-        return `ISODate("${dateVal}")`
-      }
-      if (typeof dateVal === 'object' && dateVal !== null && '$numberLong' in dateVal) {
-        const ms = Number((dateVal as Record<string, unknown>).$numberLong)
-        return `ISODate("${new Date(ms).toISOString()}")`
-      }
-      return `ISODate("${String(dateVal)}")`
-    }
-
-    if ('$numberLong' in obj && typeof obj.$numberLong === 'string') {
-      return `NumberLong("${obj.$numberLong}")`
-    }
-
-    if ('$numberInt' in obj && typeof obj.$numberInt === 'string') {
-      return obj.$numberInt
-    }
-
-    if ('$numberDouble' in obj && typeof obj.$numberDouble === 'string') {
-      return obj.$numberDouble
-    }
-
-    if ('$numberDecimal' in obj && typeof obj.$numberDecimal === 'string') {
-      return `NumberDecimal("${obj.$numberDecimal}")`
-    }
-
-    if ('$binary' in obj) {
-      const binary = obj.$binary as Record<string, unknown>
-      if (typeof binary?.base64 === 'string') {
-        if (binary.subType === '04' || binary.subType === '03') {
-          const uuid = binaryToText(binary.base64, binary.subType)
-          if (uuid !== undefined) {
-            return `UUID("${uuid}")`
-          }
-        }
-        return `BinData(${Number(binary.subType)}, "${binary.base64}")`
-      }
-    }
-
-    if ('$regularExpression' in obj) {
-      const re = obj.$regularExpression as Record<string, unknown>
-      return `/${re.pattern}/${re.options || ''}`
-    }
-
-    if ('$regex' in obj) {
-      return `/${obj.$regex}/${obj.$options || ''}`
-    }
-
-    if ('$timestamp' in obj) {
-      const ts = obj.$timestamp as Record<string, unknown>
-      return `Timestamp(${ts.t}, ${ts.i})`
-    }
-
-    if ('$minKey' in obj) {
-      return 'MinKey()'
-    }
-
-    if ('$maxKey' in obj) {
-      return 'MaxKey()'
-    }
-
-    // Wrappers with no constructor here, such as $code
-    return toJsObject(obj)
-  }
-
-  if (typeof value === 'string') {
-    // Detect humanized BSON types
-    if (isIsoDateString(value)) {
-      return `ISODate("${value}")`
-    }
-    if (isObjectIdHex(value)) {
-      return `ObjectId("${value}")`
-    }
-    if (isUuidString(value)) {
-      return `UUID("${value}")`
-    }
-    return JSON.stringify(value)
-  }
-
-  if (typeof value === 'number') {
-    if (!isFinite(value)) {
-      if (value === Infinity) {
-        return 'Infinity'
-      }
-      if (value === -Infinity) {
-        return '-Infinity'
-      }
-      return 'NaN'
-    }
-    return String(value)
-  }
-
-  if (typeof value === 'boolean') {
-    return String(value)
-  }
-
-  return String(value)
-}
-
-function toJsObject(obj: Record<string, unknown>): string {
-  const entries = Object.entries(obj).map(([k, v]) => {
-    const key = needsQuoting(k) ? JSON.stringify(k) : k
-    return `${key}: ${toJsExpression(v)}`
-  })
-  return `{ ${entries.join(', ')} }`
-}
-
-const JS_IDENTIFIER_RE = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/
-
-function needsQuoting(key: string): boolean {
-  return !JS_IDENTIFIER_RE.test(key)
-}
-
-// --- Helpers ---
-
-const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/
-const OBJECT_ID_RE = /^[0-9a-f]{24}$/
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-
-function isIsoDateString(str: string): boolean {
-  return ISO_DATE_RE.test(str)
-}
-
-function isObjectIdHex(str: string): boolean {
-  return OBJECT_ID_RE.test(str)
-}
-
-function isUuidString(str: string): boolean {
-  return UUID_RE.test(str)
 }
 
 function parseSpecialDouble(str: string): number {

@@ -10,6 +10,7 @@ const props = defineProps<{
   show: boolean
   document: unknown
   canEdit?: boolean
+  editBlockedByFieldName?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -103,6 +104,12 @@ function close() {
           {{ t(Array.isArray(document) ? 'query.contextMenu.copyValue' : 'query.contextMenu.copyDocument') }}
         </n-button>
         <n-button v-if="canEdit" type="primary" @click="emit('edit')">
+          {{ t('query.dialogs.editDocument') }}
+        </n-button>
+        <n-button
+          v-else-if="editBlockedByFieldName"
+          disabled
+          :title="t('query.dialogs.editBlockedByFieldName')">
           {{ t('query.dialogs.editDocument') }}
         </n-button>
         <n-button @click="close">

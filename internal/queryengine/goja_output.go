@@ -130,7 +130,7 @@ func inspectValue(rt *goja.Runtime, v goja.Value, depth int, expand bool) string
 	}
 
 	// BSON wrappers (ObjectId, Long, Decimal128, ...) print as their value.
-	if bv := obj.Get("__bsonValue"); bv != nil && !goja.IsUndefined(bv) {
+	if isBSONWrapper(obj) {
 		return callToString(rt, obj)
 	}
 
