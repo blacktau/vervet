@@ -46,13 +46,17 @@ func (sm *ServerService) SetDisconnector(d Disconnector) {
 
 func NewService(log *slog.Logger, store ServerStore, connectionStrings connectionStrings.Store, tokenManager *oidc.TokenManager) *ServerService {
 	logger := log.With(slog.String(logging.SourceKey, "ServerService"))
-	return &ServerService{
+	sm := &ServerService{
 		log:               logger,
 		mu:                sync.RWMutex{},
 		store:             store,
 		connectionStrings: connectionStrings,
-		oidcSessions:      tokenManager,
 	}
+	// Assigned only when set: a nil pointer would make a non-nil interface.
+	if tokenManager != nil {
+		sm.oidcSessions = tokenManager
+	}
+	return sm
 }
 
 func (sm *ServerService) Init(ctx context.Context) {
@@ -150,11 +154,12 @@ func (sm *ServerService) UpdateServer(serverID, name, uri, parentID, colour stri
 		return fmt.Errorf("failed to find registered server with ID %s", serverID)
 	}
 
+	// This replaces the whole stored entry, including any refresh token.
+	sm.forgetOIDCSession(serverID)
 	err = sm.connectionStrings.StoreRegisteredServerURI(serverID, uri)
 	if err != nil {
 		return fmt.Errorf("failed to securely store registeredServer URI: %w", err)
 	}
-	sm.forgetOIDCSession(serverID)
 
 	server.Name = name
 	server.ParentID = parentID
@@ -223,14 +228,11 @@ func (sm *ServerService) UpdateServerWithConfig(serverID, name, parentID, colour
 		return fmt.Errorf("failed to find registered server with ID %s", serverID)
 	}
 
-	// An edit ends the OIDC session: the stored refresh token goes with the old
-	// config, so it can never be sent to a provider the user has since changed.
-	cfg.RefreshToken = ""
+	cfg = sm.withOIDCSessionFor(serverID, cfg)
 	err = sm.connectionStrings.StoreConnectionConfig(serverID, cfg)
 	if err != nil {
 		return fmt.Errorf("failed to securely store connection config: %w", err)
 	}
-	sm.forgetOIDCSession(serverID)
 
 	server.Name = name
 	server.ParentID = parentID
@@ -242,6 +244,22 @@ func (sm *ServerService) UpdateServerWithConfig(serverID, name, parentID, colour
 	}
 
 	return nil
+}
+
+// withOIDCSessionFor sets the refresh token for a config about to be saved. The
+// frontend never holds the token, so a save that leaves the connection details
+// alone, such as a rename, keeps the stored one. Any other save ends the session
+// first: a keyring timeout doesn't prove the write failed, and the worst case of
+// ending it early is one extra login.
+func (sm *ServerService) withOIDCSessionFor(serverID string, cfg models.ConnectionConfig) models.ConnectionConfig {
+	stored, err := sm.connectionStrings.GetConnectionConfig(serverID)
+	if err == nil && stored.TokenBinding() == cfg.TokenBinding() {
+		cfg.RefreshToken = stored.RefreshToken
+		return cfg
+	}
+	cfg.RefreshToken = ""
+	sm.forgetOIDCSession(serverID)
+	return cfg
 }
 
 func (sm *ServerService) forgetOIDCSession(serverID string) {

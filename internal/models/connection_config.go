@@ -1,5 +1,12 @@
 package models
 
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"slices"
+)
+
 type AuthMethod string
 
 const (
@@ -26,4 +33,28 @@ type ConnectionConfig struct {
 	AuthMethod   AuthMethod  `json:"authMethod"`
 	OIDCConfig   *OIDCConfig `json:"oidcConfig,omitempty"`
 	RefreshToken string      `json:"refreshToken,omitempty"`
+}
+
+// TokenBinding identifies the details an OIDC token was issued for. A token may
+// only be used, kept or stored while its binding matches the current config, so
+// it can't reach a host or provider the user has since changed. Details that
+// don't affect where a token goes, such as the prompt, aren't included.
+func (c ConnectionConfig) TokenBinding() string {
+	details := struct {
+		URI         string
+		AuthMethod  AuthMethod
+		ProviderURL string
+		ClientID    string
+		Scopes      []string
+	}{URI: c.URI, AuthMethod: c.AuthMethod, Scopes: []string{}}
+	if c.OIDCConfig != nil {
+		details.ProviderURL = c.OIDCConfig.ProviderURL
+		details.ClientID = c.OIDCConfig.ClientID
+		details.Scopes = append(details.Scopes, c.OIDCConfig.Scopes...)
+		slices.Sort(details.Scopes)
+	}
+	// Marshalling strings and string slices can't fail.
+	data, _ := json.Marshal(details)
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
 }

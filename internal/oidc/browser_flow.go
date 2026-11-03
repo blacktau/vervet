@@ -39,43 +39,91 @@ type BrowserFlowResult struct {
 	ExpiresAt    time.Time
 }
 
-// activeCallbackServer tracks an in-flight OIDC callback HTTP server so it
-// can be shut down from outside the browserLogin goroutine. cancel cancels
-// the derived context that browserLogin waits on, so closing the server
-// also unblocks the pending select when the user never completes (or
-// cancels) the provider flow.
+// activeCallbackServer tracks an in-flight OIDC login so it can be stopped from
+// outside the browserLogin goroutine. cancel cancels the derived context that
+// browserLogin waits on, so closing it also unblocks the pending select when
+// the user never completes (or cancels) the provider flow. server is nil until
+// discovery has finished and the callback listener is up.
 type activeCallbackServer struct {
 	serverID string
 	server   *http.Server
 	listener net.Listener
 	cancel   context.CancelFunc
+	canceled bool
 }
 
-// closeBrowserServer shuts down any in-flight OIDC callback server, releasing
-// the listener port and cancelling the context so the pending browserLogin
-// select returns promptly. Callers block otherwise until the 5-minute
-// timeout fires.
+// closeBrowserServer stops any in-flight OIDC login, releasing the listener port
+// and cancelling the context so the pending browserLogin select returns
+// promptly. Callers block otherwise until the 5-minute timeout fires.
 func (tm *TokenManager) closeBrowserServer() {
 	tm.browserMu.Lock()
 	defer tm.browserMu.Unlock()
-	if tm.activeServer != nil {
-		if tm.activeServer.cancel != nil {
-			tm.activeServer.cancel()
-		}
+	tm.closeActiveLoginLocked()
+}
+
+func (tm *TokenManager) closeActiveLoginLocked() {
+	if tm.activeServer == nil {
+		return
+	}
+	if tm.activeServer.cancel != nil {
+		tm.activeServer.cancel()
+	}
+	if tm.activeServer.server != nil {
 		tm.activeServer.server.Close()
-		tm.activeServer = nil
+	}
+	tm.activeServer = nil
+}
+
+// beginLogin registers a login before any network call, so a cancel also stops
+// one that is still waiting on OIDC discovery. It replaces any earlier login.
+func (tm *TokenManager) beginLogin(serverID string, cancel context.CancelFunc) *activeCallbackServer {
+	tm.browserMu.Lock()
+	defer tm.browserMu.Unlock()
+	tm.closeActiveLoginLocked()
+	tm.activeServer = &activeCallbackServer{serverID: serverID, cancel: cancel}
+	return tm.activeServer
+}
+
+// attachServer records the callback server. It returns false if the login has
+// been stopped in the meantime, in which case the caller must not serve.
+func (tm *TokenManager) attachServer(login *activeCallbackServer, server *http.Server, listener net.Listener) bool {
+	tm.browserMu.Lock()
+	defer tm.browserMu.Unlock()
+	if tm.activeServer != login {
+		return false
+	}
+	login.server = server
+	login.listener = listener
+	return true
+}
+
+// endLogin closes this login only: a newer login may have replaced it.
+func (tm *TokenManager) endLogin(login *activeCallbackServer) {
+	tm.browserMu.Lock()
+	defer tm.browserMu.Unlock()
+	if tm.activeServer == login {
+		tm.closeActiveLoginLocked()
 	}
 }
 
-func (tm *TokenManager) browserLogin(ctx context.Context, serverID, providerURL, clientID, prompt string, scopes []string, manualURL bool) (*BrowserFlowResult, error) {
-	// Close any leftover listener from a previous failed attempt.
-	tm.closeBrowserServer()
+func (tm *TokenManager) wasCanceled(login *activeCallbackServer) bool {
+	tm.browserMu.Lock()
+	defer tm.browserMu.Unlock()
+	return login.canceled
+}
 
+func (tm *TokenManager) browserLogin(ctx context.Context, serverID, providerURL, clientID, prompt string, scopes []string, manualURL bool) (*BrowserFlowResult, error) {
 	loginCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	login := tm.beginLogin(serverID, cancel)
+	defer tm.endLogin(login)
+
 	provider, err := gooidc.NewProvider(loginCtx, providerURL)
 	if err != nil {
+		if tm.wasCanceled(login) {
+			return nil, ErrLoginCanceled
+		}
 		return nil, fmt.Errorf("OIDC discovery failed for %s: %w", providerURL, err)
 	}
 
@@ -145,10 +193,13 @@ func (tm *TokenManager) browserLogin(ctx context.Context, serverID, providerURL,
 
 	server := &http.Server{Handler: mux}
 
-	// Track the active server so it can be closed externally.
-	tm.browserMu.Lock()
-	tm.activeServer = &activeCallbackServer{serverID: serverID, server: server, listener: listener, cancel: cancel}
-	tm.browserMu.Unlock()
+	if !tm.attachServer(login, server, listener) {
+		listener.Close()
+		if tm.wasCanceled(login) {
+			return nil, ErrLoginCanceled
+		}
+		return nil, context.Canceled
+	}
 
 	go server.Serve(listener)
 
@@ -170,7 +221,6 @@ func (tm *TokenManager) browserLogin(ctx context.Context, serverID, providerURL,
 	}
 
 	timeout := time.After(5 * time.Minute)
-	defer tm.closeBrowserServer()
 
 	select {
 	case result := <-resultCh:
@@ -180,7 +230,7 @@ func (tm *TokenManager) browserLogin(ctx context.Context, serverID, providerURL,
 	case <-timeout:
 		return nil, fmt.Errorf("authentication timed out after 5 minutes")
 	case <-loginCtx.Done():
-		if tm.consumeCanceled() {
+		if tm.wasCanceled(login) {
 			return nil, ErrLoginCanceled
 		}
 		return nil, loginCtx.Err()

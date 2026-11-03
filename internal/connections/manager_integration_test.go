@@ -68,7 +68,7 @@ func (f fakeStore) StoreRegisteredServerURI(string, string) error               
 func (f fakeStore) GetRegisteredServerURI(string) (string, error)               { return "", nil }
 func (f fakeStore) DeleteRegisteredServerURI(string) error                      { return nil }
 func (f fakeStore) StoreConnectionConfig(string, models.ConnectionConfig) error { return nil }
-func (f fakeStore) UpdateRefreshToken(string, string) error                     { return nil }
+func (f fakeStore) UpdateRefreshToken(string, string, string) error             { return nil }
 
 func (f fakeStore) GetConnectionConfig(id string) (models.ConnectionConfig, error) {
 	cfg, ok := f.configs[id]

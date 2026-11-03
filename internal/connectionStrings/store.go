@@ -28,12 +28,17 @@ type Store interface {
 	DeleteRegisteredServerURI(registeredServerID string) error
 	StoreConnectionConfig(registeredServerID string, cfg models.ConnectionConfig) error
 	GetConnectionConfig(registeredServerID string) (models.ConnectionConfig, error)
-	UpdateRefreshToken(registeredServerID string, refreshToken string) error
+	// UpdateRefreshToken stores a token only if binding still matches the stored
+	// config, so a token issued for old details is never kept with new ones.
+	UpdateRefreshToken(registeredServerID, refreshToken, binding string) error
 }
 
 type store struct {
-	log              *slog.Logger
-	mu               sync.Mutex
+	log *slog.Logger
+	mu  sync.Mutex
+	// entryMu makes UpdateRefreshToken's read and write atomic against saves, so
+	// a late token can't restore a config the user has since replaced.
+	entryMu          sync.Mutex
 	keyringAvailable bool
 	lastCheck        time.Time
 }
@@ -47,6 +52,12 @@ func NewStore(log *slog.Logger) *store {
 
 // StoreRegisteredServerURI securely saves a connectionURI associated with a user provided name
 func (s *store) StoreRegisteredServerURI(registeredServerID, uri string) error {
+	s.entryMu.Lock()
+	defer s.entryMu.Unlock()
+	return s.writeEntry(registeredServerID, uri)
+}
+
+func (s *store) writeEntry(registeredServerID, uri string) error {
 	key := getKey(registeredServerID)
 	err := s.withTimeout(keyringTimeout, func() error {
 		return keyring.Set(serviceName, key, uri)
@@ -179,7 +190,9 @@ func (s *store) StoreConnectionConfig(registeredServerID string, cfg models.Conn
 	if err != nil {
 		return err
 	}
-	return s.StoreRegisteredServerURI(registeredServerID, data)
+	s.entryMu.Lock()
+	defer s.entryMu.Unlock()
+	return s.writeEntry(registeredServerID, data)
 }
 
 func (s *store) GetConnectionConfig(registeredServerID string) (models.ConnectionConfig, error) {
@@ -190,11 +203,22 @@ func (s *store) GetConnectionConfig(registeredServerID string) (models.Connectio
 	return deserialiseConnectionConfig(raw)
 }
 
-func (s *store) UpdateRefreshToken(registeredServerID string, refreshToken string) error {
+func (s *store) UpdateRefreshToken(registeredServerID, refreshToken, binding string) error {
+	s.entryMu.Lock()
+	defer s.entryMu.Unlock()
+
 	cfg, err := s.GetConnectionConfig(registeredServerID)
 	if err != nil {
 		return err
 	}
+	if cfg.TokenBinding() != binding {
+		s.log.Debug("Discarding refresh token issued for previous connection details")
+		return nil
+	}
 	cfg.RefreshToken = refreshToken
-	return s.StoreConnectionConfig(registeredServerID, cfg)
+	data, err := serialiseConnectionConfig(cfg)
+	if err != nil {
+		return err
+	}
+	return s.writeEntry(registeredServerID, data)
 }

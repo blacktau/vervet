@@ -36,6 +36,8 @@ type CachedToken struct {
 	AccessToken  string
 	RefreshToken string
 	ExpiresAt    time.Time
+	// Binding is the ConnectionConfig.TokenBinding the token was issued for.
+	Binding string
 }
 
 type TokenManager struct {
@@ -47,10 +49,9 @@ type TokenManager struct {
 	openBrowser func(url string)
 	emitAuthURL func(serverID, url string)
 
-	// browserMu protects activeServer — the in-flight OIDC callback HTTP server.
+	// browserMu protects activeServer — the in-flight OIDC login.
 	browserMu    sync.Mutex
 	activeServer *activeCallbackServer
-	canceled     bool
 	shuttingDown bool
 	// disconnecting counts in-flight disconnects per server, so nested or
 	// concurrent disconnects don't unsuppress each other.
@@ -84,7 +85,7 @@ func (tm *TokenManager) ResetSession(serverID string) error {
 	}
 	tm.CleanupServer(serverID)
 	if cfg.RefreshToken != "" {
-		if err := tm.store.UpdateRefreshToken(serverID, ""); err != nil {
+		if err := tm.store.UpdateRefreshToken(serverID, "", cfg.TokenBinding()); err != nil {
 			return fmt.Errorf("clear refresh token: %w", err)
 		}
 	}
@@ -116,22 +117,17 @@ func (tm *TokenManager) SetEmitAuthURL(fn func(serverID, url string)) {
 	tm.emitAuthURL = fn
 }
 
-// CancelLogin shuts down any in-flight OIDC browser login for the given
-// server. Currently a single in-flight server is tracked globally, so the
-// serverID is advisory only.
+// CancelLogin stops an in-flight OIDC browser login for the given server. Only
+// one login runs at a time, so another server's login is left alone. It reports
+// back to its caller as ErrLoginCanceled.
 func (tm *TokenManager) CancelLogin(serverID string) {
 	tm.browserMu.Lock()
-	tm.canceled = true
-	tm.browserMu.Unlock()
-	tm.closeBrowserServer()
-}
-
-func (tm *TokenManager) consumeCanceled() bool {
-	tm.browserMu.Lock()
 	defer tm.browserMu.Unlock()
-	c := tm.canceled
-	tm.canceled = false
-	return c
+	if tm.activeServer == nil || tm.activeServer.serverID != serverID {
+		return
+	}
+	tm.activeServer.canceled = true
+	tm.closeActiveLoginLocked()
 }
 
 func (tm *TokenManager) cacheToken(serverID string, token *CachedToken) {
@@ -140,14 +136,14 @@ func (tm *TokenManager) cacheToken(serverID string, token *CachedToken) {
 	tm.cache[serverID] = token
 }
 
-func (tm *TokenManager) getCachedToken(serverID string) *CachedToken {
+func (tm *TokenManager) getCachedToken(serverID, binding string) *CachedToken {
 	tm.mu.RLock()
 	defer tm.mu.RUnlock()
 	tok, ok := tm.cache[serverID]
 	if !ok {
 		return nil
 	}
-	if time.Now().After(tok.ExpiresAt) {
+	if tok.Binding != binding || time.Now().After(tok.ExpiresAt) {
 		return nil
 	}
 	return tok
@@ -160,26 +156,11 @@ func (tm *TokenManager) CleanupServer(serverID string) {
 }
 
 // ForgetSession drops what this process holds for a server's OIDC session: its
-// cached access token and any browser login in progress. Use it when the
-// server's connection details change, so the next connect can't send an old
-// token to a new host, or a login for the old details can't complete into the
-// new ones. A login in progress for another server is left alone.
+// cached access token and any browser login in progress, so a login for details
+// the user has just changed doesn't carry on and open a browser.
 func (tm *TokenManager) ForgetSession(serverID string) {
-	tm.cancelLoginFor(serverID)
+	tm.CancelLogin(serverID)
 	tm.CleanupServer(serverID)
-}
-
-func (tm *TokenManager) cancelLoginFor(serverID string) {
-	tm.browserMu.Lock()
-	active := tm.activeServer != nil && tm.activeServer.serverID == serverID
-	if active {
-		tm.canceled = true
-	}
-	tm.browserMu.Unlock()
-
-	if active {
-		tm.closeBrowserServer()
-	}
 }
 
 // Shutdown cancels any in-flight browser login and releases its listener.
@@ -227,10 +208,13 @@ func (tm *TokenManager) isDisconnecting(serverID string) bool {
 // The callback is invoked by the MongoDB driver during the OIDC handshake.
 // It uses IDPInfo provided by the server (issuer, clientID, scopes),
 // falling back to user-configured values if the server doesn't provide them.
-func (tm *TokenManager) HumanCallback(serverID string, cfg *models.OIDCConfig) options.OIDCCallback {
+func (tm *TokenManager) HumanCallback(serverID string, connCfg models.ConnectionConfig) options.OIDCCallback {
+	cfg := connCfg.OIDCConfig
+	binding := connCfg.TokenBinding()
+
 	return func(ctx context.Context, args *options.OIDCArgs) (*options.OIDCCredential, error) {
 		// 1. Return cached token if valid
-		if cached := tm.getCachedToken(serverID); cached != nil {
+		if cached := tm.getCachedToken(serverID, binding); cached != nil {
 			tm.log.Debug("Returning cached OIDC token", slog.String("serverID", serverID))
 			return &options.OIDCCredential{
 				AccessToken: cached.AccessToken,
@@ -240,15 +224,16 @@ func (tm *TokenManager) HumanCallback(serverID string, cfg *models.OIDCConfig) o
 
 		// 2. Try refresh token
 		storedCfg, err := tm.store.GetConnectionConfig(serverID)
-		if err == nil && storedCfg.RefreshToken != "" {
+		if err == nil && storedCfg.RefreshToken != "" && storedCfg.TokenBinding() == binding {
 			providerURL, clientID := tm.resolveIDPInfo(args.IDPInfo, cfg)
 			if providerURL != "" && clientID != "" {
 				tok, refreshErr := tm.refreshToken(ctx, providerURL, clientID, storedCfg.RefreshToken)
 				if refreshErr == nil {
 					tm.log.Debug("Refreshed OIDC token", slog.String("serverID", serverID))
+					tok.Binding = binding
 					tm.cacheToken(serverID, tok)
 					if tok.RefreshToken != "" {
-						_ = tm.store.UpdateRefreshToken(serverID, tok.RefreshToken)
+						_ = tm.store.UpdateRefreshToken(serverID, tok.RefreshToken, binding)
 					}
 					return &options.OIDCCredential{
 						AccessToken: tok.AccessToken,
@@ -309,10 +294,11 @@ func (tm *TokenManager) HumanCallback(serverID string, cfg *models.OIDCConfig) o
 			AccessToken:  result.AccessToken,
 			RefreshToken: result.RefreshToken,
 			ExpiresAt:    result.ExpiresAt,
+			Binding:      binding,
 		})
 
 		if result.RefreshToken != "" {
-			if err := tm.store.UpdateRefreshToken(serverID, result.RefreshToken); err != nil {
+			if err := tm.store.UpdateRefreshToken(serverID, result.RefreshToken, binding); err != nil {
 				tm.log.Warn("Failed to persist refresh token", slog.String("serverID", serverID), slog.Any("error", err))
 			}
 		}

@@ -95,7 +95,7 @@ func (m *MockConnectionStringsStore) GetConnectionConfig(id string) (models.Conn
 	return models.ConnectionConfig{URI: uri, AuthMethod: models.AuthPassword}, nil
 }
 
-func (m *MockConnectionStringsStore) UpdateRefreshToken(id string, refreshToken string) error {
+func (m *MockConnectionStringsStore) UpdateRefreshToken(id, refreshToken, binding string) error {
 	return m.err
 }
 
@@ -310,8 +310,8 @@ func (m *countingConnectionStringsStore) GetConnectionConfig(id string) (models.
 	return m.inner.GetConnectionConfig(id)
 }
 
-func (m *countingConnectionStringsStore) UpdateRefreshToken(id string, refreshToken string) error {
-	return m.inner.UpdateRefreshToken(id, refreshToken)
+func (m *countingConnectionStringsStore) UpdateRefreshToken(id, refreshToken, binding string) error {
+	return m.inner.UpdateRefreshToken(id, refreshToken, binding)
 }
 
 func TestGetURI(t *testing.T) {
@@ -504,37 +504,88 @@ func (f *fakeOIDCSessions) ForgetSession(serverID string) {
 	f.forgotten = append(f.forgotten, serverID)
 }
 
-func TestUpdateServerWithConfig_EndsOIDCSession(t *testing.T) {
+func TestUpdateServerWithConfig_OIDCSession(t *testing.T) {
+	stored := models.ConnectionConfig{
+		URI:          "mongodb://host",
+		AuthMethod:   models.AuthOIDC,
+		OIDCConfig:   &models.OIDCConfig{ProviderURL: "https://idp", ClientID: "vervet"},
+		RefreshToken: "stored-token",
+	}
+	// What the frontend sends: the details, never the token.
+	edited := func() models.ConnectionConfig {
+		cfg := stored
+		cfg.RefreshToken = ""
+		oidcCfg := *stored.OIDCConfig
+		cfg.OIDCConfig = &oidcCfg
+		return cfg
+	}
 	newService := func(csStore *MockConnectionStringsStore) (*ServerService, *fakeOIDCSessions) {
 		sessions := &fakeOIDCSessions{}
 		sm := newTestServerService(&mockServerStore{servers: []models.RegisteredServer{{ID: "1", Name: "Server"}}}, csStore)
 		sm.oidcSessions = sessions
 		return sm, sessions
 	}
+	storeWithToken := func() *MockConnectionStringsStore {
+		return &MockConnectionStringsStore{
+			uris:    map[string]string{},
+			configs: map[string]models.ConnectionConfig{"1": stored},
+		}
+	}
 
-	t.Run("forgets the session and never stores a refresh token", func(t *testing.T) {
-		csStore := &MockConnectionStringsStore{uris: map[string]string{}}
+	t.Run("a rename keeps the session", func(t *testing.T) {
+		csStore := storeWithToken()
 		sm, sessions := newService(csStore)
 
-		err := sm.UpdateServerWithConfig("1", "Renamed", "", "", models.ConnectionConfig{
-			URI:          "mongodb://new-host",
-			AuthMethod:   models.AuthOIDC,
-			RefreshToken: "old-token",
-		})
+		assert.NoError(t, sm.UpdateServerWithConfig("1", "Renamed", "", "", edited()))
 
-		assert.NoError(t, err)
-		assert.Equal(t, []string{"1"}, sessions.forgotten)
+		assert.Empty(t, sessions.forgotten)
+		assert.Equal(t, "stored-token", csStore.configs["1"].RefreshToken)
+	})
+
+	changes := map[string]func(*models.ConnectionConfig){
+		"uri":         func(c *models.ConnectionConfig) { c.URI = "mongodb://new-host" },
+		"auth method": func(c *models.ConnectionConfig) { c.AuthMethod = models.AuthPassword },
+		"provider":    func(c *models.ConnectionConfig) { c.OIDCConfig.ProviderURL = "https://other-idp" },
+	}
+	for name, change := range changes {
+		t.Run("changing the "+name+" ends the session", func(t *testing.T) {
+			csStore := storeWithToken()
+			sm, sessions := newService(csStore)
+			cfg := edited()
+			change(&cfg)
+
+			assert.NoError(t, sm.UpdateServerWithConfig("1", "Server", "", "", cfg))
+
+			assert.Equal(t, []string{"1"}, sessions.forgotten)
+			assert.Empty(t, csStore.configs["1"].RefreshToken)
+		})
+	}
+
+	t.Run("ignores a refresh token sent by the caller", func(t *testing.T) {
+		csStore := storeWithToken()
+		sm, _ := newService(csStore)
+		cfg := edited()
+		cfg.URI = "mongodb://new-host"
+		cfg.RefreshToken = "from-caller"
+
+		assert.NoError(t, sm.UpdateServerWithConfig("1", "Server", "", "", cfg))
+
 		assert.Empty(t, csStore.configs["1"].RefreshToken)
 	})
 
-	t.Run("keeps the session when the config could not be stored", func(t *testing.T) {
-		sm, sessions := newService(&MockConnectionStringsStore{uris: map[string]string{}, err: errors.New("keyring locked")})
+	t.Run("ends the session when the keyring fails, as the write may still land", func(t *testing.T) {
+		sm, sessions := newService(&MockConnectionStringsStore{uris: map[string]string{}, err: errors.New("keyring timed out")})
 
-		err := sm.UpdateServerWithConfig("1", "Renamed", "", "", models.ConnectionConfig{URI: "mongodb://new-host"})
+		assert.Error(t, sm.UpdateServerWithConfig("1", "Server", "", "", edited()))
 
-		assert.Error(t, err)
-		assert.Empty(t, sessions.forgotten)
+		assert.Equal(t, []string{"1"}, sessions.forgotten)
 	})
+}
+
+func TestNewService_NilTokenManagerIsSafe(t *testing.T) {
+	sm := NewService(slog.Default(), &mockServerStore{}, &MockConnectionStringsStore{}, nil)
+
+	assert.NotPanics(t, func() { sm.forgetOIDCSession("1") })
 }
 
 func TestUpdateServer_EndsOIDCSession(t *testing.T) {
