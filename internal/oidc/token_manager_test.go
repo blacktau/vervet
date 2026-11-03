@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -28,7 +30,7 @@ func (s *stubStore) StoreConnectionConfig(string, models.ConnectionConfig) error
 func (s *stubStore) GetConnectionConfig(string) (models.ConnectionConfig, error) {
 	return s.cfg, nil
 }
-func (s *stubStore) UpdateRefreshToken(string, string) error { return nil }
+func (s *stubStore) UpdateRefreshToken(string, string, string) error { return nil }
 
 func TestGetCachedToken_ReturnsCachedToken(t *testing.T) {
 	tm := NewTokenManager(slog.Default(), nil)
@@ -37,7 +39,7 @@ func TestGetCachedToken_ReturnsCachedToken(t *testing.T) {
 		ExpiresAt:   time.Now().Add(10 * time.Minute),
 	})
 
-	tok := tm.getCachedToken("server-1")
+	tok := tm.getCachedToken("server-1", "")
 	if tok == nil {
 		t.Fatal("expected non-nil token")
 	}
@@ -53,7 +55,7 @@ func TestGetCachedToken_ReturnsNilForExpiredToken(t *testing.T) {
 		ExpiresAt:   time.Now().Add(-1 * time.Minute),
 	})
 
-	tok := tm.getCachedToken("server-1")
+	tok := tm.getCachedToken("server-1", "")
 	if tok != nil {
 		t.Error("expected nil for expired token")
 	}
@@ -68,7 +70,7 @@ func TestCleanupServer_RemovesCachedToken(t *testing.T) {
 
 	tm.CleanupServer("server-1")
 
-	tok := tm.getCachedToken("server-1")
+	tok := tm.getCachedToken("server-1", "")
 	if tok != nil {
 		t.Error("expected nil after cleanup")
 	}
@@ -143,7 +145,7 @@ func TestHumanCallback_DoesNotLaunchBrowserAfterShutdown(t *testing.T) {
 
 	tm.Shutdown()
 
-	cb := tm.HumanCallback("server-1", &models.OIDCConfig{})
+	cb := tm.HumanCallback("server-1", models.ConnectionConfig{OIDCConfig: &models.OIDCConfig{}})
 	_, err := cb(context.Background(), &options.OIDCArgs{
 		IDPInfo: &options.IDPInfo{
 			Issuer:   "https://idp.example.com",
@@ -169,9 +171,10 @@ func newTestManager() *TokenManager {
 func TestHumanCallback_ReturnsCachedToken(t *testing.T) {
 	tm := newTestManager()
 	exp := time.Now().Add(time.Hour)
-	tm.cacheToken("srv1", &CachedToken{AccessToken: "cached-abc", ExpiresAt: exp})
+	cfg := models.ConnectionConfig{URI: "mongodb://host", OIDCConfig: &models.OIDCConfig{}}
+	tm.cacheToken("srv1", &CachedToken{AccessToken: "cached-abc", ExpiresAt: exp, Binding: cfg.TokenBinding()})
 
-	cb := tm.HumanCallback("srv1", &models.OIDCConfig{})
+	cb := tm.HumanCallback("srv1", cfg)
 	cred, err := cb(context.Background(), &options.OIDCArgs{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -244,7 +247,7 @@ func TestHumanCallback_DoesNotLaunchBrowserWhileDisconnecting(t *testing.T) {
 
 	release := tm.SuppressLogin("server-1")
 
-	cb := tm.HumanCallback("server-1", &models.OIDCConfig{})
+	cb := tm.HumanCallback("server-1", models.ConnectionConfig{OIDCConfig: &models.OIDCConfig{}})
 	args := &options.OIDCArgs{
 		IDPInfo: &options.IDPInfo{
 			Issuer:   "https://idp.example.com",
@@ -284,5 +287,173 @@ func TestSuppressLogin_Nested(t *testing.T) {
 	releaseOuter()
 	if tm.isDisconnecting("server-1") {
 		t.Fatal("suppression outlived the outer release")
+	}
+}
+
+func TestForgetSession_RemovesCachedToken(t *testing.T) {
+	tm := NewTokenManager(slog.Default(), nil)
+	tm.cacheToken("server-1", &CachedToken{AccessToken: "old", ExpiresAt: time.Now().Add(10 * time.Minute)})
+	tm.cacheToken("server-2", &CachedToken{AccessToken: "other", ExpiresAt: time.Now().Add(10 * time.Minute)})
+
+	tm.ForgetSession("server-1")
+
+	if tm.getCachedToken("server-1", "") != nil {
+		t.Error("expected server-1's cached token to be gone")
+	}
+	if tm.getCachedToken("server-2", "") == nil {
+		t.Error("expected server-2's cached token to survive")
+	}
+}
+
+func TestForgetSession_CancelsOnlyThatServersLogin(t *testing.T) {
+	tm := NewTokenManager(slog.Default(), nil)
+	loginCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	login := tm.beginLogin("server-1", cancel)
+
+	tm.ForgetSession("server-2")
+
+	if loginCtx.Err() != nil {
+		t.Fatal("another server's edit must not cancel this login")
+	}
+	if tm.wasCanceled(login) {
+		t.Fatal("another server's edit must not mark the login as cancelled")
+	}
+
+	tm.ForgetSession("server-1")
+
+	if loginCtx.Err() == nil {
+		t.Error("expected the login to be cancelled")
+	}
+	if !tm.wasCanceled(login) {
+		t.Error("expected the login to report as cancelled, not failed")
+	}
+}
+
+// A token issued for old details must not be sent once the details have changed,
+// however it got there: a late login, a missed reset or a keyring timeout.
+func TestHumanCallback_IgnoresTokensForOtherDetails(t *testing.T) {
+	var refreshAttempts atomic.Int32
+	idp := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		refreshAttempts.Add(1)
+		http.NotFound(w, r)
+	}))
+	defer idp.Close()
+
+	oldDetails := models.ConnectionConfig{
+		URI:          "mongodb://old-host",
+		AuthMethod:   models.AuthOIDC,
+		OIDCConfig:   &models.OIDCConfig{ProviderURL: idp.URL, ClientID: "vervet"},
+		RefreshToken: "old-refresh",
+	}
+	newDetails := oldDetails
+	newDetails.URI = "mongodb://new-host"
+	newDetails.RefreshToken = ""
+
+	tm := NewTokenManager(slog.New(slog.NewTextHandler(io.Discard, nil)), &stubStore{cfg: oldDetails})
+	tm.Init(context.Background())
+	tm.cacheToken("server-1", &CachedToken{
+		AccessToken: "old-access",
+		ExpiresAt:   time.Now().Add(time.Hour),
+		Binding:     oldDetails.TokenBinding(),
+	})
+	// Stops the callback where a browser login would start.
+	defer tm.SuppressLogin("server-1")()
+
+	_, err := tm.HumanCallback("server-1", newDetails)(context.Background(), &options.OIDCArgs{})
+
+	if !errors.Is(err, ErrDisconnecting) {
+		t.Fatalf("expected the callback to reach the login step, got %v", err)
+	}
+	if n := refreshAttempts.Load(); n != 0 {
+		t.Errorf("old refresh token was sent to the provider %d times", n)
+	}
+}
+
+func startBlockedLogin(t *testing.T, tm *TokenManager, ctx context.Context) <-chan error {
+	t.Helper()
+	inDiscovery := make(chan struct{})
+	release := make(chan struct{})
+	idp := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		close(inDiscovery)
+		<-release
+	}))
+	t.Cleanup(func() {
+		close(release)
+		idp.Close()
+	})
+
+	result := make(chan error, 1)
+	go func() {
+		_, err := tm.browserLogin(ctx, "server-1", idp.URL, "vervet", "", nil, false)
+		result <- err
+	}()
+	<-inDiscovery
+	return result
+}
+
+func TestCancelLogin_StopsLoginStillInDiscovery(t *testing.T) {
+	tm := NewTokenManager(slog.Default(), nil)
+	browserOpened := false
+	tm.SetOpenBrowser(func(string) { browserOpened = true })
+	result := startBlockedLogin(t, tm, context.Background())
+
+	tm.CancelLogin("server-1")
+
+	select {
+	case err := <-result:
+		if !errors.Is(err, ErrLoginCanceled) {
+			t.Fatalf("expected ErrLoginCanceled, got %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("login kept waiting on discovery after being cancelled")
+	}
+	if browserOpened {
+		t.Fatal("browser opened for a cancelled login")
+	}
+}
+
+func TestCancelLogin_LeavesAnotherServersLoginRunning(t *testing.T) {
+	tm := NewTokenManager(slog.Default(), nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	result := startBlockedLogin(t, tm, ctx)
+
+	tm.CancelLogin("server-2")
+
+	select {
+	case err := <-result:
+		t.Fatalf("login stopped by another server's cancel: %v", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+	cancel()
+	<-result
+}
+
+// Cancelling a connect that has no login running, as any password server's
+// cancel button does, must not make a later real failure look like a cancel.
+func TestCancelLogin_WithNoLoginDoesNotAffectLaterFailures(t *testing.T) {
+	tm := NewTokenManager(slog.Default(), nil)
+	tm.CancelLogin("server-1")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	result := startBlockedLogin(t, tm, ctx)
+	cancel()
+
+	if err := <-result; errors.Is(err, ErrLoginCanceled) {
+		t.Fatal("a failed login was reported as a user cancel")
+	}
+}
+
+func TestEndLogin_LeavesNewerLoginRunning(t *testing.T) {
+	tm := NewTokenManager(slog.Default(), nil)
+	first := tm.beginLogin("server-1", func() {})
+	newerCtx, cancelNewer := context.WithCancel(context.Background())
+	defer cancelNewer()
+	tm.beginLogin("server-2", cancelNewer)
+
+	tm.endLogin(first)
+
+	if newerCtx.Err() != nil {
+		t.Fatal("an older login's cleanup closed the newer one")
 	}
 }

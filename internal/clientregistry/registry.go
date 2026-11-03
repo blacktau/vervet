@@ -125,7 +125,7 @@ func (r *ClientRegistry) ConnectWithConfig(serverID, name string, cfg models.Con
 		if cfg.OIDCConfig != nil && cfg.OIDCConfig.WorkloadIdentity {
 			credential.OIDCMachineCallback = r.tokenManager.MachineCallback(serverID)
 		} else {
-			credential.OIDCHumanCallback = r.tokenManager.HumanCallback(serverID, cfg.OIDCConfig)
+			credential.OIDCHumanCallback = r.tokenManager.HumanCallback(serverID, cfg)
 		}
 		clientOptions.SetAuth(credential)
 	}

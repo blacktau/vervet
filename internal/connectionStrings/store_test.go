@@ -124,6 +124,48 @@ func TestDeserialiseRawURI(t *testing.T) {
 	}
 }
 
+func TestUpdateRefreshToken(t *testing.T) {
+	oldDetails := models.ConnectionConfig{URI: "mongodb://old", AuthMethod: models.AuthOIDC}
+	newDetails := models.ConnectionConfig{URI: "mongodb://new", AuthMethod: models.AuthOIDC}
+
+	t.Run("stores a token issued for the current details", func(t *testing.T) {
+		keyring.MockInit()
+		s := newTestStore()
+		if err := s.StoreConnectionConfig("1", oldDetails); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := s.UpdateRefreshToken("1", "token", oldDetails.TokenBinding()); err != nil {
+			t.Fatal(err)
+		}
+
+		cfg, _ := s.GetConnectionConfig("1")
+		if cfg.RefreshToken != "token" {
+			t.Errorf("RefreshToken = %q, want %q", cfg.RefreshToken, "token")
+		}
+	})
+
+	t.Run("discards a late token issued for previous details", func(t *testing.T) {
+		keyring.MockInit()
+		s := newTestStore()
+		if err := s.StoreConnectionConfig("1", newDetails); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := s.UpdateRefreshToken("1", "old-token", oldDetails.TokenBinding()); err != nil {
+			t.Fatal(err)
+		}
+
+		cfg, _ := s.GetConnectionConfig("1")
+		if cfg.RefreshToken != "" {
+			t.Errorf("RefreshToken = %q, want it discarded", cfg.RefreshToken)
+		}
+		if cfg.URI != newDetails.URI {
+			t.Errorf("URI = %q, want the new details kept", cfg.URI)
+		}
+	})
+}
+
 func TestGetConnectionConfigMissingEntryIsErrConfigNotFound(t *testing.T) {
 	keyring.MockInit()
 
