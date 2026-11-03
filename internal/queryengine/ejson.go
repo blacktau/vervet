@@ -2,8 +2,10 @@ package queryengine
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"math"
+	"regexp"
 	"strconv"
 
 	"github.com/dop251/goja"
@@ -225,8 +227,19 @@ func ejsonRelaxed(call goja.FunctionCall) bool {
 // Not relaxed: every value keeps its BSON type, as a wrapper where a plain script
 // value would lose it (see typedScalarToJS). The edit dialog saves through this.
 func parsedExtJSONValue(rt *goja.Runtime, data []byte, relaxed bool, fn string) goja.Value {
+	// The driver would decode null to an empty document, which a replaceOne
+	// would then store over the whole document.
+	if string(bytes.TrimSpace(data)) == "null" {
+		return goja.Null()
+	}
 	var result bson.D
-	if err := bson.UnmarshalExtJSON(data, false, &result); err != nil {
+	err := bson.UnmarshalExtJSON(data, false, &result)
+	if err != nil {
+		data = dateTextToEpochMs(rt, data)
+		result = nil
+		err = bson.UnmarshalExtJSON(data, false, &result)
+	}
+	if err != nil {
 		panic(rt.NewGoError(fmt.Errorf("%s: %w", fn, err)))
 	}
 	if !relaxed {
@@ -241,6 +254,40 @@ func parsedExtJSONValue(rt *goja.Runtime, data []byte, relaxed bool, fn string) 
 		panic(rt.NewGoError(fmt.Errorf("%s: %w", fn, err)))
 	}
 	return toJSValue(rt, markExplicitLongs(result, raw))
+}
+
+// dateWrapperText matches a {"$date": "text"} wrapper. It can't match inside a JSON
+// string, because the quotes there are escaped.
+var dateWrapperText = regexp.MustCompile(`\{\s*"\$date"\s*:\s*("(?:[^"\\]|\\.)*")\s*\}`)
+
+// dateTextToEpochMs rewrites $date text the driver rejects, such as "2024-01-23" or
+// a time with no zone, using Date.parse as mongosh does. Text Date.parse can't read
+// is left for the driver to reject: mongosh would store an invalid date instead,
+// which loses the value without saying so.
+func dateTextToEpochMs(rt *goja.Runtime, data []byte) []byte {
+	dateCtor, ok := rt.Get("Date").(*goja.Object)
+	if !ok {
+		return data
+	}
+	parse, ok := goja.AssertFunction(dateCtor.Get("parse"))
+	if !ok {
+		return data
+	}
+	return dateWrapperText.ReplaceAllFunc(data, func(match []byte) []byte {
+		var text string
+		if err := json.Unmarshal(dateWrapperText.FindSubmatch(match)[1], &text); err != nil {
+			return match
+		}
+		parsed, err := parse(dateCtor, rt.ToValue(text))
+		if err != nil {
+			return match
+		}
+		epochMs := parsed.ToFloat()
+		if math.IsNaN(epochMs) {
+			return match
+		}
+		return []byte(fmt.Sprintf(`{"$date":{"$numberLong":"%d"}}`, int64(epochMs)))
+	})
 }
 
 // markExplicitLongs walks the parsed tree alongside the raw JSON tree. The

@@ -157,6 +157,61 @@ describe('DocumentEditDialog keeps BSON types', () => {
   })
 })
 
+describe('DocumentEditDialog save checks', () => {
+  async function saveWithText(text: string, reply?: unknown) {
+    vi.mocked(monaco.editor.create).mockReturnValueOnce({
+      addCommand: vi.fn(),
+      setValue: vi.fn(),
+      getValue: () => text,
+      dispose: vi.fn(),
+    } as never)
+    vi.mocked(shellProxy.ExecuteQuery).mockClear()
+    if (reply) {
+      vi.mocked(shellProxy.ExecuteQuery).mockResolvedValueOnce(reply as never)
+    }
+    const DocumentEditDialog = (await import('../DocumentEditDialog.vue')).default
+    wrapper = mount(DocumentEditDialog, {
+      props: {
+        show: true,
+        document: { _id: 1, name: 'a' },
+        mode: 'edit',
+        serverId: 'server-1',
+        dbName: 'shop',
+        collectionName: 'orders',
+      },
+      global: { plugins: [naive, i18n] },
+      attachTo: document.body,
+    })
+    await flushPromises()
+    ;[...document.body.querySelectorAll('button')]
+      .find((b) => b.textContent?.trim() === 'Save')!
+      .click()
+    await flushPromises()
+  }
+
+  it.each(['null', '[1]', '5', '"a"'])('does not save %s, which is not a document', async (text) => {
+    await saveWithText(text)
+
+    expect(shellProxy.ExecuteQuery).not.toHaveBeenCalled()
+    expect(document.body.textContent).toContain('A document must be a JSON object.')
+    expect(wrapper!.emitted('saved')).toBeUndefined()
+  })
+
+  it('says so and stays open when the save matched nothing', async () => {
+    await saveWithText('{"a":1}', { isSuccess: true, data: { documents: [{ matchedCount: 0 }] } })
+
+    expect(document.body.textContent).toContain('this document was not found in shop.orders')
+    expect(wrapper!.emitted('saved')).toBeUndefined()
+    expect(wrapper!.emitted('update:show')).toBeUndefined()
+  })
+
+  it('closes when the save matched', async () => {
+    await saveWithText('{"a":1}', { isSuccess: true, data: { documents: [{ matchedCount: 1 }] } })
+
+    expect(wrapper!.emitted('saved')).toHaveLength(1)
+  })
+})
+
 describe('DocumentEditDialog mounted open', () => {
   // The table mounts the dialog the first time it opens, so it starts shown
   it('builds the editor and shows the _id', async () => {

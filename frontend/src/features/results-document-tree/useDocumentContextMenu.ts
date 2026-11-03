@@ -2,7 +2,7 @@ import { computed, ref, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { DropdownOption } from 'naive-ui'
 import type { DocumentRow } from './types'
-import { hasUnwritableDate } from './bsonValue'
+import { hasAmbiguousEjsonField, hasReorderedKeys, hasUnwritableDate } from './bsonValue'
 
 export interface CollectionContext {
   serverId: string
@@ -24,12 +24,18 @@ export function hasDocumentId(doc: unknown): boolean {
     return false
   }
   const id = (doc as Record<string, unknown>)._id
-  return id !== undefined && id !== null && !hasUnwritableDate(id)
+  return (
+    id !== undefined &&
+    id !== null &&
+    !hasUnwritableDate(id) &&
+    !hasAmbiguousEjsonField(id) &&
+    !hasReorderedKeys(id)
+  )
 }
 
 /** Saving replaces the whole document, so every value in it must survive the trip. */
 export function isDocumentEditable(doc: unknown): boolean {
-  return hasDocumentId(doc) && !hasUnwritableDate(doc)
+  return hasDocumentId(doc) && !hasUnwritableDate(doc) && !hasAmbiguousEjsonField(doc)
 }
 
 export function useDocumentContextMenu(

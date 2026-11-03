@@ -72,5 +72,23 @@ export function ejsonParseExpression(json: string): string {
 
 /** A filter expression matching a document by its _id, given as canonical Extended JSON. */
 export function documentIdFilter(id: unknown): string {
+  // JSON.stringify would drop it, leaving an empty filter that matches any document
+  if (id === undefined) {
+    throw new Error('A document filter needs an _id')
+  }
   return ejsonParseExpression(JSON.stringify({ _id: id }))
+}
+
+/**
+ * A count from a write's reply, or undefined if the reply doesn't have it. The
+ * builtin engine sends plain numbers and mongosh sends canonical Extended JSON.
+ */
+export function writeCount(documents: unknown, field: string): number | undefined {
+  const reply = Array.isArray(documents) ? (documents[0] as Record<string, unknown>) : undefined
+  const count = reply?.[field]
+  if (typeof count === 'number') {
+    return count
+  }
+  const wrapped = (count as { $numberInt?: unknown } | null | undefined)?.$numberInt
+  return typeof wrapped === 'string' ? Number(wrapped) : undefined
 }

@@ -3,7 +3,12 @@ import { ref, watch, computed, nextTick, shallowRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useNotifier } from '@/utils/dialog'
 import { useSettingsStore } from '@/features/settings/settingsStore'
-import { documentIdFilter, ejsonParseExpression, toEditableEjson } from './editableEjson'
+import {
+  documentIdFilter,
+  ejsonParseExpression,
+  toEditableEjson,
+  writeCount,
+} from './editableEjson'
 import { formatNamespace } from './useDocumentContextMenu'
 import * as shellProxy from 'wailsjs/go/api/ShellProxy'
 import * as monaco from 'monaco-editor'
@@ -117,10 +122,15 @@ async function save() {
   jsonError.value = ''
   const text = editor.value.getValue()
 
+  let parsed: unknown
   try {
-    JSON.parse(text)
+    parsed = JSON.parse(text)
   } catch (e) {
     jsonError.value = t('query.dialogs.invalidJson', { error: (e as Error).message })
+    return
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    jsonError.value = t('query.dialogs.documentMustBeObject')
     return
   }
 
@@ -144,6 +154,11 @@ async function save() {
       '',
     )
     if (result.isSuccess) {
+      // Keep the dialog open, so the edits aren't lost
+      if (props.mode === 'edit' && writeCount(result.data?.documents, 'matchedCount') === 0) {
+        jsonError.value = t('query.dialogs.documentNotFound', { namespace: namespace.value })
+        return
+      }
       emit('saved')
       emit('update:show', false)
     } else {

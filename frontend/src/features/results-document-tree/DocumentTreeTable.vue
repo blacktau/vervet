@@ -22,7 +22,7 @@ import { useSettingsStore } from '@/features/settings/settingsStore'
 import { useNotifier } from '@/utils/dialog'
 import { resolveRawValue } from './resolveRawValue'
 import { humanizeEjson } from './humanizeEjson'
-import { documentIdFilter } from './editableEjson'
+import { documentIdFilter, writeCount } from './editableEjson'
 import DocumentContextMenu from './DocumentContextMenu.vue'
 import DocumentViewDialog from './DocumentViewDialog.vue'
 import DocumentEditDialog from './DocumentEditDialog.vue'
@@ -288,6 +288,9 @@ function handleContextMenuSelect(key: string) {
           '',
         )
         if (result.isSuccess) {
+          if (writeCount(result.data?.documents, 'deletedCount') === 0) {
+            notifier.error(t('query.dialogs.documentNotFound', { namespace }))
+          }
           emit('document-changed')
         } else {
           notifier.error(errorCodeText(result.errorCode), {

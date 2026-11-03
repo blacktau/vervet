@@ -498,6 +498,9 @@ export default {
         "These results don't say which database and collection they came from, so changes go to {namespace}. Check that's where you mean.",
       save: 'Save',
       invalidJson: 'Invalid JSON: {error}',
+      documentMustBeObject: 'A document must be a JSON object.',
+      documentNotFound:
+        'No document was changed: this document was not found in {namespace}. It may have been deleted or changed.',
       extendedJsonHint:
         'Types plain JSON can\'t hold are written as Extended JSON, such as $oid, $date and $numberLong.',
     },

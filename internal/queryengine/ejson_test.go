@@ -294,3 +294,69 @@ func TestEJSON_HasAllMethods(t *testing.T) {
 		assert.Equal(t, "function", val.Export(), "EJSON.%s should be a function", m)
 	}
 }
+
+// EJSON.parse of null must not become an empty document: a replaceOne given one
+// would erase every field.
+func TestEJSON_ParseNullIsNull(t *testing.T) {
+	rt := setupEJSONRuntime(t)
+	for _, script := range []string{`EJSON.parse('null') === null`, `EJSON.parse(' null ', { relaxed: false }) === null`} {
+		got, err := rt.RunString(script)
+		require.NoError(t, err, script)
+		assert.True(t, got.ToBoolean(), script)
+	}
+}
+
+// mongosh reads $date text with Date.parse, so these are accepted as it accepts them.
+func TestEJSON_ParseDateText(t *testing.T) {
+	zone := time.FixedZone("test", -5*60*60)
+	oldLocal := time.Local
+	time.Local = zone
+	t.Cleanup(func() { time.Local = oldLocal })
+
+	cases := map[string]string{
+		"2024-01-23":                "2024-01-23T00:00:00.000Z",
+		"2024-01-23T10:13:20":       "2024-01-23T15:13:20.000Z",
+		"2024-01-23T10:13:20+01:00": "2024-01-23T09:13:20.000Z",
+		"2024-01-23T10:13:20Z":      "2024-01-23T10:13:20.000Z",
+	}
+	rt := setupEJSONRuntime(t)
+	for text, want := range cases {
+		got, err := rt.RunString(`EJSON.parse('{"a":[{"d":{"$date":"` + text + `"}}]}', { relaxed: false }).a[0].d.toISOString()`)
+		require.NoError(t, err, text)
+		assert.Equal(t, want, got.String(), text)
+	}
+}
+
+func TestEJSON_ParseUnreadableDateFails(t *testing.T) {
+	rt := setupEJSONRuntime(t)
+	_, err := rt.RunString(`EJSON.parse('{"d":{"$date":"nope"}}', { relaxed: false })`)
+	assert.Error(t, err)
+}
+
+// Text that merely mentions a date wrapper is left alone when a real one is rewritten.
+func TestEJSON_ParseDateTextIgnoresStrings(t *testing.T) {
+	rt := setupEJSONRuntime(t)
+	got, err := rt.RunString(`EJSON.parse(JSON.stringify({ s: '{"$date":"2024-01-23"}', d: { $date: "2024-01-23" } }), { relaxed: false }).s`)
+	require.NoError(t, err)
+	assert.Equal(t, `{"$date":"2024-01-23"}`, got.String())
+}
+
+// These match what mongosh 2.7 gives for a strict parse.
+func TestEJSON_StrictValuesMatchMongosh(t *testing.T) {
+	rt := setupEJSONRuntime(t)
+	cases := map[string]string{
+		`String(EJSON.parse('{"d":{"$numberDouble":"Infinity"}}', { relaxed: false }).d)`:                         "Infinity",
+		`String(EJSON.parse('{"d":{"$numberDouble":"1e+20"}}', { relaxed: false }).d)`:                            "100000000000000000000",
+		`JSON.stringify(EJSON.parse('{"d":{"$numberDouble":"1.5"}}', { relaxed: false }))`:                        `{"d":1.5}`,
+		`JSON.stringify(EJSON.parse('{"d":{"$numberDouble":"5.0"}}', { relaxed: false }))`:                        `{"d":5}`,
+		`EJSON.parse('{"r":{"$regularExpression":{"pattern":"a","options":"i"}}}', { relaxed: false }).r.pattern`: "a",
+		`EJSON.parse('{"r":{"$regularExpression":{"pattern":"a","options":"i"}}}', { relaxed: false }).r.options`: "i",
+		`EJSON.parse('{"s":{"$symbol":"z"}}', { relaxed: false }).s.value`:                                        "z",
+		`typeof EJSON.parse('{"s":{"$symbol":"z"}}', { relaxed: false }).s.valueOf()`:                             "string",
+	}
+	for script, want := range cases {
+		got, err := rt.RunString(script)
+		require.NoError(t, err, script)
+		assert.Equal(t, want, got.String(), script)
+	}
+}

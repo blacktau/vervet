@@ -102,11 +102,19 @@ func typedScalarToJS(rt *goja.Runtime, v any) (goja.Value, bool) {
 	case float64:
 		return doubleValue(rt, x), true
 	case bson.Symbol:
-		return namedBSONValue(rt, x, string(x)), true
+		obj := bsonObject(rt, x, string(x))
+		_ = obj.Set("value", string(x))
+		_ = obj.Set("valueOf", func() string { return string(x) })
+		return obj, true
 	case bson.Undefined:
+		// mongosh gives null here and so can't write undefined back. Keeping the
+		// type means this is truthy, unlike null: objects always are.
 		return namedBSONValue(rt, x, "undefined"), true
 	case bson.Regex:
-		return namedBSONValue(rt, x, "/"+x.Pattern+"/"+x.Options), true
+		obj := bsonObject(rt, x, "/"+x.Pattern+"/"+x.Options)
+		_ = obj.Set("pattern", x.Pattern)
+		_ = obj.Set("options", x.Options)
+		return obj, true
 	}
 	return nil, false
 }
@@ -212,9 +220,11 @@ func numberValue(rt *goja.Runtime, val any, n int64) goja.Value {
 }
 
 // doubleValue wraps a float64 so it stays a double when written back, whatever its
-// value. The valueOf keeps arithmetic working, as it does for numberValue.
+// value. Its text and JSON are those of a JS number, as in mongosh, and valueOf
+// keeps arithmetic working, as it does for numberValue.
 func doubleValue(rt *goja.Runtime, n float64) goja.Value {
-	obj := bsonObject(rt, n, strconv.FormatFloat(n, 'g', -1, 64))
+	obj := bsonObject(rt, n, rt.ToValue(n).String())
+	_ = obj.Set("toJSON", func() float64 { return n })
 	_ = obj.Set("toNumber", func() float64 { return n })
 	_ = obj.Set("valueOf", func() float64 { return n })
 	return obj

@@ -147,6 +147,29 @@ func TestIntegration_EditRoundTrip_BadWrapperFails(t *testing.T) {
 	assert.Equal(t, bson.D{{Key: "_id", Value: int32(1)}, {Key: "keep", Value: true}}, got)
 }
 
+// The dialog reads these counts to tell a save that matched nothing from a real one.
+func TestIntegration_EditRoundTrip_MissReportsZero(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	db := dbName(t)
+	defer testClient.Database(db).Drop(ctx)
+	engine := NewGojaEngine(testClient, 0, "")
+
+	for script, field := range map[string]string{
+		`db.getCollection("c").replaceOne({ _id: 1 }, { a: 1 })`: "matchedCount",
+		`db.getCollection("c").deleteOne({ _id: 1 })`:            "deletedCount",
+	} {
+		result, err := engine.ExecuteQuery(ctx, testURI, db, script)
+		require.NoError(t, err)
+		require.Len(t, result.Documents, 1, script)
+		received, err := json.Marshal(result.Documents[0])
+		require.NoError(t, err)
+		var doc map[string]any
+		require.NoError(t, json.Unmarshal(received, &doc))
+		assert.EqualValues(t, 0, doc[field], string(received))
+	}
+}
+
 // A strict parse gives values scripts can still use.
 func TestIntegration_EJSON_StrictParseValuesStayUsable(t *testing.T) {
 	engine, db, ctx := setupNumberData(t)

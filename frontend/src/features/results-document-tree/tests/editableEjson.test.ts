@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import { documentIdFilter, ejsonParseExpression, toEditableEjson } from '../editableEjson'
+import {
+  documentIdFilter,
+  ejsonParseExpression,
+  toEditableEjson,
+  writeCount,
+} from '../editableEjson'
+import { hasAmbiguousEjsonField, hasReorderedKeys } from '../bsonValue'
+import { hasDocumentId, isDocumentEditable } from '../useDocumentContextMenu'
 import roundTrip from './fixtures/editRoundTrip.json'
 
 // internal/queryengine/edit_round_trip_integration_test.go saves each "editor" value
@@ -46,5 +53,72 @@ describe('script expressions', () => {
     expect(documentIdFilter('507f1f77bcf86cd799439011')).toBe(
       'EJSON.parse("{\\"_id\\":\\"507f1f77bcf86cd799439011\\"}", { relaxed: false })',
     )
+  })
+})
+
+describe('documentIdFilter', () => {
+  it('refuses a missing _id rather than matching any document', () => {
+    expect(() => documentIdFilter(undefined)).toThrow()
+  })
+})
+
+describe('writeCount', () => {
+  it.each([
+    [[{ matchedCount: 0 }], 0],
+    [[{ matchedCount: 1 }], 1],
+    [[{ matchedCount: { $numberInt: '0' } }], 0],
+    [[{ other: 1 }], undefined],
+    [[], undefined],
+    [undefined, undefined],
+  ])('reads %j', (documents, expected) => {
+    expect(writeCount(documents, 'matchedCount')).toBe(expected)
+  })
+})
+
+describe('hasAmbiguousEjsonField', () => {
+  it.each(roundTrip)('accepts a real value: $name', ({ stored }) => {
+    expect(hasAmbiguousEjsonField({ _id: 1, v: stored })).toBe(false)
+  })
+
+  it.each([
+    [{ $binary: 'AQI=', $type: '00' }],
+    [{ $uuid: '550e8400-e29b-41d4-a716-446655440000' }],
+    [{ $oid: 5 }],
+    [{ $oid: 'zz' }],
+    [{ $timestamp: null }],
+    [{ $date: 'nope' }],
+    [{ $date: '2024-01-01', name: 'x' }],
+    [{ $numberInt: 'db.c.drop()' }],
+    [{ $regex: 'a', $options: 'i' }],
+    [{ $scope: {} }],
+  ])('flags an ordinary object: %j', (field) => {
+    expect(hasAmbiguousEjsonField({ a: [{ b: field }] })).toBe(true)
+  })
+
+  it('leaves other $ fields alone', () => {
+    expect(hasAmbiguousEjsonField({ $custom: 1, nested: { $other: 2 } })).toBe(false)
+  })
+})
+
+describe('which documents can be edited', () => {
+  it('turns Edit off for a document saving would change or reject', () => {
+    expect(isDocumentEditable({ _id: 1, x: { $oid: 5 } })).toBe(false)
+    expect(isDocumentEditable({ _id: 1, x: { $uuid: 'a' } })).toBe(false)
+  })
+
+  it('keeps Edit on for real values', () => {
+    expect(isDocumentEditable({ _id: { $oid: '507f1f77bcf86cd799439011' }, x: { $code: 'y' } })).toBe(
+      true,
+    )
+  })
+
+  it('turns off targeting an _id whose field order may have been lost', () => {
+    expect(hasReorderedKeys({ b: 1, '1': 2 })).toBe(true)
+    expect(hasDocumentId({ _id: { b: 1, '1': 2 } })).toBe(false)
+  })
+
+  it('still targets an ordinary compound _id and a single integer key', () => {
+    expect(hasDocumentId({ _id: { a: 1, b: 2 } })).toBe(true)
+    expect(hasDocumentId({ _id: { '1': 2 } })).toBe(true)
   })
 })
