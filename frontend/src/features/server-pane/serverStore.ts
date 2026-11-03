@@ -7,9 +7,16 @@ import { useNotifier } from '@/utils/dialog.ts'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 import { i18nGlobal } from '@/i18n'
 import { type ConnectionConfig, type OIDCConfig, toAuthMethod } from '@/types/ConnectionConfig'
-import { errorCodeText, resultDetailText, resultErrorText } from '@/utils/resultError'
+import { errorCodeText, type FailedResult, resultDetailText, resultErrorText } from '@/utils/resultError'
 
 export interface ServerDetails extends models.RegisteredServer, Omit<ConnectionConfig, 'refreshToken'> {}
+
+export type ServerDetailsResult =
+  | { status: 'loaded'; server: ServerDetails }
+  | { status: 'configMissing'; server: models.RegisteredServer }
+  | { status: 'failed'; error: FailedResult }
+
+const CONFIG_MISSING = 'connection_config_missing'
 
 type ServerFileResult = { success: true } | { success: false; msg: string }
 
@@ -76,30 +83,33 @@ export const useServerStore = defineStore('server', {
       tree.sort(nodeComparator)
       this.serverTree = tree
     },
-    async getServerDetails(id?: string): Promise<ServerDetails | undefined> {
-      if (id == null) {
-        return undefined
-      }
+    /** Reports failures to the caller, which may no longer want the result. */
+    async getServerDetails(id: string): Promise<ServerDetailsResult> {
+      try {
+        const response = await serversProxy.GetServer(id)
+        if (!response.isSuccess) {
+          return { status: 'failed', error: response }
+        }
 
-      const response = await serversProxy.GetServer(id)
-      if (!response.isSuccess) {
-        const notifier = useNotifier()
-        notifier.error(errorCodeText(response.errorCode), { title: i18nGlobal.t('errorTitles.loadServerDetails'), detail: response.errorDetail })
-        return undefined
-      }
+        const configResult = await serversProxy.GetConnectionConfig(id)
+        if (configResult.errorCode === CONFIG_MISSING) {
+          return { status: 'configMissing', server: response.data }
+        }
+        if (!configResult.isSuccess) {
+          return { status: 'failed', error: configResult }
+        }
 
-      const configResult = await serversProxy.GetConnectionConfig(id)
-      if (!configResult.isSuccess) {
-        const notifier = useNotifier()
-        notifier.error(errorCodeText(configResult.errorCode), { title: i18nGlobal.t('errorTitles.loadServerDetails'), detail: configResult.errorDetail })
-        return undefined
-      }
-
-      return {
-        ...response.data,
-        uri: configResult.data.uri,
-        authMethod: toAuthMethod(configResult.data.authMethod),
-        oidcConfig: configResult.data.oidcConfig as OIDCConfig | undefined,
+        return {
+          status: 'loaded',
+          server: {
+            ...response.data,
+            uri: configResult.data.uri,
+            authMethod: toAuthMethod(configResult.data.authMethod),
+            oidcConfig: configResult.data.oidcConfig as OIDCConfig | undefined,
+          },
+        }
+      } catch (e: unknown) {
+        return { status: 'failed', error: { errorDetail: e instanceof Error ? e.message : String(e) } }
       }
     },
     async saveServer(name: string, connectionString: string, parentId?: string, colour?: string) {

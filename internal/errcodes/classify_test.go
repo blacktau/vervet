@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 
+	"vervet/internal/connectionStrings"
 	"vervet/internal/errcodes"
 	"vervet/internal/shell"
 )
@@ -116,4 +117,10 @@ func TestClassifyError_TimeoutError_WithServerSelection_IsConnectionFailed(t *te
 	err := timeoutError{msg: "server selection error: server selection timeout, current topology: { Type: Unknown }"}
 	result := errcodes.ClassifyError(err)
 	assert.Equal(t, errcodes.ConnectionFailed, result.Code)
+}
+
+func TestClassifyError_ConfigMissing(t *testing.T) {
+	wrapped := fmt.Errorf("failed to retrieve connection URI: %w", connectionStrings.ErrConfigNotFound)
+	result := errcodes.ClassifyError(wrapped)
+	assert.Equal(t, errcodes.ConfigMissing, result.Code)
 }

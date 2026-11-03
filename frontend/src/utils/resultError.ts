@@ -4,7 +4,7 @@ import { useNotifier } from '@/utils/dialog'
 // The Go side's catch-all: it says nothing the detail doesn't say better.
 const UNKNOWN_ERROR = 'unknown_error'
 
-type FailedResult = { errorCode?: string; errorDetail?: string }
+export type FailedResult = { errorCode?: string; errorDetail?: string }
 
 function translateCode(errorCode?: string): string | undefined {
   if (!errorCode) {

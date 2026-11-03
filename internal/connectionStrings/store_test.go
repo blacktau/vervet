@@ -1,12 +1,15 @@
 package connectionStrings
 
 import (
+	"errors"
 	"io"
 	"log/slog"
 	"testing"
 	"time"
 
 	"vervet/internal/models"
+
+	"github.com/zalando/go-keyring"
 )
 
 func newTestStore() *store {
@@ -118,5 +121,25 @@ func TestDeserialiseRawURI(t *testing.T) {
 	}
 	if cfg.AuthMethod != models.AuthPassword {
 		t.Errorf("AuthMethod = %q, want %q", cfg.AuthMethod, models.AuthPassword)
+	}
+}
+
+func TestGetConnectionConfigMissingEntryIsErrConfigNotFound(t *testing.T) {
+	keyring.MockInit()
+
+	_, err := newTestStore().GetConnectionConfig("no-such-server")
+
+	if !errors.Is(err, ErrConfigNotFound) {
+		t.Fatalf("expected ErrConfigNotFound, got %v", err)
+	}
+}
+
+func TestGetConnectionConfigKeyringFailureIsNotErrConfigNotFound(t *testing.T) {
+	keyring.MockInitWithError(errors.New("keyring locked"))
+
+	_, err := newTestStore().GetConnectionConfig("server")
+
+	if err == nil || errors.Is(err, ErrConfigNotFound) {
+		t.Fatalf("expected a keyring failure, got %v", err)
 	}
 }

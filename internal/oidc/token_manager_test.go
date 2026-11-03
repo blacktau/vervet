@@ -21,7 +21,6 @@ type stubStore struct {
 }
 
 func (s *stubStore) StoreRegisteredServerURI(string, string) error { return nil }
-func (s *stubStore) GetRegisteredServerURI(string) (string, error) { return "", nil }
 func (s *stubStore) DeleteRegisteredServerURI(string) error        { return nil }
 func (s *stubStore) StoreConnectionConfig(string, models.ConnectionConfig) error {
 	return nil

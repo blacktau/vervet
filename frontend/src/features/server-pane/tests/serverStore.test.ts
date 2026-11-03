@@ -14,9 +14,8 @@ vi.mock('@/features/data-browser/browserStore.ts', () => ({
   useDataBrowserStore: vi.fn(() => ({})),
 }))
 
-const notifyError = vi.hoisted(() => vi.fn())
 vi.mock('@/utils/dialog.ts', () => ({
-  useNotifier: vi.fn(() => ({ error: notifyError, warning: vi.fn() })),
+  useNotifier: vi.fn(() => ({ error: vi.fn(), warning: vi.fn() })),
 }))
 
 import * as serversProxy from 'wailsjs/go/api/ServersProxy'
@@ -76,23 +75,39 @@ describe('serverStore.getServerDetails', () => {
       data: { uri: 'mongodb://host', authMethod: 'oidc', oidcConfig },
     } as never)
 
-    const details = await useServerStore().getServerDetails('s1')
+    const result = await useServerStore().getServerDetails('s1')
 
-    expect(details?.authMethod).toBe('oidc')
-    expect(details?.oidcConfig).toEqual(oidcConfig)
+    expect(result).toMatchObject({
+      status: 'loaded',
+      server: { uri: 'mongodb://host', authMethod: 'oidc', oidcConfig },
+    })
   })
 
   test('reports a failed config load rather than assuming password auth', async () => {
+    const failure = { isSuccess: false, errorCode: 'unknown_error', errorDetail: 'keyring locked' }
+    vi.mocked(serversProxy.GetConnectionConfig).mockResolvedValue(failure as never)
+
+    const result = await useServerStore().getServerDetails('s1')
+
+    expect(result).toEqual({ status: 'failed', error: failure })
+  })
+
+  test('tells a missing keyring entry apart, keeping the server metadata', async () => {
     vi.mocked(serversProxy.GetConnectionConfig).mockResolvedValue({
       isSuccess: false,
-      errorCode: 'someError',
-      errorDetail: 'keyring locked',
+      errorCode: 'connection_config_missing',
     } as never)
 
-    const details = await useServerStore().getServerDetails('s1')
+    const result = await useServerStore().getServerDetails('s1')
 
-    expect(details).toBeUndefined()
-    expect(notifyError).toHaveBeenCalledTimes(1)
-    expect(notifyError.mock.calls[0]?.[1]).toMatchObject({ detail: 'keyring locked' })
+    expect(result).toEqual({ status: 'configMissing', server })
+  })
+
+  test('reports a rejected bridge call as a failure', async () => {
+    vi.mocked(serversProxy.GetConnectionConfig).mockRejectedValue(new Error('bridge down'))
+
+    const result = await useServerStore().getServerDetails('s1')
+
+    expect(result).toEqual({ status: 'failed', error: { errorDetail: 'bridge down' } })
   })
 })

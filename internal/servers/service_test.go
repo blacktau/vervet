@@ -50,17 +50,6 @@ func (m *MockConnectionStringsStore) StoreRegisteredServerURI(id, uri string) er
 	return nil
 }
 
-func (m *MockConnectionStringsStore) GetRegisteredServerURI(id string) (string, error) {
-	if m.err != nil {
-		return "", m.err
-	}
-	uri, ok := m.uris[id]
-	if !ok {
-		return "", errors.New("URI not found")
-	}
-	return uri, nil
-}
-
 func (m *MockConnectionStringsStore) DeleteRegisteredServerURI(id string) error {
 	if m.err != nil {
 		return m.err
@@ -296,10 +285,6 @@ func (m *countingConnectionStringsStore) StoreConnectionConfig(id string, cfg mo
 
 func (m *countingConnectionStringsStore) StoreRegisteredServerURI(id, uri string) error {
 	return m.inner.StoreRegisteredServerURI(id, uri)
-}
-
-func (m *countingConnectionStringsStore) GetRegisteredServerURI(id string) (string, error) {
-	return m.inner.GetRegisteredServerURI(id)
 }
 
 func (m *countingConnectionStringsStore) DeleteRegisteredServerURI(id string) error {

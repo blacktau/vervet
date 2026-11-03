@@ -10,7 +10,7 @@ import { useI18n } from 'vue-i18n'
 import { computed, h, nextTick, ref, watch } from 'vue'
 import { every, includes, isEmpty } from 'lodash'
 import { FolderPlusIcon, XCircleIcon } from '@heroicons/vue/24/outline'
-import { DialogType, useDialogStore } from '@/stores/dialog.ts'
+import { DialogType, type ServerDialogData, useDialogStore } from '@/stores/dialog.ts'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 import { type RegisteredServerNode, useServerStore } from '@/features/server-pane/serverStore.ts'
 import { useMessager, useNotifier } from '@/utils/dialog.ts'
@@ -23,7 +23,7 @@ import { filterGroupMap, toTreeSelectOptions } from '@/features/server-pane/help
 import * as connectionsProxy from 'wailsjs/go/api/ConnectionsProxy'
 import type { AuthMethod, OIDCConfig } from '@/types/ConnectionConfig'
 import AuthenticationPanel from './authentication/AuthenticationPanel.vue'
-import { errorCodeText } from '@/utils/resultError'
+import { errorCodeText, notifyResultError } from '@/utils/resultError'
 
 type EditableRegisteredServer = {
   id: string
@@ -61,6 +61,8 @@ const generalForm = ref<EditableRegisteredServer>({
 
 const generalFormRef = ref<FormInst | undefined>(undefined)
 const testing = ref(false)
+const loading = ref(false)
+let loadGeneration = 0
 
 const authPicker = ref<AuthMethod>('password')
 const lastChangeSource = ref<'uri' | 'picker' | null>(null)
@@ -249,38 +251,64 @@ const resetForm = () => {
   }
 }
 
+function fillFromServer(server: RegisteredServerNode, uri: string) {
+  generalForm.value = {
+    id: server.id,
+    name: server.name,
+    colour: server.colour,
+    connectionString: uri,
+    parentId: server.parentID || '',
+  }
+  previousParentId.value = generalForm.value.parentId
+  nameWasEdited.value = true
+}
+
+async function loadExistingServer(data: ServerDialogData, generation: number) {
+  editServerID.value = data.serverId
+  loading.value = true
+  const result = await serverStore.getServerDetails(data.serverId)
+  if (generation !== loadGeneration) {
+    return
+  }
+  loading.value = false
+
+  if (result.status === 'failed') {
+    // Without the stored config, saving would overwrite it with a blank form.
+    notifyResultError(result.error, i18n.t('errorTitles.loadServerDetails'))
+    onClose()
+    return
+  }
+
+  if (data.disconnectOnLoad) {
+    browserStore.disconnect(data.serverId)
+  }
+
+  if (result.status === 'configMissing') {
+    // Nothing is stored to overwrite, so let the user re-enter it and keep the server.
+    fillFromServer(result.server, '')
+    useNotifier().warning(i18n.t('serverPane.dialogs.server.configMissing'))
+    return
+  }
+
+  fillFromServer(result.server, result.server.uri)
+  authPicker.value = result.server.authMethod
+  if (result.server.oidcConfig) {
+    oidcConfig.value = { ...result.server.oidcConfig }
+  }
+}
+
 watch(
   () => dialogStore.dialogs[DialogType.Server].visible,
   async (visible: boolean) => {
+    const generation = ++loadGeneration
+    loading.value = false
     if (!visible) {
       return
     }
     resetForm()
     const data = dialogStore.serverDialogData
     if (data?.mode === 'edit' || data?.mode === 'clone') {
-      editServerID.value = data.serverId
-      const server = await serverStore.getServerDetails(data.serverId)
-      if (editServerID.value !== data.serverId) {
-        return
-      }
-      if (server == null) {
-        // Without the stored config, saving would overwrite it with a blank form.
-        onClose()
-        return
-      }
-      generalForm.value = {
-        id: server.id,
-        name: server.name,
-        colour: server.colour,
-        connectionString: server.uri,
-        parentId: server.parentID || '',
-      }
-      previousParentId.value = generalForm.value.parentId
-      authPicker.value = server.authMethod
-      if (server.oidcConfig) {
-        oidcConfig.value = { ...server.oidcConfig }
-      }
-      nameWasEdited.value = true
+      await loadExistingServer(data, generation)
       return
     }
     if (data?.mode === 'new') {
@@ -407,7 +435,7 @@ const onTestConnection = async () => {
     style="width: 600px"
     transform-origin="center"
     @esc="onClose">
-    <n-spin :show="closingConnection">
+    <n-spin :show="closingConnection || loading">
       <n-tabs
         v-model:value="tab"
         animated
@@ -500,7 +528,7 @@ const onTestConnection = async () => {
     <template #action>
       <div class="flex-item-expand">
         <n-button
-          :disabled="closingConnection || !generalForm.connectionString"
+          :disabled="closingConnection || loading || !generalForm.connectionString"
           :focusable="false"
           :loading="testing"
           @click="onTestConnection">
@@ -512,7 +540,7 @@ const onTestConnection = async () => {
           {{ $t('common.cancel') }}
         </n-button>
         <n-button
-          :disabled="closingConnection || !generalForm.name || !generalForm.connectionString"
+          :disabled="closingConnection || loading || !generalForm.name || !generalForm.connectionString"
           :focusable="false"
           type="primary"
           @click="onSaveServer">

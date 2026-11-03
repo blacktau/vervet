@@ -14,6 +14,10 @@ import (
 
 const serviceName = "Vervet"
 
+// ErrConfigNotFound means the keyring works but holds no entry for the server,
+// as opposed to the keyring being locked or unavailable.
+var ErrConfigNotFound = keyring.ErrNotFound
+
 // keyringTimeout is intentionally generous: on Linux the OS secret service may
 // prompt the user for a password to unlock the login keyring, and that interaction
 // dominates wall-clock latency. A truly-missing D-Bus daemon fails fast from
@@ -24,7 +28,6 @@ const keyringCooldown = 1 * time.Minute
 
 type Store interface {
 	StoreRegisteredServerURI(registeredServerID, uri string) error
-	GetRegisteredServerURI(registeredServerID string) (string, error)
 	DeleteRegisteredServerURI(registeredServerID string) error
 	StoreConnectionConfig(registeredServerID string, cfg models.ConnectionConfig) error
 	GetConnectionConfig(registeredServerID string) (models.ConnectionConfig, error)
@@ -58,7 +61,8 @@ func (s *store) StoreRegisteredServerURI(registeredServerID, uri string) error {
 	return nil
 }
 
-func (s *store) GetRegisteredServerURI(registeredServerID string) (string, error) {
+// getRawEntry returns the keyring value as stored, including any refresh token.
+func (s *store) getRawEntry(registeredServerID string) (string, error) {
 	key := getKey(registeredServerID)
 	var uri string
 	err := s.withTimeout(keyringTimeout, func() error {
@@ -183,7 +187,7 @@ func (s *store) StoreConnectionConfig(registeredServerID string, cfg models.Conn
 }
 
 func (s *store) GetConnectionConfig(registeredServerID string) (models.ConnectionConfig, error) {
-	raw, err := s.GetRegisteredServerURI(registeredServerID)
+	raw, err := s.getRawEntry(registeredServerID)
 	if err != nil {
 		return models.ConnectionConfig{}, err
 	}

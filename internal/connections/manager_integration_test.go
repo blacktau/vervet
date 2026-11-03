@@ -65,7 +65,6 @@ type fakeStore struct {
 }
 
 func (f fakeStore) StoreRegisteredServerURI(string, string) error               { return nil }
-func (f fakeStore) GetRegisteredServerURI(string) (string, error)               { return "", nil }
 func (f fakeStore) DeleteRegisteredServerURI(string) error                      { return nil }
 func (f fakeStore) StoreConnectionConfig(string, models.ConnectionConfig) error { return nil }
 func (f fakeStore) UpdateRefreshToken(string, string) error                     { return nil }

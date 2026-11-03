@@ -32,6 +32,8 @@ export const enum DialogType {
 export type ServerDialogData = {
   serverId: string
   mode: 'edit' | 'clone'
+  /** Disconnect the server once its details have loaded, not before: a failed load cancels the edit. */
+  disconnectOnLoad?: boolean
 }
 
 export type NewServerDialogData = {
@@ -161,10 +163,11 @@ export const useDialogStore = defineStore('dialog', {
       }
       this.showNewDialog(DialogType.Server, data)
     },
-    async showServerEditDialog(serverId: string) {
+    async showServerEditDialog(serverId: string, options?: { disconnectOnLoad?: boolean }) {
       this.showEditDialog(DialogType.Server, {
         serverId: serverId,
         mode: 'edit',
+        disconnectOnLoad: options?.disconnectOnLoad,
       })
     },
     async showCloneServerDialog(serverId: string) {

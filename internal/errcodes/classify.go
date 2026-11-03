@@ -7,6 +7,7 @@ import (
 
 	"go.mongodb.org/mongo-driver/v2/mongo"
 
+	"vervet/internal/connectionStrings"
 	"vervet/internal/oidc"
 	"vervet/internal/servers"
 	"vervet/internal/shell"
@@ -21,6 +22,10 @@ func ClassifyError(err error) ClassifiedError {
 
 	if errors.Is(err, oidc.ErrLoginCanceled) {
 		return ClassifiedError{Code: OIDCLoginCanceled, Detail: err.Error()}
+	}
+
+	if errors.Is(err, connectionStrings.ErrConfigNotFound) {
+		return ClassifiedError{Code: ConfigMissing, Detail: err.Error()}
 	}
 
 	if errors.Is(err, servers.ErrDuplicateGroupName) {
