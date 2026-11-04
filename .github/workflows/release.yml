@@ -183,6 +183,16 @@ jobs:
           # Workaround: add WEBKIT_DISABLE_COMPOSITING_MODE to GTK plugin
           sed -i '/XDG_DATA_DIRS/a export WEBKIT_DISABLE_COMPOSITING_MODE=1' linuxdeploy-plugin-gtk.sh
 
+          # libwayland-client must come from the host: the host's Mesa loads it,
+          # and Ubuntu's older copy makes EGL fail on newer distros (Fedora 44),
+          # which aborts WebKit and leaves a white window. The plugin runs its own
+          # linuxdeploy, so it needs the exclusion as well as the call below.
+          # Upstream excludes this library too; a newer linuxdeploy may make this
+          # patch unnecessary:
+          # https://github.com/AppImageCommunity/pkg2appimage/blob/master/excludelist
+          # https://gitlab.freedesktop.org/mesa/mesa/-/issues/11316
+          sed -i 's|"\$LINUXDEPLOY" --appdir="\$APPDIR"|& --exclude-library="libwayland-client*"|' linuxdeploy-plugin-gtk.sh
+
           # Initial linuxdeploy run to set up AppDir
           ./linuxdeploy --appdir AppDir
 
@@ -210,11 +220,18 @@ jobs:
 
           # Run linuxdeploy with GTK plugin to produce AppImage
           ./linuxdeploy --appdir AppDir \
+            --exclude-library 'libwayland-client*' \
             --output appimage \
             --plugin gtk \
             -e build/bin/Vervet \
             -d build/linux/Vervet.desktop \
             -i build/Vervet-512.png
+
+          # Fail rather than ship the white window if the exclusion stops working
+          if [ -n "$(find AppDir -name 'libwayland-client.so*')" ]; then
+            echo "::error::libwayland-client was bundled into the AppImage"
+            exit 1
+          fi
 
           # Rename output (linuxdeploy names it based on the desktop file)
           mv Vervet-x86_64.AppImage "Vervet-linux-amd64.AppImage"
