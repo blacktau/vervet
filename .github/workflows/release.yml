@@ -206,6 +206,7 @@ jobs:
           # Copy binary
           mkdir -p AppDir/usr/bin
           cp build/bin/Vervet AppDir/usr/bin/
+          install -m 755 build/linux/xdg-open AppDir/usr/bin/xdg-open
 
           # Run linuxdeploy with GTK plugin to produce AppImage
           ./linuxdeploy --appdir AppDir \

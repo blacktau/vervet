@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 	"vervet/internal/models"
+	"vervet/internal/workdir"
 )
 
 var (
@@ -180,6 +181,13 @@ func runMongosh(ctx context.Context, query string, cfg Config, args func(queryFi
 
 	cmd := exec.CommandContext(ctx, "mongosh", args(queryFile)...)
 	cmd.Dir = cfg.ScriptDir
+	if cmd.Dir == "" {
+		// An unsaved tab has no directory of its own. An empty cmd.Dir would run
+		// mongosh in the process directory, which is inside the AppImage's mount.
+		if wd, err := workdir.Get(); err == nil {
+			cmd.Dir = wd
+		}
+	}
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout

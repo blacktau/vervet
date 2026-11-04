@@ -5,14 +5,15 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"vervet/internal/workdir"
 
 	"github.com/dop251/goja"
 )
 
 // scriptLocation resolves the script's own path and the directory that
 // relative paths resolve against. An unsaved tab has no path, so it falls
-// back to the process working directory — the same base the runtime used
-// before scripts could be saved to files.
+// back to the user's working directory — the same base the runtime used before
+// scripts could be saved to files.
 func scriptLocation(scriptPath string) (path, baseDir string) {
 	if scriptPath != "" {
 		abs, err := filepath.Abs(scriptPath)
@@ -22,7 +23,7 @@ func scriptLocation(scriptPath string) (path, baseDir string) {
 		return abs, filepath.Dir(abs)
 	}
 
-	wd, err := os.Getwd()
+	wd, err := workdir.Get()
 	if err != nil {
 		return "", ""
 	}
