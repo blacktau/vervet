@@ -3,8 +3,8 @@
 // The edit dialog must keep the namespace it opened with. Starting another
 // query replaces the table's live collection context, and a save made after
 // that still has to go where the document came from.
-import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { defineComponent, h, ref } from 'vue'
+import { beforeAll, describe, it, expect, beforeEach, vi } from 'vitest'
+import { type Component, defineComponent, h, ref } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
@@ -54,9 +54,16 @@ beforeEach(() => {
   setActivePinia(createPinia())
 })
 
+// Loaded once up front: importing it takes most of 5 seconds, which would otherwise
+// count against the timeout of whichever test ran first.
+let DocumentTreeTable: Component
+
+beforeAll(async () => {
+  DocumentTreeTable = (await import('../DocumentTreeTable.vue')).default
+}, 60_000)
+
 describe('DocumentTreeTable edit context', () => {
   it('keeps the namespace the edit dialog opened with', async () => {
-    const DocumentTreeTable = (await import('../DocumentTreeTable.vue')).default
     const context = ref<CollectionContext | undefined>(shopOrders)
     const wrapper = mount(
       {
@@ -105,7 +112,6 @@ describe('DocumentTreeTable edit context', () => {
     ['editDocument', true],
     ['insertDocument', false],
   ])('after saving from %s, reports edited as %s', async (action, edited) => {
-    const DocumentTreeTable = (await import('../DocumentTreeTable.vue')).default
     const wrapper = mount(
       {
         render: () =>

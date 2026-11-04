@@ -3,18 +3,20 @@ import { createPinia, setActivePinia } from 'pinia'
 
 const connect = vi.fn()
 const disconnect = vi.fn().mockResolvedValue(true)
+const isConnected = vi.fn(() => false)
 const upsertTab = vi.fn()
+const closeTab = vi.fn().mockResolvedValue(undefined)
 
 vi.mock('wailsjs/go/api/OIDCProxy', () => ({
   CancelLogin: vi.fn().mockResolvedValue({ isSuccess: true }),
 }))
 
 vi.mock('@/features/data-browser/browserStore.ts', () => ({
-  useDataBrowserStore: vi.fn(() => ({ connect, disconnect })),
+  useDataBrowserStore: vi.fn(() => ({ connect, disconnect, isConnected })),
 }))
 
 vi.mock('@/features/tabs/tabs.ts', () => ({
-  useTabStore: vi.fn(() => ({ upsertTab })),
+  useTabStore: vi.fn(() => ({ upsertTab, closeTab })),
 }))
 
 vi.mock('@/utils/dialog.ts', () => ({
@@ -28,6 +30,19 @@ describe('useServerConnection', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
+    isConnected.mockReturnValue(false)
+  })
+
+  test('a connected server goes through the normal disconnect flow', async () => {
+    isConnected.mockReturnValue(true)
+    const { connectToServer, connectingServer } = useServerConnection()
+
+    await connectToServer('s1')
+
+    expect(closeTab).toHaveBeenCalledWith('s1')
+    expect(connect).not.toHaveBeenCalled()
+    expect(upsertTab).not.toHaveBeenCalled()
+    expect(connectingServer.value).toBe('')
   })
 
   test('cancelling cancels the in-flight OIDC login', async () => {

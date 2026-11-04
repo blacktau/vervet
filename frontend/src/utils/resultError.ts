@@ -43,6 +43,11 @@ export function resultErrorLines({ errorCode, errorDetail }: FailedResult): stri
   return errorDetail && errorDetail !== headline ? `${headline}\n${errorDetail}` : headline
 }
 
+/** Notifies of a failure that isn't a database operation, leading with the real error. See resultDetailText. */
+export function notifyResultDetail(result: FailedResult, title?: string): void {
+  useNotifier().error(resultDetailText(result), { title })
+}
+
 /** Notifies of a failed proxy result, keeping the detail beneath the headline. */
 export function notifyResultError(result: FailedResult, title?: string): void {
   useNotifier().error(errorCodeText(result.errorCode), { title, detail: result.errorDetail })

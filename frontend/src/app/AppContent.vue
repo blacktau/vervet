@@ -20,6 +20,7 @@ import TitleBar from '@/app/TitleBar.vue'
 import UnifiedContentPane from '@/features/tabs/UnifiedContentPane.vue'
 import WorkspacePane from '@/features/workspaces/WorkspacePane.vue'
 import { useUpdateStore } from '@/features/updates/updateStore'
+import { useAppCloseGuard } from '@/features/tabs/useAppCloseGuard'
 import OIDCAuthUrlDialog from '@/features/oidc/OIDCAuthUrlDialog.vue'
 
 const themeVars = useThemeVars()
@@ -43,6 +44,8 @@ runtime.EventsOn('config-parse-error', (detail: string) => {
     duration: 15000,
   })
 })
+
+useAppCloseGuard()
 
 // Keep frontend state in sync when the backend drops a connection without
 // the user clicking disconnect (e.g. network loss, server-side timeout).

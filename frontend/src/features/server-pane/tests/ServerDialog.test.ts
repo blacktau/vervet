@@ -31,6 +31,11 @@ vi.mock('@/utils/dialog.ts', () => ({
   useDialoger: () => ({ warning: confirmWarning }),
 }))
 
+const resolveUnsavedQueries = vi.fn(async () => true)
+vi.mock('@/features/tabs/tabs.ts', () => ({
+  useTabStore: () => ({ resolveUnsavedQueries }),
+}))
+
 const metadata = { id: 's1', name: 'Server', colour: '#F75B52', parentID: 'g1' }
 const loaded = {
   status: 'loaded',
@@ -416,6 +421,21 @@ describe('ServerDialog loading an existing server', () => {
       await confirmWarning.mock.calls[0]?.[1]()
       await flushPromises()
 
+      expect(disconnect).not.toHaveBeenCalled()
+      expect(isOpen()).toBe(true)
+    })
+
+    test('cancelling the unsaved queries prompt leaves the details and the connection alone', async () => {
+      resolveUnsavedQueries.mockResolvedValueOnce(false)
+      const { saveButton } = await openLoaded()
+
+      await saveButton().trigger('click')
+      await flushPromises()
+      await confirmWarning.mock.calls[0]?.[1]()
+      await flushPromises()
+
+      expect(resolveUnsavedQueries).toHaveBeenCalledWith('s1')
+      expect(updateServerWithConfig).not.toHaveBeenCalled()
       expect(disconnect).not.toHaveBeenCalled()
       expect(isOpen()).toBe(true)
     })

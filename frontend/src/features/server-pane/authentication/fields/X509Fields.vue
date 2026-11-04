@@ -58,6 +58,7 @@ import { useI18n } from 'vue-i18n'
 import { InformationCircleIcon } from '@heroicons/vue/24/outline'
 import { parseX509, serialiseX509, type X509Auth } from '../authUri'
 import { SelectFile } from 'wailsjs/go/api/FilesProxy'
+import { notifyResultDetail } from '@/utils/resultError'
 
 const props = defineProps<{ uri: string }>()
 const emit = defineEmits<{ (e: 'update:uri', value: string): void }>()
@@ -76,10 +77,15 @@ async function browse(): Promise<void> {
     { displayName: 'PEM files', pattern: '*.pem;*.crt;*.key' },
     { displayName: 'All files', pattern: '*' },
   ])
-  if (result.isSuccess && result.data) {
-    update({ certFile: result.data })
-    certFileTouched.value = true
+  if (!result.isSuccess) {
+    notifyResultDetail(result, i18n.t('errorTitles.fileDialog'))
+    return
   }
+  if (!result.data) {
+    return // User cancelled
+  }
+  update({ certFile: result.data })
+  certFileTouched.value = true
 }
 </script>
 

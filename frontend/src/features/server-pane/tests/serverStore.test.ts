@@ -6,9 +6,16 @@ vi.mock('wailsjs/go/api/ServersProxy', () => ({
   GetServers: vi.fn().mockResolvedValue({ isSuccess: true, data: [] }),
   GetServer: vi.fn(),
   GetConnectionConfig: vi.fn(),
+  ExportServers: vi.fn(),
+  ImportServers: vi.fn(),
 }))
 
-vi.mock('wailsjs/go/api/FilesProxy', () => ({}))
+vi.mock('wailsjs/go/api/FilesProxy', () => ({
+  SelectFile: vi.fn(),
+  SaveFile: vi.fn(),
+  ReadFile: vi.fn(),
+  WriteFile: vi.fn(),
+}))
 
 vi.mock('@/features/data-browser/browserStore.ts', () => ({
   useDataBrowserStore: vi.fn(() => ({})),
@@ -19,6 +26,7 @@ vi.mock('@/utils/dialog.ts', () => ({
 }))
 
 import * as serversProxy from 'wailsjs/go/api/ServersProxy'
+import * as filesProxy from 'wailsjs/go/api/FilesProxy'
 import { useServerStore } from '@/features/server-pane/serverStore'
 
 describe('serverStore.createGroup', () => {
@@ -109,5 +117,51 @@ describe('serverStore.getServerDetails', () => {
     const result = await useServerStore().getServerDetails('s1')
 
     expect(result).toEqual({ status: 'failed', error: { errorDetail: 'bridge down' } })
+  })
+})
+
+describe('serverStore file dialogs', () => {
+  const dialogFailure = { isSuccess: false, data: '', errorCode: 'unknown_error', errorDetail: 'no display' }
+
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    vi.mocked(serversProxy.ExportServers).mockResolvedValue({ isSuccess: true, data: '{}' } as never)
+  })
+
+  test('exportServers reports a failed dialog with its detail and writes nothing', async () => {
+    vi.mocked(filesProxy.SaveFile).mockResolvedValue(dialogFailure as never)
+
+    const result = await useServerStore().exportServers(['s1'], false)
+
+    expect(result).toEqual({ success: false, msg: 'no display' })
+    expect(filesProxy.WriteFile).not.toHaveBeenCalled()
+  })
+
+  test('exportServers treats a cancelled dialog as success and writes nothing', async () => {
+    vi.mocked(filesProxy.SaveFile).mockResolvedValue({ isSuccess: true, data: '' } as never)
+
+    const result = await useServerStore().exportServers(['s1'], false)
+
+    expect(result).toEqual({ success: true })
+    expect(filesProxy.WriteFile).not.toHaveBeenCalled()
+  })
+
+  test('importServers reports a failed dialog with its detail and reads nothing', async () => {
+    vi.mocked(filesProxy.SelectFile).mockResolvedValue(dialogFailure as never)
+
+    const result = await useServerStore().importServers()
+
+    expect(result).toEqual({ success: false, msg: 'no display' })
+    expect(filesProxy.ReadFile).not.toHaveBeenCalled()
+  })
+
+  test('importServers treats a cancelled dialog as success and reads nothing', async () => {
+    vi.mocked(filesProxy.SelectFile).mockResolvedValue({ isSuccess: true, data: '' } as never)
+
+    const result = await useServerStore().importServers()
+
+    expect(result).toEqual({ success: true })
+    expect(filesProxy.ReadFile).not.toHaveBeenCalled()
   })
 })

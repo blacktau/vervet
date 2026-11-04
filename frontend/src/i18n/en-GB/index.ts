@@ -552,6 +552,10 @@ export default {
     unsavedChangesSave: 'Save',
     unsavedChangesDontSave: "Don't Save",
     unsavedChangesCancel: 'Cancel',
+    unsavedChangesMultipleMessage: '{count} tabs have unsaved changes:',
+    unsavedChangesSaveAll: 'Save All',
+    unsavedChangesDiscardAll: 'Discard All',
+    untitled: 'Untitled',
     modified: 'Modified',
   },
   export: {
@@ -849,5 +853,7 @@ export default {
     deleteDocument: 'Failed to delete document',
     insertDocument: 'Failed to insert document',
     loadFile: 'Failed to load file',
+    saveFile: 'Failed to save file',
+    fileDialog: 'Failed to open file dialog',
   },
 }

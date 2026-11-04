@@ -256,11 +256,11 @@ const fileName = computed(() => {
   return fp.split('/').pop() ?? fp
 })
 
-const saveFile = async () => {
+const saveFile = async (): Promise<boolean> => {
   if (!editor.value) {
-    return
+    return false
   }
-  await queryStore.saveFile(props.queryId, editor.value.getValue())
+  return queryStore.saveFile(props.queryId, editor.value.getValue())
 }
 
 const saveFileAs = async () => {
@@ -278,8 +278,8 @@ const promptSaveIfDirty = async (): Promise<boolean> => {
       positiveText: t('query.unsavedChangesSave'),
       negativeText: t('query.unsavedChangesDontSave'),
       onPositiveClick: async () => {
-        await saveFile()
-        resolve(true)
+        // Only move on once the edits are safe: opening a file replaces them.
+        resolve(await saveFile())
       },
       onNegativeClick: () => {
         resolve(true)
@@ -299,7 +299,12 @@ const openFile = async () => {
     }
   }
 
-  await queryStore.openFile(props.queryId)
+  const content = await queryStore.openFile(props.queryId)
+  // The savedContent watcher misses a file matching what was last saved, such as
+  // reopening a file after discarding edits to it.
+  if (content !== null && editor.value && editor.value.getValue() !== content) {
+    editor.value.setValue(content)
+  }
 }
 
 // Push loaded file content into the editor. Covers every load path (Ctrl+O and
@@ -350,6 +355,27 @@ onMounted(async () => {
     item.initialText = undefined
   }
 
+  // An untitled tab has no file to compare against, so what it opened with counts
+  // as saved: otherwise it could never become dirty, and its edits could be lost
+  // without a prompt.
+  if (queryState.value.savedContent === null && editor.value) {
+    queryStore.setSavedContent(props.queryId, editor.value.getValue())
+  }
+
+  // Before the awaits below, which can be slow: the user can already be typing.
+  if (editor.value) {
+    const syncContent = () => {
+      const currentContent = editor.value?.getValue() ?? ''
+      queryStore.setCurrentContent(props.queryId, currentContent)
+      const saved = queryState.value.savedContent
+      if (saved !== null) {
+        queryStore.setDirty(props.queryId, currentContent !== saved)
+      }
+    }
+    editor.value.onDidChangeModelContent(syncContent)
+    syncContent()
+  }
+
   await queryStore.checkMongosh()
 
   const serverId = tabStore.currentTab?.serverId
@@ -393,16 +419,6 @@ onMounted(async () => {
         runQuery()
       },
     })
-
-    editor.value.onDidChangeModelContent(() => {
-      const currentContent = editor.value?.getValue() ?? ''
-      queryStore.setCurrentContent(props.queryId, currentContent)
-      const saved = queryState.value.savedContent
-      if (saved !== null) {
-        queryStore.setDirty(props.queryId, currentContent !== saved)
-      }
-    })
-    queryStore.setCurrentContent(props.queryId, editor.value.getValue())
   }
 })
 

@@ -216,7 +216,10 @@ export const useServerStore = defineStore('server', {
       const filters = [{ displayName: 'JSON', pattern: '*.json' }]
 
       const pathResult = await filesProxy.SaveFile(title, defaultName, filters)
-      if (!pathResult.isSuccess || !pathResult.data) {
+      if (!pathResult.isSuccess) {
+        return { success: false, msg: resultDetailText(pathResult) }
+      }
+      if (!pathResult.data) {
         return { success: true } // User cancelled — not an error
       }
 
@@ -235,7 +238,10 @@ export const useServerStore = defineStore('server', {
       ]
 
       const pathResult = await filesProxy.SelectFile(title, filters)
-      if (!pathResult.isSuccess || !pathResult.data) {
+      if (!pathResult.isSuccess) {
+        return { success: false, msg: resultDetailText(pathResult) }
+      }
+      if (!pathResult.data) {
         return { success: true } // User cancelled
       }
 

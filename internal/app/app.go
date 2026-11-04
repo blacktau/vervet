@@ -9,6 +9,7 @@ import (
 
 	"vervet/internal/api"
 	"vervet/internal/clientregistry"
+	"vervet/internal/closeguard"
 	"vervet/internal/collections"
 	"vervet/internal/connectionStrings"
 	"vervet/internal/connections"
@@ -48,6 +49,7 @@ func (a *filesServiceSaveDialogAdapter) SaveFile(title *string, name *string, fi
 // App struct
 type App struct {
 	log              *slog.Logger
+	closeGuard       *closeguard.Guard
 	ctx              context.Context
 	ServersProxy     *api.ServersProxy
 	ConnectionsProxy *api.ConnectionsProxy
@@ -58,6 +60,7 @@ type App struct {
 	SystemProxy      *api.SystemProxy
 	SettingsProxy    *api.SettingsProxy
 	FilesProxy       *api.FilesProxy
+	CloseGuardProxy  *api.CloseGuardProxy
 	WorkspacesProxy  *api.WorkspacesProxy
 	UpdatesProxy     *api.UpdatesProxy
 	ExportProxy      *api.ExportProxy
@@ -116,8 +119,12 @@ func NewApp(log *slog.Logger, settingsService settings.Service, version string) 
 	}
 	workspaceService := workspaces.NewService(log, workspaceStore)
 
+	closeGuard := closeguard.New(log)
+
 	return &App{
 		log:                log,
+		closeGuard:         closeGuard,
+		CloseGuardProxy:    api.NewCloseGuardProxy(log, closeGuard),
 		serverService:      serverService,
 		registry:           registry,
 		connectionManager:  connectionManager,
@@ -195,6 +202,17 @@ func (a *App) Startup(ctx context.Context) {
 	a.updatesOpener.SetContext(ctx)
 	a.UpdatesProxy.Init(ctx)
 
+	a.closeGuard.Init(
+		func() {
+			// Closing from the taskbar can happen while minimised, where the prompt can't be seen.
+			if wailsRuntime.WindowIsMinimised(ctx) {
+				wailsRuntime.WindowUnminimise(ctx)
+			}
+			wailsRuntime.EventsEmit(ctx, closeguard.EventCloseRequested)
+		},
+		func() { wailsRuntime.Quit(ctx) },
+	)
+
 	go a.runUpdateChecks(ctx)
 }
 
@@ -229,6 +247,9 @@ func (a *App) DomReady(ctx context.Context) {
 // either by clicking the window close button or calling runtime.Quit.
 // Returning true will cause the application to continue, false will continue shutdown as normal.
 func (a *App) BeforeClose(ctx context.Context) (prevent bool) {
+	if a.closeGuard.BeforeClose() {
+		return true
+	}
 	a.saveWindowState()
 	return false
 }
