@@ -187,6 +187,10 @@ jobs:
           # and Ubuntu's older copy makes EGL fail on newer distros (Fedora 44),
           # which aborts WebKit and leaves a white window. The plugin runs its own
           # linuxdeploy, so it needs the exclusion as well as the call below.
+          # Upstream excludes this library too; a newer linuxdeploy may make this
+          # patch unnecessary:
+          # https://github.com/AppImageCommunity/pkg2appimage/blob/master/excludelist
+          # https://gitlab.freedesktop.org/mesa/mesa/-/issues/11316
           sed -i 's|"\$LINUXDEPLOY" --appdir="\$APPDIR"|& --exclude-library="libwayland-client*"|' linuxdeploy-plugin-gtk.sh
 
           # Initial linuxdeploy run to set up AppDir

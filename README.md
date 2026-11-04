@@ -41,6 +41,10 @@ or straight from [Releases](https://github.com/blacktau/vervet/releases/latest):
 | **macOS** (Intel, Apple silicon) | `.dmg` |
 | **Windows** (amd64, arm64) | Installer `.exe`, portable `.zip` |
 
+The AppImage needs glibc 2.38 or newer and uses some of your system's libraries,
+including `libwayland-client`. Desktop installs normally have these, but minimal
+installs and containers may not.
+
 ## Supported MongoDB versions
 
 Vervet supports the MongoDB versions that have not reached
