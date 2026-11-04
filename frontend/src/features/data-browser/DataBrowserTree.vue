@@ -76,7 +76,7 @@ async function handleContextMenuSelect(key: string) {
 
   if (key === 'disconnect' && node.type === DataNodeType.Server) {
     const serverId = node.key as string
-    browserStore.disconnect(serverId)
+    tabStore.closeTab(serverId)
   }
 
   if (key === 'addDatabase' && node.type === DataNodeType.Server) {

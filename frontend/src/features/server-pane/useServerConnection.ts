@@ -17,6 +17,12 @@ export function useServerConnection() {
 
   const connectToServer = async (serverId: string) => {
     const myAttempt = ++attempt
+    // Double-clicking a connected server is how it gets disconnected from here.
+    if (browserStore.isConnected(serverId)) {
+      await tabStore.closeTab(serverId)
+      return
+    }
+
     try {
       connectingServer.value = serverId
       const connectionResult = await browserStore.connect(serverId)

@@ -40,6 +40,7 @@ vi.mock('@/utils/dialog', () => ({
 import * as filesProxy from 'wailsjs/go/api/FilesProxy'
 import { useTabStore } from '@/features/tabs/tabs'
 import { useQueryStore } from '@/features/queries/queryStore'
+import { useDataBrowserStore } from '@/features/data-browser/browserStore'
 
 const SERVER = 'server-1'
 
@@ -67,8 +68,8 @@ function buttonLabels() {
 }
 
 /** An unsaved query, in a tab with a file if a path is given. */
-function addDirtyQuery(filePath?: string): string {
-  const id = useTabStore().openQuery(SERVER, 'shop')!
+function addDirtyQuery(filePath?: string, serverId: string = SERVER): string {
+  const id = useTabStore().openQuery(serverId, 'shop')!
   const queryStore = useQueryStore()
   queryStore.setSavedContent(id, 'original')
   if (filePath) {
@@ -77,6 +78,16 @@ function addDirtyQuery(filePath?: string): string {
   queryStore.setCurrentContent(id, `edits to ${id}`)
   queryStore.setDirty(id, true)
   return id
+}
+
+function addSecondServer() {
+  useTabStore().tabItems.push({
+    serverId: 'server-2',
+    title: 'Server 2',
+    blank: false,
+    queries: [],
+    innerTabOrder: [],
+  } as never)
 }
 
 beforeEach(() => {
@@ -235,5 +246,116 @@ describe('closeTab with unsaved queries', () => {
     expect(notifyError).toHaveBeenCalledOnce()
     expect(useQueryStore().getQueryState(notReached).isDirty).toBe(true)
     expect(confirmDisconnect).not.toHaveBeenCalled()
+  })
+})
+
+describe('disconnecting with no tab open', () => {
+  it('still confirms, using the name of the connection', async () => {
+    const browserStore = useDataBrowserStore()
+    browserStore.connections = [{ serverID: 'server-2', name: 'Other Server' }] as never
+
+    await useTabStore().closeTab('server-2')
+
+    expect(dialogShow).not.toHaveBeenCalled()
+    expect(confirmDisconnect.mock.calls[0]![0]).toContain('Other Server')
+  })
+
+  it('tells the caller once the disconnect has happened', async () => {
+    const onDisconnected = vi.fn()
+
+    await useTabStore().closeTab(SERVER, onDisconnected)
+    expect(onDisconnected).not.toHaveBeenCalled()
+
+    await confirmDisconnect.mock.calls[0]![1]()
+    expect(onDisconnected).toHaveBeenCalledOnce()
+  })
+})
+
+describe('resolveUnsavedQueries', () => {
+  it('is true straight away when nothing is unsaved', async () => {
+    await expect(useTabStore().resolveUnsavedQueries(SERVER)).resolves.toBe(true)
+    expect(dialogShow).not.toHaveBeenCalled()
+  })
+
+  it('does not ask for a confirmation to disconnect', async () => {
+    addDirtyQuery('/queries/a.js')
+
+    const resolved = useTabStore().resolveUnsavedQueries(SERVER)
+    await flushPromises()
+    await clickButton("Don't Save")
+
+    await expect(resolved).resolves.toBe(true)
+    expect(confirmDisconnect).not.toHaveBeenCalled()
+  })
+
+  it('is false when the user cancels', async () => {
+    addDirtyQuery('/queries/a.js')
+
+    const resolved = useTabStore().resolveUnsavedQueries(SERVER)
+    await flushPromises()
+    await clickButton('Cancel')
+
+    await expect(resolved).resolves.toBe(false)
+  })
+
+  it('only covers the server it was asked about', async () => {
+    addSecondServer()
+    addDirtyQuery('/queries/a.js', 'server-2')
+
+    await expect(useTabStore().resolveUnsavedQueries(SERVER)).resolves.toBe(true)
+    expect(dialogShow).not.toHaveBeenCalled()
+  })
+})
+
+describe('resolveAllUnsavedQueries', () => {
+  it('asks once across every server, saying which server each tab is on', async () => {
+    addSecondServer()
+    addDirtyQuery('/queries/a.js')
+    addDirtyQuery('/queries/b.js', 'server-2')
+
+    const resolved = useTabStore().resolveAllUnsavedQueries()
+    await flushPromises()
+
+    expect(dialogShow).toHaveBeenCalledOnce()
+    expect(renderToWrapper(promptOptions().content).findAll('li').map((li) => li.text())).toEqual([
+      'Server 1: a.js',
+      'Server 2: b.js',
+    ])
+
+    await clickButton('Save All')
+    await expect(resolved).resolves.toBe(true)
+    expect(filesProxy.WriteFile).toHaveBeenCalledTimes(2)
+  })
+
+  it('leaves out the server name when they are all on one', async () => {
+    addSecondServer()
+    addDirtyQuery('/queries/a.js')
+
+    void useTabStore().resolveAllUnsavedQueries()
+    await flushPromises()
+
+    expect(renderToWrapper(promptOptions().content).text()).toBe('Save changes to a.js?')
+  })
+})
+
+describe('hasUnsavedQueries', () => {
+  it('follows the dirty state of open queries', () => {
+    const tabStore = useTabStore()
+    expect(tabStore.hasUnsavedQueries).toBe(false)
+
+    const id = addDirtyQuery('/queries/a.js')
+    expect(tabStore.hasUnsavedQueries).toBe(true)
+
+    useQueryStore().setDirty(id, false)
+    expect(tabStore.hasUnsavedQueries).toBe(false)
+  })
+
+  it('ignores queries left behind by a disconnected server', () => {
+    const tabStore = useTabStore()
+    addDirtyQuery('/queries/a.js')
+
+    tabStore.removeTabById(SERVER)
+
+    expect(tabStore.hasUnsavedQueries).toBe(false)
   })
 })

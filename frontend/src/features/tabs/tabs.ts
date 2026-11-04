@@ -22,6 +22,7 @@ type TabStoreGetters = {
   currentTabId: () => string
   currentSubTab: () => BrowserSubTabType | undefined
   currentQueries: () => QueryTabItem[]
+  hasUnsavedQueries: () => boolean
   currentIndexTabs: () => IndexTabItem[]
   currentStatisticsTabs: () => StatisticsTabItem[]
   currentStatisticsTab: () => StatisticsTabItem | undefined
@@ -119,6 +120,11 @@ export const useTabStore = defineStore('tabs', {
       }
       return tab.schemaTabs.find((t) => t.id === tab.activeInnerTabId)
     },
+    hasUnsavedQueries(state: TabStoreState) {
+      // Goes through the open tabs because a disconnect leaves its query states behind.
+      const queries = useQueryStore().queries
+      return state.tabItems.some((tab) => tab.queries.some((query) => queries[query.id]?.isDirty))
+    },
     currentInnerTabIds(state: TabStoreState) {
       return state.tabItems[state.activeTabIndex]?.innerTabOrder ?? []
     },
@@ -134,41 +140,63 @@ export const useTabStore = defineStore('tabs', {
         this.nav = NavType.Servers
       }
     },
-    async closeTab(serverId: string) {
-      const d = useDialoger()
-      const tab = this.tabItems.find((x) => x.serverId === serverId)
-      if (tab == null) {
+    // How the user disconnects from a server, from any part of the UI: deal with
+    // unsaved queries, then confirm.
+    async closeTab(serverId: string, onDisconnected?: () => void) {
+      if (!(await this.resolveUnsavedQueries(serverId))) {
         return
       }
 
-      // Check for dirty queries before disconnecting
-      const queryStore = useQueryStore()
-      const dirtyQueries = tab.queries.filter((query) => queryStore.getQueryState(query.id).isDirty)
-      if (dirtyQueries.length > 0) {
-        const names = dirtyQueries.map(
-          (query) =>
-            queryStore.getQueryState(query.id).filePath?.split('/').pop() ||
-            this.queryTabLabel(tab, query) ||
-            i18nGlobal.t('query.untitled'),
-        )
-        const choice = await promptUnsavedChanges(names)
-        if (choice === 'cancel') {
-          return
-        }
-        if (choice === 'save' && !(await this._saveQueries(tab, dirtyQueries))) {
-          return
-        }
-      }
-
-      d.warning(i18nGlobal.t('common.dialog.closeConfirm', { name: tab.title }), async () => {
-        const connectionStore = useDataBrowserStore()
-        await connectionStore.disconnect(tab.serverId)
+      const connectionStore = useDataBrowserStore()
+      const name =
+        this.tabItems.find((x) => x.serverId === serverId)?.title ||
+        connectionStore.connections.find((x) => x.serverID === serverId)?.name ||
+        ''
+      useDialoger().warning(i18nGlobal.t('common.dialog.closeConfirm', { name }), async () => {
+        await connectionStore.disconnect(serverId)
+        onDisconnected?.()
       })
     },
-    // Stops at the first save that fails or is cancelled, leaving that query on show.
-    async _saveQueries(tab: ServerTabItem, queries: QueryTabItem[]): Promise<boolean> {
+    /** For anything that closes a server's tabs: true if it's safe to go ahead. */
+    async resolveUnsavedQueries(serverId: string): Promise<boolean> {
+      const tab = this.tabItems.find((x) => x.serverId === serverId)
+      return this._resolveUnsavedQueries(tab ? [tab] : [])
+    },
+    /** For closing the application: true if it's safe to go ahead. */
+    async resolveAllUnsavedQueries(): Promise<boolean> {
+      return this._resolveUnsavedQueries(this.tabItems)
+    },
+    async _resolveUnsavedQueries(tabs: ServerTabItem[]): Promise<boolean> {
       const queryStore = useQueryStore()
-      for (const query of queries) {
+      const dirty = tabs.flatMap((tab) =>
+        tab.queries
+          .filter((query) => queryStore.getQueryState(query.id).isDirty)
+          .map((query) => ({ tab, query })),
+      )
+      if (dirty.length === 0) {
+        return true
+      }
+
+      // Tab names can repeat across servers, so say which one they're on.
+      const acrossServers = new Set(dirty.map(({ tab }) => tab)).size > 1
+      const names = dirty.map(({ tab, query }) => {
+        const name =
+          queryStore.getQueryState(query.id).filePath?.split('/').pop() ||
+          this.queryTabLabel(tab, query) ||
+          i18nGlobal.t('query.untitled')
+        return acrossServers ? `${tab.title}: ${name}` : name
+      })
+
+      const choice = await promptUnsavedChanges(names)
+      if (choice === 'cancel') {
+        return false
+      }
+      return choice === 'discard' || this._saveQueries(dirty)
+    },
+    // Stops at the first save that fails or is cancelled, leaving that query on show.
+    async _saveQueries(dirty: { tab: ServerTabItem; query: QueryTabItem }[]): Promise<boolean> {
+      const queryStore = useQueryStore()
+      for (const { tab, query } of dirty) {
         const state = queryStore.getQueryState(query.id)
         if (!state.filePath) {
           // The save dialog can't say which untitled query it's for, so show it.

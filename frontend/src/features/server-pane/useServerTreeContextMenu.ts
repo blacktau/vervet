@@ -11,6 +11,7 @@ import {
   PlusCircleIcon,
   TrashIcon,
 } from '@heroicons/vue/24/outline'
+import { useTabStore } from '@/features/tabs/tabs.ts'
 import * as serversProxy from 'wailsjs/go/api/ServersProxy'
 import * as oidcProxy from 'wailsjs/go/api/OIDCProxy'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
@@ -52,6 +53,7 @@ export function useServerTreeContextMenu(
   const browserStore = useDataBrowserStore()
   const dialogStore = useDialogStore()
   const serverStore = useServerStore()
+  const tabStore = useTabStore()
 
   const contextMenuParams = reactive<{
     show: boolean
@@ -179,6 +181,9 @@ export function useServerTreeContextMenu(
     dialoger.warning(
       i18n.t('common.deleteTooltip', { type: i18n.t('serverPane.typeName'), name }),
       async () => {
+        if (!(await tabStore.resolveUnsavedQueries(serverId))) {
+          return
+        }
         const { success, msg } = await serverStore.deleteServer(serverId)
         if (!success) {
           useMessager().error(msg || '')
@@ -238,8 +243,7 @@ export function useServerTreeContextMenu(
         deleteServer(serverId)
         break
       case MenuKeys.ServerDisconnect:
-        browserStore.disconnect(serverId).then((closed) => {
-          if (!closed) return
+        tabStore.closeTab(serverId, () => {
           useMessager().success(i18n.t('common.dialog.handleSuccess'))
         })
         break
@@ -266,6 +270,9 @@ export function useServerTreeContextMenu(
           i18n.t('serverPane.serverTree.resetOIDCSessionConfirm', { name }),
           async () => {
             if (browserStore.isConnected(serverId)) {
+              if (!(await tabStore.resolveUnsavedQueries(serverId))) {
+                return
+              }
               await browserStore.disconnect(serverId)
             }
             const result = await oidcProxy.ResetSession(serverId)

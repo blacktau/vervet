@@ -14,6 +14,7 @@ import { DialogType, type ServerDialogData, useDialogStore } from '@/stores/dial
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 import { type RegisteredServerNode, useServerStore } from '@/features/server-pane/serverStore.ts'
 import { useDialoger, useMessager, useNotifier } from '@/utils/dialog.ts'
+import { useTabStore } from '@/features/tabs/tabs.ts'
 import {
   parseUri,
   detectAuthFromUri,
@@ -142,6 +143,11 @@ const onSaveServer = async () => {
 const saveServer = async () => {
   const serverId = editServerID.value
   const wasConnected = isServerConnected()
+  // Saving closes the connection and its tabs, so this comes first: cancelling
+  // leaves both the server's details and the connection as they were.
+  if (wasConnected && serverId && !(await useTabStore().resolveUnsavedQueries(serverId))) {
+    return
+  }
   const cfg = {
     uri: generalForm.value.connectionString,
     authMethod: authPicker.value,
