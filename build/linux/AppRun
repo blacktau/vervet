@@ -1,0 +1,20 @@
+#!/bin/sh
+# AppImage entry point. linuxdeploy keeps this as AppRun.wrapped and runs it
+# after its generated wrapper has sourced the GTK plugin's apprun-hooks.
+
+APPDIR="$(dirname "$(readlink -f "$0")")"
+export APPDIR
+
+# usr/bin comes first so programs the app launches find our xdg-open shim.
+export PATH="$APPDIR/usr/bin:$PATH"
+# Must stay: WebKit's helper processes don't start without it.
+export LD_LIBRARY_PATH="$APPDIR/usr/lib:$APPDIR/usr/lib/x86_64-linux-gnu${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+
+# Must stay: linuxdeploy-plugin-gtk rewrites /usr in libwebkit to the relative
+# path ././, so WebKit only finds its helper processes when run from usr/.
+# The app uses $OWD as the user's working directory instead. The AppImage
+# runtime doesn't set it in extract-and-run mode, so record it here if needed.
+export OWD="${OWD:-$PWD}"
+cd "$APPDIR/usr" || exit 1
+
+exec "$APPDIR/usr/bin/Vervet" "$@"

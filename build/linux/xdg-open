@@ -1,0 +1,35 @@
+#!/bin/sh
+# Installed on the AppImage's PATH so everything the app opens, including links
+# opened by Wails, runs the host's xdg-open with the host's environment. Tools
+# such as gio crash when they load the bundled libraries, and xdg-open's caller
+# never sees that, so the file or link just doesn't open.
+
+set -f
+
+without_appdir() {
+	kept=""
+	old_ifs=$IFS
+	IFS=:
+	for entry in $1; do
+		case "$entry" in
+		"$APPDIR" | "$APPDIR"/*) ;;
+		*) kept="${kept:+$kept:}$entry" ;;
+		esac
+	done
+	IFS=$old_ifs
+	printf '%s' "$kept"
+}
+
+PATH="$(without_appdir "$PATH")"
+XDG_DATA_DIRS="$(without_appdir "$XDG_DATA_DIRS")"
+export PATH XDG_DATA_DIRS
+
+# Set by the launcher and the GTK plugin's hook.
+unset APPDIR LD_LIBRARY_PATH GDK_BACKEND GDK_PIXBUF_MODULE_FILE GIO_EXTRA_MODULES \
+	GSETTINGS_SCHEMA_DIR GTK_DATA_PREFIX GTK_EXE_PREFIX GTK_IM_MODULE_FILE GTK_PATH \
+	GTK_THEME WEBKIT_DISABLE_COMPOSITING_MODE
+
+# Don't let what we open keep the AppImage's mount busy after the app exits.
+cd "${OWD:-$HOME}" 2>/dev/null || cd /
+
+exec xdg-open "$@"
