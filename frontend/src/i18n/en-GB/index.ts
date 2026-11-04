@@ -552,6 +552,10 @@ export default {
     unsavedChangesSave: 'Save',
     unsavedChangesDontSave: "Don't Save",
     unsavedChangesCancel: 'Cancel',
+    unsavedChangesMultipleMessage: '{count} tabs have unsaved changes:',
+    unsavedChangesSaveAll: 'Save All',
+    unsavedChangesDiscardAll: 'Discard All',
+    untitled: 'Untitled',
     modified: 'Modified',
   },
   export: {

@@ -6,6 +6,7 @@ import { findIndex } from 'lodash'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 import { BrowserSubTabType } from '@/consts/BrowserSubTabType.ts'
 import { useQueryStore } from '@/features/queries/queryStore'
+import { promptUnsavedChanges } from '@/features/tabs/unsavedChangesPrompt'
 
 interface TabStoreState {
   nav: NavType
@@ -142,32 +143,20 @@ export const useTabStore = defineStore('tabs', {
 
       // Check for dirty queries before disconnecting
       const queryStore = useQueryStore()
-      for (const query of tab.queries) {
-        const state = queryStore.getQueryState(query.id)
-        if (state.isDirty) {
-          const filename = state.filePath?.split('/').pop() ?? 'Untitled'
-          const shouldContinue = await new Promise<boolean>((resolve) => {
-            d.show({
-              type: 'warning',
-              title: i18nGlobal.t('query.unsavedChangesTitle'),
-              content: i18nGlobal.t('query.unsavedChangesMessage', { filename }),
-              positiveText: i18nGlobal.t('query.unsavedChangesSave'),
-              negativeText: i18nGlobal.t('query.unsavedChangesDontSave'),
-              onPositiveClick: async () => {
-                const saved = await queryStore.saveFile(query.id, state.currentContent)
-                resolve(saved)
-              },
-              onNegativeClick: () => {
-                resolve(true)
-              },
-              onClose: () => {
-                resolve(false)
-              },
-            })
-          })
-          if (!shouldContinue) {
-            return
-          }
+      const dirtyQueries = tab.queries.filter((query) => queryStore.getQueryState(query.id).isDirty)
+      if (dirtyQueries.length > 0) {
+        const names = dirtyQueries.map(
+          (query) =>
+            queryStore.getQueryState(query.id).filePath?.split('/').pop() ||
+            this.queryTabLabel(tab, query) ||
+            i18nGlobal.t('query.untitled'),
+        )
+        const choice = await promptUnsavedChanges(names)
+        if (choice === 'cancel') {
+          return
+        }
+        if (choice === 'save' && !(await this._saveQueries(tab, dirtyQueries))) {
+          return
         }
       }
 
@@ -175,6 +164,22 @@ export const useTabStore = defineStore('tabs', {
         const connectionStore = useDataBrowserStore()
         await connectionStore.disconnect(tab.serverId)
       })
+    },
+    // Stops at the first save that fails or is cancelled, leaving that query on show.
+    async _saveQueries(tab: ServerTabItem, queries: QueryTabItem[]): Promise<boolean> {
+      const queryStore = useQueryStore()
+      for (const query of queries) {
+        const state = queryStore.getQueryState(query.id)
+        if (!state.filePath) {
+          // The save dialog can't say which untitled query it's for, so show it.
+          this._setActivatedIndex(this.tabItems.indexOf(tab), true)
+          tab.activeInnerTabId = query.id
+        }
+        if (!(await queryStore.saveFile(query.id, state.currentContent))) {
+          return false
+        }
+      }
+      return true
     },
     upsertTab: function (options: TabUpsertOptions) {
       let tabIndex = findIndex(this.tabItems, { serverId: options.serverId })
