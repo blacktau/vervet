@@ -122,6 +122,32 @@ describe('queryStore result summary', () => {
     expect(text).toMatch(/^Write sent without waiting for acknowledgement in /)
   })
 
+  test('an update that matched but changed nothing is not reported as zero', async () => {
+    const text = await summaryOf({ documents: ack, operationType: 'unchanged', affectedCount: 500 })
+    expect(text).toMatch(/^500 document\(s\) matched, none changed in /)
+  })
+
+  test.each([
+    ['findOneAndUpdateOrUpsert', 'Document updated or inserted in '],
+    ['findOneAndReplaceOrUpsert', 'Document replaced or inserted in '],
+  ])('%s allows for an insert', async (operationType, want) => {
+    const text = await summaryOf({ documents: ack, operationType })
+    expect(text.startsWith(want)).toBe(true)
+  })
+
+  test.each(['2', '0', 'null', 'a string'])(
+    'a plain %s value claims no count',
+    async (rawOutput) => {
+      const text = await summaryOf({ documents: null, rawOutput, hasValue: true })
+      expect(text).toMatch(/^Query completed in /)
+    },
+  )
+
+  test('an empty list with no operation still counts as zero returned', async () => {
+    const text = await summaryOf({ documents: [], hasValue: true })
+    expect(text).toMatch(/^0 document\(s\) returned in /)
+  })
+
   test('a result with no operation is summarised as documents returned', async () => {
     const text = await summaryOf({ documents: [{ a: 1 }, { a: 2 }] })
     expect(text).toMatch(/^2 document\(s\) returned in /)

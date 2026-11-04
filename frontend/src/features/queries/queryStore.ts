@@ -531,7 +531,9 @@ export const useQueryStore = defineStore('query', {
           const elapsed = formatDuration(Date.now() - (state.runStartedAt ?? Date.now()))
           const docCount = data.documents?.length ?? 0
           const operationType = data.operationType || 'find'
-          const msg = hasResult
+          // A number or string from the script isn't a count of documents returned.
+          const countsResult = hasResult && (!!data.operationType || !data.rawOutput)
+          const msg = countsResult
             ? resultMessage(
                 operationType,
                 resultCount(operationType, data.affectedCount, docCount),

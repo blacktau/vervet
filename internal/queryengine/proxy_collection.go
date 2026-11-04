@@ -161,7 +161,9 @@ func newCollectionProxy(ec *execContext, collName string) goja.Value {
 			if err != nil {
 				panic(ec.rt.NewGoError(err))
 			}
-			return toGojaValue(ec.rt, result)
+			val := toGojaValue(ec.rt, result)
+			ec.rememberOperation(val, result)
+			return val
 		}
 		return newLazyCursor(ec, op).toGojaObject()
 	})

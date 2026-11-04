@@ -197,17 +197,29 @@ func updateResultToQueryResult(res *mongo.UpdateResult, method string) models.Qu
 	}
 	doc = append(doc, bson.E{Key: "upsertedCount", Value: int(res.UpsertedCount)})
 	result := singleToResult(doc)
-	// An upsert only inserts when nothing matched, so nothing was also updated. Said
-	// as an update, a mistyped filter that created a document would go unnoticed.
-	if res.UpsertedCount > 0 {
+	affected := int(res.ModifiedCount + res.UpsertedCount)
+	switch {
+	case res.UpsertedCount > 0:
+		// An upsert only inserts when nothing matched, so nothing was also updated.
+		// Said as an update, a mistyped filter that created a document would go
+		// unnoticed.
 		method = upsertOperation
+	case res.MatchedCount > 0 && res.ModifiedCount == 0:
+		// Said as "0 updated", this would look the same as a mistyped filter.
+		method = unchangedOperation
+		affected = int(res.MatchedCount)
 	}
-	setWriteSummary(&result, method, int(res.ModifiedCount+res.UpsertedCount), res.Acknowledged)
+	setWriteSummary(&result, method, affected, res.Acknowledged)
 	return result
 }
 
-// upsertOperation is the operation type of an update or replace that inserted.
-const upsertOperation = "upsert"
+const (
+	// upsertOperation is the operation type of an update or replace that inserted.
+	upsertOperation = "upsert"
+	// unchangedOperation is the operation type of an update or replace that matched
+	// documents already in the state it asked for. Its count is what it matched.
+	unchangedOperation = "unchanged"
+)
 
 // unacknowledgedOperation is the operation type of a write sent with w: 0.
 const unacknowledgedOperation = "unacknowledged"

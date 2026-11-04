@@ -433,6 +433,35 @@ func findAndModifyResult(method string, doc bson.D, err error) (models.QueryResu
 	return r, nil
 }
 
+// findAndModifyUpsertResult is findAndModifyResult for the methods that can upsert.
+// When an upsert returns the new document, the driver doesn't say whether it was
+// inserted, so the summary has to allow for both. Returning the old document leaves
+// no doubt: there is one only if nothing was inserted.
+func findAndModifyUpsertResult(method string, doc bson.D, err error, rawOptions any) (models.QueryResult, error) {
+	result, err := findAndModifyResult(method, doc, err)
+	if err == nil && len(result.Documents) > 0 && upsertReturnsNewDocument(method, rawOptions) {
+		result.OperationType = method + "OrUpsert"
+	}
+	return result, err
+}
+
+func upsertReturnsNewDocument(method string, rawOptions any) bool {
+	doc, ok := asBsonDoc(rawOptions)
+	if !ok {
+		return false
+	}
+	if upsert, _ := lookupOption(doc, "upsert"); upsert != true {
+		return false
+	}
+	returnsNew := false
+	// The options were already validated when they were applied to the operation.
+	_ = returnDocumentOption(method, rawOptions, func(r options.ReturnDocument) struct{} {
+		returnsNew = r == options.After
+		return struct{}{}
+	})
+	return returnsNew
+}
+
 func dispatchFindOneAndDelete(ctx context.Context, coll *mongo.Collection, op CapturedOp) (models.QueryResult, error) {
 	filter, err := filterDoc("findOneAndDelete", argAt(op.Args, 0))
 	if err != nil {
@@ -468,7 +497,7 @@ func dispatchFindOneAndReplace(ctx context.Context, coll *mongo.Collection, op C
 
 	var doc bson.D
 	err = coll.FindOneAndReplace(ctx, filter, replacement, opts).Decode(&doc)
-	return findAndModifyResult("findOneAndReplace", doc, err)
+	return findAndModifyUpsertResult("findOneAndReplace", doc, err, argAt(op.Args, 2))
 }
 
 func dispatchFindOneAndUpdate(ctx context.Context, coll *mongo.Collection, op CapturedOp) (models.QueryResult, error) {
@@ -488,7 +517,7 @@ func dispatchFindOneAndUpdate(ctx context.Context, coll *mongo.Collection, op Ca
 
 	var doc bson.D
 	err = coll.FindOneAndUpdate(ctx, filter, convertToBson(op.Args[1]), opts).Decode(&doc)
-	return findAndModifyResult("findOneAndUpdate", doc, err)
+	return findAndModifyUpsertResult("findOneAndUpdate", doc, err, argAt(op.Args, 2))
 }
 
 func dispatchEstimatedDocumentCount(ctx context.Context, coll *mongo.Collection) (models.QueryResult, error) {
