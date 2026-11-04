@@ -322,6 +322,35 @@ describe('resolveUnsavedQueries', () => {
   })
 })
 
+describe('resolveUnsavedQuery', () => {
+  it('shows a background query, and asks about it by the name on its tab', async () => {
+    const background = addDirtyQuery()
+    addDirtyQuery()
+    const active = useTabStore().openQuery(SERVER, 'shop')!
+    expect(useTabStore().currentTab?.activeInnerTabId).toBe(active)
+
+    const resolved = useTabStore().resolveUnsavedQuery(SERVER, background)
+    await flushPromises()
+
+    expect(useTabStore().currentTab?.activeInnerTabId).toBe(background)
+    expect(renderToWrapper(promptOptions().content).text()).toBe('Save changes to shop?')
+
+    await clickButton("Don't Save")
+    await expect(resolved).resolves.toBe(true)
+    expect(confirmDisconnect).not.toHaveBeenCalled()
+  })
+
+  it('is false when the user cancels', async () => {
+    const id = addDirtyQuery('/queries/a.js')
+
+    const resolved = useTabStore().resolveUnsavedQuery(SERVER, id)
+    await flushPromises()
+    await clickButton('Cancel')
+
+    await expect(resolved).resolves.toBe(false)
+  })
+})
+
 describe('resolveAllUnsavedQueries', () => {
   it('asks once across every server, saying which server each tab is on', async () => {
     addSecondServer()

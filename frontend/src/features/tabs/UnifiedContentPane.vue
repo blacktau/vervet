@@ -1,7 +1,6 @@
 <script lang="ts" setup>
 import { useTabStore } from '@/features/tabs/tabs'
 import { useQueryStore } from '@/features/queries/queryStore'
-import { type QueryState } from '@/features/queries/queryStore'
 import { useI18n } from 'vue-i18n'
 import { type ComponentPublicInstance, computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ChevronDownIcon, PlusIcon } from '@heroicons/vue/24/outline'
@@ -31,7 +30,6 @@ function isQueryTabLoading(id: string): boolean {
   return queryStore.queries[id]?.loading ?? false
 }
 const { t } = useI18n()
-const dialog = useDialog()
 
 const activeInnerTabId = computed({
   get: () => tabStore.currentTab?.activeInnerTabId ?? '',
@@ -203,12 +201,8 @@ async function handleClose(innerTabId: string) {
   }
 
   if (innerTabId.startsWith('query-')) {
-    const state = queryStore.getQueryState(innerTabId)
-    if (state.isDirty) {
-      const shouldClose = await promptSaveBeforeClose(innerTabId, state)
-      if (!shouldClose) {
-        return
-      }
+    if (queryStore.getQueryState(innerTabId).isDirty && !(await tabStore.resolveUnsavedQuery(serverId, innerTabId))) {
+      return
     }
     queryStore.removeQueryState(innerTabId)
     tabStore.closeQuery(serverId, innerTabId)
@@ -219,32 +213,6 @@ async function handleClose(innerTabId: string) {
   } else if (innerTabId.startsWith('schema-')) {
     tabStore.closeSchemaTab(serverId, innerTabId)
   }
-}
-
-async function promptSaveBeforeClose(queryId: string, state: QueryState): Promise<boolean> {
-  const filename = state.filePath?.split('/').pop() ?? 'Untitled'
-  return new Promise((resolve) => {
-    dialog.warning({
-      title: t('query.unsavedChangesTitle'),
-      content: t('query.unsavedChangesMessage', { filename }),
-      positiveText: t('query.unsavedChangesSave'),
-      negativeText: t('query.unsavedChangesDontSave'),
-      onPositiveClick: async () => {
-        const saved = await queryStore.saveFile(queryId, state.currentContent)
-        if (!saved) {
-          resolve(false)
-          return
-        }
-        resolve(true)
-      },
-      onNegativeClick: () => {
-        resolve(true)
-      },
-      onClose: () => {
-        resolve(false)
-      },
-    })
-  })
 }
 </script>
 

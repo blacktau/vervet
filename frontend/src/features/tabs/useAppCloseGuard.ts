@@ -18,10 +18,14 @@ export function useAppCloseGuard() {
   )
 
   EventsOn('app-close-requested', async () => {
-    await closeGuardProxy.AcknowledgeCloseRequest()
-    if (await tabStore.resolveAllUnsavedQueries()) {
-      await closeGuardProxy.ConfirmClose()
-      return
+    try {
+      await closeGuardProxy.AcknowledgeCloseRequest()
+      if (await tabStore.resolveAllUnsavedQueries()) {
+        await closeGuardProxy.ConfirmClose()
+        return
+      }
+    } catch {
+      // Falls through: staying open and able to ask again beats blocking every close.
     }
     await closeGuardProxy.CancelClose()
   })

@@ -73,6 +73,18 @@ describe('useAppCloseGuard', () => {
     expect(closeGuardProxy.CancelClose).not.toHaveBeenCalled()
   })
 
+  it('can be asked again if something goes wrong while asking', async () => {
+    tabStore.resolveAllUnsavedQueries = vi.fn(async () => {
+      throw new Error('bridge down')
+    })
+    useAppCloseGuard()
+
+    await requestClose()
+
+    expect(closeGuardProxy.CancelClose).toHaveBeenCalledOnce()
+    expect(closeGuardProxy.ConfirmClose).not.toHaveBeenCalled()
+  })
+
   it('stays open if the user cancels', async () => {
     tabStore.resolveAllUnsavedQueries = vi.fn(async () => false)
     useAppCloseGuard()

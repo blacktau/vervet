@@ -203,7 +203,13 @@ func (a *App) Startup(ctx context.Context) {
 	a.UpdatesProxy.Init(ctx)
 
 	a.closeGuard.Init(
-		func() { wailsRuntime.EventsEmit(ctx, closeguard.EventCloseRequested) },
+		func() {
+			// Closing from the taskbar can happen while minimised, where the prompt can't be seen.
+			if wailsRuntime.WindowIsMinimised(ctx) {
+				wailsRuntime.WindowUnminimise(ctx)
+			}
+			wailsRuntime.EventsEmit(ctx, closeguard.EventCloseRequested)
+		},
 		func() { wailsRuntime.Quit(ctx) },
 	)
 

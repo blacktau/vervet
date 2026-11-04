@@ -165,16 +165,31 @@ export const useTabStore = defineStore('tabs', {
     async resolveAllUnsavedQueries(): Promise<boolean> {
       return this._resolveUnsavedQueries(this.tabItems)
     },
+    /** For closing one query: shows it, so the user can see what they're deciding on. */
+    async resolveUnsavedQuery(serverId: string, queryId: string): Promise<boolean> {
+      const tab = this.tabItems.find((x) => x.serverId === serverId)
+      const query = tab?.queries.find((q) => q.id === queryId)
+      if (!tab || !query) {
+        return true
+      }
+      tab.activeInnerTabId = queryId
+      return this._resolveDirtyQueries([{ tab, query }])
+    },
     async _resolveUnsavedQueries(tabs: ServerTabItem[]): Promise<boolean> {
       const queryStore = useQueryStore()
-      const dirty = tabs.flatMap((tab) =>
-        tab.queries
-          .filter((query) => queryStore.getQueryState(query.id).isDirty)
-          .map((query) => ({ tab, query })),
+      return this._resolveDirtyQueries(
+        tabs.flatMap((tab) =>
+          tab.queries
+            .filter((query) => queryStore.getQueryState(query.id).isDirty)
+            .map((query) => ({ tab, query })),
+        ),
       )
+    },
+    async _resolveDirtyQueries(dirty: { tab: ServerTabItem; query: QueryTabItem }[]): Promise<boolean> {
       if (dirty.length === 0) {
         return true
       }
+      const queryStore = useQueryStore()
 
       // Tab names can repeat across servers, so say which one they're on.
       const acrossServers = new Set(dirty.map(({ tab }) => tab)).size > 1

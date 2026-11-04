@@ -362,6 +362,20 @@ onMounted(async () => {
     queryStore.setSavedContent(props.queryId, editor.value.getValue())
   }
 
+  // Before the awaits below, which can be slow: the user can already be typing.
+  if (editor.value) {
+    const syncContent = () => {
+      const currentContent = editor.value?.getValue() ?? ''
+      queryStore.setCurrentContent(props.queryId, currentContent)
+      const saved = queryState.value.savedContent
+      if (saved !== null) {
+        queryStore.setDirty(props.queryId, currentContent !== saved)
+      }
+    }
+    editor.value.onDidChangeModelContent(syncContent)
+    syncContent()
+  }
+
   await queryStore.checkMongosh()
 
   const serverId = tabStore.currentTab?.serverId
@@ -405,18 +419,6 @@ onMounted(async () => {
         runQuery()
       },
     })
-
-    const syncContent = () => {
-      const currentContent = editor.value?.getValue() ?? ''
-      queryStore.setCurrentContent(props.queryId, currentContent)
-      const saved = queryState.value.savedContent
-      if (saved !== null) {
-        queryStore.setDirty(props.queryId, currentContent !== saved)
-      }
-    }
-    editor.value.onDidChangeModelContent(syncContent)
-    // Picks up anything typed while the awaits above were pending.
-    syncContent()
   }
 })
 

@@ -87,6 +87,7 @@ vi.mock('@/utils/dialog', () => ({
 }))
 
 import * as filesProxy from 'wailsjs/go/api/FilesProxy'
+import * as shellProxy from 'wailsjs/go/api/ShellProxy'
 
 const FILE_PATH = '/q.js'
 const ON_DISK = 'content on disk'
@@ -171,6 +172,16 @@ describe('dirty state of an untitled QueryTab', () => {
 
     setEditorValue(original)
     expect(isDirty()).toBe(false)
+  })
+
+  it('tracks edits made while the tab is still loading', async () => {
+    vi.mocked(shellProxy.CheckMongosh).mockReturnValueOnce(new Promise(() => {}) as never)
+    await mountTab()
+
+    setEditorValue(EDITED)
+
+    expect(isDirty()).toBe(true)
+    expect(useQueryStore().getQueryState(queryId).currentContent).toBe(EDITED)
   })
 
   it('stays dirty after a remount', async () => {
