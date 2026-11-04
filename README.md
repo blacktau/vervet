@@ -43,7 +43,8 @@ or straight from [Releases](https://github.com/blacktau/vervet/releases/latest):
 
 The AppImage needs glibc 2.38 or newer and uses some of your system's libraries,
 including `libwayland-client`. Desktop installs normally have these, but minimal
-installs and containers may not.
+installs and containers may not. On older LTS releases such as Ubuntu 22.04 and
+Debian 12, use the `.deb` instead.
 
 ## Supported MongoDB versions
 

@@ -7,7 +7,7 @@ URL:            https://github.com/blacktau/vervet
 Source0:        %{name}-%{version}.tar.gz
 
 BuildArch:      x86_64
-Requires:       webkit2gtk4.0
+Requires:       webkit2gtk4.1
 Requires:       gtk3
 
 # Binary is pre-built, skip debug package and build ID requirements
