@@ -45,6 +45,10 @@ type ContextMenuEntry = {
   type?: 'divider'
 }
 
+function serverIdsIn(group: RegisteredServerNode): string[] {
+  return (group.children ?? []).flatMap((child) => (child.isGroup ? serverIdsIn(child) : [child.id]))
+}
+
 export function useServerTreeContextMenu(
   selectedKeys: Ref<string[]>,
   connectToServer: (serverId: string) => Promise<void>,
@@ -203,6 +207,10 @@ export function useServerTreeContextMenu(
       : i18n.t('serverPane.serverTree.deleteGroupTooltip', { name })
 
     const onConfirm = async () => {
+      // The backend disconnects every server in the group, which closes their tabs.
+      if (group && !(await tabStore.resolveUnsavedQueries(...serverIdsIn(group)))) {
+        return
+      }
       const { success, msg } = await serverStore.deleteGroup(groupId)
       if (!success) {
         useMessager().error(msg || '')

@@ -298,6 +298,21 @@ describe('resolveUnsavedQueries', () => {
     await expect(resolved).resolves.toBe(false)
   })
 
+  it('asks once about several servers, saying which each tab is on', async () => {
+    addSecondServer()
+    addDirtyQuery('/queries/a.js')
+    addDirtyQuery('/queries/b.js', 'server-2')
+
+    void useTabStore().resolveUnsavedQueries(SERVER, 'server-2')
+    await flushPromises()
+
+    expect(dialogShow).toHaveBeenCalledOnce()
+    expect(renderToWrapper(promptOptions().content).findAll('li').map((li) => li.text())).toEqual([
+      'Server 1: a.js',
+      'Server 2: b.js',
+    ])
+  })
+
   it('only covers the server it was asked about', async () => {
     addSecondServer()
     addDirtyQuery('/queries/a.js', 'server-2')

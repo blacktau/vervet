@@ -24,10 +24,21 @@ vi.mock('@/features/data-browser/browserStore.ts', () => ({
 }))
 
 const deleteServer = vi.fn(async () => ({ success: true }))
+const deleteGroup = vi.fn(async () => ({ success: true }))
+const nestedGroup = {
+  id: 'g1',
+  name: 'Group',
+  isGroup: true,
+  children: [
+    { id: 's1', name: 'One', isGroup: false },
+    { id: 'g2', name: 'Inner', isGroup: true, children: [{ id: 's2', name: 'Two', isGroup: false }] },
+  ],
+}
 vi.mock('@/features/server-pane/serverStore.ts', () => ({
   useServerStore: () => ({
     deleteServer,
-    findServerById: () => ({ id: 's1', name: 'Server' }),
+    deleteGroup,
+    findServerById: (id: string) => (id === 'g1' ? nestedGroup : { id: 's1', name: 'Server' }),
   }),
 }))
 
@@ -40,18 +51,21 @@ const messagerSuccess = vi.fn()
 // The confirmation everything here starts with: says yes straight away.
 const confirm = vi.fn((_content: string, onConfirm?: () => unknown) => onConfirm?.())
 vi.mock('@/utils/dialog.ts', () => ({
-  useDialoger: () => ({ warning: confirm }),
+  useDialoger: () => ({
+    warning: confirm,
+    show: (options: { onPositiveClick: () => unknown }) => options.onPositiveClick(),
+  }),
   useMessager: () => ({ success: messagerSuccess, error: vi.fn() }),
 }))
 
 import { MenuKeys, useServerTreeContextMenu } from '@/features/server-pane/useServerTreeContextMenu'
 
-function selectMenuItem(key: string) {
+function selectMenuItem(key: string, selected = 's1') {
   let handle: (key: string) => Promise<void> = async () => {}
   mount(
     defineComponent({
       setup() {
-        handle = useServerTreeContextMenu(ref(['s1']), vi.fn()).handleSelectContextMenu
+        handle = useServerTreeContextMenu(ref([selected]), vi.fn()).handleSelectContextMenu
         return () => null
       },
     }),
@@ -93,6 +107,22 @@ describe('useServerTreeContextMenu disconnecting', () => {
     await selectMenuItem(MenuKeys.ServerDelete)
 
     expect(deleteServer).not.toHaveBeenCalled()
+  })
+
+  test('deleting a group asks about the servers inside it, however deeply nested', async () => {
+    await selectMenuItem(MenuKeys.GroupDelete, 'g1')
+
+    expect(resolveUnsavedQueries).toHaveBeenCalledWith('s1', 's2')
+    expect(deleteGroup).toHaveBeenCalledWith('g1')
+    expect(resolveUnsavedQueries.mock.invocationCallOrder[0]).toBeLessThan(deleteGroup.mock.invocationCallOrder[0]!)
+  })
+
+  test('cancelling the prompt keeps the group', async () => {
+    resolveUnsavedQueries.mockResolvedValue(false)
+
+    await selectMenuItem(MenuKeys.GroupDelete, 'g1')
+
+    expect(deleteGroup).not.toHaveBeenCalled()
   })
 
   test('Reset OIDC session asks about unsaved queries before disconnecting', async () => {

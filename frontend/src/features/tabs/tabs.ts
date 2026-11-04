@@ -157,10 +157,9 @@ export const useTabStore = defineStore('tabs', {
         onDisconnected?.()
       })
     },
-    /** For anything that closes a server's tabs: true if it's safe to go ahead. */
-    async resolveUnsavedQueries(serverId: string): Promise<boolean> {
-      const tab = this.tabItems.find((x) => x.serverId === serverId)
-      return this._resolveUnsavedQueries(tab ? [tab] : [])
+    /** For anything that closes servers' tabs: true if it's safe to go ahead. */
+    async resolveUnsavedQueries(...serverIds: string[]): Promise<boolean> {
+      return this._resolveUnsavedQueries(this.tabItems.filter((tab) => serverIds.includes(tab.serverId)))
     },
     /** For closing the application: true if it's safe to go ahead. */
     async resolveAllUnsavedQueries(): Promise<boolean> {
