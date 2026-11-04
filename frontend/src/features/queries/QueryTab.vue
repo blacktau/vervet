@@ -256,11 +256,11 @@ const fileName = computed(() => {
   return fp.split('/').pop() ?? fp
 })
 
-const saveFile = async () => {
+const saveFile = async (): Promise<boolean> => {
   if (!editor.value) {
-    return
+    return false
   }
-  await queryStore.saveFile(props.queryId, editor.value.getValue())
+  return queryStore.saveFile(props.queryId, editor.value.getValue())
 }
 
 const saveFileAs = async () => {
@@ -278,8 +278,8 @@ const promptSaveIfDirty = async (): Promise<boolean> => {
       positiveText: t('query.unsavedChangesSave'),
       negativeText: t('query.unsavedChangesDontSave'),
       onPositiveClick: async () => {
-        await saveFile()
-        resolve(true)
+        // Only move on once the edits are safe: opening a file replaces them.
+        resolve(await saveFile())
       },
       onNegativeClick: () => {
         resolve(true)

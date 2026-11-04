@@ -849,5 +849,7 @@ export default {
     deleteDocument: 'Failed to delete document',
     insertDocument: 'Failed to insert document',
     loadFile: 'Failed to load file',
+    saveFile: 'Failed to save file',
+    fileDialog: 'Failed to open file dialog',
   },
 }

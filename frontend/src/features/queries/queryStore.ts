@@ -769,12 +769,17 @@ export const useQueryStore = defineStore('query', {
         { displayName: i18nGlobal.t('query.filterMongodb'), pattern: '*.mongodb' },
         { displayName: i18nGlobal.t('query.filterAllFiles'), pattern: '*.*' },
       ])
-      if (!result.isSuccess || !result.data) {
+      if (!result.isSuccess) {
+        notifyResultError(result, i18nGlobal.t('errorTitles.fileDialog'))
         return null
+      }
+      if (!result.data) {
+        return null // User cancelled
       }
 
       const readResult = await filesProxy.ReadFile(result.data)
       if (!readResult.isSuccess) {
+        notifyResultError(readResult, i18nGlobal.t('errorTitles.loadFile'))
         return null
       }
 
@@ -811,6 +816,7 @@ export const useQueryStore = defineStore('query', {
 
       const result = await filesProxy.WriteFile(state.filePath, content)
       if (!result.isSuccess) {
+        notifyResultError(result, i18nGlobal.t('errorTitles.saveFile'))
         return false
       }
 
@@ -833,12 +839,17 @@ export const useQueryStore = defineStore('query', {
           { displayName: i18nGlobal.t('query.filterAllFiles'), pattern: '*.*' },
         ],
       )
-      if (!pathResult.isSuccess || !pathResult.data) {
+      if (!pathResult.isSuccess) {
+        notifyResultError(pathResult, i18nGlobal.t('errorTitles.fileDialog'))
         return false
+      }
+      if (!pathResult.data) {
+        return false // User cancelled
       }
 
       const writeResult = await filesProxy.WriteFile(pathResult.data, content)
       if (!writeResult.isSuccess) {
+        notifyResultError(writeResult, i18nGlobal.t('errorTitles.saveFile'))
         return false
       }
 
