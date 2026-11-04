@@ -631,12 +631,22 @@ func TestIntegration_Writes_FinalValueKeepsOperationAndCount(t *testing.T) {
 		{"updateOne", `db.c.updateOne({ g: 1 }, { $set: { x: 1 } })`, "updateOne", 1},
 		{"updateMany", `db.c.updateMany({}, { $set: { x: 1 } })`, "updateMany", 3},
 		{"updateMany matching nothing", `db.c.updateMany({ g: 9 }, { $set: { x: 1 } })`, "updateMany", 0},
-		{"upsert", `db.c.updateOne({ _id: 9 }, { $set: { x: 1 } }, { upsert: true })`, "updateOne", 1},
+		{"updateOne upserting", `db.c.updateOne({ _id: 9 }, { $set: { x: 1 } }, { upsert: true })`, upsertOperation, 1},
+		{"updateMany upserting", `db.c.updateMany({ _id: 9 }, { $set: { x: 1 } }, { upsert: true })`, upsertOperation, 1},
+		{"replaceOne upserting", `db.c.replaceOne({ _id: 9 }, { x: 1 }, { upsert: true })`, upsertOperation, 1},
+		{"upsert option on a match", `db.c.updateOne({ _id: 1 }, { $set: { x: 1 } }, { upsert: true })`, "updateOne", 1},
 		{"replaceOne", `db.c.replaceOne({ _id: 1 }, { x: 1 })`, "replaceOne", 1},
 		{"deleteOne", `db.c.deleteOne({ g: 1 })`, "deleteOne", 1},
 		{"deleteMany", `db.c.deleteMany({ g: 1 })`, "deleteMany", 2},
 		{"bulkWrite", `db.c.bulkWrite([{ deleteOne: { filter: { _id: 1 } } }, { insertOne: { _id: 4 } }])`, "bulkWrite", 2},
 		{"findOneAndUpdate", `db.c.findOneAndUpdate({ _id: 1 }, { $set: { x: 1 } })`, "findOneAndUpdate", 0},
+		{"findAndModify", `db.c.findAndModify({ query: { _id: 1 }, remove: true })`, "findOneAndDelete", 0},
+		{"unacknowledged insertOne", `db.c.insertOne({ _id: 4 }, { writeConcern: { w: 0 } })`, unacknowledgedOperation, 0},
+		{"unacknowledged insertMany", `db.c.insertMany([{ _id: 4 }, { _id: 5 }], { writeConcern: { w: 0 } })`, unacknowledgedOperation, 0},
+		{"unacknowledged updateMany", `db.c.updateMany({}, { $set: { x: 1 } }, { writeConcern: { w: 0 } })`, unacknowledgedOperation, 0},
+		{"unacknowledged replaceOne", `db.c.replaceOne({ _id: 1 }, { x: 1 }, { writeConcern: { w: 0 } })`, unacknowledgedOperation, 0},
+		{"unacknowledged deleteMany", `db.c.deleteMany({}, { writeConcern: { w: 0 } })`, unacknowledgedOperation, 0},
+		{"unacknowledged bulkWrite", `db.c.bulkWrite([{ deleteOne: { filter: { _id: 1 } } }], { writeConcern: { w: 0 } })`, unacknowledgedOperation, 0},
 		{"held in a variable", `const r = db.c.deleteMany({ g: 1 }); r`, "deleteMany", 2},
 		{"an earlier write shown after a later one", `const r = db.c.deleteMany({ g: 1 }); db.c.insertOne({ _id: 4 }); r`, "deleteMany", 2},
 		{"another database", `db.getSiblingDB("` + db + `").c.deleteMany({ g: 1 })`, "deleteMany", 2},
@@ -649,6 +659,13 @@ func TestIntegration_Writes_FinalValueKeepsOperationAndCount(t *testing.T) {
 			assert.Len(t, result.Documents, 1, "the write's result is still shown")
 		})
 	}
+
+	// getIndexes gives the same list as listIndexes, so it is summarised the same.
+	t.Run("getIndexes", func(t *testing.T) {
+		result, err := engine.ExecuteQuery(ctx, testURI, db, seed+`db.c.getIndexes()`)
+		require.NoError(t, err)
+		assert.Equal(t, "listIndexes", result.OperationType)
+	})
 
 	// The summary describes the final value, not whatever the script did last.
 	t.Run("a different final value is not the write", func(t *testing.T) {

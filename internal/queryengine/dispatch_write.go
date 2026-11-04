@@ -33,8 +33,7 @@ func dispatchInsertOne(ctx context.Context, coll *mongo.Collection, op CapturedO
 		{Key: "acknowledged", Value: res.Acknowledged},
 		{Key: "insertedId", Value: res.InsertedID},
 	})
-	result.OperationType = "insertOne"
-	result.AffectedCount = 1
+	setWriteSummary(&result, "insertOne", 1, res.Acknowledged)
 	return result, nil
 }
 
@@ -68,8 +67,7 @@ func dispatchInsertMany(ctx context.Context, coll *mongo.Collection, op Captured
 		{Key: "acknowledged", Value: res.Acknowledged},
 		{Key: "insertedIds", Value: res.InsertedIDs},
 	})
-	result.OperationType = "insertMany"
-	result.AffectedCount = len(res.InsertedIDs)
+	setWriteSummary(&result, "insertMany", len(res.InsertedIDs), res.Acknowledged)
 	return result, nil
 }
 
@@ -162,8 +160,7 @@ func deleteResultToQueryResult(res *mongo.DeleteResult, method string) models.Qu
 		doc = append(doc, bson.E{Key: "deletedCount", Value: int(res.DeletedCount)})
 	}
 	result := singleToResult(doc)
-	result.OperationType = method
-	result.AffectedCount = int(res.DeletedCount)
+	setWriteSummary(&result, method, int(res.DeletedCount), res.Acknowledged)
 	return result
 }
 
@@ -241,8 +238,8 @@ func dispatchBulkWrite(ctx context.Context, coll *mongo.Collection, op CapturedO
 		{Key: "upsertedCount", Value: int(res.UpsertedCount)},
 		{Key: "upsertedIds", Value: idsByOperation(res.UpsertedIDs)},
 	})
-	result.OperationType = "bulkWrite"
-	result.AffectedCount = int(res.ModifiedCount + res.InsertedCount + res.DeletedCount + res.UpsertedCount)
+	affected := int(res.ModifiedCount + res.InsertedCount + res.DeletedCount + res.UpsertedCount)
+	setWriteSummary(&result, "bulkWrite", affected, res.Acknowledged)
 	return result, nil
 }
 

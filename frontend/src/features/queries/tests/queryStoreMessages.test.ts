@@ -107,6 +107,21 @@ describe('queryStore result summary', () => {
     },
   )
 
+  test('a bulk write reports documents affected, not operations', async () => {
+    const text = await summaryOf({ documents: ack, operationType: 'bulkWrite', affectedCount: 2 })
+    expect(text).toMatch(/^2 document\(s\) affected in /)
+  })
+
+  test('an upsert that inserted says so, not that it updated', async () => {
+    const text = await summaryOf({ documents: ack, operationType: 'upsert', affectedCount: 1 })
+    expect(text).toMatch(/^1 document inserted by upsert in /)
+  })
+
+  test('an unacknowledged write claims no count', async () => {
+    const text = await summaryOf({ documents: ack, operationType: 'unacknowledged' })
+    expect(text).toMatch(/^Write sent without waiting for acknowledgement in /)
+  })
+
   test('a result with no operation is summarised as documents returned', async () => {
     const text = await summaryOf({ documents: [{ a: 1 }, { a: 2 }] })
     expect(text).toMatch(/^2 document\(s\) returned in /)

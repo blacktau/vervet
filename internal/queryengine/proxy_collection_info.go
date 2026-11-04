@@ -120,7 +120,9 @@ func setCollectionInfoMethods(obj *goja.Object, ec *execContext, collName string
 		if err != nil {
 			panic(rt.NewGoError(err))
 		}
-		return toGojaValue(rt, result)
+		val := toGojaValue(rt, result)
+		ec.rememberOperation(val, result)
+		return val
 	})
 
 	_ = obj.Set("count", func(call goja.FunctionCall) goja.Value {
@@ -194,7 +196,9 @@ func setCollectionInfoMethods(obj *goja.Object, ec *execContext, collName string
 		if len(result.Documents) == 0 {
 			return goja.Null()
 		}
-		return toGojaValue(rt, result)
+		val := toGojaValue(rt, result)
+		ec.rememberOperation(val, result)
+		return val
 	})
 }
 
