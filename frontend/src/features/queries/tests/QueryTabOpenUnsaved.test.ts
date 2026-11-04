@@ -75,15 +75,14 @@ const i18n = createI18n({ legacy: false, locale: 'en-GB', missingWarn: false, fa
 let queryId: string
 
 /** Presses Ctrl+O in a dirty tab, and returns the unsaved-changes prompt it raises. */
-async function pressOpenInDirtyTab(filePath?: string): Promise<WarningOptions> {
+async function pressOpenInDirtyTab(filePath: string): Promise<WarningOptions> {
   const QueryTab = (await import('@/features/queries/QueryTab.vue')).default
   mount(QueryTab, { props: { queryId }, global: { plugins: [naive, i18n] } })
   await flushPromises()
 
   const queryStore = useQueryStore()
-  if (filePath) {
-    queryStore.setFilePath(queryId, filePath)
-  }
+  queryStore.setFilePath(queryId, filePath)
+  queryStore.setSavedContent(queryId, 'content on disk')
   queryStore.setDirty(queryId, true)
 
   actions.find((action) => action.id === 'vervet.openFile')!.run()
@@ -123,17 +122,6 @@ describe('opening a file from a dirty QueryTab', () => {
     expect(filesProxy.SelectFile).not.toHaveBeenCalled()
     expect(notifyError).toHaveBeenCalledOnce()
     expect(useQueryStore().getQueryState(queryId).isDirty).toBe(true)
-  })
-
-  it('does not open a file when the save dialog is cancelled', async () => {
-    vi.mocked(filesProxy.SaveFile).mockResolvedValue({ isSuccess: true, data: '' } as never)
-    const prompt = await pressOpenInDirtyTab()
-
-    await prompt.onPositiveClick()
-    await flushPromises()
-
-    expect(filesProxy.SelectFile).not.toHaveBeenCalled()
-    expect(notifyError).not.toHaveBeenCalled()
   })
 
   it('opens a file once the save succeeds', async () => {

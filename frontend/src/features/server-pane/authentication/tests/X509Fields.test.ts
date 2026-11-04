@@ -44,7 +44,7 @@ describe('X509Fields browse', () => {
     const wrapper = await mountAndBrowse()
 
     expect(notifyError).toHaveBeenCalledOnce()
-    expect(notifyError.mock.calls[0]![1]).toMatchObject({ detail: 'no display' })
+    expect(notifyError.mock.calls[0]![0]).toBe('no display')
     expect(wrapper.emitted('update:uri')).toBeUndefined()
   })
 

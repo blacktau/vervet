@@ -51,8 +51,22 @@ describe('queryStore file reads and writes', () => {
 
     expect(await store.openFile(QUERY_ID)).toBeNull()
 
-    expect(notifyError.mock.calls[0]![1]).toMatchObject({ detail: 'permission denied' })
+    expect(notifyError.mock.calls[0]![0]).toBe('permission denied')
     expect(store.getQueryState(QUERY_ID).filePath).not.toBe('/q.js')
+  })
+
+  test('leads with the real error when Go classifies it as a database failure', async () => {
+    vi.mocked(filesProxy.WriteFile).mockResolvedValue({
+      isSuccess: false,
+      errorCode: 'query_timeout',
+      errorDetail: 'failed to write file: open /mnt/q.js: connection timed out',
+    } as never)
+    const store = storeWithQuery()
+    store.setFilePath(QUERY_ID, '/mnt/q.js')
+
+    await store.saveFile(QUERY_ID, 'db.x.find()')
+
+    expect(notifyError.mock.calls[0]![0]).toBe('failed to write file: open /mnt/q.js: connection timed out')
   })
 
   test('saveFile tells the user when the write fails and keeps the query dirty', async () => {
@@ -63,7 +77,7 @@ describe('queryStore file reads and writes', () => {
 
     expect(await store.saveFile(QUERY_ID, 'db.x.find()')).toBe(false)
 
-    expect(notifyError.mock.calls[0]![1]).toMatchObject({ detail: 'permission denied' })
+    expect(notifyError.mock.calls[0]![0]).toBe('permission denied')
     expect(store.getQueryState(QUERY_ID).isDirty).toBe(true)
   })
 
@@ -74,7 +88,7 @@ describe('queryStore file reads and writes', () => {
 
     expect(await store.saveFileAs(QUERY_ID, 'db.x.find()')).toBe(false)
 
-    expect(notifyError.mock.calls[0]![1]).toMatchObject({ detail: 'permission denied' })
+    expect(notifyError.mock.calls[0]![0]).toBe('permission denied')
     expect(store.getQueryState(QUERY_ID).filePath).not.toBe('/new.js')
   })
 })
@@ -91,7 +105,7 @@ describe('queryStore file dialogs', () => {
     expect(await storeWithQuery().openFile(QUERY_ID)).toBeNull()
 
     expect(notifyError).toHaveBeenCalledOnce()
-    expect(notifyError.mock.calls[0]![1]).toMatchObject({ detail: 'no display' })
+    expect(notifyError.mock.calls[0]![0]).toBe('no display')
     expect(filesProxy.ReadFile).not.toHaveBeenCalled()
   })
 
@@ -110,7 +124,7 @@ describe('queryStore file dialogs', () => {
     expect(await storeWithQuery().saveFileAs(QUERY_ID, 'db.x.find()')).toBe(false)
 
     expect(notifyError).toHaveBeenCalledOnce()
-    expect(notifyError.mock.calls[0]![1]).toMatchObject({ detail: 'no display' })
+    expect(notifyError.mock.calls[0]![0]).toBe('no display')
     expect(filesProxy.WriteFile).not.toHaveBeenCalled()
   })
 
@@ -121,5 +135,25 @@ describe('queryStore file dialogs', () => {
 
     expect(notifyError).not.toHaveBeenCalled()
     expect(filesProxy.WriteFile).not.toHaveBeenCalled()
+  })
+})
+
+describe('queryStore.loadFileByPath', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+  })
+
+  test('leads with the real error when the file cannot be read', async () => {
+    vi.mocked(filesProxy.ReadFile).mockResolvedValue({
+      isSuccess: false,
+      data: '',
+      errorCode: 'unknown_error',
+      errorDetail: 'permission denied',
+    } as never)
+
+    expect(await storeWithQuery().loadFileByPath(QUERY_ID, '/q.js')).toBe(false)
+
+    expect(notifyError.mock.calls[0]![0]).toBe('permission denied')
   })
 })

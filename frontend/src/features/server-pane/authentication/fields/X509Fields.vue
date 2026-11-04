@@ -58,7 +58,7 @@ import { useI18n } from 'vue-i18n'
 import { InformationCircleIcon } from '@heroicons/vue/24/outline'
 import { parseX509, serialiseX509, type X509Auth } from '../authUri'
 import { SelectFile } from 'wailsjs/go/api/FilesProxy'
-import { notifyResultError } from '@/utils/resultError'
+import { notifyResultDetail } from '@/utils/resultError'
 
 const props = defineProps<{ uri: string }>()
 const emit = defineEmits<{ (e: 'update:uri', value: string): void }>()
@@ -78,7 +78,7 @@ async function browse(): Promise<void> {
     { displayName: 'All files', pattern: '*' },
   ])
   if (!result.isSuccess) {
-    notifyResultError(result, i18n.t('errorTitles.fileDialog'))
+    notifyResultDetail(result, i18n.t('errorTitles.fileDialog'))
     return
   }
   if (!result.data) {

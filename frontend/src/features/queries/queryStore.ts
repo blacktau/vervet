@@ -6,7 +6,7 @@ import { useTabStore } from '@/features/tabs/tabs'
 import { useNotifier } from '@/utils/dialog'
 import { useSettingsStore } from '@/features/settings/settingsStore'
 import { i18nGlobal } from '@/i18n'
-import { errorCodeText, notifyResultError, resultErrorText } from '@/utils/resultError'
+import { notifyResultDetail, notifyResultError, resultErrorText } from '@/utils/resultError'
 
 export type PageContext = models.PageContext
 export type ResultNamespace = models.ResultNamespace
@@ -770,7 +770,7 @@ export const useQueryStore = defineStore('query', {
         { displayName: i18nGlobal.t('query.filterAllFiles'), pattern: '*.*' },
       ])
       if (!result.isSuccess) {
-        notifyResultError(result, i18nGlobal.t('errorTitles.fileDialog'))
+        notifyResultDetail(result, i18nGlobal.t('errorTitles.fileDialog'))
         return null
       }
       if (!result.data) {
@@ -779,7 +779,7 @@ export const useQueryStore = defineStore('query', {
 
       const readResult = await filesProxy.ReadFile(result.data)
       if (!readResult.isSuccess) {
-        notifyResultError(readResult, i18nGlobal.t('errorTitles.loadFile'))
+        notifyResultDetail(readResult, i18nGlobal.t('errorTitles.loadFile'))
         return null
       }
 
@@ -792,11 +792,7 @@ export const useQueryStore = defineStore('query', {
     async loadFileByPath(queryId: string, filePath: string): Promise<boolean> {
       const result = await filesProxy.ReadFile(filePath)
       if (!result.isSuccess) {
-        const notifier = useNotifier()
-        notifier.error(errorCodeText(result.errorCode), {
-          title: i18nGlobal.t('errorTitles.loadFile'),
-          detail: result.errorDetail,
-        })
+        notifyResultDetail(result, i18nGlobal.t('errorTitles.loadFile'))
         return false
       }
 
@@ -816,7 +812,7 @@ export const useQueryStore = defineStore('query', {
 
       const result = await filesProxy.WriteFile(state.filePath, content)
       if (!result.isSuccess) {
-        notifyResultError(result, i18nGlobal.t('errorTitles.saveFile'))
+        notifyResultDetail(result, i18nGlobal.t('errorTitles.saveFile'))
         return false
       }
 
@@ -840,7 +836,7 @@ export const useQueryStore = defineStore('query', {
         ],
       )
       if (!pathResult.isSuccess) {
-        notifyResultError(pathResult, i18nGlobal.t('errorTitles.fileDialog'))
+        notifyResultDetail(pathResult, i18nGlobal.t('errorTitles.fileDialog'))
         return false
       }
       if (!pathResult.data) {
@@ -849,7 +845,7 @@ export const useQueryStore = defineStore('query', {
 
       const writeResult = await filesProxy.WriteFile(pathResult.data, content)
       if (!writeResult.isSuccess) {
-        notifyResultError(writeResult, i18nGlobal.t('errorTitles.saveFile'))
+        notifyResultDetail(writeResult, i18nGlobal.t('errorTitles.saveFile'))
         return false
       }
 
