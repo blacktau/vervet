@@ -299,7 +299,12 @@ const openFile = async () => {
     }
   }
 
-  await queryStore.openFile(props.queryId)
+  const content = await queryStore.openFile(props.queryId)
+  // The savedContent watcher misses a file matching what was last saved, such as
+  // reopening a file after discarding edits to it.
+  if (content !== null && editor.value && editor.value.getValue() !== content) {
+    editor.value.setValue(content)
+  }
 }
 
 // Push loaded file content into the editor. Covers every load path (Ctrl+O and
@@ -350,6 +355,13 @@ onMounted(async () => {
     item.initialText = undefined
   }
 
+  // An untitled tab has no file to compare against, so what it opened with counts
+  // as saved: otherwise it could never become dirty, and its edits could be lost
+  // without a prompt.
+  if (queryState.value.savedContent === null && editor.value) {
+    queryStore.setSavedContent(props.queryId, editor.value.getValue())
+  }
+
   await queryStore.checkMongosh()
 
   const serverId = tabStore.currentTab?.serverId
@@ -394,15 +406,17 @@ onMounted(async () => {
       },
     })
 
-    editor.value.onDidChangeModelContent(() => {
+    const syncContent = () => {
       const currentContent = editor.value?.getValue() ?? ''
       queryStore.setCurrentContent(props.queryId, currentContent)
       const saved = queryState.value.savedContent
       if (saved !== null) {
         queryStore.setDirty(props.queryId, currentContent !== saved)
       }
-    })
-    queryStore.setCurrentContent(props.queryId, editor.value.getValue())
+    }
+    editor.value.onDidChangeModelContent(syncContent)
+    // Picks up anything typed while the awaits above were pending.
+    syncContent()
   }
 })
 
