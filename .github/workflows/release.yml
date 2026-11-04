@@ -193,14 +193,8 @@ jobs:
           find /usr/lib* -name libwebkit2gtkinjectedbundle.so -exec mkdir -p $(dirname '{}') \; -exec cp --parents '{}' "." \; || true
           popd
 
-          # Download AppRun binary
-          # Pinned to the immutable AppImageKit 12 release asset rather than
-          # the mutable 'continuous' tag, so the binary baked into the shipped
-          # AppImage can't be swapped upstream. (Tag 13 renamed the asset to
-          # obsolete-AppRun-x86_64; 12 is the newest tag with AppRun-x86_64.)
-          # TODO: add sha256 verification once a vetted checksum is recorded.
-          wget -q https://github.com/AppImage/AppImageKit/releases/download/12/AppRun-x86_64 -O AppDir/AppRun
-          chmod +x AppDir/AppRun
+          # Use our own AppRun rather than a prebuilt binary from upstream
+          install -m 755 build/linux/AppRun AppDir/AppRun
 
           # Resize icon to 512x512 (linuxdeploy rejects >512)
           convert build/appicon.png -resize 512x512 build/Vervet-512.png
