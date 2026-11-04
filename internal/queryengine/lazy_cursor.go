@@ -552,7 +552,9 @@ func (c *lazyCursor) toGojaObject() goja.Value {
 		if err != nil {
 			panic(rt.NewGoError(err))
 		}
-		return toGojaValue(rt, result)
+		val := toGojaValue(rt, result)
+		c.ec.rememberOperation(val, result)
+		return val
 	})
 
 	// No-op

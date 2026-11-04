@@ -4,6 +4,7 @@ package queryengine
 
 import (
 	"context"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -610,4 +611,97 @@ func TestIntegration_Aggregate_ExplainKeepsOptions(t *testing.T) {
 		_, err := run(script)
 		assert.Error(t, err, script)
 	}
+}
+
+// A write left as the script's final value keeps its operation and count, which
+// the frontend's summary line is built from.
+func TestIntegration_Writes_FinalValueKeepsOperationAndCount(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	engine := NewGojaEngine(testClient, 0, "")
+	// Each case has its own database: a w: 0 write can land after its script has
+	// returned, which must not touch the next case's documents.
+	databases := 0
+	newDB := func(t *testing.T) string {
+		databases++
+		name := "test_write_summary_" + strconv.Itoa(databases)
+		t.Cleanup(func() { testClient.Database(name).Drop(context.Background()) })
+		return name
+	}
+	const seed = `db.c.drop(); db.c.insertMany([{ _id: 1, g: 1 }, { _id: 2, g: 1 }, { _id: 3, g: 2 }]); `
+	for _, tc := range []struct {
+		name, script, wantOp string
+		wantCount            int
+	}{
+		{"insertOne", `db.c.insertOne({ _id: 4 })`, "insertOne", 1},
+		{"insertMany", `db.c.insertMany([{ _id: 4 }, { _id: 5 }])`, "insertMany", 2},
+		{"updateOne", `db.c.updateOne({ g: 1 }, { $set: { x: 1 } })`, "updateOne", 1},
+		{"updateMany", `db.c.updateMany({}, { $set: { x: 1 } })`, "updateMany", 3},
+		{"updateMany matching nothing", `db.c.updateMany({ g: 9 }, { $set: { x: 1 } })`, "updateMany", 0},
+		{"updateOne upserting", `db.c.updateOne({ _id: 9 }, { $set: { x: 1 } }, { upsert: true })`, upsertOperation, 1},
+		{"updateMany upserting", `db.c.updateMany({ _id: 9 }, { $set: { x: 1 } }, { upsert: true })`, upsertOperation, 1},
+		{"replaceOne upserting", `db.c.replaceOne({ _id: 9 }, { x: 1 }, { upsert: true })`, upsertOperation, 1},
+		{"upsert option on a match", `db.c.updateOne({ _id: 1 }, { $set: { x: 1 } }, { upsert: true })`, "updateOne", 1},
+		{"replaceOne", `db.c.replaceOne({ _id: 1 }, { x: 1 })`, "replaceOne", 1},
+		{"deleteOne", `db.c.deleteOne({ g: 1 })`, "deleteOne", 1},
+		{"deleteMany", `db.c.deleteMany({ g: 1 })`, "deleteMany", 2},
+		{"bulkWrite", `db.c.bulkWrite([{ deleteOne: { filter: { _id: 1 } } }, { insertOne: { _id: 4 } }])`, "bulkWrite", 2},
+		{"findOneAndUpdate", `db.c.findOneAndUpdate({ _id: 1 }, { $set: { x: 1 } })`, "findOneAndUpdate", 0},
+		{"findAndModify", `db.c.findAndModify({ query: { _id: 1 }, remove: true })`, "findOneAndDelete", 0},
+		{"unacknowledged insertOne", `db.c.insertOne({ _id: 4 }, { writeConcern: { w: 0 } })`, unacknowledgedOperation, 0},
+		{"unacknowledged insertMany", `db.c.insertMany([{ _id: 4 }, { _id: 5 }], { writeConcern: { w: 0 } })`, unacknowledgedOperation, 0},
+		{"unacknowledged updateMany", `db.c.updateMany({}, { $set: { x: 1 } }, { writeConcern: { w: 0 } })`, unacknowledgedOperation, 0},
+		{"unacknowledged replaceOne", `db.c.replaceOne({ _id: 1 }, { x: 1 }, { writeConcern: { w: 0 } })`, unacknowledgedOperation, 0},
+		{"unacknowledged deleteMany", `db.c.deleteMany({}, { writeConcern: { w: 0 } })`, unacknowledgedOperation, 0},
+		{"unacknowledged bulkWrite", `db.c.bulkWrite([{ deleteOne: { filter: { _id: 1 } } }], { writeConcern: { w: 0 } })`, unacknowledgedOperation, 0},
+		{"held in a variable", `const r = db.c.deleteMany({ g: 1 }); r`, "deleteMany", 2},
+		{"an earlier write shown after a later one", `const r = db.c.deleteMany({ g: 1 }); db.c.insertOne({ _id: 4 }); r`, "deleteMany", 2},
+		{"another database", `db.getSiblingDB(db.getName()).c.deleteMany({ g: 1 })`, "deleteMany", 2},
+		{"updateMany already in that state", `db.c.updateMany({ g: 1 }, { $set: { g: 1 } })`, unchangedOperation, 2},
+		{"findOneAndUpdate upserting, new document", `db.c.findOneAndUpdate({ _id: 9 }, { $set: { x: 1 } }, { upsert: true, returnDocument: "after" })`, "findOneAndUpdateOrUpsert", 0},
+		{"findOneAndUpdate upsert option on a match, new document", `db.c.findOneAndUpdate({ _id: 1 }, { $set: { x: 1 } }, { upsert: true, returnNewDocument: true })`, "findOneAndUpdateOrUpsert", 0},
+		{"findOneAndUpdate upsert option on a match, old document", `db.c.findOneAndUpdate({ _id: 1 }, { $set: { x: 1 } }, { upsert: true })`, "findOneAndUpdate", 0},
+		{"findOneAndReplace upserting, new document", `db.c.findOneAndReplace({ _id: 9 }, { x: 1 }, { upsert: true, returnDocument: "after" })`, "findOneAndReplaceOrUpsert", 0},
+		{"findAndModify upserting, new document", `db.c.findAndModify({ query: { _id: 9 }, update: { $set: { x: 1 } }, upsert: true, new: true })`, "findOneAndUpdateOrUpsert", 0},
+		{"find with the explain option", `db.c.find({}, {}, { explain: "queryPlanner" })`, "explain", 0},
+		{"cursor explain", `db.c.find().explain()`, "explain", 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := engine.ExecuteQuery(ctx, testURI, newDB(t), seed+tc.script)
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantOp, result.OperationType)
+			assert.Equal(t, tc.wantCount, result.AffectedCount)
+			assert.Len(t, result.Documents, 1, "the write's result is still shown")
+		})
+	}
+
+	// getIndexes gives the same list as listIndexes, so it is summarised the same.
+	t.Run("getIndexes", func(t *testing.T) {
+		result, err := engine.ExecuteQuery(ctx, testURI, newDB(t), seed+`db.c.getIndexes()`)
+		require.NoError(t, err)
+		assert.Equal(t, "listIndexes", result.OperationType)
+	})
+
+	// Returning the old document, an upsert that inserted gives null, which shows as
+	// null with no operation, rather than a count of anything.
+	t.Run("findOneAndUpdate upserting, old document", func(t *testing.T) {
+		result, err := engine.ExecuteQuery(ctx, testURI, newDB(t), seed+`db.c.findOneAndUpdate({ _id: 9 }, { $set: { x: 1 } }, { upsert: true })`)
+		require.NoError(t, err)
+		assert.Empty(t, result.OperationType)
+		assert.Equal(t, "null", result.RawOutput)
+	})
+
+	// The summary describes the final value, not whatever the script did last.
+	t.Run("a different final value is not the write", func(t *testing.T) {
+		for _, script := range []string{
+			`db.c.deleteMany({ g: 1 }); ({ done: true })`,
+			`const r = db.c.deleteMany({ g: 1 }); ({ ...r })`,
+			`db.c.deleteMany({ g: 1 }); db.c.find()`,
+		} {
+			result, err := engine.ExecuteQuery(ctx, testURI, newDB(t), seed+script)
+			require.NoError(t, err, script)
+			assert.Zero(t, result.AffectedCount, script)
+			assert.NotEqual(t, "deleteMany", result.OperationType, script)
+		}
+	})
 }

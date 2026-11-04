@@ -197,7 +197,41 @@ func updateResultToQueryResult(res *mongo.UpdateResult, method string) models.Qu
 	}
 	doc = append(doc, bson.E{Key: "upsertedCount", Value: int(res.UpsertedCount)})
 	result := singleToResult(doc)
-	result.OperationType = method
-	result.AffectedCount = int(res.ModifiedCount + res.UpsertedCount)
+	affected := int(res.ModifiedCount + res.UpsertedCount)
+	switch {
+	case res.UpsertedCount > 0:
+		// An upsert only inserts when nothing matched, so nothing was also updated.
+		// Said as an update, a mistyped filter that created a document would go
+		// unnoticed.
+		method = upsertOperation
+	case res.MatchedCount > 0 && res.ModifiedCount == 0:
+		// Said as "0 updated", this would look the same as a mistyped filter.
+		method = unchangedOperation
+		affected = int(res.MatchedCount)
+	}
+	setWriteSummary(&result, method, affected, res.Acknowledged)
 	return result
+}
+
+const (
+	// upsertOperation is the operation type of an update or replace that inserted.
+	upsertOperation = "upsert"
+	// unchangedOperation is the operation type of an update or replace that matched
+	// documents already in the state it asked for. Its count is what it matched.
+	unchangedOperation = "unchanged"
+)
+
+// unacknowledgedOperation is the operation type of a write sent with w: 0.
+const unacknowledgedOperation = "unacknowledged"
+
+// setWriteSummary records what the frontend summarises a write by. The server
+// reports nothing about an unacknowledged write, so its summary claims no count:
+// a delete that removed everything must not read as "0 document(s) deleted".
+func setWriteSummary(result *models.QueryResult, method string, affected int, acknowledged bool) {
+	if !acknowledged {
+		result.OperationType = unacknowledgedOperation
+		return
+	}
+	result.OperationType = method
+	result.AffectedCount = affected
 }
