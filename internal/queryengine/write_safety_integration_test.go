@@ -611,3 +611,56 @@ func TestIntegration_Aggregate_ExplainKeepsOptions(t *testing.T) {
 		assert.Error(t, err, script)
 	}
 }
+
+// A write left as the script's final value keeps its operation and count, which
+// the frontend's summary line is built from.
+func TestIntegration_Writes_FinalValueKeepsOperationAndCount(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	db := dbName(t)
+	defer testClient.Database(db).Drop(context.Background())
+
+	engine := NewGojaEngine(testClient, 0, "")
+	const seed = `db.c.drop(); db.c.insertMany([{ _id: 1, g: 1 }, { _id: 2, g: 1 }, { _id: 3, g: 2 }]); `
+	for _, tc := range []struct {
+		name, script, wantOp string
+		wantCount            int
+	}{
+		{"insertOne", `db.c.insertOne({ _id: 4 })`, "insertOne", 1},
+		{"insertMany", `db.c.insertMany([{ _id: 4 }, { _id: 5 }])`, "insertMany", 2},
+		{"updateOne", `db.c.updateOne({ g: 1 }, { $set: { x: 1 } })`, "updateOne", 1},
+		{"updateMany", `db.c.updateMany({}, { $set: { x: 1 } })`, "updateMany", 3},
+		{"updateMany matching nothing", `db.c.updateMany({ g: 9 }, { $set: { x: 1 } })`, "updateMany", 0},
+		{"upsert", `db.c.updateOne({ _id: 9 }, { $set: { x: 1 } }, { upsert: true })`, "updateOne", 1},
+		{"replaceOne", `db.c.replaceOne({ _id: 1 }, { x: 1 })`, "replaceOne", 1},
+		{"deleteOne", `db.c.deleteOne({ g: 1 })`, "deleteOne", 1},
+		{"deleteMany", `db.c.deleteMany({ g: 1 })`, "deleteMany", 2},
+		{"bulkWrite", `db.c.bulkWrite([{ deleteOne: { filter: { _id: 1 } } }, { insertOne: { _id: 4 } }])`, "bulkWrite", 2},
+		{"findOneAndUpdate", `db.c.findOneAndUpdate({ _id: 1 }, { $set: { x: 1 } })`, "findOneAndUpdate", 0},
+		{"held in a variable", `const r = db.c.deleteMany({ g: 1 }); r`, "deleteMany", 2},
+		{"an earlier write shown after a later one", `const r = db.c.deleteMany({ g: 1 }); db.c.insertOne({ _id: 4 }); r`, "deleteMany", 2},
+		{"another database", `db.getSiblingDB("` + db + `").c.deleteMany({ g: 1 })`, "deleteMany", 2},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := engine.ExecuteQuery(ctx, testURI, db, seed+tc.script)
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantOp, result.OperationType)
+			assert.Equal(t, tc.wantCount, result.AffectedCount)
+			assert.Len(t, result.Documents, 1, "the write's result is still shown")
+		})
+	}
+
+	// The summary describes the final value, not whatever the script did last.
+	t.Run("a different final value is not the write", func(t *testing.T) {
+		for _, script := range []string{
+			`db.c.deleteMany({ g: 1 }); ({ done: true })`,
+			`const r = db.c.deleteMany({ g: 1 }); ({ ...r })`,
+			`db.c.deleteMany({ g: 1 }); db.c.find()`,
+		} {
+			result, err := engine.ExecuteQuery(ctx, testURI, db, seed+script)
+			require.NoError(t, err, script)
+			assert.Zero(t, result.AffectedCount, script)
+			assert.NotEqual(t, "deleteMany", result.OperationType, script)
+		}
+	})
+}

@@ -88,6 +88,7 @@ func (e *GojaEngine) ExecuteQuery(ctx context.Context, uri, dbName, query string
 		// Worked out first: showing a fresh cursor resolves it.
 		hasValue := hasFinalValue(val)
 		result, retErr = finalValueResult(ec, val)
+		ec.labelOperation(&result, val)
 		result.HasValue = hasValue
 		return
 	}()

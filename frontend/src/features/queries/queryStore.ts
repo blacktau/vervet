@@ -27,6 +27,18 @@ function resultMessage(operationType: string, count: number, duration: string): 
   return translated
 }
 
+/** Operations whose summary counts the documents they returned. */
+const documentOperations = new Set(['find', 'findOne', 'aggregate', 'listIndexes'])
+
+/**
+ * The count for an operation's summary. Every other operation counts what it
+ * affected, not its result document. A zero is left out of the JSON, so a write
+ * that changed nothing arrives without a count.
+ */
+function resultCount(operationType: string, affectedCount: number | undefined, docCount: number) {
+  return documentOperations.has(operationType) ? docCount : (affectedCount ?? 0)
+}
+
 export type LogLevel = 'info' | 'warning' | 'error'
 
 const levelRank: Record<LogLevel, number> = { info: 0, warning: 1, error: 2 }
@@ -518,8 +530,13 @@ export const useQueryStore = defineStore('query', {
 
           const elapsed = formatDuration(Date.now() - (state.runStartedAt ?? Date.now()))
           const docCount = data.documents?.length ?? 0
+          const operationType = data.operationType || 'find'
           const msg = hasResult
-            ? resultMessage(data.operationType || 'find', data.affectedCount || docCount, elapsed)
+            ? resultMessage(
+                operationType,
+                resultCount(operationType, data.affectedCount, docCount),
+                elapsed,
+              )
             : i18nGlobal.t('query.messages.genericResult', { time: elapsed })
           this.appendMessage(queryId, { level: 'info', text: msg, query: queryPayload })
 

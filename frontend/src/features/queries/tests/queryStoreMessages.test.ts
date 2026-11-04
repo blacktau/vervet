@@ -1,7 +1,16 @@
 import { setActivePinia, createPinia } from 'pinia'
-import { beforeEach, describe, expect, test } from 'vitest'
+import { beforeEach, describe, expect, test, vi } from 'vitest'
+
+vi.mock('wailsjs/go/api/ShellProxy', () => ({
+  ExecuteQuery: vi.fn(),
+  CancelQuery: vi.fn(async () => undefined),
+  CheckMongosh: vi.fn(async () => ({ isSuccess: true, data: true })),
+}))
+
+import * as shellProxy from 'wailsjs/go/api/ShellProxy'
 import { useQueryStore } from '../queryStore'
 import type { LogMessage } from '../queryStore'
+import { useTabStore } from '@/features/tabs/tabs'
 
 describe('queryStore message model', () => {
   beforeEach(() => {
@@ -51,5 +60,55 @@ describe('queryStore message model', () => {
     store.setMessageFilter('q1', 'warning', false)
     expect(store.getQueryState('q1').messageFilter.warning).toBe(false)
     expect(store.getQueryState('q1').messageFilter.info).toBe(true)
+  })
+})
+
+describe('queryStore result summary', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  async function summaryOf(data: Record<string, unknown>) {
+    const tabStore = useTabStore()
+    vi.spyOn(tabStore, 'currentTabId', 'get').mockReturnValue('srv-1')
+    vi.spyOn(tabStore, 'currentTab', 'get').mockReturnValue({
+      serverId: 'srv-1',
+      activeInnerTabId: 'q1',
+    } as never)
+    const store = useQueryStore()
+    store.initQueryState('q1', 'mydb')
+    vi.mocked(shellProxy.ExecuteQuery).mockResolvedValue({ isSuccess: true, data } as never)
+    await store.executeQuery('q1', {
+      text: 'db.c.run()',
+      range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
+    })
+    const messages = store.getQueryState('q1').messages
+    return (messages[messages.length - 1] as LogMessage).text
+  }
+
+  const ack = [{ acknowledged: true }]
+
+  test('a write reports how many documents it affected, not its one result document', async () => {
+    const text = await summaryOf({ documents: ack, operationType: 'updateMany', affectedCount: 3 })
+    expect(text).toMatch(/^3 document\(s\) updated in /)
+  })
+
+  // A zero count is left out of the JSON, so it arrives as undefined.
+  test('a write that changed nothing reports zero', async () => {
+    const text = await summaryOf({ documents: ack, operationType: 'updateMany' })
+    expect(text).toMatch(/^0 document\(s\) updated in /)
+  })
+
+  test.each(['find', 'findOne', 'aggregate', 'listIndexes'])(
+    '%s counts its documents',
+    async (op) => {
+      const text = await summaryOf({ documents: [{ a: 1 }, { a: 2 }], operationType: op })
+      expect(text).toMatch(/^2 /)
+    },
+  )
+
+  test('a result with no operation is summarised as documents returned', async () => {
+    const text = await summaryOf({ documents: [{ a: 1 }, { a: 2 }] })
+    expect(text).toMatch(/^2 document\(s\) returned in /)
   })
 })

@@ -30,6 +30,9 @@ type execContext struct {
 	// reads are the values reads last handed to the script (see readDisplay). They
 	// are kept on the script's first context, whichever database was read.
 	reads []readResult
+	// operations are the values collection methods last handed to the script (see
+	// labelOperation), kept on the first context in the same way.
+	operations []operationResult
 }
 
 // readResult pairs a value a read gave a script with the server's result it
@@ -37,6 +40,14 @@ type execContext struct {
 type readResult struct {
 	obj    *goja.Object
 	result models.QueryResult
+}
+
+// operationResult pairs a value a collection method gave a script with what the
+// frontend summarises that method by.
+type operationResult struct {
+	obj           *goja.Object
+	operationType string
+	affectedCount int
 }
 
 // sibling makes the context for another database in the same script.
@@ -80,6 +91,41 @@ func (ec *execContext) rememberedRead(val goja.Value) *readResult {
 		}
 	}
 	return nil
+}
+
+// rememberOperation records the value a collection method is about to return. It
+// is separate from the reads so that a script writing in a loop doesn't push a
+// value it read off that list. Values that aren't objects can't be told apart
+// from any other, so a count or a null isn't recorded.
+func (ec *execContext) rememberOperation(val goja.Value, result models.QueryResult) {
+	obj, ok := val.(*goja.Object)
+	if !ok {
+		return
+	}
+	root := ec.root()
+	root.operations = append(root.operations, operationResult{
+		obj:           obj,
+		operationType: result.OperationType,
+		affectedCount: result.AffectedCount,
+	})
+	if len(root.operations) > maxRememberedReads {
+		root.operations = root.operations[1:]
+	}
+}
+
+// labelOperation says which operation produced result when val, the script's
+// final value, is what a collection method returned. Only the label is carried
+// over: result is still built from the value, so it shows any change the script
+// made to it. A value that has fallen off the list keeps its documents and is
+// summarised as a plain result.
+func (ec *execContext) labelOperation(result *models.QueryResult, val goja.Value) {
+	for _, op := range ec.root().operations {
+		if val == op.obj {
+			result.OperationType = op.operationType
+			result.AffectedCount = op.affectedCount
+			return
+		}
+	}
 }
 
 // readDisplay returns the server's result for a value a read returned, given as

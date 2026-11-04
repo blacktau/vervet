@@ -191,6 +191,7 @@ func newCollectionProxy(ec *execContext, collName string) goja.Value {
 			if m == "aggregate" {
 				ec.rememberRead(val, result)
 			}
+			ec.rememberOperation(val, result)
 			return val
 		})
 	}
