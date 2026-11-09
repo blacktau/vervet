@@ -27,5 +27,5 @@ at the repository root.
 - `nfpm/nfpm.yaml` - `.deb` and `.rpm` packaging. Edited by hand for install paths
   and GTK 4 dependencies, so check it after regenerating build assets.
 - `vervet.spec` - builds the source RPM that Copr rebuilds from.
-- `AppRun`, `xdg-open`, `Vervet.desktop`, `Vervet-512.png` - used by the release
+- `AppRun`, `xdg-open`, `com.blacktau.vervet.desktop`, `Vervet-512.png` - used by the release
   workflow's AppImage step, which uses linuxdeploy rather than `wails3 generate appimage`.

@@ -4,3 +4,4 @@ Exec=Vervet
 Icon=Vervet
 Type=Application
 Categories=Development;Database;
+StartupWMClass=com.blacktau.vervet

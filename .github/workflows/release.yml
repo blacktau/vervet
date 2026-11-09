@@ -197,7 +197,7 @@ jobs:
           # patch unnecessary:
           # https://github.com/AppImageCommunity/pkg2appimage/blob/master/excludelist
           # https://gitlab.freedesktop.org/mesa/mesa/-/issues/11316
-          sed -i 's|"\$LINUXDEPLOY" --appdir="\$APPDIR"|& --exclude-library="libwayland-client*"|' linuxdeploy-plugin-gtk.sh
+          sed -i 's|"[$]LINUXDEPLOY" --appdir="[$]APPDIR"|& --exclude-library="libwayland-client*"|' linuxdeploy-plugin-gtk.sh
 
           # Initial linuxdeploy run to set up AppDir
           ./linuxdeploy --appdir AppDir
@@ -230,7 +230,7 @@ jobs:
             --output appimage \
             --plugin gtk \
             -e bin/Vervet \
-            -d build/linux/Vervet.desktop \
+            -d build/linux/com.blacktau.vervet.desktop \
             -i build/linux/Vervet-512.png
 
           # Fail rather than ship the white window if the exclusion stops working
@@ -262,7 +262,7 @@ jobs:
           # Create tarball with directory name matching spec (name-version)
           mkdir -p "vervet-$VERSION"
           cp bin/Vervet "vervet-$VERSION/"
-          cp build/linux/Vervet.desktop "vervet-$VERSION/"
+          cp build/linux/com.blacktau.vervet.desktop "vervet-$VERSION/"
           cp build/linux/Vervet-512.png "vervet-$VERSION/Vervet.png"
           tar czf "vervet-$VERSION.tar.gz" "vervet-$VERSION/"
 

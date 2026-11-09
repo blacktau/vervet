@@ -13,6 +13,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
 type fakeWindow struct {
@@ -24,6 +25,8 @@ type fakeWindow struct {
 	bounds    [4]int
 	gone      bool
 }
+
+func (w *fakeWindow) Attach(*application.App, *application.WebviewWindow) {}
 
 func (w *fakeWindow) Emit(name string, _ ...any) {
 	w.mu.Lock()
@@ -77,7 +80,7 @@ func newGuardedApp(t *testing.T) (*App, *fakeWindow, *fakeSettings) {
 	a := &App{
 		log:             log,
 		closeGuard:      closeguard.New(log),
-		window:          win,
+		runtime:         win,
 		settingsService: store,
 	}
 	a.guardWindow()

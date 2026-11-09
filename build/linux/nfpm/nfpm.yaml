@@ -18,8 +18,8 @@ contents:
     dst: "/usr/bin/Vervet"
   - src: "./build/linux/Vervet-512.png"
     dst: "/usr/share/icons/hicolor/512x512/apps/Vervet.png"
-  - src: "./build/linux/Vervet.desktop"
-    dst: "/usr/share/applications/Vervet.desktop"
+  - src: "./build/linux/com.blacktau.vervet.desktop"
+    dst: "/usr/share/applications/com.blacktau.vervet.desktop"
 
 # GTK4 / WebKitGTK 6.0: Ubuntu 24.04, Debian 13 and current Fedora or newer.
 depends:

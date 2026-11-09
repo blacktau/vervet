@@ -16,10 +16,16 @@ const maximised = ref(false)
 const fullscreen = ref(false)
 let users = 0
 let stops: (() => void)[] = []
+let latestRefresh = 0
 
 const refresh = async () => {
+  const thisRefresh = ++latestRefresh
   try {
     const [isFullscreen, isMaximised] = await Promise.all([Window.IsFullscreen(), Window.IsMaximised()])
+    // A quick maximise-then-restore can answer out of order; keep the newest.
+    if (thisRefresh !== latestRefresh) {
+      return
+    }
     fullscreen.value = isFullscreen
     maximised.value = isMaximised
   } catch {

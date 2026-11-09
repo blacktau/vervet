@@ -1,7 +1,6 @@
 package settings
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -16,7 +15,6 @@ import (
 )
 
 type Service interface {
-	Init(ctx context.Context) error
 	GetSettings() (models.Settings, error)
 	SetSettings(settings *models.Settings) error
 	SetUpdatesState(lastCheckedAt string, dismissedVersion string) error
@@ -55,10 +53,6 @@ func NewService(log *slog.Logger, isDev bool) *settingsService {
 		log:   log,
 		isDev: isDev,
 	}
-}
-
-func (s *settingsService) Init(_ context.Context) error {
-	return nil
 }
 
 // SetScreenSizeProvider sets how the service finds the size of the screen
@@ -141,6 +135,10 @@ func (s *settingsService) RestoreSettings() (*models.Settings, error) {
 }
 
 func (s *settingsService) GetWindowState() (models.WindowState, error) {
+	// Read before locking: it waits for the main thread, which may itself be
+	// waiting for this lock to save the window state on quit.
+	screenWidth, screenHeight := s.getScreenSize()
+
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -152,7 +150,6 @@ func (s *settingsService) GetWindowState() (models.WindowState, error) {
 	width := max(settings.Window.Width, DefaultWindowWidth)
 	height := max(settings.Window.Height, DefaultWindowHeight)
 	x, y := settings.Window.PositionX, settings.Window.PositionY
-	screenWidth, screenHeight := s.getScreenSize()
 
 	if x <= 0 || x+width > screenWidth || y <= 0 || y+height > screenHeight {
 		x, y = (screenWidth-width)/2, (screenHeight-height)/2

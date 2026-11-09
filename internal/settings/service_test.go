@@ -6,6 +6,7 @@ import (
 	"os"
 	"path"
 	"testing"
+	"time"
 	"vervet/internal/infrastructure"
 	"vervet/internal/models"
 	"vervet/internal/settings"
@@ -401,4 +402,29 @@ func Test_SetSettings_PreservesUpdateCheckState(t *testing.T) {
 	if got.Updates.Frequency != "weekly" {
 		t.Errorf("frequency should still be saved: got %q", got.Updates.Frequency)
 	}
+}
+
+// Asking for the screen size waits for the main thread. On quit, the main
+// thread saves the window state, so GetWindowState must not hold the settings
+// lock while it waits.
+func Test_SettingsService_GetWindowStateDoesNotHoldTheLockForTheScreenSize(t *testing.T) {
+	m := newTestService(nil, nil)
+	m.SetScreenSizeProvider(func() (int, int, bool) {
+		saved := make(chan error, 1)
+		go func() {
+			saved <- m.SaveWindowState(models.WindowState{X: 10, Y: 20, Width: 1280, Height: 960})
+		}()
+		select {
+		case err := <-saved:
+			assert.NoError(t, err)
+		case <-time.After(2 * time.Second):
+			t.Error("saving the window state waited for GetWindowState")
+		}
+		return 1920, 1080, true
+	})
+
+	state, err := m.GetWindowState()
+
+	assert.NoError(t, err)
+	assert.Equal(t, models.WindowState{X: 10, Y: 20, Width: 1280, Height: 960}, state)
 }

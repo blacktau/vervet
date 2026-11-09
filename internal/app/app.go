@@ -64,9 +64,10 @@ func (o urlOpener) OpenURL(url string) {
 	}
 }
 
-// mainWindow is what App needs from the main window. desktop.Runtime
+// desktopRuntime is what App needs from the Wails runtime. desktop.Runtime
 // provides it; tests use a fake.
-type mainWindow interface {
+type desktopRuntime interface {
+	Attach(app *application.App, window *application.WebviewWindow)
 	Emit(name string, data ...any)
 	RevealWindow()
 	CloseWindow()
@@ -78,8 +79,7 @@ type mainWindow interface {
 type App struct {
 	log              *slog.Logger
 	closeGuard       *closeguard.Guard
-	runtime          *desktop.Runtime
-	window           mainWindow
+	runtime          desktopRuntime
 	ctx              context.Context
 	cancel           context.CancelFunc
 	ServersProxy     *api.ServersProxy
@@ -162,7 +162,6 @@ func NewApp(log *slog.Logger, settingsService settings.Service, version string) 
 	return &App{
 		log:                log,
 		runtime:            rt,
-		window:             rt,
 		closeGuard:         closeGuard,
 		CloseGuardProxy:    api.NewCloseGuardProxy(log, closeGuard),
 		serverService:      serverService,
@@ -229,13 +228,13 @@ func (a *App) guardWindow() {
 	a.closeGuard.Init(
 		func() {
 			// Closing from the taskbar can happen while minimised, where the prompt can't be seen.
-			a.window.RevealWindow()
-			a.window.Emit(closeguard.EventCloseRequested)
+			a.runtime.RevealWindow()
+			a.runtime.Emit(closeguard.EventCloseRequested)
 		},
-		a.window.CloseWindow,
+		a.runtime.CloseWindow,
 	)
 
-	a.window.OnWindowClosing(func() bool {
+	a.runtime.OnWindowClosing(func() bool {
 		if a.closeGuard.BeforeClose() {
 			return true
 		}
@@ -286,10 +285,6 @@ func (a *App) startup() error {
 	a.collectionsService.Init(ctx)
 	a.queryExecutor.Init(ctx)
 
-	if err := a.settingsService.Init(ctx); err != nil {
-		return fmt.Errorf("failed to initialize settings service: %w", err)
-	}
-
 	a.exportService.Init(ctx)
 	a.systemService.Init(ctx)
 
@@ -330,11 +325,11 @@ func (a *App) GetInitialWindowSize() (width, height int) {
 }
 
 func (a *App) saveWindowState() {
-	if a.window == nil {
+	if a.runtime == nil {
 		return
 	}
 	// Not ok when the window is already gone, e.g. the app quits after it closed.
-	x, y, width, height, ok := a.window.WindowBounds()
+	x, y, width, height, ok := a.runtime.WindowBounds()
 	if !ok {
 		return
 	}

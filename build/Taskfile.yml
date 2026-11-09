@@ -2,11 +2,12 @@ version: '3'
 
 tasks:
   go:mod:tidy:
-    summary: Runs `go mod tidy`
+    summary: Runs `go mod tidy`; in CI, fails instead if go.mod or go.sum isn't tidy
     internal: true
     run: once
     cmds:
-      - go mod tidy
+      # Release builds must use the module files as tagged, not a tidied copy.
+      - 'if [ -n "$CI" ]; then go mod tidy -diff; else go mod tidy; fi'
 
   install:frontend:deps:
     summary: Installs frontend dependencies

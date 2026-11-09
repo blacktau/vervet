@@ -22,10 +22,10 @@ Vervet is a desktop MongoDB explorer built with Go and Vue 3.
 
 %install
 install -D -m 755 Vervet %{buildroot}%{_bindir}/Vervet
-install -D -m 644 Vervet.desktop %{buildroot}%{_datadir}/applications/Vervet.desktop
+install -D -m 644 com.blacktau.vervet.desktop %{buildroot}%{_datadir}/applications/com.blacktau.vervet.desktop
 install -D -m 644 Vervet.png %{buildroot}%{_datadir}/icons/hicolor/512x512/apps/Vervet.png
 
 %files
 %{_bindir}/Vervet
-%{_datadir}/applications/Vervet.desktop
+%{_datadir}/applications/com.blacktau.vervet.desktop
 %{_datadir}/icons/hicolor/512x512/apps/Vervet.png

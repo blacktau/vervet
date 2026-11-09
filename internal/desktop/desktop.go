@@ -6,6 +6,9 @@
 package desktop
 
 import (
+	"fmt"
+	"net/url"
+	"strings"
 	"sync"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -23,7 +26,12 @@ type Runtime struct {
 	mu     sync.RWMutex
 	app    *application.App
 	window *application.WebviewWindow
+	// lastBounds is the window's position and size when it was last not
+	// minimised. Windows reports a minimised window at (-32000, -32000).
+	lastBounds *bounds
 }
+
+type bounds struct{ x, y, width, height int }
 
 // New returns a Runtime that is not yet attached to a Wails app.
 func New() *Runtime {
@@ -36,6 +44,35 @@ func (r *Runtime) Attach(app *application.App, window *application.WebviewWindow
 	defer r.mu.Unlock()
 	r.app = app
 	r.window = window
+	if window == nil {
+		return
+	}
+	// Listeners run on their own goroutine, so they may query the window.
+	window.OnWindowEvent(events.Common.WindowDidResize, func(*application.WindowEvent) { r.recordBounds() })
+	window.OnWindowEvent(events.Common.WindowDidMove, func(*application.WindowEvent) { r.recordBounds() })
+}
+
+func (r *Runtime) recordBounds() {
+	_, window := r.get()
+	if window == nil || window.IsMinimised() {
+		return
+	}
+	b, ok := liveBounds(window)
+	if !ok {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.lastBounds = &b
+}
+
+func liveBounds(window *application.WebviewWindow) (bounds, bool) {
+	width, height := window.Size()
+	if width <= 0 || height <= 0 {
+		return bounds{}, false
+	}
+	x, y := window.Position()
+	return bounds{x, y, width, height}, true
 }
 
 func (r *Runtime) get() (*application.App, *application.WebviewWindow) {
@@ -54,13 +91,34 @@ func (r *Runtime) Emit(name string, data ...any) {
 	app.Event.Emit(name, data...)
 }
 
-// OpenURL opens url in the user's default browser.
-func (r *Runtime) OpenURL(url string) error {
+// OpenURL opens an http or https URL in the user's default browser. Other
+// schemes are refused: some URLs come from MongoDB servers (the OIDC login
+// page), and the OS opener would launch file://, smb:// or any handler app.
+func (r *Runtime) OpenURL(rawURL string) error {
+	safe, err := checkBrowserURL(rawURL)
+	if err != nil {
+		return err
+	}
 	app, _ := r.get()
 	if app == nil {
 		return nil
 	}
-	return app.Browser.OpenURL(url)
+	return app.Browser.OpenURL(safe)
+}
+
+func checkBrowserURL(rawURL string) (string, error) {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return "", fmt.Errorf("refusing to open URL: %w", err)
+	}
+	if scheme := strings.ToLower(parsed.Scheme); scheme != "http" && scheme != "https" {
+		return "", fmt.Errorf("refusing to open a %q URL in the browser", parsed.Scheme)
+	}
+	safe, err := application.ValidateAndSanitizeURL(rawURL)
+	if err != nil {
+		return "", fmt.Errorf("refusing to open URL: %w", err)
+	}
+	return safe, nil
 }
 
 // SelectFile asks the user to pick an existing file. A cancelled dialog
@@ -171,16 +229,25 @@ func (r *Runtime) OnWindowClosing(fn func() (keepOpen bool)) {
 }
 
 // WindowBounds returns the main window's position and size, or ok=false when
-// there is no window or it is already gone.
+// there is no window or it is already gone. A minimised window reports where
+// it was before it was minimised.
 func (r *Runtime) WindowBounds() (x, y, width, height int, ok bool) {
 	_, window := r.get()
 	if window == nil {
 		return 0, 0, 0, 0, false
 	}
-	width, height = window.Size()
-	if width <= 0 || height <= 0 {
+	if window.IsMinimised() {
+		r.mu.RLock()
+		last := r.lastBounds
+		r.mu.RUnlock()
+		if last == nil {
+			return 0, 0, 0, 0, false
+		}
+		return last.x, last.y, last.width, last.height, true
+	}
+	b, ok := liveBounds(window)
+	if !ok {
 		return 0, 0, 0, 0, false
 	}
-	x, y = window.Position()
-	return x, y, width, height, true
+	return b.x, b.y, b.width, b.height, true
 }
