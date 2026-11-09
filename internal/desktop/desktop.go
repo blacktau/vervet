@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/events"
 )
 
 // FileFilter restricts a file dialog to matching files, e.g. "*.js;*.mongodb".
@@ -133,4 +134,53 @@ func (r *Runtime) ScreenSize() (width, height int, ok bool) {
 		return 0, 0, false
 	}
 	return screen.Size.Width, screen.Size.Height, true
+}
+
+// RevealWindow brings the main window back if it is minimised.
+func (r *Runtime) RevealWindow() {
+	_, window := r.get()
+	if window == nil {
+		return
+	}
+	if window.IsMinimised() {
+		window.UnMinimise()
+	}
+}
+
+// CloseWindow closes the main window, which quits the app.
+func (r *Runtime) CloseWindow() {
+	_, window := r.get()
+	if window == nil {
+		return
+	}
+	window.Close()
+}
+
+// OnWindowClosing calls fn when the user tries to close the main window. If fn
+// returns true, the window stays open.
+func (r *Runtime) OnWindowClosing(fn func() (keepOpen bool)) {
+	_, window := r.get()
+	if window == nil {
+		return
+	}
+	window.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
+		if fn() {
+			e.Cancel()
+		}
+	})
+}
+
+// WindowBounds returns the main window's position and size, or ok=false when
+// there is no window or it is already gone.
+func (r *Runtime) WindowBounds() (x, y, width, height int, ok bool) {
+	_, window := r.get()
+	if window == nil {
+		return 0, 0, 0, 0, false
+	}
+	width, height = window.Size()
+	if width <= 0 || height <= 0 {
+		return 0, 0, 0, 0, false
+	}
+	x, y = window.Position()
+	return x, y, width, height, true
 }

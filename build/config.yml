@@ -10,7 +10,9 @@ info:
   description: "A desktop MongoDB explorer"
   copyright: "Copyright 2026 Sean Garrett"
   comments: "A desktop MongoDB explorer"
-  # The release workflow stamps the real version here.
+  # A placeholder for the generated files. Releases don't change it: the
+  # workflow passes VERSION to the tasks (binary, NSIS installer, deb, rpm)
+  # and stamps windows/info.json and darwin/Info.plist directly.
   version: "0.0.0"
 
 dev_mode:

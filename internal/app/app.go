@@ -28,7 +28,6 @@ import (
 	"vervet/internal/workspaces"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
-	"github.com/wailsapp/wails/v3/pkg/events"
 )
 
 // filesServiceSaveDialogAdapter adapts files.Service to export.SaveDialog,
@@ -65,12 +64,22 @@ func (o urlOpener) OpenURL(url string) {
 	}
 }
 
+// mainWindow is what App needs from the main window. desktop.Runtime
+// provides it; tests use a fake.
+type mainWindow interface {
+	Emit(name string, data ...any)
+	RevealWindow()
+	CloseWindow()
+	OnWindowClosing(fn func() (keepOpen bool))
+	WindowBounds() (x, y, width, height int, ok bool)
+}
+
 // App struct
 type App struct {
 	log              *slog.Logger
 	closeGuard       *closeguard.Guard
 	runtime          *desktop.Runtime
-	window           *application.WebviewWindow
+	window           mainWindow
 	ctx              context.Context
 	cancel           context.CancelFunc
 	ServersProxy     *api.ServersProxy
@@ -113,11 +122,8 @@ func NewApp(log *slog.Logger, settingsService settings.Service, version string) 
 		panic(fmt.Errorf("failed to initialize server store: %w", err))
 	}
 	tokenManager := oidc.NewTokenManager(log, connectionStringsStore)
-	tokenManager.SetOpenBrowser(func(url string) {
-		if err := rt.OpenURL(url); err != nil {
-			log.Warn("failed to open the OIDC login page", slog.Any("error", err))
-		}
-	})
+	opener := urlOpener{rt: rt, log: log}
+	tokenManager.SetOpenBrowser(opener.OpenURL)
 	tokenManager.SetEmitAuthURL(func(serverID, url string) {
 		rt.Emit("oidc-auth-url", map[string]string{
 			"serverID": serverID,
@@ -156,6 +162,7 @@ func NewApp(log *slog.Logger, settingsService settings.Service, version string) 
 	return &App{
 		log:                log,
 		runtime:            rt,
+		window:             rt,
 		closeGuard:         closeGuard,
 		CloseGuardProxy:    api.NewCloseGuardProxy(log, closeGuard),
 		serverService:      serverService,
@@ -181,7 +188,7 @@ func NewApp(log *slog.Logger, settingsService settings.Service, version string) 
 		WorkspacesProxy:    api.NewWorkspacesProxy(log, workspaceService, settingsService, rt),
 		ExportProxy:        api.NewExportProxy(log, exportService),
 		OIDCProxy:          api.NewOIDCProxy(log, tokenManager),
-		UpdatesProxy:       api.NewUpdatesProxy(log, updatesService, urlOpener{rt: rt, log: log}),
+		UpdatesProxy:       api.NewUpdatesProxy(log, updatesService, opener),
 		appVersion:         version,
 		updatesService:     updatesService,
 	}
@@ -213,25 +220,27 @@ func (a *App) Services() []application.Service {
 // after creating the window and before app.Run.
 func (a *App) Attach(wailsApp *application.App, window *application.WebviewWindow) {
 	a.runtime.Attach(wailsApp, window)
-	a.window = window
+	a.guardWindow()
+}
 
+// guardWindow routes closing the main window through the close guard, and
+// saves the window's size and position when it does close.
+func (a *App) guardWindow() {
 	a.closeGuard.Init(
 		func() {
 			// Closing from the taskbar can happen while minimised, where the prompt can't be seen.
-			if window.IsMinimised() {
-				window.UnMinimise()
-			}
-			a.runtime.Emit(closeguard.EventCloseRequested)
+			a.window.RevealWindow()
+			a.window.Emit(closeguard.EventCloseRequested)
 		},
-		func() { window.Close() },
+		a.window.CloseWindow,
 	)
 
-	window.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
+	a.window.OnWindowClosing(func() bool {
 		if a.closeGuard.BeforeClose() {
-			e.Cancel()
-			return
+			return true
 		}
 		a.saveWindowState()
+		return false
 	})
 }
 
@@ -324,12 +333,11 @@ func (a *App) saveWindowState() {
 	if a.window == nil {
 		return
 	}
-	width, height := a.window.Size()
-	if width <= 0 || height <= 0 {
-		// The window is already gone, e.g. the app quits after it closed.
+	// Not ok when the window is already gone, e.g. the app quits after it closed.
+	x, y, width, height, ok := a.window.WindowBounds()
+	if !ok {
 		return
 	}
-	x, y := a.window.Position()
 
 	err := a.settingsService.SaveWindowState(models.WindowState{
 		X:      x,
