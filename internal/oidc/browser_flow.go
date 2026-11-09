@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"time"
@@ -212,12 +213,14 @@ func (tm *TokenManager) browserLogin(ctx context.Context, serverID, providerURL,
 	}
 	authURL := oauth2Cfg.AuthCodeURL(state, opts...)
 
-	if manualURL {
-		if tm.emitAuthURL != nil {
-			tm.emitAuthURL(serverID, authURL)
+	if !manualURL && tm.openBrowser != nil {
+		if err := tm.openBrowser(authURL); err != nil {
+			tm.log.Warn("could not open the OIDC login page; showing its URL instead", slog.Any("error", err))
+			manualURL = true
 		}
-	} else if tm.openBrowser != nil {
-		tm.openBrowser(authURL)
+	}
+	if manualURL && tm.emitAuthURL != nil {
+		tm.emitAuthURL(serverID, authURL)
 	}
 
 	timeout := time.After(5 * time.Minute)

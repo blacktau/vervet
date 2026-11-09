@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
@@ -29,10 +30,13 @@ type Runtime struct {
 	// lastBounds is the window's position and size when it was last not
 	// minimised. Windows reports a minimised window at (-32000, -32000).
 	lastBounds *bounds
-	// recording runs one bounds reading at a time, so a reading taken during
-	// a drag can't finish after, and overwrite, a newer one.
-	recording sync.Mutex
+	// boundsTimer takes one reading once a drag or resize has settled, rather
+	// than one per event.
+	boundsTimer *time.Timer
 }
+
+// boundsSettle is how long the window must stay still before its bounds are read.
+const boundsSettle = 300 * time.Millisecond
 
 type bounds struct{ x, y, width, height int }
 
@@ -50,14 +54,21 @@ func (r *Runtime) Attach(app *application.App, window *application.WebviewWindow
 	if window == nil {
 		return
 	}
-	// Listeners run on their own goroutine, so they may query the window.
-	window.OnWindowEvent(events.Common.WindowDidResize, func(*application.WindowEvent) { r.recordBounds() })
-	window.OnWindowEvent(events.Common.WindowDidMove, func(*application.WindowEvent) { r.recordBounds() })
+	window.OnWindowEvent(events.Common.WindowDidResize, func(*application.WindowEvent) { r.scheduleBoundsReading() })
+	window.OnWindowEvent(events.Common.WindowDidMove, func(*application.WindowEvent) { r.scheduleBoundsReading() })
+}
+
+func (r *Runtime) scheduleBoundsReading() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.boundsTimer != nil {
+		r.boundsTimer.Stop()
+	}
+	// The timer runs on its own goroutine, so it may query the window.
+	r.boundsTimer = time.AfterFunc(boundsSettle, r.recordBounds)
 }
 
 func (r *Runtime) recordBounds() {
-	r.recording.Lock()
-	defer r.recording.Unlock()
 	_, window := r.get()
 	if window == nil || window.IsMinimised() {
 		return

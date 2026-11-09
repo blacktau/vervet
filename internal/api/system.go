@@ -16,13 +16,7 @@ const (
 type SystemProxy struct {
 	log     *slog.Logger
 	service SystemProvider
-	browser Browser
-}
-
-// Browser opens web links. It refuses anything but http(s), so a link in a
-// document can't launch file://, smb:// or a custom URL handler.
-type Browser interface {
-	OpenURL(url string) error
+	browser URLOpener
 }
 
 type SystemProvider interface {
@@ -30,7 +24,7 @@ type SystemProvider interface {
 	RevealLogsFolder() error
 }
 
-func NewSystemProxy(log *slog.Logger, ss SystemProvider, browser Browser) *SystemProxy {
+func NewSystemProxy(log *slog.Logger, ss SystemProvider, browser URLOpener) *SystemProxy {
 	return &SystemProxy{
 		log:     log,
 		service: ss,

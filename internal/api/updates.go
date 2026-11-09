@@ -15,8 +15,10 @@ type UpdatesService interface {
 	DismissVersion(version string) error
 }
 
+// URLOpener opens web links. It refuses anything but http(s), so a link in a
+// document can't launch file://, smb:// or a custom URL handler.
 type URLOpener interface {
-	OpenURL(url string)
+	OpenURL(url string) error
 }
 
 type UpdatesProxy struct {
@@ -63,6 +65,9 @@ func (p *UpdatesProxy) DismissUpdate(version string) EmptyResult {
 }
 
 func (p *UpdatesProxy) OpenReleasePage(url string) EmptyResult {
-	p.opener.OpenURL(url)
+	if err := p.opener.OpenURL(url); err != nil {
+		logFail(p.log, "OpenReleasePage", err)
+		return Fail(err)
+	}
 	return Success()
 }

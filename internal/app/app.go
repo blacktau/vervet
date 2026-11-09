@@ -47,18 +47,6 @@ func (a *filesServiceSaveDialogAdapter) SaveFile(title *string, name *string, fi
 	return a.svc.SaveFile(title, name, apiFilters)
 }
 
-// urlOpener adapts desktop.Runtime to api.URLOpener, logging failures.
-type urlOpener struct {
-	rt  *desktop.Runtime
-	log *slog.Logger
-}
-
-func (o urlOpener) OpenURL(url string) {
-	if err := o.rt.OpenURL(url); err != nil {
-		o.log.Warn("failed to open URL in the browser", slog.Any("error", err))
-	}
-}
-
 // desktopRuntime is what App needs from the Wails runtime. desktop.Runtime
 // provides it; tests use a fake.
 type desktopRuntime interface {
@@ -117,8 +105,7 @@ func NewApp(log *slog.Logger, settingsService settings.Service, version string) 
 		panic(fmt.Errorf("failed to initialize server store: %w", err))
 	}
 	tokenManager := oidc.NewTokenManager(log, connectionStringsStore)
-	opener := urlOpener{rt: rt, log: log}
-	tokenManager.SetOpenBrowser(opener.OpenURL)
+	tokenManager.SetOpenBrowser(rt.OpenURL)
 	tokenManager.SetEmitAuthURL(func(serverID, url string) {
 		rt.Emit("oidc-auth-url", map[string]string{
 			"serverID": serverID,
@@ -182,7 +169,7 @@ func NewApp(log *slog.Logger, settingsService settings.Service, version string) 
 		WorkspacesProxy:    api.NewWorkspacesProxy(log, workspaceService, settingsService, rt),
 		ExportProxy:        api.NewExportProxy(log, exportService),
 		OIDCProxy:          api.NewOIDCProxy(log, tokenManager),
-		UpdatesProxy:       api.NewUpdatesProxy(log, updatesService, opener),
+		UpdatesProxy:       api.NewUpdatesProxy(log, updatesService, rt),
 		appVersion:         version,
 		updatesService:     updatesService,
 	}

@@ -83,7 +83,7 @@ func main() {
 		InitialPosition:        application.WindowCentered,
 		BackgroundColour:       application.NewRGB(255, 255, 255),
 		URL:                    "/",
-		DevToolsEnabled:        isDev || *debugUI,
+		DevToolsEnabled:        devBuild || *debugUI,
 		OpenInspectorOnStartup: *debugUI,
 		Linux: application.LinuxWindow{
 			Icon:             icon,

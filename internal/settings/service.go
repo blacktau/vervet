@@ -196,10 +196,13 @@ func (s *settingsService) update(values map[string]any) error {
 }
 
 func (s *settingsService) getScreenSize() (width, height int) {
-	if s.screenSize == nil {
+	s.mutex.Lock()
+	screenSize := s.screenSize
+	s.mutex.Unlock()
+	if screenSize == nil {
 		return DefaultWindowWidth, DefaultWindowHeight
 	}
-	if w, h, ok := s.screenSize(); ok {
+	if w, h, ok := screenSize(); ok {
 		return w, h
 	}
 	return DefaultWindowWidth, DefaultWindowHeight
