@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
-import * as shellProxy from 'wailsjs/go/api/ShellProxy'
-import * as filesProxy from 'wailsjs/go/api/FilesProxy'
-import type { models } from 'wailsjs/go/models'
+import * as shellProxy from 'bindings/vervet/internal/api/shellproxy'
+import * as filesProxy from 'bindings/vervet/internal/api/filesproxy'
+import type * as models from 'bindings/vervet/internal/models'
 import { useTabStore } from '@/features/tabs/tabs'
 import { useNotifier } from '@/utils/dialog'
 import { useSettingsStore } from '@/features/settings/settingsStore'
@@ -271,7 +271,7 @@ export const useQueryStore = defineStore('query', {
      */
     appendOutput(
       queryId: string,
-      output: models.OutputLine[] | undefined,
+      output: models.OutputLine[] | null | undefined,
       query: LogMessageQuery,
       before: string | null = null,
     ): UnseenOutput | null {

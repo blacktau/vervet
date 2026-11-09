@@ -1,0 +1,47 @@
+# Vervet's build configuration for Wails v3.
+# After changing `info`, run `wails3 task common:update:build-assets` to
+# regenerate the platform files under build/ (it overwrites them).
+version: '3'
+
+info:
+  companyName: "Blacktau"
+  productName: "Vervet"
+  productIdentifier: "com.blacktau.vervet"
+  description: "A desktop MongoDB explorer"
+  copyright: "Copyright 2026 Sean Garrett"
+  comments: "A desktop MongoDB explorer"
+  # The release workflow stamps the real version here.
+  version: "0.0.0"
+
+dev_mode:
+  root_path: .
+  log_level: warn
+  debounce: 1000
+  ignore:
+    dir:
+      - .git
+      - .superpowers
+      - node_modules
+      - frontend
+      - bin
+      - docs
+    file:
+      - .DS_Store
+      - .gitignore
+      - .gitkeep
+      - "*_test.go"
+    watched_extension:
+      - "*.go"
+    git_ignore: true
+  executes:
+    - cmd: wails3 build DEV=true
+      type: blocking
+    - cmd: wails3 task common:dev:frontend
+      type: background
+    - cmd: wails3 task run
+      type: primary
+      exit_policy: shutdown
+
+fileAssociations:
+
+other:

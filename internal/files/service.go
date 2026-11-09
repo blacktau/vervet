@@ -1,40 +1,35 @@
 package files
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 	"os"
 
 	"vervet/internal/api"
-
-	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"vervet/internal/desktop"
 )
 
-type Service struct {
-	ctx context.Context
-	log *slog.Logger
+// Dialogs shows the native file dialogs. A cancelled dialog returns an empty
+// path and no error.
+type Dialogs interface {
+	SelectFile(title string, filters []desktop.FileFilter) (string, error)
+	SaveFile(title, defaultFilename string, filters []desktop.FileFilter) (string, error)
 }
 
-func NewService(log *slog.Logger) *Service {
+type Service struct {
+	log     *slog.Logger
+	dialogs Dialogs
+}
+
+func NewService(log *slog.Logger, dialogs Dialogs) *Service {
 	return &Service{
-		log: log.With(slog.String("source", "FilesService")),
+		log:     log.With(slog.String("source", "FilesService")),
+		dialogs: dialogs,
 	}
 }
 
-func (s *Service) Init(ctx context.Context) error {
-	s.ctx = ctx
-	return nil
-}
-
 func (s *Service) SelectFile(title string, filters []api.FileFilter) (string, error) {
-	runtimeFilters := toRuntimeFilters(filters)
-
-	filepath, err := runtime.OpenFileDialog(s.ctx, runtime.OpenDialogOptions{
-		Title:           title,
-		Filters:         runtimeFilters,
-		ShowHiddenFiles: true,
-	})
+	filepath, err := s.dialogs.SelectFile(title, toDialogFilters(filters))
 	if err != nil {
 		return "", fmt.Errorf("failed to select file: %w", err)
 	}
@@ -43,8 +38,6 @@ func (s *Service) SelectFile(title string, filters []api.FileFilter) (string, er
 }
 
 func (s *Service) SaveFile(title *string, name *string, filters []api.FileFilter) (string, error) {
-	runtimeFilters := toRuntimeFilters(filters)
-
 	dialogTitle := ""
 	if title != nil {
 		dialogTitle = *title
@@ -55,11 +48,7 @@ func (s *Service) SaveFile(title *string, name *string, filters []api.FileFilter
 		defaultFilename = *name
 	}
 
-	filepath, err := runtime.SaveFileDialog(s.ctx, runtime.SaveDialogOptions{
-		Title:           dialogTitle,
-		DefaultFilename: defaultFilename,
-		Filters:         runtimeFilters,
-	})
+	filepath, err := s.dialogs.SaveFile(dialogTitle, defaultFilename, toDialogFilters(filters))
 	if err != nil {
 		return "", fmt.Errorf("failed to select save file: %w", err)
 	}
@@ -82,10 +71,10 @@ func (s *Service) WriteFile(path string, content string) error {
 	return nil
 }
 
-func toRuntimeFilters(filters []api.FileFilter) []runtime.FileFilter {
-	result := make([]runtime.FileFilter, len(filters))
+func toDialogFilters(filters []api.FileFilter) []desktop.FileFilter {
+	result := make([]desktop.FileFilter, len(filters))
 	for i, f := range filters {
-		result[i] = runtime.FileFilter{
+		result[i] = desktop.FileFilter{
 			DisplayName: f.DisplayName,
 			Pattern:     f.Pattern,
 		}

@@ -4,10 +4,10 @@ import { defineComponent, ref } from 'vue'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 import { createI18n } from 'vue-i18n'
 
-vi.mock('wailsjs/go/api/ServersProxy', () => ({}))
+vi.mock('bindings/vervet/internal/api/serversproxy', () => ({}))
 
 const resetSession = vi.fn(async () => ({ isSuccess: true }))
-vi.mock('wailsjs/go/api/OIDCProxy', () => ({
+vi.mock('bindings/vervet/internal/api/oidcproxy', () => ({
   ResetSession: () => resetSession(),
 }))
 

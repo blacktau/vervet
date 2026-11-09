@@ -2,8 +2,8 @@ import { useOsTheme } from 'naive-ui'
 import { defineStore } from 'pinia'
 import { i18nGlobal, translations } from '@/i18n'
 import { cloneDeep, get, isEmpty, set, split } from 'lodash'
-import * as settingsProxy from 'wailsjs/go/api/SettingsProxy'
-import { type models } from 'wailsjs/go/models.ts'
+import * as settingsProxy from 'bindings/vervet/internal/api/settingsproxy'
+import type * as models from 'bindings/vervet/internal/models'
 import { useNotifier } from '@/utils/dialog.ts'
 import { errorCodeText } from '@/utils/resultError'
 
@@ -11,7 +11,9 @@ import { errorCodeText } from '@/utils/resultError'
 // fired twice when the background startup load and a settings-open race.
 let fontListInFlight: Promise<void> | null = null
 
-type SettingsStore = models.Settings & {
+// fileExtensions arrives as null when unset; loading replaces it with the defaults.
+type SettingsStore = Omit<models.Settings, 'workspaces'> & {
+  workspaces: { fileExtensions: string[] }
   fontList: models.Font[]
   fontListLoaded: boolean
   previousVersion?: models.Settings
@@ -219,7 +221,7 @@ export const useSettingsStore = defineStore('settings', {
             return
           }
 
-          this.fontList = result.data
+          this.fontList = result.data ?? []
           this.fontListLoaded = true
         } finally {
           fontListInFlight = null
@@ -250,7 +252,7 @@ export const useSettingsStore = defineStore('settings', {
     },
     async restoreConfiguration(): Promise<boolean> {
       const result = await settingsProxy.ResetSettings()
-      if (result.isSuccess) {
+      if (result.isSuccess && result.data) {
         this._applyConfiguration(result.data)
         if (get(this, 'workspaces.fileExtensions') == null) {
           set(this, 'workspaces.fileExtensions', ['.js', '.mongodb'])

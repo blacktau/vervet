@@ -13,15 +13,6 @@ const (
 	OSX     OperatingSystem = "darwin"
 )
 
-var AllOperatingSystems = []struct {
-	Value  OperatingSystem
-	TSName string
-}{
-	{Windows, "WINDOWS"},
-	{Linux, "LINUX"},
-	{OSX, "OSX"},
-}
-
 type SystemProxy struct {
 	log     *slog.Logger
 	service SystemProvider

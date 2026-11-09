@@ -8,7 +8,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
 import naive from 'naive-ui'
 import enGB from '@/i18n/en-GB'
-import * as shellProxy from 'wailsjs/go/api/ShellProxy'
+import * as shellProxy from 'bindings/vervet/internal/api/shellproxy'
 import * as monaco from 'monaco-editor'
 
 vi.mock('monaco-editor', () => ({
@@ -25,7 +25,7 @@ vi.mock('monaco-editor', () => ({
   KeyCode: { KeyS: 49 },
 }))
 
-vi.mock('wailsjs/go/api/ShellProxy', () => ({
+vi.mock('bindings/vervet/internal/api/shellproxy', () => ({
   ExecuteQuery: vi.fn(async () => ({ isSuccess: true })),
 }))
 

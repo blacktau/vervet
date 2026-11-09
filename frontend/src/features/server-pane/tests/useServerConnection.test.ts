@@ -7,7 +7,7 @@ const isConnected = vi.fn(() => false)
 const upsertTab = vi.fn()
 const closeTab = vi.fn().mockResolvedValue(undefined)
 
-vi.mock('wailsjs/go/api/OIDCProxy', () => ({
+vi.mock('bindings/vervet/internal/api/oidcproxy', () => ({
   CancelLogin: vi.fn().mockResolvedValue({ isSuccess: true }),
 }))
 
@@ -23,7 +23,7 @@ vi.mock('@/utils/dialog.ts', () => ({
   useMessager: vi.fn(() => ({ error: vi.fn() })),
 }))
 
-import * as oidcProxy from 'wailsjs/go/api/OIDCProxy'
+import * as oidcProxy from 'bindings/vervet/internal/api/oidcproxy'
 import { useServerConnection } from '@/features/server-pane/useServerConnection'
 
 describe('useServerConnection', () => {

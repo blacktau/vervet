@@ -8,7 +8,7 @@ title: Install
 
 ## Linux
 
-Linux builds are amd64 only — there is no Linux arm64 build.
+Linux builds are amd64 only — there is no Linux arm64 build. They need GTK 4.10 and WebKitGTK 6.0, which means Ubuntu 24.04, Debian 13, Fedora 40 or newer.
 
 Three packages are published for each release:
 
@@ -35,7 +35,7 @@ Three packages are published for each release:
 
 ## macOS
 
-macOS builds are published as `.dmg` images for both Intel (amd64) and Apple silicon (arm64) — download the one matching your Mac.
+macOS builds are published as `.dmg` images for both Intel (amd64) and Apple silicon (arm64) — download the one matching your Mac. They need macOS 12 (Monterey) or newer.
 
 The DMG is not code-signed or notarised. On first launch, macOS Gatekeeper will refuse to open it as a normal double-click. To open it:
 

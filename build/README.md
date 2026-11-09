@@ -1,35 +1,31 @@
 # Build Directory
 
-The build directory is used to house all the build files and assets for your application. 
+Build configuration and platform files for Wails v3. Build output goes to `bin/`
+at the repository root.
 
-The structure is:
+- `config.yml` - product name, identifier, version and `wails3 dev` settings.
+  After changing `info`, run `wails3 task common:update:build-assets` to
+  regenerate the platform files below. It overwrites them, so re-apply any
+  changes made by hand (see `linux/nfpm/nfpm.yaml`).
+- `Taskfile.yml` - tasks shared by every platform: frontend build, bindings, icons.
+- `appicon.png` - the source icon for every platform.
 
-* bin - Output directory
-* darwin - macOS specific files
-* windows - Windows specific files
+## darwin
 
-## Mac
+- `Taskfile.yml` - builds the binary and the `.app` bundle.
+- `Info.plist`, `Info.dev.plist` - bundle metadata for release and `wails3 dev` builds.
 
-The `darwin` directory holds files specific to Mac builds.
-These may be customised and used as part of the build. To return these files to the default state, simply delete them
-and
-build with `wails build`.
+## windows
 
-The directory contains the following files:
+- `Taskfile.yml` - builds the binary and the NSIS installer.
+- `nsis/` - the installer script. `wails_tools.nsh` is generated from `config.yml`.
+- `info.json`, `wails.exe.manifest`, `icon.ico` - embedded in the executable.
 
-- `Info.plist` - the main plist file used for Mac builds. It is used when building using `wails build`.
-- `Info.dev.plist` - same as the main plist file but used when building using `wails dev`.
+## linux
 
-## Windows
-
-The `windows` directory contains the manifest and rc files used when building with `wails build`.
-These may be customised for your application. To return these files to the default state, simply delete them and
-build with `wails build`.
-
-- `icon.ico` - The icon used for the application. This is used when building using `wails build`. If you wish to
-  use a different icon, simply replace this file with your own. If it is missing, a new `icon.ico` file
-  will be created using the `appicon.png` file in the build directory.
-- `installer/*` - The files used to create the Windows installer. These are used when building using `wails build`.
-- `info.json` - Application details used for Windows builds. The data here will be used by the Windows installer,
-  as well as the application itself (right click the exe -> properties -> details)
-- `wails.exe.manifest` - The main application manifest file.
+- `Taskfile.yml` - builds the binary, `.deb` and `.rpm`.
+- `nfpm/nfpm.yaml` - `.deb` and `.rpm` packaging. Edited by hand for install paths
+  and GTK 4 dependencies, so check it after regenerating build assets.
+- `vervet.spec` - builds the source RPM that Copr rebuilds from.
+- `AppRun`, `xdg-open`, `Vervet.desktop`, `Vervet-512.png` - used by the release
+  workflow's AppImage step, which uses linuxdeploy rather than `wails3 generate appimage`.

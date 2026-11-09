@@ -1,7 +1,6 @@
 package servers
 
 import (
-	"context"
 	"errors"
 	"log/slog"
 	"net/url"
@@ -16,13 +15,15 @@ import (
 
 // mockServerStore is a mock implementation of serverStore for testing.
 type mockServerStore struct {
-	servers []models.RegisteredServer
-	err     error
+	servers  []models.RegisteredServer
+	fallback []models.RegisteredServer
+	err      error
 }
 
 func (m *mockServerStore) LoadServers() ([]models.RegisteredServer, error) {
 	if m.err != nil {
-		return nil, m.err
+		// A non-nil list alongside the error is the store's parse-error fallback.
+		return m.fallback, m.err
 	}
 	return m.servers, nil
 }
@@ -94,7 +95,7 @@ func newTestServerService(store ServerStore, connectionStringsStore connectionSt
 		log:               log,
 		mu:                sync.RWMutex{},
 		connectionStrings: connectionStringsStore,
-		ctx:               context.Background(),
+		emit:              func(string, ...any) {},
 		store:             store,
 	}
 }
@@ -114,6 +115,27 @@ func TestGetServers(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.Len(t, servers, 2)
+	})
+
+	t.Run("unreadable config returns the fallback and tells the frontend", func(t *testing.T) {
+		mockStore := &mockServerStore{
+			fallback: []models.RegisteredServer{},
+			err:      errors.New("yaml: line 3: did not find expected key"),
+		}
+		sm := newTestServerService(mockStore, &MockConnectionStringsStore{})
+		var events []string
+		var data []any
+		sm.SetEmitter(func(name string, d ...any) {
+			events = append(events, name)
+			data = append(data, d...)
+		})
+
+		servers, err := sm.GetServers()
+
+		assert.NoError(t, err)
+		assert.Empty(t, servers)
+		assert.Equal(t, []string{ConfigParseErrorEvent}, events)
+		assert.Equal(t, []any{"yaml: line 3: did not find expected key"}, data)
 	})
 
 	// Test case 2: Store returns an error

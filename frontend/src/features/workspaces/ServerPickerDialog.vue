@@ -5,7 +5,7 @@ import { useDataBrowserStore } from '@/features/data-browser/browserStore'
 import { useServerStore, type RegisteredServerNode } from '@/features/server-pane/serverStore'
 import { useTabStore } from '@/features/tabs/tabs'
 import { useQueryStore } from '@/features/queries/queryStore'
-import * as databasesProxy from 'wailsjs/go/api/DatabasesProxy'
+import * as databasesProxy from 'bindings/vervet/internal/api/databasesproxy'
 import { useI18n } from 'vue-i18n'
 import { notifyResultError } from '@/utils/resultError'
 
@@ -103,8 +103,8 @@ async function loadDatabases(serverId: string) {
   try {
     const result = await databasesProxy.GetDatabases(serverId)
     if (result.isSuccess) {
-      databases.value = result.data
-      if (!selectedDatabase.value && result.data.includes('admin')) {
+      databases.value = result.data ?? []
+      if (!selectedDatabase.value && databases.value.includes('admin')) {
         selectedDatabase.value = 'admin'
       }
     } else {

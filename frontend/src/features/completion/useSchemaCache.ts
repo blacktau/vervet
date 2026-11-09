@@ -1,6 +1,6 @@
-import * as collectionsProxy from 'wailsjs/go/api/CollectionsProxy'
-import * as databasesProxy from 'wailsjs/go/api/DatabasesProxy'
-import { EventsOn } from 'wailsjs/runtime/runtime'
+import * as collectionsProxy from 'bindings/vervet/internal/api/collectionsproxy'
+import * as databasesProxy from 'bindings/vervet/internal/api/databasesproxy'
+import { onEvent } from '@/utils/wailsEvents'
 
 interface FieldInfo {
   path: string
@@ -22,14 +22,14 @@ function cacheKey(serverId: string, dbName: string, collectionName: string): str
 
 interface BackendField {
   path: string
-  types: { type: string }[]
-  children?: BackendField[]
+  types: { type: string }[] | null
+  children?: BackendField[] | null
 }
 
 function projectFields(fields: BackendField[]): FieldInfo[] {
   return fields.map((f) => ({
     path: f.path,
-    types: f.types.map((t) => t.type),
+    types: (f.types ?? []).map((t) => t.type),
     children: f.children && f.children.length > 0 ? projectFields(f.children) : undefined,
   }))
 }
@@ -39,7 +39,7 @@ function registerDisconnectListener() {
     return
   }
   listenerRegistered = true
-  EventsOn('connection-disconnected', (serverId: string) => {
+  onEvent<string>('connection-disconnected', (serverId) => {
     for (const key of schemaCache.keys()) {
       if (key.startsWith(`${serverId}:`)) {
         schemaCache.delete(key)
@@ -72,7 +72,7 @@ export async function getCollectionSchema(
       const requestId = crypto.randomUUID()
       const result = await collectionsProxy.SampleSchema(serverId, dbName, collectionName, 100, requestId)
       if (result.isSuccess && result.data) {
-        const schema: CollectionSchema = { fields: projectFields(result.data.fields) }
+        const schema: CollectionSchema = { fields: projectFields(result.data.fields ?? []) }
         schemaCache.set(key, schema)
         return schema
       }

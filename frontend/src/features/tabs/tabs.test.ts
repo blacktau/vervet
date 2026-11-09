@@ -1,14 +1,14 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 
-vi.mock('wailsjs/go/api/SettingsProxy', () => ({
+vi.mock('bindings/vervet/internal/api/settingsproxy', () => ({
   GetSettings: vi.fn(),
   SetSettings: vi.fn(),
   ResetSettings: vi.fn(),
   GetAvailableFonts: vi.fn(),
 }))
 
-vi.mock('wailsjs/go/api/ShellProxy', () => ({
+vi.mock('bindings/vervet/internal/api/shellproxy', () => ({
   CheckMongosh: vi.fn(),
   ExecuteQuery: vi.fn(),
   FetchPage: vi.fn(),
@@ -16,7 +16,7 @@ vi.mock('wailsjs/go/api/ShellProxy', () => ({
   CancelQuery: vi.fn(),
 }))
 
-vi.mock('wailsjs/go/api/FilesProxy', () => ({
+vi.mock('bindings/vervet/internal/api/filesproxy', () => ({
   SelectFile: vi.fn(),
   ReadFile: vi.fn(),
   SaveFile: vi.fn(),

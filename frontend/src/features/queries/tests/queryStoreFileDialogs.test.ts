@@ -1,7 +1,7 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 
-vi.mock('wailsjs/go/api/ShellProxy', () => ({
+vi.mock('bindings/vervet/internal/api/shellproxy', () => ({
   ExecuteQuery: vi.fn(),
   CancelQuery: vi.fn(),
   FetchPage: vi.fn(),
@@ -9,7 +9,7 @@ vi.mock('wailsjs/go/api/ShellProxy', () => ({
   CheckMongosh: vi.fn(),
 }))
 
-vi.mock('wailsjs/go/api/FilesProxy', () => ({
+vi.mock('bindings/vervet/internal/api/filesproxy', () => ({
   SelectFile: vi.fn(),
   ReadFile: vi.fn(),
   WriteFile: vi.fn(),
@@ -23,7 +23,7 @@ vi.mock('@/utils/dialog', () => ({
   useMessager: () => ({}),
 }))
 
-import * as filesProxy from 'wailsjs/go/api/FilesProxy'
+import * as filesProxy from 'bindings/vervet/internal/api/filesproxy'
 import { useQueryStore } from '@/features/queries/queryStore'
 
 const QUERY_ID = 'q-1'

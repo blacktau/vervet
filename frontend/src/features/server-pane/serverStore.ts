@@ -1,12 +1,12 @@
 import { defineStore } from 'pinia'
-import * as serversProxy from 'wailsjs/go/api/ServersProxy'
-import * as filesProxy from 'wailsjs/go/api/FilesProxy'
-import { type models } from 'wailsjs/go/models.ts'
+import * as serversProxy from 'bindings/vervet/internal/api/serversproxy'
+import * as filesProxy from 'bindings/vervet/internal/api/filesproxy'
+import type * as models from 'bindings/vervet/internal/models'
 import { isEmpty } from 'lodash'
 import { useNotifier } from '@/utils/dialog.ts'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 import { i18nGlobal } from '@/i18n'
-import { type ConnectionConfig, type OIDCConfig, toAuthMethod } from '@/types/ConnectionConfig'
+import { type ConnectionConfig, type OIDCConfig, toAuthMethod, toBackendConfig } from '@/types/ConnectionConfig'
 import { errorCodeText, type FailedResult, resultDetailText, resultErrorText } from '@/utils/resultError'
 
 export interface ServerDetails extends models.RegisteredServer, Omit<ConnectionConfig, 'refreshToken'> {}
@@ -51,14 +51,15 @@ export const useServerStore = defineStore('server', {
         return
       }
 
-      for (const node of result.data) {
+      const servers = result.data ?? []
+      for (const node of servers) {
         nodeMap[node.id] = {
           ...node,
           children: node.isGroup ? [] : undefined,
         }
       }
 
-      for (const node of result.data) {
+      for (const node of servers) {
         if (!node.parentID || node.parentID === '') {
           const treeNode = nodeMap[node.id]
           if (treeNode) {
@@ -127,7 +128,7 @@ export const useServerStore = defineStore('server', {
       return { success: true }
     },
     async saveServerWithConfig(name: string, parentId: string, colour: string, config: ConnectionConfig) {
-      const result = await serversProxy.SaveServerWithConfig(parentId, name, colour, config)
+      const result = await serversProxy.SaveServerWithConfig(parentId, name, colour, toBackendConfig(config))
       if (!result.isSuccess) {
         return { success: false, msg: resultErrorText(result) }
       }
@@ -162,7 +163,7 @@ export const useServerStore = defineStore('server', {
       if (serverId == null) {
         return { success: false, msg: 'serverId is required' }
       }
-      const result = await serversProxy.UpdateServerWithConfig(serverId, name, parentId, colour, config)
+      const result = await serversProxy.UpdateServerWithConfig(serverId, name, parentId, colour, toBackendConfig(config))
       if (!result.isSuccess) {
         return { success: false, msg: resultErrorText(result) }
       }

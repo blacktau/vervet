@@ -68,8 +68,12 @@ jobs:
       #
       # Scoped to ./internal/... deliberately: the root package embeds
       # frontend/dist, which is gitignored and absent from a CI checkout.
+      #
+      # purego makes Wails load GTK at run time instead of linking it, so the
+      # tests need no GTK4/WebKitGTK headers. The 22.04 runners couldn't build
+      # the default backend anyway: it needs GTK 4.10 and they have 4.6.
       - name: Test with coverage
-        run: go test -tags integration -race -coverprofile=cover.out ./internal/...
+        run: go test -tags integration,purego -race -coverprofile=cover.out ./internal/...
 
       # On one version only: the baseline is one number, and a few tests skip on
       # servers without the feature they need.

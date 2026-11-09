@@ -1,7 +1,6 @@
 package settings_test
 
 import (
-	"context"
 	"errors"
 	"log/slog"
 	"os"
@@ -48,9 +47,7 @@ func newTestService(store infrastructure.Store, log *slog.Logger) settings.Servi
 	if log == nil {
 		log = slog.Default()
 	}
-	ctx := context.Background()
-	cm := settings.NewTestService(store, log, ctx)
-	return cm
+	return settings.NewTestService(store, log)
 }
 
 func Test_SettingsService_GetSettings(t *testing.T) {
@@ -325,7 +322,7 @@ func expectedSettings() models.Settings {
 
 func Test_SettingsService_LoggingDefaults(t *testing.T) {
 	t.Run("dev defaults console=true", func(t *testing.T) {
-		m := settings.NewTestServiceWithBuild(&storeStub{}, nil, context.Background(), true, nil)
+		m := settings.NewTestServiceWithBuild(&storeStub{}, nil, true, nil)
 		c, err := m.GetSettings()
 		if err != nil {
 			t.Fatal(err)
@@ -336,7 +333,7 @@ func Test_SettingsService_LoggingDefaults(t *testing.T) {
 	})
 
 	t.Run("release defaults console=false", func(t *testing.T) {
-		m := settings.NewTestServiceWithBuild(&storeStub{}, nil, context.Background(), false, nil)
+		m := settings.NewTestServiceWithBuild(&storeStub{}, nil, false, nil)
 		c, err := m.GetSettings()
 		if err != nil {
 			t.Fatal(err)
@@ -352,7 +349,7 @@ func Test_SettingsService_OnLevelChange(t *testing.T) {
 	cb := func(l slog.Level) { got = l; called++ }
 
 	store := &storeStub{}
-	m := settings.NewTestServiceWithBuild(store, nil, context.Background(), false, cb)
+	m := settings.NewTestServiceWithBuild(store, nil, false, cb)
 
 	cfg, err := m.GetSettings()
 	if err != nil {

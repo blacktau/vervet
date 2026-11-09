@@ -2,12 +2,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useSchemaStore } from '../schemaStore'
 
-vi.mock('wailsjs/go/api/CollectionsProxy', () => ({
+vi.mock('bindings/vervet/internal/api/collectionsproxy', () => ({
   SampleSchema: vi.fn(),
   CancelSampleSchema: vi.fn(),
 }))
 
-import { SampleSchema, CancelSampleSchema } from 'wailsjs/go/api/CollectionsProxy'
+import { SampleSchema, CancelSampleSchema } from 'bindings/vervet/internal/api/collectionsproxy'
 
 describe('schemaStore', () => {
   beforeEach(() => {

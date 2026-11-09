@@ -12,7 +12,6 @@ import (
 	"vervet/internal/logging"
 	"vervet/internal/models"
 
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"gopkg.in/yaml.v3"
 )
 
@@ -25,6 +24,7 @@ type Service interface {
 	GetWindowState() (models.WindowState, error)
 	SaveWindowState(state models.WindowState) error
 	SetLevelChangeHandler(cb func(slog.Level))
+	SetScreenSizeProvider(fn func() (width, height int, ok bool))
 }
 
 const DefaultFontSize = 14
@@ -37,7 +37,7 @@ const DefaultResultPageSize = 25
 type settingsService struct {
 	store         infrastructure.Store
 	log           *slog.Logger
-	ctx           context.Context
+	screenSize    func() (width, height int, ok bool)
 	mutex         sync.Mutex
 	isDev         bool
 	onLevelChange func(slog.Level)
@@ -57,9 +57,16 @@ func NewService(log *slog.Logger, isDev bool) *settingsService {
 	}
 }
 
-func (s *settingsService) Init(ctx context.Context) error {
-	s.ctx = ctx
+func (s *settingsService) Init(_ context.Context) error {
 	return nil
+}
+
+// SetScreenSizeProvider sets how the service finds the size of the screen
+// showing the window. Without one it assumes the default window size.
+func (s *settingsService) SetScreenSizeProvider(fn func() (width, height int, ok bool)) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	s.screenSize = fn
 }
 
 func (s *settingsService) SetLevelChangeHandler(cb func(slog.Level)) {
@@ -192,14 +199,12 @@ func (s *settingsService) update(values map[string]any) error {
 }
 
 func (s *settingsService) getScreenSize() (width, height int) {
-	if screens, err := runtime.ScreenGetAll(s.ctx); err == nil {
-		for _, screen := range screens {
-			if screen.IsCurrent {
-				return screen.Size.Width, screen.Size.Height
-			}
-		}
+	if s.screenSize == nil {
+		return DefaultWindowWidth, DefaultWindowHeight
 	}
-
+	if w, h, ok := s.screenSize(); ok {
+		return w, h
+	}
 	return DefaultWindowWidth, DefaultWindowHeight
 }
 

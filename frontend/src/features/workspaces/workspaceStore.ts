@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import type { TreeOption } from 'naive-ui'
-import * as workspacesProxy from 'wailsjs/go/api/WorkspacesProxy'
+import * as workspacesProxy from 'bindings/vervet/internal/api/workspacesproxy'
 import { useNotifier } from '@/utils/dialog'
 import { resultDetailText } from '@/utils/resultError'
 

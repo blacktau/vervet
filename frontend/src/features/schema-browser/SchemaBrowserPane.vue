@@ -45,7 +45,7 @@ const rows = computed<SchemaRow[]>(() => {
   if (!result) {
     return []
   }
-  return buildSchemaRows(result.fields, result.sampledCount)
+  return buildSchemaRows(result.fields ?? [], result.sampledCount)
 })
 
 const expandedKeys = ref<DataTableRowKey[]>([])
@@ -249,7 +249,7 @@ onMounted(() => {
         <NButton size="small" @click="run(state.sampleSize)">{{ $t('schemaBrowser.retry') }}</NButton>
       </div>
       <div
-        v-else-if="state?.result && state.result.fields.length === 0"
+        v-else-if="state?.result && (state.result.fields ?? []).length === 0"
         class="schema-pane__centered"
       >
         {{ $t('schemaBrowser.empty') }}

@@ -10,7 +10,7 @@ import {
   writeCount,
 } from './editableEjson'
 import { formatNamespace } from './useDocumentContextMenu'
-import * as shellProxy from 'wailsjs/go/api/ShellProxy'
+import * as shellProxy from 'bindings/vervet/internal/api/shellproxy'
 import * as monaco from 'monaco-editor'
 import { errorCodeText } from '@/utils/resultError'
 

@@ -3,21 +3,14 @@ package main
 import (
 	"embed"
 	"flag"
-	"fmt"
 	"log/slog"
 	"os"
-	"vervet/internal/api"
+
 	"vervet/internal/app"
 	"vervet/internal/logging"
 	"vervet/internal/settings"
 
-	"github.com/wailsapp/wails/v2"
-	"github.com/wailsapp/wails/v2/pkg/logger"
-	"github.com/wailsapp/wails/v2/pkg/options"
-	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
-	"github.com/wailsapp/wails/v2/pkg/options/linux"
-	"github.com/wailsapp/wails/v2/pkg/options/mac"
-	"github.com/wailsapp/wails/v2/pkg/options/windows"
+	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
 //go:embed all:frontend/dist
@@ -51,102 +44,64 @@ func main() {
 	}
 	settingsService.SetLevelChangeHandler(logging.SetLevel)
 
-	// Create Wails logger adapter
-	log := logging.NewLogger(slogger)
+	vervet := app.NewApp(slogger, settingsService, version)
 
-	// Build app with settings service
-	application := app.NewApp(slogger, settingsService, version)
+	slogger.Info("starting", slog.Bool("debugUI", *debugUI))
 
-	log.Info(fmt.Sprintf("--debug-ui: %v", *debugUI))
+	windowWidth, windowHeight := vervet.GetInitialWindowSize()
 
-	windowWidth, windowHeight := application.GetInitialWindowSize()
-
-	// Create application with options
-	err = wails.Run(&options.App{
-		Title:             "Vervet",
-		Width:             windowWidth,
-		Height:            windowHeight,
-		MinWidth:          1024,
-		MinHeight:         768,
-		MaxWidth:          8192,
-		MaxHeight:         4608,
-		DisableResize:     false,
-		Fullscreen:        false,
-		Frameless:         true,
-		StartHidden:       false,
-		HideWindowOnClose: false,
-		BackgroundColour:  &options.RGBA{R: 255, G: 255, B: 255, A: 255},
-		AssetServer: &assetserver.Options{
-			Assets: assets,
+	wailsApp := application.New(application.Options{
+		Name:        "Vervet",
+		Description: "A desktop MongoDB explorer",
+		Icon:        icon,
+		Services:    vervet.Services(),
+		Assets: application.AssetOptions{
+			Handler: application.AssetFileServerFS(assets),
 		},
-		Menu:             nil,
-		Logger:           log,
-		LogLevel:         logger.DEBUG,
-		OnStartup:        application.Startup,
-		OnDomReady:       application.DomReady,
-		OnBeforeClose:    application.BeforeClose,
-		OnShutdown:       application.Shutdown,
-		WindowStartState: options.Normal,
-		Bind: []any{
-			application.ServersProxy,
-			application.ConnectionsProxy,
-			application.DatabasesProxy,
-			application.IndexesProxy,
-			application.CollectionsProxy,
-			application.ShellProxy,
-			application.SystemProxy,
-			application.SettingsProxy,
-			application.FilesProxy,
-			application.CloseGuardProxy,
-			application.WorkspacesProxy,
-			application.UpdatesProxy,
-			application.ExportProxy,
-			application.OIDCProxy,
+		Logger:     slogger,
+		LogLevel:   slog.LevelDebug,
+		ShouldQuit: vervet.ShouldQuit,
+		Linux: application.LinuxOptions{
+			ProgramName:   "Vervet",
+			ApplicationID: "com.blacktau.vervet",
 		},
-		EnumBind: []any{
-			api.AllOperatingSystems,
-		},
-		// Linux platform specific options
-		Linux: &linux.Options{
-			Icon:                icon,
-			WindowIsTranslucent: false,
-			WebviewGpuPolicy:    linux.WebviewGpuPolicyAlways,
-			ProgramName:         "Vervet",
-		},
-		// Windows platform specific options
-		Windows: &windows.Options{
-			WebviewIsTransparent: false,
-			WindowIsTranslucent:  false,
-			DisableWindowIcon:    false,
-			// DisableFramelessWindowDecorations: false,
-			WebviewUserDataPath: "",
-			ZoomFactor:          1.0,
-			Theme:               windows.SystemDefault,
-		},
-		// Mac platform specific options
-		Mac: &mac.Options{
-			TitleBar: &mac.TitleBar{
-				TitlebarAppearsTransparent: false,
-				HideTitle:                  false,
-				HideTitleBar:               false,
-				FullSizeContent:            false,
-				UseToolbar:                 false,
-				HideToolbarSeparator:       true,
-			},
-			Appearance:           mac.NSAppearanceNameDarkAqua,
-			WebviewIsTransparent: true,
-			WindowIsTranslucent:  true,
-			About: &mac.AboutInfo{
-				Title:   "Vervet",
-				Message: "",
-				Icon:    icon,
-			},
-		},
-		Debug: options.Debug{
-			OpenInspectorOnStartup: *debugUI,
+		Mac: application.MacOptions{
+			ApplicationShouldTerminateAfterLastWindowClosed: true,
 		},
 	})
-	if err != nil {
-		log.Fatal(err.Error())
+
+	window := wailsApp.Window.NewWithOptions(application.WebviewWindowOptions{
+		Name:                   "main",
+		Title:                  "Vervet",
+		Width:                  windowWidth,
+		Height:                 windowHeight,
+		MinWidth:               1024,
+		MinHeight:              768,
+		MaxWidth:               8192,
+		MaxHeight:              4608,
+		Frameless:              true,
+		InitialPosition:        application.WindowCentered,
+		BackgroundColour:       application.NewRGB(255, 255, 255),
+		URL:                    "/",
+		DevToolsEnabled:        isDev || *debugUI,
+		OpenInspectorOnStartup: *debugUI,
+		Linux: application.LinuxWindow{
+			Icon:             icon,
+			WebviewGpuPolicy: application.WebviewGpuPolicyAlways,
+		},
+		Windows: application.WindowsWindow{
+			Theme: application.SystemDefault,
+		},
+		Mac: application.MacWindow{
+			Appearance: application.NSAppearanceNameDarkAqua,
+			Backdrop:   application.MacBackdropTranslucent,
+		},
+	})
+
+	vervet.Attach(wailsApp, window)
+
+	if err := wailsApp.Run(); err != nil {
+		slogger.Error("application exited with an error", slog.Any("error", err))
+		os.Exit(1)
 	}
 }

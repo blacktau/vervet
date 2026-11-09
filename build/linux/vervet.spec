@@ -2,13 +2,13 @@ Name:           vervet
 Version:        VERSION_PLACEHOLDER
 Release:        1%{?dist}
 Summary:        A desktop MongoDB explorer
-License:        MIT
+License:        GPL-3.0-only
 URL:            https://github.com/blacktau/vervet
 Source0:        %{name}-%{version}.tar.gz
 
 BuildArch:      x86_64
-Requires:       webkit2gtk4.1
-Requires:       gtk3
+Requires:       webkitgtk6.0
+Requires:       gtk4
 
 # Binary is pre-built, skip debug package and build ID requirements
 %global debug_package %{nil}
@@ -23,9 +23,9 @@ Vervet is a desktop MongoDB explorer built with Go and Vue 3.
 %install
 install -D -m 755 Vervet %{buildroot}%{_bindir}/Vervet
 install -D -m 644 Vervet.desktop %{buildroot}%{_datadir}/applications/Vervet.desktop
-install -D -m 644 vervet.png %{buildroot}%{_datadir}/icons/hicolor/512x512/apps/vervet.png
+install -D -m 644 Vervet.png %{buildroot}%{_datadir}/icons/hicolor/512x512/apps/Vervet.png
 
 %files
 %{_bindir}/Vervet
 %{_datadir}/applications/Vervet.desktop
-%{_datadir}/icons/hicolor/512x512/apps/vervet.png
+%{_datadir}/icons/hicolor/512x512/apps/Vervet.png

@@ -1,12 +1,12 @@
 <script lang="ts" setup>
-import * as runtime from 'wailsjs/runtime'
-import { WindowToggleMaximise } from 'wailsjs/runtime'
+import { Window } from '@wailsio/runtime'
+import { useWindowState } from '@/app/useWindowState'
 import iconUrl from '@/assets/logo.svg'
 import { NavType, useTabStore } from '@/features/tabs/tabs.ts'
 import { isMacOS } from '@/init/environment.ts'
 import ConnectedServerTabs from '@/features/tabs/ConnectedServerTabs.vue'
 import ToolbarControlWidget from '@/features/common/ToolbarControlWidget.vue'
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted } from 'vue'
 import { useSettingsStore } from '@/features/settings/settingsStore.ts'
 import { extraTheme } from '@/utils/extraTheme.ts'
 import { useDialogStore } from '@/stores/dialog.ts'
@@ -24,36 +24,20 @@ const logoWrapperWidth = computed(() => {
   return `${props.navMenuWidth + settingsStore.window.asideWidth - 4}px`
 })
 
-const logoPaddingLeft = ref<number>(10)
-const maximised = ref<boolean>(false)
+const { maximised, fullscreen } = useWindowState()
+
+// macOS draws its window buttons over the logo except in fullscreen.
+const logoPaddingLeft = computed(() => (isMacOS() && !fullscreen.value ? 70 : 10))
 
 const exThemeVars = computed(() => {
   return extraTheme(settingsStore.isDark)
 })
 
-const onToggleFullscreen = (fullscreen: boolean) => {
-  if (fullscreen) {
-    logoPaddingLeft.value = 10
-  } else {
-    logoPaddingLeft.value = isMacOS() ? 70 : 10
-  }
+const toggleMaximise = () => {
+  void Window.ToggleMaximise()
 }
 
-const onToggleMaximize = (isMaximized: boolean) => {
-  maximised.value = isMaximized
-}
-
-runtime.EventsOn('window_changed', (info) => {
-  const { fullscreen, maximized } = info
-  onToggleFullscreen(fullscreen == true)
-  onToggleMaximize(maximized)
-})
-
-onMounted(async () => {
-  const fullscreen = await runtime.WindowIsFullscreen()
-  onToggleFullscreen(fullscreen)
-  const maximized = await runtime.WindowIsMinimised()
-  onToggleMaximize(maximized)
+onMounted(() => {
   window.addEventListener('keydown', onKeyShortCut)
 })
 
@@ -93,7 +77,7 @@ onUnmounted(() => {
     :style="{ height: props.toolbarHeight + 'px' }"
     class="flex-box-h"
     style="--wails-draggable: drag"
-    @dblclick="WindowToggleMaximise">
+    @dblclick="toggleMaximise">
     <div
       id="app-toolbar-title"
       :style="{

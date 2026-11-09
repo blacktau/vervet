@@ -6,9 +6,9 @@ import { createPinia, setActivePinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
 import naive from 'naive-ui'
 import OnboardingPanel from '@/features/onboarding/OnboardingPanel.vue'
-import * as connectionsProxy from 'wailsjs/go/api/ConnectionsProxy'
+import * as connectionsProxy from 'bindings/vervet/internal/api/connectionsproxy'
 
-vi.mock('wailsjs/go/api/ConnectionsProxy', () => ({
+vi.mock('bindings/vervet/internal/api/connectionsproxy', () => ({
   TestConnection: vi.fn(),
 }))
 

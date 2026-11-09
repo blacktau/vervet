@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useSettingsStore } from '@/features/settings/settingsStore.ts'
 import { useNotifier } from '@/utils/dialog.ts'
-import * as systemProxy from 'wailsjs/go/api/SystemProxy'
+import * as systemProxy from 'bindings/vervet/internal/api/systemproxy'
 import { errorCodeText } from '@/utils/resultError'
 
 defineProps<{ loading: boolean }>()

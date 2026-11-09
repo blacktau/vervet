@@ -11,6 +11,13 @@ import { defineConfig } from 'vite'
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  // Wails proxies the dev window to Vite over IPv4. Left at "localhost", Vite
+  // can bind only to ::1, and the window stays white.
+  server: {
+    host: '127.0.0.1',
+    port: Number(process.env.WAILS_VITE_PORT) || 9245,
+    strictPort: true,
+  },
   plugins: [
     vue(),
     monacoEditorPlugin({}),
@@ -30,7 +37,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
-      wailsjs: fileURLToPath(new URL('./wailsjs', import.meta.url)),
+      bindings: fileURLToPath(new URL('./bindings', import.meta.url)),
     },
   },
 })

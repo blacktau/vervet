@@ -66,4 +66,12 @@ async function initApp() {
   app.mount('#app')
 }
 
-initApp()
+// If startup fails there is nothing else on screen, so show the error rather
+// than leaving an empty window.
+initApp().catch((err: unknown) => {
+  console.error('Vervet failed to start', err)
+  const pre = document.createElement('pre')
+  pre.style.cssText = 'margin: 16px; white-space: pre-wrap; font: 13px monospace; color: #b00020'
+  pre.textContent = `Vervet failed to start:\n\n${err instanceof Error ? (err.stack ?? err.message) : String(err)}`
+  document.body.replaceChildren(pre)
+})

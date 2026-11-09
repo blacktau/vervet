@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 
-vi.mock('wailsjs/go/api/SettingsProxy', () => ({
+vi.mock('bindings/vervet/internal/api/settingsproxy', () => ({
   GetSettings: vi.fn(),
   SetSettings: vi.fn(),
   ResetSettings: vi.fn(),
@@ -13,7 +13,7 @@ vi.mock('naive-ui', () => ({
 }))
 
 import { useSettingsStore } from './settingsStore'
-import * as settingsProxy from 'wailsjs/go/api/SettingsProxy'
+import * as settingsProxy from 'bindings/vervet/internal/api/settingsproxy'
 
 describe('settingsStore', () => {
   beforeEach(() => {
