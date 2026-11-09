@@ -10,5 +10,5 @@
 
 - [ ] `bun run lint` passes (from `frontend/`)
 - [ ] `go test ./...` passes
-- [ ] Tested manually in `wails dev`
+- [ ] Tested manually in `wails3 dev`
 - [ ] Screenshots included (if UI changes)

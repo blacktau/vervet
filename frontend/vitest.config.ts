@@ -19,6 +19,7 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['src/**/*.test.ts'],
+    setupFiles: ['src/test-setup/wailsRuntime.ts'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov'],
@@ -28,7 +29,7 @@ export default defineConfig({
         'src/**/*.d.ts',
         'src/i18n/**',
         'src/features/icon/**',
-        'wailsjs/**',
+        'bindings/**',
       ],
       thresholds: {
         // These are a ratchet, not a target. `autoUpdate` raises them when
@@ -53,7 +54,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
-      wailsjs: fileURLToPath(new URL('./wailsjs', import.meta.url)),
+      bindings: fileURLToPath(new URL('./bindings', import.meta.url)),
     },
   },
 })

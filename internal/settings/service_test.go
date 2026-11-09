@@ -1,12 +1,12 @@
 package settings_test
 
 import (
-	"context"
 	"errors"
 	"log/slog"
 	"os"
 	"path"
 	"testing"
+	"time"
 	"vervet/internal/infrastructure"
 	"vervet/internal/models"
 	"vervet/internal/settings"
@@ -48,9 +48,7 @@ func newTestService(store infrastructure.Store, log *slog.Logger) settings.Servi
 	if log == nil {
 		log = slog.Default()
 	}
-	ctx := context.Background()
-	cm := settings.NewTestService(store, log, ctx)
-	return cm
+	return settings.NewTestService(store, log)
 }
 
 func Test_SettingsService_GetSettings(t *testing.T) {
@@ -325,7 +323,7 @@ func expectedSettings() models.Settings {
 
 func Test_SettingsService_LoggingDefaults(t *testing.T) {
 	t.Run("dev defaults console=true", func(t *testing.T) {
-		m := settings.NewTestServiceWithBuild(&storeStub{}, nil, context.Background(), true, nil)
+		m := settings.NewTestServiceWithBuild(&storeStub{}, nil, true, nil)
 		c, err := m.GetSettings()
 		if err != nil {
 			t.Fatal(err)
@@ -336,7 +334,7 @@ func Test_SettingsService_LoggingDefaults(t *testing.T) {
 	})
 
 	t.Run("release defaults console=false", func(t *testing.T) {
-		m := settings.NewTestServiceWithBuild(&storeStub{}, nil, context.Background(), false, nil)
+		m := settings.NewTestServiceWithBuild(&storeStub{}, nil, false, nil)
 		c, err := m.GetSettings()
 		if err != nil {
 			t.Fatal(err)
@@ -352,7 +350,7 @@ func Test_SettingsService_OnLevelChange(t *testing.T) {
 	cb := func(l slog.Level) { got = l; called++ }
 
 	store := &storeStub{}
-	m := settings.NewTestServiceWithBuild(store, nil, context.Background(), false, cb)
+	m := settings.NewTestServiceWithBuild(store, nil, false, cb)
 
 	cfg, err := m.GetSettings()
 	if err != nil {
@@ -404,4 +402,29 @@ func Test_SetSettings_PreservesUpdateCheckState(t *testing.T) {
 	if got.Updates.Frequency != "weekly" {
 		t.Errorf("frequency should still be saved: got %q", got.Updates.Frequency)
 	}
+}
+
+// Asking for the screen size waits for the main thread. On quit, the main
+// thread saves the window state, so GetWindowState must not hold the settings
+// lock while it waits.
+func Test_SettingsService_GetWindowStateDoesNotHoldTheLockForTheScreenSize(t *testing.T) {
+	m := newTestService(nil, nil)
+	m.SetScreenSizeProvider(func() (int, int, bool) {
+		saved := make(chan error, 1)
+		go func() {
+			saved <- m.SaveWindowState(models.WindowState{X: 10, Y: 20, Width: 1280, Height: 960})
+		}()
+		select {
+		case err := <-saved:
+			assert.NoError(t, err)
+		case <-time.After(2 * time.Second):
+			t.Error("saving the window state waited for GetWindowState")
+		}
+		return 1920, 1080, true
+	})
+
+	state, err := m.GetWindowState()
+
+	assert.NoError(t, err)
+	assert.Equal(t, models.WindowState{X: 10, Y: 20, Width: 1280, Height: 960}, state)
 }

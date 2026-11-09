@@ -5,8 +5,8 @@ import { type FormInst } from 'naive-ui'
 import { DialogMode, DialogType, useDialogStore } from '@/stores/dialog.ts'
 import { type IndexInfo, useIndexStore } from '@/features/indexes/indexStore.ts'
 import { useNotifier } from '@/utils/dialog.ts'
-import { SampleSchema } from 'wailsjs/go/api/CollectionsProxy'
-import type { models } from 'wailsjs/go/models'
+import { SampleSchema } from 'bindings/vervet/internal/api/collectionsproxy'
+import type * as models from 'bindings/vervet/internal/models'
 
 type DialogData = {
   serverID: string

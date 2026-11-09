@@ -11,7 +11,7 @@ import { createI18n } from 'vue-i18n'
 import naive, { NDialogProvider } from 'naive-ui'
 import type { CollectionContext } from '../useDocumentContextMenu'
 
-vi.mock('wailsjs/go/api/ShellProxy', () => ({ ExecuteQuery: vi.fn() }))
+vi.mock('bindings/vervet/internal/api/shellproxy', () => ({ ExecuteQuery: vi.fn() }))
 vi.mock('@/utils/dialog', () => ({ useNotifier: () => ({ error: vi.fn(), success: vi.fn() }) }))
 
 const EditDialogStub = defineComponent({

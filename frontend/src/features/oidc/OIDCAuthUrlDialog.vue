@@ -1,8 +1,8 @@
 <script lang="ts" setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
-import * as runtime from 'wailsjs/runtime'
-import * as oidcProxy from 'wailsjs/go/api/OIDCProxy'
+import { onEvent } from '@/utils/wailsEvents'
+import * as oidcProxy from 'bindings/vervet/internal/api/oidcproxy'
 import { useServerStore } from '@/features/server-pane/serverStore.ts'
 
 const i18n = useI18n()
@@ -32,8 +32,8 @@ let unsubAuthUrl: (() => void) | undefined
 let unsubConnected: (() => void) | undefined
 
 onMounted(() => {
-  unsubAuthUrl = runtime.EventsOn('oidc-auth-url', onAuthUrl)
-  unsubConnected = runtime.EventsOn('connection-connected', onConnected)
+  unsubAuthUrl = onEvent('oidc-auth-url', onAuthUrl)
+  unsubConnected = onEvent('connection-connected', onConnected)
 })
 
 onBeforeUnmount(() => {

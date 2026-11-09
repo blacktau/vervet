@@ -1,7 +1,6 @@
 package api
 
 import (
-	"context"
 	"testing"
 
 	"vervet/internal/models"
@@ -13,10 +12,6 @@ type MockSettingsProvider struct {
 	err         error
 	settings    models.Settings
 	windowState models.WindowState
-}
-
-func (m *MockSettingsProvider) Init(ctx context.Context) error {
-	return nil
 }
 
 func (m *MockSettingsProvider) GetSettings() (models.Settings, error) {

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { buildSchemaRows } from '../schemaRows'
-import type { models } from 'wailsjs/go/models'
+import type * as models from 'bindings/vervet/internal/models'
 
 function field(over: Partial<models.FieldInfo>): models.FieldInfo {
   return {

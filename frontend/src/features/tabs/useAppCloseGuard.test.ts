@@ -5,11 +5,14 @@ import { nextTick, reactive } from 'vue'
 
 type Listener = () => Promise<void>
 const listeners = new Map<string, Listener>()
-vi.mock('wailsjs/runtime/runtime', () => ({
-  EventsOn: (name: string, listener: Listener) => listeners.set(name, listener),
+vi.mock('@/utils/wailsEvents', () => ({
+  onEvent: (name: string, listener: Listener) => {
+    listeners.set(name, listener)
+    return () => listeners.delete(name)
+  },
 }))
 
-vi.mock('wailsjs/go/api/CloseGuardProxy', () => ({
+vi.mock('bindings/vervet/internal/api/closeguardproxy', () => ({
   SetUnsavedChanges: vi.fn(async () => ({ isSuccess: true })),
   AcknowledgeCloseRequest: vi.fn(async () => ({ isSuccess: true })),
   CancelClose: vi.fn(async () => ({ isSuccess: true })),
@@ -22,7 +25,7 @@ const tabStore = reactive({
 })
 vi.mock('@/features/tabs/tabs', () => ({ useTabStore: () => tabStore }))
 
-import * as closeGuardProxy from 'wailsjs/go/api/CloseGuardProxy'
+import * as closeGuardProxy from 'bindings/vervet/internal/api/closeguardproxy'
 import { useAppCloseGuard } from '@/features/tabs/useAppCloseGuard'
 
 async function requestClose() {
@@ -49,10 +52,13 @@ describe('useAppCloseGuard', () => {
 
   it('acknowledges the request before asking the user', async () => {
     const order: string[] = []
-    vi.mocked(closeGuardProxy.AcknowledgeCloseRequest).mockImplementation(async () => {
+    vi.mocked(closeGuardProxy.AcknowledgeCloseRequest).mockImplementation(
+      // Bindings return a CancellablePromise; a plain Promise is enough here.
+      (async () => {
       order.push('acknowledge')
       return { isSuccess: true } as never
-    })
+    }) as never,
+    )
     tabStore.resolveAllUnsavedQueries = vi.fn(async () => {
       order.push('ask')
       return true

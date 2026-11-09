@@ -1,7 +1,6 @@
 package api
 
 import (
-	"context"
 	"log/slog"
 )
 
@@ -11,7 +10,6 @@ type FileFilter struct {
 }
 
 type FilesProvider interface {
-	Init(ctx context.Context) error
 	SelectFile(title string, filters []FileFilter) (string, error)
 	SaveFile(title *string, name *string, filters []FileFilter) (string, error)
 	ReadFile(path string) (string, error)

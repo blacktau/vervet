@@ -3,7 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useSettingsStore } from '@/features/settings/settingsStore'
 import { useUpdateStore } from './updateStore'
-import { GetAppVersion } from 'wailsjs/go/api/SettingsProxy'
+import { GetAppVersion } from 'bindings/vervet/internal/api/settingsproxy'
 
 const { t } = useI18n()
 const settingsStore = useSettingsStore()

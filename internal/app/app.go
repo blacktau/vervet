@@ -14,6 +14,7 @@ import (
 	"vervet/internal/connectionStrings"
 	"vervet/internal/connections"
 	"vervet/internal/databases"
+	"vervet/internal/desktop"
 	"vervet/internal/export"
 	"vervet/internal/files"
 	"vervet/internal/indexes"
@@ -26,7 +27,7 @@ import (
 	"vervet/internal/updates"
 	"vervet/internal/workspaces"
 
-	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
+	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
 // filesServiceSaveDialogAdapter adapts files.Service to export.SaveDialog,
@@ -46,11 +47,24 @@ func (a *filesServiceSaveDialogAdapter) SaveFile(title *string, name *string, fi
 	return a.svc.SaveFile(title, name, apiFilters)
 }
 
+// desktopRuntime is what App needs from the Wails runtime. desktop.Runtime
+// provides it; tests use a fake.
+type desktopRuntime interface {
+	Attach(app *application.App, window *application.WebviewWindow)
+	Emit(name string, data ...any)
+	RevealWindow()
+	CloseWindow()
+	OnWindowClosing(fn func() (keepOpen bool))
+	WindowBounds() (x, y, width, height int, ok bool)
+}
+
 // App struct
 type App struct {
 	log              *slog.Logger
 	closeGuard       *closeguard.Guard
+	runtime          desktopRuntime
 	ctx              context.Context
+	cancel           context.CancelFunc
 	ServersProxy     *api.ServersProxy
 	ConnectionsProxy *api.ConnectionsProxy
 	DatabasesProxy   *api.DatabasesProxy
@@ -76,16 +90,14 @@ type App struct {
 	tokenManager       *oidc.TokenManager
 	settingsService    settings.Service
 	systemService      *system.Service
-	filesService       *files.Service
 	exportService      *export.Service
 	updatesService     *updates.Service
-	updatesEmitter     *updates.WailsEmitter
-	updatesOpener      *updates.BrowserOpener
 	appVersion         string
 }
 
 // NewApp creates a new App application struct
 func NewApp(log *slog.Logger, settingsService settings.Service, version string) *App {
+	rt := desktop.New()
 	connectionStringsStore := connectionStrings.NewStore(log)
 	serverStore, err := servers.NewServerStore(log)
 	if err != nil {
@@ -93,24 +105,32 @@ func NewApp(log *slog.Logger, settingsService settings.Service, version string) 
 		panic(fmt.Errorf("failed to initialize server store: %w", err))
 	}
 	tokenManager := oidc.NewTokenManager(log, connectionStringsStore)
+	tokenManager.SetOpenBrowser(rt.OpenURL)
+	tokenManager.SetEmitAuthURL(func(serverID, url string) {
+		rt.Emit("oidc-auth-url", map[string]string{
+			"serverID": serverID,
+			"url":      url,
+		})
+	})
 	serverService := servers.NewService(log, serverStore, connectionStringsStore, tokenManager)
+	serverService.SetEmitter(rt.Emit)
 	registry := clientregistry.NewClientRegistry(log, tokenManager)
 	connectionManager := connections.NewManager(log, registry, connectionStringsStore, serverService)
+	connectionManager.SetEmitter(rt.Emit)
 	serverService.SetDisconnector(connectionManager)
+	settingsService.SetScreenSizeProvider(rt.ScreenSize)
 	databasesService := databases.NewDatabasesService(log, registry)
 	indexService := indexes.NewIndexService(log, registry)
 	collectionsService := collections.NewCollectionsService(log, registry)
-	updatesEmitter := updates.NewWailsEmitter(nil)
-	updatesOpener := updates.NewBrowserOpener(nil)
 	updatesService := updates.NewService(log, updates.Config{
 		CurrentVersion: version,
 		Settings:       updates.NewSettingsAdapter(settingsService),
-		Emitter:        updatesEmitter,
+		Emit:           rt.Emit,
 	})
 	queryExecutor := queryexecutor.NewQueryExecutor(log, registry, connectionStringsStore, settingsService)
 	systemService := system.NewSystemService(log)
 	fontService := system.NewFontService(log)
-	filesService := files.NewService(log)
+	filesService := files.NewService(log, rt)
 	exportService := export.NewService(log, &filesServiceSaveDialogAdapter{svc: filesService})
 	workspaceStore, err := workspaces.NewStore(log)
 	if err != nil {
@@ -123,6 +143,7 @@ func NewApp(log *slog.Logger, settingsService settings.Service, version string) 
 
 	return &App{
 		log:                log,
+		runtime:            rt,
 		closeGuard:         closeGuard,
 		CloseGuardProxy:    api.NewCloseGuardProxy(log, closeGuard),
 		serverService:      serverService,
@@ -135,7 +156,6 @@ func NewApp(log *slog.Logger, settingsService settings.Service, version string) 
 		tokenManager:       tokenManager,
 		settingsService:    settingsService,
 		systemService:      systemService,
-		filesService:       filesService,
 		exportService:      exportService,
 		ServersProxy:       api.NewServersProxy(log, serverService),
 		ConnectionsProxy:   api.NewConnectionsProxy(log, connectionManager),
@@ -143,43 +163,103 @@ func NewApp(log *slog.Logger, settingsService settings.Service, version string) 
 		IndexesProxy:       api.NewIndexesProxy(log, indexService),
 		CollectionsProxy:   api.NewCollectionsProxy(log, collectionsService),
 		ShellProxy:         api.NewShellProxy(log, queryExecutor),
-		SystemProxy:        api.NewSystemProxy(log, systemService),
+		SystemProxy:        api.NewSystemProxy(log, systemService, rt),
 		SettingsProxy:      api.NewSettingsProxy(log, settingsService, fontService, version),
 		FilesProxy:         api.NewFilesProxy(log, filesService),
-		WorkspacesProxy:    api.NewWorkspacesProxy(log, workspaceService, settingsService),
+		WorkspacesProxy:    api.NewWorkspacesProxy(log, workspaceService, settingsService, rt),
 		ExportProxy:        api.NewExportProxy(log, exportService),
 		OIDCProxy:          api.NewOIDCProxy(log, tokenManager),
-		UpdatesProxy:       api.NewUpdatesProxy(log, updatesService, updatesOpener),
+		UpdatesProxy:       api.NewUpdatesProxy(log, updatesService, rt),
 		appVersion:         version,
 		updatesService:     updatesService,
-		updatesEmitter:     updatesEmitter,
-		updatesOpener:      updatesOpener,
 	}
 }
 
-// Startup is called at application startup
-func (a *App) Startup(ctx context.Context) {
-	a.ctx = ctx
+// Services lists what Wails binds and starts. The lifecycle service comes
+// first so the backend is initialised before any proxy's ServiceStartup.
+func (a *App) Services() []application.Service {
+	return []application.Service{
+		application.NewService(&lifecycle{app: a}),
+		application.NewService(a.ServersProxy),
+		application.NewService(a.ConnectionsProxy),
+		application.NewService(a.DatabasesProxy),
+		application.NewService(a.IndexesProxy),
+		application.NewService(a.CollectionsProxy),
+		application.NewService(a.ShellProxy),
+		application.NewService(a.SystemProxy),
+		application.NewService(a.SettingsProxy),
+		application.NewService(a.FilesProxy),
+		application.NewService(a.CloseGuardProxy),
+		application.NewService(a.WorkspacesProxy),
+		application.NewService(a.UpdatesProxy),
+		application.NewService(a.ExportProxy),
+		application.NewService(a.OIDCProxy),
+	}
+}
 
-	a.serverService.Init(ctx)
+// Attach connects the backend to the Wails app and its main window. Call it
+// after creating the window and before app.Run.
+func (a *App) Attach(wailsApp *application.App, window *application.WebviewWindow) {
+	a.runtime.Attach(wailsApp, window)
+	a.guardWindow()
+}
+
+// guardWindow routes closing the main window through the close guard, and
+// saves the window's size and position when it does close.
+func (a *App) guardWindow() {
+	a.closeGuard.Init(
+		func() {
+			// Closing from the taskbar can happen while minimised, where the prompt can't be seen.
+			a.runtime.RevealWindow()
+			a.runtime.Emit(closeguard.EventCloseRequested)
+		},
+		a.runtime.CloseWindow,
+	)
+
+	a.runtime.OnWindowClosing(func() bool {
+		if a.closeGuard.BeforeClose() {
+			return true
+		}
+		a.saveWindowState()
+		return false
+	})
+}
+
+// ShouldQuit answers an app-level quit (e.g. Cmd+Q on macOS), which doesn't
+// close the window first, so it applies the same guard as closing it.
+func (a *App) ShouldQuit() bool {
+	if a.closeGuard.BeforeClose() {
+		return false
+	}
+	a.saveWindowState()
+	return true
+}
+
+// lifecycle starts and stops the backend with the Wails app. It has no
+// exported methods besides the Wails hooks, so nothing is bound for it.
+type lifecycle struct{ app *App }
+
+func (l *lifecycle) ServiceStartup(_ context.Context, _ application.ServiceOptions) error {
+	return l.app.startup()
+}
+
+func (l *lifecycle) ServiceShutdown() error {
+	l.app.shutdown()
+	return nil
+}
+
+func (a *App) startup() error {
+	// Wails cancels the service context before shutdown, but disconnecting
+	// from MongoDB during shutdown still needs a live one, so own it here.
+	ctx, cancel := context.WithCancel(context.Background())
+	a.ctx = ctx
+	a.cancel = cancel
 
 	a.tokenManager.Init(ctx)
-	a.tokenManager.SetOpenBrowser(func(url string) {
-		wailsRuntime.BrowserOpenURL(ctx, url)
-	})
-	a.tokenManager.SetEmitAuthURL(func(serverID, url string) {
-		wailsRuntime.EventsEmit(ctx, "oidc-auth-url", map[string]string{
-			"serverID": serverID,
-			"url":      url,
-		})
-	})
-
 	a.registry.Init(ctx)
 
-	err := a.connectionManager.Init(ctx)
-	if err != nil {
-		a.log.Error("Failed to initialize connection manager", slog.Any("error", err))
-		panic(fmt.Errorf("failed to initialize connection manager: %w", err))
+	if err := a.connectionManager.Init(ctx); err != nil {
+		return fmt.Errorf("failed to initialize connection manager: %w", err)
 	}
 
 	a.databasesService.Init(ctx)
@@ -187,33 +267,11 @@ func (a *App) Startup(ctx context.Context) {
 	a.collectionsService.Init(ctx)
 	a.queryExecutor.Init(ctx)
 
-	err = a.settingsService.Init(ctx)
-	if err != nil {
-		a.log.Error("Failed to initialize settings service", slog.Any("error", err))
-		panic(fmt.Errorf("failed to initialize settings service: %w", err))
-	}
-
-	a.filesService.Init(ctx)
 	a.exportService.Init(ctx)
 	a.systemService.Init(ctx)
-	a.WorkspacesProxy.Init(ctx)
-
-	a.updatesEmitter.SetContext(ctx)
-	a.updatesOpener.SetContext(ctx)
-	a.UpdatesProxy.Init(ctx)
-
-	a.closeGuard.Init(
-		func() {
-			// Closing from the taskbar can happen while minimised, where the prompt can't be seen.
-			if wailsRuntime.WindowIsMinimised(ctx) {
-				wailsRuntime.WindowUnminimise(ctx)
-			}
-			wailsRuntime.EventsEmit(ctx, closeguard.EventCloseRequested)
-		},
-		func() { wailsRuntime.Quit(ctx) },
-	)
 
 	go a.runUpdateChecks(ctx)
+	return nil
 }
 
 // updateCheckTick is how often the background timer asks the updates service
@@ -239,23 +297,7 @@ func (a *App) runUpdateChecks(ctx context.Context) {
 	}
 }
 
-// DomReady is called after front-end resources have been loaded
-func (a *App) DomReady(ctx context.Context) {
-}
-
-// BeforeClose is called when the application is about to quit,
-// either by clicking the window close button or calling runtime.Quit.
-// Returning true will cause the application to continue, false will continue shutdown as normal.
-func (a *App) BeforeClose(ctx context.Context) (prevent bool) {
-	if a.closeGuard.BeforeClose() {
-		return true
-	}
-	a.saveWindowState()
-	return false
-}
-
-// GetInitialWindowSize returns the saved window size for use in Wails options before the window is created.
-// This reads settings directly rather than using GetWindowState, which requires a Wails context.
+// GetInitialWindowSize returns the saved window size for creating the window.
 func (a *App) GetInitialWindowSize() (width, height int) {
 	cfg, err := a.settingsService.GetSettings()
 	if err != nil {
@@ -265,8 +307,14 @@ func (a *App) GetInitialWindowSize() (width, height int) {
 }
 
 func (a *App) saveWindowState() {
-	width, height := wailsRuntime.WindowGetSize(a.ctx)
-	x, y := wailsRuntime.WindowGetPosition(a.ctx)
+	if a.runtime == nil {
+		return
+	}
+	// Not ok when the window is already gone, e.g. the app quits after it closed.
+	x, y, width, height, ok := a.runtime.WindowBounds()
+	if !ok {
+		return
+	}
 
 	err := a.settingsService.SaveWindowState(models.WindowState{
 		X:      x,
@@ -279,8 +327,11 @@ func (a *App) saveWindowState() {
 	}
 }
 
-// Shutdown is called at application termination
-func (a *App) Shutdown(ctx context.Context) {
+func (a *App) shutdown() {
+	if a.cancel != nil {
+		defer a.cancel()
+	}
+
 	// Cancel any in-flight OIDC browser logins (releases the callback listener)
 	a.tokenManager.Shutdown()
 

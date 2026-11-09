@@ -1,5 +1,5 @@
 import * as monaco from 'monaco-editor'
-import { BrowserOpenURL } from '../../wailsjs/runtime'
+import { openInBrowser } from '@/utils/openInBrowser'
 import JsonWorker from 'monaco-editor/esm/vs/language/json/json.worker?worker'
 import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker'
 import TsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker'
@@ -64,7 +64,7 @@ monaco.editor.defineTheme('vervet-dark', {
 
 monaco.editor.registerLinkOpener({
   open(resource: Uri): boolean | Promise<boolean> {
-    BrowserOpenURL(resource.toString())
+    openInBrowser(resource.toString())
     return true;
   },
 })

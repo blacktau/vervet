@@ -2,15 +2,14 @@ import { describe, expect, it, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useUpdateStore } from './updateStore'
 
-vi.mock('wailsjs/go/api/UpdatesProxy', () => ({
+vi.mock('bindings/vervet/internal/api/updatesproxy', () => ({
   CheckNow: vi.fn(),
   DismissUpdate: vi.fn(),
   OpenReleasePage: vi.fn(),
 }))
 
-vi.mock('wailsjs/runtime/runtime', () => ({
-  EventsOn: vi.fn(),
-  EventsOff: vi.fn(),
+vi.mock('@/utils/wailsEvents', () => ({
+  onEvent: vi.fn(() => vi.fn()),
 }))
 
 describe('updateStore', () => {
@@ -26,7 +25,7 @@ describe('updateStore', () => {
   })
 
   it('dismiss clears available', async () => {
-    const { DismissUpdate } = await import('wailsjs/go/api/UpdatesProxy')
+    const { DismissUpdate } = await import('bindings/vervet/internal/api/updatesproxy')
     ;(DismissUpdate as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({ isSuccess: true })
     const store = useUpdateStore()
     store.applyEvent({ available: true, version: '2026.05.1', url: 'https://x', releaseNotes: '' })

@@ -15,8 +15,9 @@ import '@/utils/logging'
 dayjs.extend(duration)
 dayjs.extend(relativeTime)
 
-// Workaround for WebKit2GTK on Linux: Ctrl+V is intercepted by GTK
-// before reaching the webview. We read from the clipboard API and
+// Workaround for WebKitGTK on Linux: Ctrl+V is intercepted by GTK
+// before reaching the webview. Still needed on WebKitGTK 6.0 (checked
+// 2026-11-09: without it nothing pastes, with it the text pastes once). We read from the clipboard API and
 // use execCommand to insert the text, which correctly replaces any selection.
 function initClipboardWorkaround() {
   document.addEventListener('keydown', async (e) => {
@@ -66,4 +67,12 @@ async function initApp() {
   app.mount('#app')
 }
 
-initApp()
+// If startup fails there is nothing else on screen, so show the error rather
+// than leaving an empty window.
+initApp().catch((err: unknown) => {
+  console.error('Vervet failed to start', err)
+  const pre = document.createElement('pre')
+  pre.style.cssText = 'margin: 16px; white-space: pre-wrap; font: 13px monospace; color: #b00020'
+  pre.textContent = `Vervet failed to start:\n\n${err instanceof Error ? (err.stack ?? err.message) : String(err)}`
+  document.body.replaceChildren(pre)
+})

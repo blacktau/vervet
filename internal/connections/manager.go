@@ -12,8 +12,6 @@ import (
 	"vervet/internal/logging"
 	"vervet/internal/models"
 
-	"github.com/wailsapp/wails/v2/pkg/runtime"
-
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
@@ -31,9 +29,8 @@ type ConnectionManager struct {
 	serverProvider ServerProvider
 	log            *slog.Logger
 
-	// emit is a seam over runtime.EventsEmit. Wails resolves its emitter from
-	// the context and log.Fatalf's when absent, so tests must replace this.
-	emit func(ctx context.Context, eventName string, optionalData ...interface{})
+	// emit sends an event to the frontend. It is a no-op until SetEmitter.
+	emit func(eventName string, data ...any)
 }
 
 type ServerProvider interface {
@@ -47,8 +44,13 @@ func NewManager(log *slog.Logger, registry *clientregistry.ClientRegistry, store
 		registry:       registry,
 		store:          store,
 		serverProvider: provider,
-		emit:           runtime.EventsEmit,
+		emit:           func(string, ...any) {},
 	}
+}
+
+// SetEmitter sets how the manager sends events to the frontend.
+func (cm *ConnectionManager) SetEmitter(emit func(eventName string, data ...any)) {
+	cm.emit = emit
 }
 
 func (cm *ConnectionManager) Init(ctx context.Context) error {
@@ -85,7 +87,7 @@ func (cm *ConnectionManager) Connect(serverID string) (models.Connection, error)
 	}
 
 	cm.log.Debug("Successfully connected to MongoDB", slog.String("serverID", serverID))
-	cm.emit(cm.ctx, ConnectedEvent, serverID)
+	cm.emit(ConnectedEvent, serverID)
 
 	return models.Connection{
 		ServerID: serverID,
@@ -148,7 +150,7 @@ func (cm *ConnectionManager) Disconnect(serverID string) error {
 	// Always emit the event: the registry removes the client from its map
 	// even when the underlying driver disconnect fails, so the frontend
 	// must know the connection is gone.
-	cm.emit(cm.ctx, DisconnectedEvent, serverID)
+	cm.emit(DisconnectedEvent, serverID)
 
 	if err != nil {
 		return err
@@ -165,7 +167,7 @@ func (cm *ConnectionManager) DisconnectAll() error {
 	err := cm.registry.DisconnectAll()
 
 	for _, c := range all {
-		cm.emit(cm.ctx, DisconnectedEvent, c.ServerID)
+		cm.emit(DisconnectedEvent, c.ServerID)
 	}
 
 	if err != nil {

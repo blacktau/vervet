@@ -1,4 +1,4 @@
-import type { models } from 'wailsjs/go/models'
+import type * as models from 'bindings/vervet/internal/models'
 
 export interface SchemaRow {
   key: string
@@ -32,10 +32,10 @@ export function buildSchemaRows(
       name: f.name,
       path: f.path,
       count: f.count,
+      types: f.types ?? [],
       isArrayElement,
       presence,
       avgPerParent,
-      types: f.types,
       hasChildren: !!(f.children && f.children.length > 0),
       children:
         f.children && f.children.length > 0

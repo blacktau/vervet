@@ -19,4 +19,32 @@ export default defineConfigWithVueTs(
   pluginVue.configs['flat/essential'],
   vueTsConfigs.recommended,
   skipFormatting,
+
+  {
+    // Links must go through openInBrowser, which only opens http(s). Banning the
+    // runtime's Browser import (renamed or not) and namespace imports of it
+    // closes every route to Browser.OpenURL.
+    name: 'app/browser-links',
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@wailsio/runtime',
+              importNames: ['Browser'],
+              message: "Use openInBrowser from '@/utils/openInBrowser': it only opens http(s) links.",
+            },
+          ],
+        },
+      ],
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "ImportDeclaration[source.value='@wailsio/runtime'] > ImportNamespaceSpecifier",
+          message: "Import named exports from '@wailsio/runtime'; links go through openInBrowser from '@/utils/openInBrowser'.",
+        },
+      ],
+    },
+  },
 )

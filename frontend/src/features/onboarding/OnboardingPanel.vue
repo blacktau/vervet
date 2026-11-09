@@ -10,7 +10,7 @@ import { useServerStore } from '@/features/server-pane/serverStore.ts'
 import { useServerConnection } from '@/features/server-pane/useServerConnection.ts'
 import { useDialogStore } from '@/stores/dialog.ts'
 import logoUrl from '@/assets/logo.svg'
-import * as connectionsProxy from 'wailsjs/go/api/ConnectionsProxy'
+import * as connectionsProxy from 'bindings/vervet/internal/api/connectionsproxy'
 import type { RegisteredServerNode } from '@/features/server-pane/serverStore.ts'
 import { errorCodeText } from '@/utils/resultError'
 

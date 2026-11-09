@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { isEmpty } from 'lodash'
-import * as oidcProxy from 'wailsjs/go/api/OIDCProxy'
+import * as oidcProxy from 'bindings/vervet/internal/api/oidcproxy'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 import { useTabStore } from '@/features/tabs/tabs.ts'
 import { useMessager } from '@/utils/dialog.ts'

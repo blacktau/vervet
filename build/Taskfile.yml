@@ -1,0 +1,84 @@
+version: '3'
+
+tasks:
+  go:mod:tidy:
+    summary: Runs `go mod tidy`; in CI, fails instead if go.mod or go.sum isn't tidy
+    internal: true
+    run: once
+    cmds:
+      # Release builds must use the module files as tagged, not a tidied copy.
+      - 'if [ -n "$CI" ]; then go mod tidy -diff; else go mod tidy; fi'
+
+  install:frontend:deps:
+    summary: Installs frontend dependencies
+    run: once
+    dir: frontend
+    sources:
+      - package.json
+      - bun.lock
+    generates:
+      - node_modules
+    preconditions:
+      - sh: bun --version
+        msg: "bun not found"
+    cmds:
+      - bun install
+
+  build:frontend:
+    label: build:frontend (DEV={{.DEV}})
+    summary: Builds the frontend
+    run: once
+    dir: frontend
+    sources:
+      - "**/*"
+      - exclude: node_modules/**/*
+    generates:
+      - dist/**/*
+    deps:
+      - task: install:frontend:deps
+      - task: generate:bindings
+        vars:
+          BUILD_FLAGS:
+            ref: .BUILD_FLAGS
+    cmds:
+      - bun run {{if eq .DEV "true"}}build:dev{{else}}build{{end}}
+
+  generate:bindings:
+    summary: Generates the TypeScript bindings for the Go services
+    run: once
+    deps:
+      - task: go:mod:tidy
+    sources:
+      - "**/*.go"
+      - go.mod
+      - go.sum
+    generates:
+      - frontend/bindings/**/*
+    cmds:
+      - wails3 generate bindings -f '{{.BUILD_FLAGS}}' -clean=true -ts -i
+
+  generate:icons:
+    summary: Generates the Windows `.ico` and macOS `.icns` from build/appicon.png
+    run: once
+    dir: build
+    sources:
+      - "appicon.png"
+    generates:
+      - "darwin/icons.icns"
+      - "windows/icon.ico"
+    cmds:
+      - wails3 generate icons -input appicon.png -macfilename darwin/icons.icns -windowsfilename windows/icon.ico
+
+  dev:frontend:
+    summary: Runs the Vite dev server
+    deps:
+      - task: install:frontend:deps
+    dir: frontend
+    cmds:
+      - bun run dev --port {{.VITE_PORT}} --strictPort
+
+  update:build-assets:
+    summary: Regenerates the platform files under build/ from build/config.yml
+    dir: build
+    cmds:
+      - wails3 update build-assets -name "{{.APP_NAME}}" -binaryname "{{.APP_NAME}}" -config config.yml -dir .

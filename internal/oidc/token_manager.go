@@ -46,7 +46,7 @@ type TokenManager struct {
 	store       connectionStrings.Store
 	mu          sync.RWMutex
 	cache       map[string]*CachedToken
-	openBrowser func(url string)
+	openBrowser func(url string) error
 	emitAuthURL func(serverID, url string)
 
 	// browserMu protects activeServer — the in-flight OIDC login.
@@ -109,7 +109,9 @@ func (tm *TokenManager) Init(ctx context.Context) {
 	tm.ctx = ctx
 }
 
-func (tm *TokenManager) SetOpenBrowser(fn func(url string)) {
+// SetOpenBrowser sets how the login page is opened. If it fails, the user is
+// shown the URL to open by hand.
+func (tm *TokenManager) SetOpenBrowser(fn func(url string) error) {
 	tm.openBrowser = fn
 }
 

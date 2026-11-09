@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
-vi.mock('wailsjs/go/api/ServersProxy', () => ({
+vi.mock('bindings/vervet/internal/api/serversproxy', () => ({
   CreateGroup: vi.fn(),
   GetServers: vi.fn().mockResolvedValue({ isSuccess: true, data: [] }),
   GetServer: vi.fn(),
@@ -10,7 +10,7 @@ vi.mock('wailsjs/go/api/ServersProxy', () => ({
   ImportServers: vi.fn(),
 }))
 
-vi.mock('wailsjs/go/api/FilesProxy', () => ({
+vi.mock('bindings/vervet/internal/api/filesproxy', () => ({
   SelectFile: vi.fn(),
   SaveFile: vi.fn(),
   ReadFile: vi.fn(),
@@ -25,8 +25,8 @@ vi.mock('@/utils/dialog.ts', () => ({
   useNotifier: vi.fn(() => ({ error: vi.fn(), warning: vi.fn() })),
 }))
 
-import * as serversProxy from 'wailsjs/go/api/ServersProxy'
-import * as filesProxy from 'wailsjs/go/api/FilesProxy'
+import * as serversProxy from 'bindings/vervet/internal/api/serversproxy'
+import * as filesProxy from 'bindings/vervet/internal/api/filesproxy'
 import { useServerStore } from '@/features/server-pane/serverStore'
 
 describe('serverStore.createGroup', () => {

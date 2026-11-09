@@ -3,14 +3,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 
-vi.mock('wailsjs/go/api/SettingsProxy', () => ({
+vi.mock('bindings/vervet/internal/api/settingsproxy', () => ({
   GetSettings: vi.fn(),
   SetSettings: vi.fn(),
   ResetSettings: vi.fn(),
   GetAvailableFonts: vi.fn(),
 }))
 
-vi.mock('wailsjs/go/api/ShellProxy', () => ({
+vi.mock('bindings/vervet/internal/api/shellproxy', () => ({
   CheckMongosh: vi.fn(),
   ExecuteQuery: vi.fn(),
   FetchPage: vi.fn(),
@@ -18,7 +18,7 @@ vi.mock('wailsjs/go/api/ShellProxy', () => ({
   CancelQuery: vi.fn(),
 }))
 
-vi.mock('wailsjs/go/api/FilesProxy', () => ({
+vi.mock('bindings/vervet/internal/api/filesproxy', () => ({
   SelectFile: vi.fn(),
   ReadFile: vi.fn(),
   SaveFile: vi.fn(),
@@ -37,7 +37,7 @@ vi.mock('@/utils/dialog', () => ({
   useMessager: () => ({}),
 }))
 
-import * as filesProxy from 'wailsjs/go/api/FilesProxy'
+import * as filesProxy from 'bindings/vervet/internal/api/filesproxy'
 import { useTabStore } from '@/features/tabs/tabs'
 import { useQueryStore } from '@/features/queries/queryStore'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore'
@@ -201,10 +201,13 @@ describe('closeTab with unsaved queries', () => {
     const first = addDirtyQuery()
     const second = addDirtyQuery()
     const shownDuringDialog: (string | undefined)[] = []
-    vi.mocked(filesProxy.SaveFile).mockImplementation(async () => {
+    vi.mocked(filesProxy.SaveFile).mockImplementation(
+      // Bindings return a CancellablePromise; a plain Promise is enough here.
+      (async () => {
       shownDuringDialog.push(useTabStore().currentTab?.activeInnerTabId)
       return { isSuccess: true, data: `/queries/${shownDuringDialog.length}.js` } as never
-    })
+    }) as never,
+    )
 
     void useTabStore().closeTab(SERVER)
     await flushPromises()

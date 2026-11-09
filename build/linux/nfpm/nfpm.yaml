@@ -1,0 +1,36 @@
+# nfpm configuration for Vervet's .deb and .rpm (https://nfpm.goreleaser.com).
+# nfpm expands ${VAR}; the Linux Taskfile sets VERSION and GOARCH.
+name: "vervet"
+arch: ${GOARCH}
+platform: "linux"
+version: ${VERSION}
+section: "database"
+priority: "optional"
+maintainer: "Sean Garrett <sean@blacktau.com>"
+description: "A desktop MongoDB explorer"
+vendor: "Blacktau"
+homepage: "https://github.com/blacktau/vervet"
+license: "GPL-3.0-only"
+release: "1"
+
+contents:
+  - src: "./bin/Vervet"
+    dst: "/usr/bin/Vervet"
+  - src: "./build/linux/Vervet-512.png"
+    dst: "/usr/share/icons/hicolor/512x512/apps/Vervet.png"
+  - src: "./build/linux/com.blacktau.vervet.desktop"
+    dst: "/usr/share/applications/com.blacktau.vervet.desktop"
+
+# GTK4 / WebKitGTK 6.0: Ubuntu 24.04, Debian 13 and current Fedora or newer.
+depends:
+  - libgtk-4-1
+  - libwebkitgtk-6.0-4
+
+overrides:
+  rpm:
+    depends:
+      - gtk4
+      - webkitgtk6.0
+
+scripts:
+  postinstall: "./build/linux/nfpm/scripts/postinstall.sh"
