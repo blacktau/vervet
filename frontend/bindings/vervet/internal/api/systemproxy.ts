@@ -17,6 +17,14 @@ export function Log(level: string, message: string): $CancellablePromise<void> {
     return $Call.ByID(339815313, level, message);
 }
 
+/**
+ * OpenURL opens an http(s) link in the user's browser. The frontend uses this
+ * rather than the Wails runtime's Browser.OpenURL, which allows other schemes.
+ */
+export function OpenURL(url: string): $CancellablePromise<$models.EmptyResult> {
+    return $Call.ByID(1668790554, url);
+}
+
 export function RevealLogsFolder(): $CancellablePromise<$models.EmptyResult> {
     return $Call.ByID(2756245111);
 }

@@ -19,4 +19,17 @@ export default defineConfigWithVueTs(
   pluginVue.configs['flat/essential'],
   vueTsConfigs.recommended,
   skipFormatting,
+
+  {
+    name: 'app/browser-links',
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "MemberExpression[object.name='Browser'][property.name='OpenURL']",
+          message: "Use openInBrowser from '@/utils/openInBrowser': it only opens http(s) links.",
+        },
+      ],
+    },
+  },
 )

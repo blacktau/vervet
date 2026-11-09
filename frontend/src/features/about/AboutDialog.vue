@@ -3,7 +3,7 @@ import { useThemeVars } from 'naive-ui'
 import { DialogType, useDialogStore } from '@/stores/dialog.ts'
 import { onMounted, ref } from 'vue'
 import * as settingsProxy from 'bindings/vervet/internal/api/settingsproxy'
-import { Browser } from '@wailsio/runtime'
+import { openInBrowser } from '@/utils/openInBrowser'
 import iconUrl from '@/assets/logo.svg'
 
 const themeVars = useThemeVars()
@@ -18,7 +18,7 @@ onMounted(async () => {
 })
 
 const onOpenSource = () => {
-  void Browser.OpenURL('https://github.com/blacktau/vervet')
+  openInBrowser('https://github.com/blacktau/vervet')
 }
 </script>
 

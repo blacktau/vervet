@@ -128,6 +128,9 @@ jobs:
             .info["0409"].FileVersion = $v | .info["0409"].ProductVersion = $v
           ' build/windows/info.json > tmp.json
           mv tmp.json build/windows/info.json
+          # Side-by-side manifests take a four-part version.
+          sed -i -E 's/(name="com\.blacktau\.vervet" version=")[^"]*"/\1'"$VERSION"'.0"/' build/windows/wails.exe.manifest
+          grep -q "version=\"$VERSION.0\"" build/windows/wails.exe.manifest
 
       - name: Stamp version into Info.plist
         if: runner.os == 'macOS' && steps.version.outputs.version != 'dev'

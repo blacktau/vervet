@@ -15,8 +15,9 @@ import '@/utils/logging'
 dayjs.extend(duration)
 dayjs.extend(relativeTime)
 
-// Workaround for WebKit2GTK on Linux: Ctrl+V is intercepted by GTK
-// before reaching the webview. We read from the clipboard API and
+// Workaround for WebKitGTK on Linux: Ctrl+V is intercepted by GTK
+// before reaching the webview. Still needed on WebKitGTK 6.0 (checked
+// 2026-11-09: without it nothing pastes, with it the text pastes once). We read from the clipboard API and
 // use execCommand to insert the text, which correctly replaces any selection.
 function initClipboardWorkaround() {
   document.addEventListener('keydown', async (e) => {

@@ -6,7 +6,7 @@ import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 import { DialogType, useDialogStore } from '@/stores/dialog'
 import { useSettingsStore } from '@/features/settings/settingsStore.ts'
 import { useUpdateStore } from '@/features/updates/updateStore'
-import { Browser } from '@wailsio/runtime'
+import { openInBrowser } from '@/utils/openInBrowser'
 import IconButton from '@/features/common/IconButton.vue'
 import { extraTheme } from '@/utils/extraTheme'
 import {
@@ -96,7 +96,7 @@ const onSelectSettingsMenu = (key: string) => {
       dialogStore.showNewDialog(DialogType.Settings)
       break
     case 'report':
-      void Browser.OpenURL('https://github.com/blacktau/vervet/issues')
+      openInBrowser('https://github.com/blacktau/vervet/issues')
       break
     case 'about':
       dialogStore.showNewDialog(DialogType.About)
@@ -105,7 +105,7 @@ const onSelectSettingsMenu = (key: string) => {
 }
 
 const openGithub = () => {
-  void Browser.OpenURL('https://github.com/blacktau/vervet')
+  openInBrowser('https://github.com/blacktau/vervet')
 }
 
 const exThemeVars = computed(() => {

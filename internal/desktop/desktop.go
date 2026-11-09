@@ -29,6 +29,9 @@ type Runtime struct {
 	// lastBounds is the window's position and size when it was last not
 	// minimised. Windows reports a minimised window at (-32000, -32000).
 	lastBounds *bounds
+	// recording runs one bounds reading at a time, so a reading taken during
+	// a drag can't finish after, and overwrite, a newer one.
+	recording sync.Mutex
 }
 
 type bounds struct{ x, y, width, height int }
@@ -53,6 +56,8 @@ func (r *Runtime) Attach(app *application.App, window *application.WebviewWindow
 }
 
 func (r *Runtime) recordBounds() {
+	r.recording.Lock()
+	defer r.recording.Unlock()
 	_, window := r.get()
 	if window == nil || window.IsMinimised() {
 		return

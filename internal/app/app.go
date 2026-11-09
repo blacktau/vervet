@@ -47,11 +47,6 @@ func (a *filesServiceSaveDialogAdapter) SaveFile(title *string, name *string, fi
 	return a.svc.SaveFile(title, name, apiFilters)
 }
 
-// updatesEmitter adapts desktop.Runtime to updates.Emitter.
-type updatesEmitter struct{ rt *desktop.Runtime }
-
-func (e updatesEmitter) EmitEvent(name string, data any) { e.rt.Emit(name, data) }
-
 // urlOpener adapts desktop.Runtime to api.URLOpener, logging failures.
 type urlOpener struct {
 	rt  *desktop.Runtime
@@ -143,7 +138,7 @@ func NewApp(log *slog.Logger, settingsService settings.Service, version string) 
 	updatesService := updates.NewService(log, updates.Config{
 		CurrentVersion: version,
 		Settings:       updates.NewSettingsAdapter(settingsService),
-		Emitter:        updatesEmitter{rt: rt},
+		Emit:           rt.Emit,
 	})
 	queryExecutor := queryexecutor.NewQueryExecutor(log, registry, connectionStringsStore, settingsService)
 	systemService := system.NewSystemService(log)
@@ -181,7 +176,7 @@ func NewApp(log *slog.Logger, settingsService settings.Service, version string) 
 		IndexesProxy:       api.NewIndexesProxy(log, indexService),
 		CollectionsProxy:   api.NewCollectionsProxy(log, collectionsService),
 		ShellProxy:         api.NewShellProxy(log, queryExecutor),
-		SystemProxy:        api.NewSystemProxy(log, systemService),
+		SystemProxy:        api.NewSystemProxy(log, systemService, rt),
 		SettingsProxy:      api.NewSettingsProxy(log, settingsService, fontService, version),
 		FilesProxy:         api.NewFilesProxy(log, filesService),
 		WorkspacesProxy:    api.NewWorkspacesProxy(log, workspaceService, settingsService, rt),
