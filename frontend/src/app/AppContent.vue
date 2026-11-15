@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { NButton, useThemeVars } from 'naive-ui'
+import { useThemeVars } from 'naive-ui'
 import { computed, h, onBeforeUnmount, onMounted, reactive, watch } from 'vue'
 import { NavType, useTabStore } from '@/features/tabs/tabs.ts'
 import { useSettingsStore } from '@/features/settings/settingsStore.ts'
@@ -21,6 +21,8 @@ import TitleBar from '@/app/TitleBar.vue'
 import UnifiedContentPane from '@/features/tabs/UnifiedContentPane.vue'
 import WorkspacePane from '@/features/workspaces/WorkspacePane.vue'
 import { useUpdateStore } from '@/features/updates/updateStore'
+import UpdateActions from '@/features/updates/UpdateActions.vue'
+import UpdateStatus from '@/features/updates/UpdateStatus.vue'
 import { useAppCloseGuard } from '@/features/tabs/useAppCloseGuard'
 import OIDCAuthUrlDialog from '@/features/oidc/OIDCAuthUrlDialog.vue'
 
@@ -121,30 +123,12 @@ watch(
     if (!isAvailable || wasAvailable) {
       return
     }
-    notification.info({
+    const shown = notification.info({
       title: i18n.t('settings.updates.available', { version: updateStore.version }),
       duration: 0,
       meta: '',
-      action: () =>
-        h('div', { style: 'display: flex; gap: 8px;' }, [
-          h(
-            NButton,
-            {
-              text: true,
-              type: 'primary',
-              onClick: () => updateStore.openReleasePage(),
-            },
-            { default: () => i18n.t('settings.updates.viewRelease') },
-          ),
-          h(
-            NButton,
-            {
-              text: true,
-              onClick: () => updateStore.dismiss(),
-            },
-            { default: () => i18n.t('settings.updates.dismiss') },
-          ),
-        ]),
+      content: () => h(UpdateStatus),
+      action: () => h(UpdateActions, { compact: true, onDismissed: () => shown.destroy() }),
     })
   },
 )

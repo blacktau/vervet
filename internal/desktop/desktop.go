@@ -230,6 +230,16 @@ func (r *Runtime) RevealWindow() {
 	}
 }
 
+// Quit shuts the app down without closing the window first, so nothing asks
+// about unsaved queries; callers deal with those beforehand.
+func (r *Runtime) Quit() {
+	app, _ := r.get()
+	if app == nil {
+		return
+	}
+	app.Quit()
+}
+
 // CloseWindow closes the main window, which quits the app.
 func (r *Runtime) CloseWindow() {
 	_, window := r.get()

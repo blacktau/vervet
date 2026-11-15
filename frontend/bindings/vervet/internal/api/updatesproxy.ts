@@ -25,6 +25,22 @@ export function DismissUpdate(version: string): $CancellablePromise<$models.Empt
     return $Call.ByID(389013291, version);
 }
 
+/**
+ * InstallUpdate downloads and verifies the newest release. Progress arrives
+ * as wails:updater:* events. Call RestartToUpdate when it succeeds.
+ */
+export function InstallUpdate(): $CancellablePromise<$models.EmptyResult> {
+    return $Call.ByID(1946693708);
+}
+
 export function OpenReleasePage(url: string): $CancellablePromise<$models.EmptyResult> {
     return $Call.ByID(2815689940, url);
+}
+
+/**
+ * RestartToUpdate asks about unsaved queries, as closing does, then restarts
+ * into the downloaded update.
+ */
+export function RestartToUpdate(): $CancellablePromise<$models.EmptyResult> {
+    return $Call.ByID(4222650985);
 }

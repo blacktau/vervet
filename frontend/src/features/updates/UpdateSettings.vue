@@ -3,6 +3,8 @@ import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useSettingsStore } from '@/features/settings/settingsStore'
 import { useUpdateStore } from './updateStore'
+import UpdateActions from './UpdateActions.vue'
+import UpdateStatus from './UpdateStatus.vue'
 import { GetAppVersion } from 'bindings/vervet/internal/api/settingsproxy'
 
 const { t } = useI18n()
@@ -75,13 +77,9 @@ const hasCheckedBefore = computed(() => {
           <n-button :loading="updates.checking" @click="updates.checkNow">
             {{ updates.checking ? $t('settings.updates.checking') : $t('settings.updates.checkNow') }}
           </n-button>
-          <n-button v-if="updates.available" type="primary" @click="updates.openReleasePage">
-            {{ $t('settings.updates.viewRelease') }}
-          </n-button>
-          <n-button v-if="updates.available" @click="updates.dismiss">
-            {{ $t('settings.updates.dismiss') }}
-          </n-button>
+          <update-actions v-if="updates.available" />
         </n-space>
+        <update-status v-if="updates.available" />
         <n-alert v-if="updates.available" type="info" :show-icon="false">
           {{ $t('settings.updates.available', { version: updates.version }) }}
         </n-alert>

@@ -23,9 +23,12 @@ type Guard struct {
 	log *slog.Logger
 	now func() time.Time
 
-	mu          sync.Mutex
-	emit        func()
-	quit        func()
+	mu   sync.Mutex
+	emit func()
+	quit func()
+	// then replaces quit for the close request in progress, e.g. a restart
+	// to install an update.
+	then        func()
 	unsaved     bool
 	approved    bool
 	prompting   bool
@@ -73,6 +76,24 @@ func (g *Guard) BeforeClose() (prevent bool) {
 	return true
 }
 
+// BeforeCloseThen is BeforeClose for closing that ends in then instead of
+// the usual quit. When it reports prevent, then runs once the user has dealt
+// with their unsaved queries, or never if they cancel. Otherwise the caller
+// goes ahead itself.
+func (g *Guard) BeforeCloseThen(then func()) (prevent bool) {
+	g.mu.Lock()
+	g.then = then
+	g.mu.Unlock()
+
+	if g.BeforeClose() {
+		return true
+	}
+	g.mu.Lock()
+	g.then = nil
+	g.mu.Unlock()
+	return false
+}
+
 // SetUnsavedChanges records whether any query has unsaved changes.
 func (g *Guard) SetUnsavedChanges(unsaved bool) {
 	g.mu.Lock()
@@ -94,6 +115,7 @@ func (g *Guard) CancelClose() {
 	defer g.mu.Unlock()
 	g.prompting = false
 	g.requestedAt = time.Time{}
+	g.then = nil
 }
 
 // ConfirmClose records that the user dealt with their unsaved queries, and quits.
@@ -101,6 +123,10 @@ func (g *Guard) ConfirmClose() {
 	g.mu.Lock()
 	g.approved = true
 	quit := g.quit
+	if g.then != nil {
+		quit = g.then
+		g.then = nil
+	}
 	g.mu.Unlock()
 
 	if quit != nil {

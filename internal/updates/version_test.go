@@ -36,3 +36,18 @@ func TestIsReleaseVersion(t *testing.T) {
 		}
 	}
 }
+
+func TestSemverVersion(t *testing.T) {
+	cases := map[string]string{
+		"2026.08.4":  "2026.8.4",
+		"v2026.11.1": "2026.11.1",
+		"2026.01.10": "2026.1.10",
+		"dev":        "dev",
+		"":           "",
+	}
+	for in, want := range cases {
+		if got := SemverVersion(in); got != want {
+			t.Errorf("SemverVersion(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

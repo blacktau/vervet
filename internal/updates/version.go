@@ -53,3 +53,16 @@ func parseVersion(v string) ([3]int, bool) {
 	}
 	return out, true
 }
+
+// SemverVersion returns v in the form the Wails updater compares, which is
+// strict semver: "2026.08.4" becomes "2026.8.4". Semver rejects leading
+// zeros, and the updater treats every invalid version as equal, so a padded
+// month would hide every update from January to September. Non-release
+// inputs are returned unchanged.
+func SemverVersion(v string) string {
+	parts, ok := parseVersion(v)
+	if !ok {
+		return v
+	}
+	return strconv.Itoa(parts[0]) + "." + strconv.Itoa(parts[1]) + "." + strconv.Itoa(parts[2])
+}

@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"runtime"
 	"time"
 
 	"vervet/internal/api"
@@ -113,6 +114,8 @@ func NewApp(log *slog.Logger, settingsService settings.Service, version string) 
 		CurrentVersion: version,
 		Settings:       updates.NewSettingsAdapter(settingsService),
 		Emit:           rt.Emit,
+		Installer:      updates.NewInstaller(rt.Emit, rt.Quit),
+		Install:        updates.DetectInstall(runtime.GOOS),
 	})
 	queryExecutor := queryexecutor.NewQueryExecutor(log, registry, connectionStringsStore, settingsService)
 	systemService := system.NewSystemService(log)
@@ -128,7 +131,7 @@ func NewApp(log *slog.Logger, settingsService settings.Service, version string) 
 
 	closeGuard := closeguard.New(log)
 
-	return &App{
+	a := &App{
 		log:                log,
 		ctx:                ctx,
 		cancel:             cancel,
@@ -158,10 +161,11 @@ func NewApp(log *slog.Logger, settingsService settings.Service, version string) 
 		WorkspacesProxy:    api.NewWorkspacesProxy(log, workspaceService, settingsService, rt),
 		ExportProxy:        api.NewExportProxy(log, exportService),
 		OIDCProxy:          api.NewOIDCProxy(log, tokenManager),
-		UpdatesProxy:       api.NewUpdatesProxy(ctx, log, updatesService, rt),
 		appVersion:         version,
 		updatesService:     updatesService,
 	}
+	a.UpdatesProxy = api.NewUpdatesProxy(ctx, log, updatesService, rt, a.restartToUpdate)
+	return a
 }
 
 // Services lists what Wails binds and starts. The lifecycle service comes
@@ -224,6 +228,26 @@ func (a *App) ShouldQuit() bool {
 	return true
 }
 
+// restartToUpdate swaps in a downloaded update and relaunches. Unsaved
+// queries are asked about first, as when closing; if the user cancels,
+// nothing happens.
+func (a *App) restartToUpdate() error {
+	restart := func() error {
+		a.saveWindowState()
+		return a.updatesService.Restart(a.ctx)
+	}
+	prevented := a.closeGuard.BeforeCloseThen(func() {
+		if err := restart(); err != nil {
+			a.log.Error("restart to update failed", slog.Any("error", err))
+			a.runtime.Emit(updates.EventRestartFailed, err.Error())
+		}
+	})
+	if prevented {
+		return nil
+	}
+	return restart()
+}
+
 // lifecycle starts and stops the backend with the Wails app. It has no
 // exported methods besides the Wails hooks, so nothing is bound for it.
 type lifecycle struct{ app *App }
@@ -249,6 +273,10 @@ func (a *App) startup() error {
 	a.indexService.Init(a.ctx)
 	a.collectionsService.Init(a.ctx)
 	a.queryExecutor.Init(a.ctx)
+
+	if err := updates.SyncUninstallVersion(a.appVersion); err != nil {
+		a.log.Warn("failed to update the installed version shown by Windows", slog.Any("error", err))
+	}
 
 	a.exportService.Init(a.ctx)
 	a.systemService.Init(a.ctx)
