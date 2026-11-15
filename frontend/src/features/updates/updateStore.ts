@@ -68,8 +68,12 @@ export const useUpdateStore = defineStore('updates', () => {
     stopListening = [
       onEvent<UpdateInfo>('update-available', applyEvent),
       onEvent<DownloadProgress>(EventDownloadProgress, applyProgress),
+      // Events and call results reach the page by different routes, so this
+      // can arrive after InstallUpdate has returned. Only move forwards.
       onEvent(EventVerifying, () => {
-        phase.value = 'verifying'
+        if (phase.value === 'downloading') {
+          phase.value = 'verifying'
+        }
       }),
       onEvent<string>(EventRestartFailed, (message) => {
         phase.value = 'error'
@@ -92,10 +96,16 @@ export const useUpdateStore = defineStore('updates', () => {
     phase.value = 'downloading'
     progress.value = null
     installError.value = null
-    const result = await InstallUpdate()
-    if (!result.isSuccess) {
+    try {
+      const result = await InstallUpdate()
+      if (!result.isSuccess) {
+        phase.value = 'error'
+        installError.value = resultDetailText(result)
+        return
+      }
+    } catch (err) {
       phase.value = 'error'
-      installError.value = resultDetailText(result)
+      installError.value = err instanceof Error ? err.message : String(err)
       return
     }
     phase.value = 'ready'

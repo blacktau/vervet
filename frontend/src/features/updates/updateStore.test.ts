@@ -115,8 +115,13 @@ describe('updateStore', () => {
     })
 
     it('tracks download progress and verification from updater events', async () => {
+      const { InstallUpdate } = await proxy()
+      let finish: (r: { isSuccess: boolean }) => void = () => {}
+      InstallUpdate.mockReturnValue(new Promise((resolve) => (finish = resolve)))
       const store = useUpdateStore()
       store.subscribe()
+      store.applyEvent(info)
+      const pending = store.install()
 
       ;(await eventHandler('wails:updater:download-progress')())({ written: 25, total: 100 })
       expect(store.progress).toBe(25)
@@ -124,6 +129,34 @@ describe('updateStore', () => {
       expect(store.progress).toBeNull()
       ;(await eventHandler('wails:updater:verifying')())(null)
       expect(store.phase).toBe('verifying')
+
+      finish({ isSuccess: true })
+      await pending
+      expect(store.phase).toBe('ready')
+    })
+
+    // Seen on Linux: the result came back before the verifying event.
+    it('stays ready when the verifying event arrives late', async () => {
+      const { InstallUpdate } = await proxy()
+      InstallUpdate.mockResolvedValue({ isSuccess: true })
+      const store = useUpdateStore()
+      store.subscribe()
+      store.applyEvent(info)
+
+      await store.install()
+      ;(await eventHandler('wails:updater:verifying')())(null)
+      expect(store.phase).toBe('ready')
+    })
+
+    it('reports an install call that throws', async () => {
+      const { InstallUpdate } = await proxy()
+      InstallUpdate.mockRejectedValue(new Error('connection lost'))
+      const store = useUpdateStore()
+      store.applyEvent(info)
+
+      await store.install()
+      expect(store.phase).toBe('error')
+      expect(store.installError).toBe('connection lost')
     })
 
     it('shows a restart that failed after the unsaved-queries prompt', async () => {
