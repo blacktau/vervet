@@ -4,6 +4,7 @@ package jsmodules
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 
 	"github.com/dop251/goja"
@@ -28,7 +29,23 @@ func resolve(baseDir, p string) string {
 	if baseDir == "" || filepath.IsAbs(p) {
 		return p
 	}
+	if isRooted(p) {
+		// Windows `\temp\x` or `/temp/x`: absolute to Node, on the script's drive.
+		return filepath.VolumeName(baseDir) + p
+	}
 	return filepath.Join(baseDir, p)
+}
+
+// isAbs reports whether Node treats p as absolute. On Windows Node counts a
+// path starting with a separator as absolute (on the current drive), but
+// filepath.IsAbs needs a drive letter or UNC prefix.
+func isAbs(p string) bool {
+	return filepath.IsAbs(p) || isRooted(p)
+}
+
+// isRooted reports whether p starts with a path separator and has no volume.
+func isRooted(p string) bool {
+	return p != "" && os.IsPathSeparator(p[0]) && filepath.VolumeName(p) == ""
 }
 
 // nodeError builds a JS Error with a Node-style `code` property.

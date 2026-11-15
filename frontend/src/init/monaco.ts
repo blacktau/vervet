@@ -48,17 +48,25 @@ export const initMonaco = () => {
   })
 }
 
+// Colour escapes apart from the rest of the string, so `\t` in 'C:\temp'
+// stands out as a tab rather than reading as part of the path (issue #369).
 monaco.editor.defineTheme('vervet-light', {
   base: 'vs',
   inherit: true,
-  rules: [],
+  rules: [
+    { token: 'string.escape', foreground: '0086B3' },
+    { token: 'string.escape.invalid', foreground: 'D600D6', fontStyle: 'bold underline' },
+  ],
   colors: {}
 })
 
 monaco.editor.defineTheme('vervet-dark', {
   base: 'vs-dark',
   inherit: true,
-  rules: [],
+  rules: [
+    { token: 'string.escape', foreground: '569CD6' },
+    { token: 'string.escape.invalid', foreground: 'C586C0', fontStyle: 'bold underline' },
+  ],
   colors: {}
 })
 

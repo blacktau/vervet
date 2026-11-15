@@ -4,7 +4,9 @@ import (
 	"errors"
 	"io/fs"
 	"os"
+	"strings"
 	"syscall"
+	"unicode"
 
 	"github.com/dop251/goja"
 	"github.com/dop251/goja_nodejs/require"
@@ -29,8 +31,30 @@ func fsErrCode(err error) string {
 }
 
 func panicFSErr(rt *goja.Runtime, err error) {
-	panic(nodeError(rt, fsErrCode(err), err.Error()))
+	panic(nodeError(rt, fsErrCode(err), err.Error()+pathHint(err)))
 }
+
+// pathHint explains the usual cause when a failed path holds a quote or a
+// control character. Both come from pasting a Windows path into a JS string:
+// "Copy as path" wraps it in quotes, and `\t` in 'C:\temp' is a tab.
+func pathHint(err error) string {
+	var pathErr *fs.PathError
+	if !errors.As(err, &pathErr) {
+		return ""
+	}
+	var hints []string
+	if strings.ContainsRune(pathErr.Path, '"') {
+		hints = append(hints, "the path contains a double quote: remove the quotes around it")
+	}
+	if strings.ContainsFunc(pathErr.Path, unicode.IsControl) {
+		hints = append(hints, "the path contains a tab or other control character: in a JS string a backslash starts an escape such as \\t, so write C:\\\\temp or C:/temp")
+	}
+	if len(hints) == 0 {
+		return ""
+	}
+	return " (" + strings.Join(hints, "; ") + ")"
+}
+
 
 func registerFS(r *require.Registry, baseDir string) {
 	r.RegisterNativeModule("fs", func(rt *goja.Runtime, m *goja.Object) {
