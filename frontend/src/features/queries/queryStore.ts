@@ -753,6 +753,22 @@ export const useQueryStore = defineStore('query', {
       state.isDirty = false
     },
 
+    // A save writes the content it started with. Anything typed while it ran is
+    // still unsaved, so the query stays dirty, and the savedContent watcher in
+    // QueryTab leaves the newer text in the editor.
+    _markSaved(queryId: string, content: string, filePath?: string) {
+      const state = this.queries[queryId]
+      // The tab was closed while the write ran; don't bring its state back.
+      if (!state) {
+        return
+      }
+      if (filePath !== undefined) {
+        state.filePath = filePath
+      }
+      state.savedContent = content
+      state.isDirty = state.currentContent !== content
+    },
+
     setDirty(queryId: string, isDirty: boolean) {
       const state = this.getQueryState(queryId)
       state.isDirty = isDirty
@@ -816,7 +832,7 @@ export const useQueryStore = defineStore('query', {
         return false
       }
 
-      this.setSavedContent(queryId, content)
+      this._markSaved(queryId, content)
       return true
     },
 
@@ -849,8 +865,7 @@ export const useQueryStore = defineStore('query', {
         return false
       }
 
-      this.setFilePath(queryId, pathResult.data)
-      this.setSavedContent(queryId, content)
+      this._markSaved(queryId, content, pathResult.data)
       return true
     },
   },

@@ -270,7 +270,7 @@ const saveFileAs = async () => {
   await queryStore.saveFileAs(props.queryId, editor.value.getValue())
 }
 
-const promptSaveIfDirty = async (): Promise<boolean> => {
+const promptSaveIfDirty = async (): Promise<'saved' | 'discarded' | 'cancelled'> => {
   return new Promise((resolve) => {
     dialog.warning({
       title: t('query.unsavedChangesTitle'),
@@ -279,23 +279,27 @@ const promptSaveIfDirty = async (): Promise<boolean> => {
       negativeText: t('query.unsavedChangesDontSave'),
       onPositiveClick: async () => {
         // Only move on once the edits are safe: opening a file replaces them.
-        resolve(await saveFile())
+        resolve((await saveFile()) ? 'saved' : 'cancelled')
       },
       onNegativeClick: () => {
-        resolve(true)
+        resolve('discarded')
       },
       onClose: () => {
-        resolve(false)
+        resolve('cancelled')
       },
     })
   })
 }
 
 const openFile = async () => {
-  if (queryState.value.isDirty) {
-    const shouldContinue = await promptSaveIfDirty()
-    if (!shouldContinue) {
+  // Text typed while a save ran is still unsaved, so ask about it again.
+  while (queryState.value.isDirty) {
+    const choice = await promptSaveIfDirty()
+    if (choice === 'cancelled') {
       return
+    }
+    if (choice === 'discarded') {
+      break
     }
   }
 

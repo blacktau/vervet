@@ -173,23 +173,26 @@ export const useTabStore = defineStore('tabs', {
         return true
       }
       tab.activeInnerTabId = queryId
-      return this._resolveDirtyQueries([{ tab, query }])
+      return this._resolveDirtyQueries(() => [{ tab, query }])
     },
     async _resolveUnsavedQueries(tabs: ServerTabItem[]): Promise<boolean> {
-      const queryStore = useQueryStore()
-      return this._resolveDirtyQueries(
-        tabs.flatMap((tab) =>
-          tab.queries
-            .filter((query) => queryStore.getQueryState(query.id).isDirty)
-            .map((query) => ({ tab, query })),
-        ),
+      return this._resolveDirtyQueries(() =>
+        tabs.flatMap((tab) => tab.queries.map((query) => ({ tab, query }))),
       )
     },
-    async _resolveDirtyQueries(dirty: { tab: ServerTabItem; query: QueryTabItem }[]): Promise<boolean> {
+    /**
+     * Asks about the unsaved queries among those `inScope` returns. It's a
+     * function so that, after a save, it can be checked again as things are
+     * then: text typed while a save ran, in any query, is still unsaved.
+     */
+    async _resolveDirtyQueries(
+      inScope: () => { tab: ServerTabItem; query: QueryTabItem }[],
+    ): Promise<boolean> {
+      const queryStore = useQueryStore()
+      const dirty = inScope().filter(({ query }) => queryStore.queries[query.id]?.isDirty)
       if (dirty.length === 0) {
         return true
       }
-      const queryStore = useQueryStore()
 
       // Tab names can repeat across servers, so say which one they're on.
       const acrossServers = new Set(dirty.map(({ tab }) => tab)).size > 1
@@ -205,7 +208,13 @@ export const useTabStore = defineStore('tabs', {
       if (choice === 'cancel') {
         return false
       }
-      return choice === 'discard' || this._saveQueries(dirty)
+      if (choice === 'discard') {
+        return true
+      }
+      if (!(await this._saveQueries(dirty))) {
+        return false
+      }
+      return this._resolveDirtyQueries(inScope)
     },
     // Stops at the first save that fails or is cancelled, leaving that query on show.
     async _saveQueries(dirty: { tab: ServerTabItem; query: QueryTabItem }[]): Promise<boolean> {
