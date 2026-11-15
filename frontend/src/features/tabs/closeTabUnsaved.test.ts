@@ -271,6 +271,28 @@ describe('closeTab with unsaved queries', () => {
     expect(queryStore.getQueryState(edited).isDirty).toBe(true)
     expect(confirmDisconnect).not.toHaveBeenCalled()
   })
+
+  it('asks about a query that was clean until it was edited during the save', async () => {
+    addDirtyQuery('/queries/a.js')
+    const clean = useTabStore().openQuery(SERVER, 'shop')!
+    const queryStore = useQueryStore()
+    queryStore.setFilePath(clean, '/queries/b.js')
+    queryStore.setSavedContent(clean, 'original')
+    queryStore.setCurrentContent(clean, 'original')
+    vi.mocked(filesProxy.WriteFile).mockImplementationOnce((async () => {
+      queryStore.setCurrentContent(clean, 'typed during the save')
+      queryStore.setDirty(clean, true)
+      return { isSuccess: true }
+    }) as never)
+
+    void useTabStore().closeTab(SERVER)
+    await flushPromises()
+    await clickButton('Save')
+
+    expect(dialogShow).toHaveBeenCalledTimes(2)
+    expect(renderToWrapper(dialogShow.mock.calls[1]![0].content).text()).toContain('b.js')
+    expect(confirmDisconnect).not.toHaveBeenCalled()
+  })
 })
 
 describe('disconnecting with no tab open', () => {
