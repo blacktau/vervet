@@ -31,7 +31,7 @@ func (f *fakeURLOpener) OpenURL(url string) error { f.url = url; return nil }
 
 func TestUpdatesProxy_CheckNow_Success(t *testing.T) {
 	svc := &fakeUpdatesService{info: updates.UpdateInfo{Available: true, Version: "2026.05.1"}}
-	p := NewUpdatesProxy(testLogger(), svc, &fakeURLOpener{})
+	p := NewUpdatesProxy(context.Background(), testLogger(), svc, &fakeURLOpener{})
 	r := p.CheckNow()
 	if !r.IsSuccess || r.Data.Version != "2026.05.1" {
 		t.Fatalf("unexpected: %+v", r)
@@ -40,7 +40,7 @@ func TestUpdatesProxy_CheckNow_Success(t *testing.T) {
 
 func TestUpdatesProxy_CheckNow_Failure(t *testing.T) {
 	svc := &fakeUpdatesService{err: errors.New("boom")}
-	p := NewUpdatesProxy(testLogger(), svc, &fakeURLOpener{})
+	p := NewUpdatesProxy(context.Background(), testLogger(), svc, &fakeURLOpener{})
 	r := p.CheckNow()
 	if r.IsSuccess {
 		t.Fatalf("expected failure")
@@ -49,7 +49,7 @@ func TestUpdatesProxy_CheckNow_Failure(t *testing.T) {
 
 func TestUpdatesProxy_Dismiss(t *testing.T) {
 	svc := &fakeUpdatesService{}
-	p := NewUpdatesProxy(testLogger(), svc, &fakeURLOpener{})
+	p := NewUpdatesProxy(context.Background(), testLogger(), svc, &fakeURLOpener{})
 	r := p.DismissUpdate("2026.05.1")
 	if !r.IsSuccess || svc.dismissed != "2026.05.1" {
 		t.Fatalf("unexpected: dismissed=%q result=%+v", svc.dismissed, r)
@@ -58,7 +58,7 @@ func TestUpdatesProxy_Dismiss(t *testing.T) {
 
 func TestUpdatesProxy_OpenReleasePage(t *testing.T) {
 	opener := &fakeURLOpener{}
-	p := NewUpdatesProxy(testLogger(), &fakeUpdatesService{}, opener)
+	p := NewUpdatesProxy(context.Background(), testLogger(), &fakeUpdatesService{}, opener)
 	r := p.OpenReleasePage("https://example.com")
 	if !r.IsSuccess || opener.url != "https://example.com" {
 		t.Fatalf("url not forwarded: %q", opener.url)

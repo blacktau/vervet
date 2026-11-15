@@ -15,6 +15,7 @@ export type {
     EditIndexRequest,
     EditorSettings,
     FieldInfo,
+    FileFilter,
     Font,
     FontSettings,
     GeneralSettings,

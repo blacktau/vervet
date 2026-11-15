@@ -8,19 +8,14 @@ import (
 	"os"
 
 	"vervet/internal/api"
+	"vervet/internal/models"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
-// FileFilter describes a file type filter for the save dialog.
-type FileFilter struct {
-	DisplayName string
-	Pattern     string
-}
-
 // SaveDialog is the interface used to show an OS save-file dialog.
 type SaveDialog interface {
-	SaveFile(title *string, name *string, filters []FileFilter) (string, error)
+	SaveFile(title *string, name *string, filters []models.FileFilter) (string, error)
 }
 
 // fileWriter is the interface used to write bytes to a file path.
@@ -42,8 +37,8 @@ type Service struct {
 	fileWriter fileWriter
 }
 
-// NewService constructs a production Service. The files.Service satisfies
-// SaveDialog via an adapter because its SaveFile uses api.FileFilter.
+// NewService constructs a production Service. files.Service satisfies
+// SaveDialog.
 func NewService(log *slog.Logger, dialog SaveDialog) *Service {
 	return &Service{
 		log:        log.With(slog.String("source", "ExportService")),
@@ -217,14 +212,14 @@ func buildOptions(req api.ExportRequest) (Options, error) {
 }
 
 // filtersFor returns FileFilter entries appropriate for the given format.
-func filtersFor(f Format) []FileFilter {
+func filtersFor(f Format) []models.FileFilter {
 	switch f {
 	case FormatCSV:
-		return []FileFilter{{DisplayName: "CSV files (*.csv)", Pattern: "*.csv"}}
+		return []models.FileFilter{{DisplayName: "CSV files (*.csv)", Pattern: "*.csv"}}
 	case FormatJSON:
-		return []FileFilter{{DisplayName: "JSON files (*.json)", Pattern: "*.json"}}
+		return []models.FileFilter{{DisplayName: "JSON files (*.json)", Pattern: "*.json"}}
 	case FormatNDJSON:
-		return []FileFilter{{DisplayName: "NDJSON files (*.ndjson)", Pattern: "*.ndjson"}}
+		return []models.FileFilter{{DisplayName: "NDJSON files (*.ndjson)", Pattern: "*.ndjson"}}
 	default:
 		return nil
 	}

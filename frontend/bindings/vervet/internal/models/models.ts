@@ -80,6 +80,14 @@ export interface FieldInfo {
     "children": FieldInfo[] | null;
 }
 
+/**
+ * FileFilter restricts a file dialog to matching files, e.g. "*.js;*.mongodb".
+ */
+export interface FileFilter {
+    "displayName": string;
+    "pattern": string;
+}
+
 export interface Font {
     "family"?: string;
     "isFixedWidth"?: boolean;

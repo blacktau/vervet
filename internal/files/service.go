@@ -5,15 +5,14 @@ import (
 	"log/slog"
 	"os"
 
-	"vervet/internal/api"
-	"vervet/internal/desktop"
+	"vervet/internal/models"
 )
 
 // Dialogs shows the native file dialogs. A cancelled dialog returns an empty
 // path and no error.
 type Dialogs interface {
-	SelectFile(title string, filters []desktop.FileFilter) (string, error)
-	SaveFile(title, defaultFilename string, filters []desktop.FileFilter) (string, error)
+	SelectFile(title string, filters []models.FileFilter) (string, error)
+	SaveFile(title, defaultFilename string, filters []models.FileFilter) (string, error)
 }
 
 type Service struct {
@@ -28,8 +27,8 @@ func NewService(log *slog.Logger, dialogs Dialogs) *Service {
 	}
 }
 
-func (s *Service) SelectFile(title string, filters []api.FileFilter) (string, error) {
-	filepath, err := s.dialogs.SelectFile(title, toDialogFilters(filters))
+func (s *Service) SelectFile(title string, filters []models.FileFilter) (string, error) {
+	filepath, err := s.dialogs.SelectFile(title, filters)
 	if err != nil {
 		return "", fmt.Errorf("failed to select file: %w", err)
 	}
@@ -37,7 +36,7 @@ func (s *Service) SelectFile(title string, filters []api.FileFilter) (string, er
 	return filepath, nil
 }
 
-func (s *Service) SaveFile(title *string, name *string, filters []api.FileFilter) (string, error) {
+func (s *Service) SaveFile(title *string, name *string, filters []models.FileFilter) (string, error) {
 	dialogTitle := ""
 	if title != nil {
 		dialogTitle = *title
@@ -48,7 +47,7 @@ func (s *Service) SaveFile(title *string, name *string, filters []api.FileFilter
 		defaultFilename = *name
 	}
 
-	filepath, err := s.dialogs.SaveFile(dialogTitle, defaultFilename, toDialogFilters(filters))
+	filepath, err := s.dialogs.SaveFile(dialogTitle, defaultFilename, filters)
 	if err != nil {
 		return "", fmt.Errorf("failed to select save file: %w", err)
 	}
@@ -69,15 +68,4 @@ func (s *Service) WriteFile(path string, content string) error {
 		return fmt.Errorf("failed to write file: %w", err)
 	}
 	return nil
-}
-
-func toDialogFilters(filters []api.FileFilter) []desktop.FileFilter {
-	result := make([]desktop.FileFilter, len(filters))
-	for i, f := range filters {
-		result[i] = desktop.FileFilter{
-			DisplayName: f.DisplayName,
-			Pattern:     f.Pattern,
-		}
-	}
-	return result
 }

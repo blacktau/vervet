@@ -7,17 +7,21 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as models$0 from "../models/models.js";
+
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as $models from "./models.js";
 
 export function ReadFile(path: string): $CancellablePromise<$models.Result<string>> {
     return $Call.ByID(79621041, path);
 }
 
-export function SaveFile(title: string | null, defaultName: string | null, filters: $models.FileFilter[] | null): $CancellablePromise<$models.Result<string>> {
+export function SaveFile(title: string | null, defaultName: string | null, filters: models$0.FileFilter[] | null): $CancellablePromise<$models.Result<string>> {
     return $Call.ByID(2274716960, title, defaultName, filters);
 }
 
-export function SelectFile(title: string, filters: $models.FileFilter[] | null): $CancellablePromise<$models.Result<string>> {
+export function SelectFile(title: string, filters: models$0.FileFilter[] | null): $CancellablePromise<$models.Result<string>> {
     return $Call.ByID(1411748229, title, filters);
 }
 

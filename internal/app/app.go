@@ -30,23 +30,6 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
-// filesServiceSaveDialogAdapter adapts files.Service to export.SaveDialog,
-// converting between api.FileFilter and export.FileFilter.
-type filesServiceSaveDialogAdapter struct {
-	svc *files.Service
-}
-
-func (a *filesServiceSaveDialogAdapter) SaveFile(title *string, name *string, filters []export.FileFilter) (string, error) {
-	apiFilters := make([]api.FileFilter, len(filters))
-	for i, f := range filters {
-		apiFilters[i] = api.FileFilter{
-			DisplayName: f.DisplayName,
-			Pattern:     f.Pattern,
-		}
-	}
-	return a.svc.SaveFile(title, name, apiFilters)
-}
-
 // desktopRuntime is what App needs from the Wails runtime. desktop.Runtime
 // provides it; tests use a fake.
 type desktopRuntime interface {
@@ -97,6 +80,10 @@ type App struct {
 
 // NewApp creates a new App application struct
 func NewApp(log *slog.Logger, settingsService settings.Service, version string) *App {
+	// Wails cancels the service context before shutdown, but disconnecting
+	// from MongoDB during shutdown still needs a live one, so own it here.
+	// shutdown cancels it.
+	ctx, cancel := context.WithCancel(context.Background())
 	rt := desktop.New()
 	connectionStringsStore := connectionStrings.NewStore(log)
 	serverStore, err := servers.NewServerStore(log)
@@ -131,7 +118,7 @@ func NewApp(log *slog.Logger, settingsService settings.Service, version string) 
 	systemService := system.NewSystemService(log)
 	fontService := system.NewFontService(log)
 	filesService := files.NewService(log, rt)
-	exportService := export.NewService(log, &filesServiceSaveDialogAdapter{svc: filesService})
+	exportService := export.NewService(log, filesService)
 	workspaceStore, err := workspaces.NewStore(log)
 	if err != nil {
 		log.Error("Failed to initialize workspace store", slog.Any("error", err))
@@ -143,6 +130,8 @@ func NewApp(log *slog.Logger, settingsService settings.Service, version string) 
 
 	return &App{
 		log:                log,
+		ctx:                ctx,
+		cancel:             cancel,
 		runtime:            rt,
 		closeGuard:         closeGuard,
 		CloseGuardProxy:    api.NewCloseGuardProxy(log, closeGuard),
@@ -169,7 +158,7 @@ func NewApp(log *slog.Logger, settingsService settings.Service, version string) 
 		WorkspacesProxy:    api.NewWorkspacesProxy(log, workspaceService, settingsService, rt),
 		ExportProxy:        api.NewExportProxy(log, exportService),
 		OIDCProxy:          api.NewOIDCProxy(log, tokenManager),
-		UpdatesProxy:       api.NewUpdatesProxy(log, updatesService, rt),
+		UpdatesProxy:       api.NewUpdatesProxy(ctx, log, updatesService, rt),
 		appVersion:         version,
 		updatesService:     updatesService,
 	}
@@ -249,11 +238,7 @@ func (l *lifecycle) ServiceShutdown() error {
 }
 
 func (a *App) startup() error {
-	// Wails cancels the service context before shutdown, but disconnecting
-	// from MongoDB during shutdown still needs a live one, so own it here.
-	ctx, cancel := context.WithCancel(context.Background())
-	a.ctx = ctx
-	a.cancel = cancel
+	ctx := a.ctx
 
 	a.tokenManager.Init(ctx)
 	a.registry.Init(ctx)
