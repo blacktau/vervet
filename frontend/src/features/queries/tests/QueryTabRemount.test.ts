@@ -49,7 +49,7 @@ vi.mock('@/features/data-browser/browserStore', () => ({
   useDataBrowserStore: () => ({ connections: [], getDatabaseList: vi.fn() }),
 }))
 
-vi.mock('wailsjs/go/api/ShellProxy', () => ({
+vi.mock('bindings/vervet/internal/api/shellproxy', () => ({
   CheckMongosh: vi.fn().mockResolvedValue({ isSuccess: true, data: true }),
   ExecuteQuery: vi.fn(),
   CancelQuery: vi.fn(),
@@ -57,7 +57,7 @@ vi.mock('wailsjs/go/api/ShellProxy', () => ({
   CountForPage: vi.fn(),
 }))
 
-vi.mock('wailsjs/go/api/FilesProxy', () => ({
+vi.mock('bindings/vervet/internal/api/filesproxy', () => ({
   SelectFile: vi.fn(),
   ReadFile: vi.fn(),
   WriteFile: vi.fn(),

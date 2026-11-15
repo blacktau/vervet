@@ -13,18 +13,10 @@ const (
 	OSX     OperatingSystem = "darwin"
 )
 
-var AllOperatingSystems = []struct {
-	Value  OperatingSystem
-	TSName string
-}{
-	{Windows, "WINDOWS"},
-	{Linux, "LINUX"},
-	{OSX, "OSX"},
-}
-
 type SystemProxy struct {
 	log     *slog.Logger
 	service SystemProvider
+	browser URLOpener
 }
 
 type SystemProvider interface {
@@ -32,11 +24,22 @@ type SystemProvider interface {
 	RevealLogsFolder() error
 }
 
-func NewSystemProxy(log *slog.Logger, ss SystemProvider) *SystemProxy {
+func NewSystemProxy(log *slog.Logger, ss SystemProvider, browser URLOpener) *SystemProxy {
 	return &SystemProxy{
 		log:     log,
 		service: ss,
+		browser: browser,
 	}
+}
+
+// OpenURL opens an http(s) link in the user's browser. The frontend uses this
+// rather than the Wails runtime's Browser.OpenURL, which allows other schemes.
+func (sp *SystemProxy) OpenURL(url string) EmptyResult {
+	if err := sp.browser.OpenURL(url); err != nil {
+		logFail(sp.log, "OpenURL", err)
+		return Fail(err)
+	}
+	return Success()
 }
 
 func (sp *SystemProxy) GetOs() Result[OperatingSystem] {

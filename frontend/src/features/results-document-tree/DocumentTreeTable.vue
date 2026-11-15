@@ -26,7 +26,7 @@ import { documentIdFilter, writeCount } from './editableEjson'
 import DocumentContextMenu from './DocumentContextMenu.vue'
 import DocumentViewDialog from './DocumentViewDialog.vue'
 import DocumentEditDialog from './DocumentEditDialog.vue'
-import * as shellProxy from 'wailsjs/go/api/ShellProxy'
+import * as shellProxy from 'bindings/vervet/internal/api/shellproxy'
 import { errorCodeText } from '@/utils/resultError'
 
 const PAGE_SIZES = [25, 50, 100, 200, 500]

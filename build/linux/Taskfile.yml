@@ -1,0 +1,53 @@
+version: '3'
+
+includes:
+  common: ../Taskfile.yml
+
+tasks:
+  build:
+    summary: Builds the application for Linux
+    deps:
+      - task: common:go:mod:tidy
+      - task: common:build:frontend
+        vars:
+          BUILD_FLAGS:
+            ref: .BUILD_FLAGS
+          DEV:
+            ref: .DEV
+    cmds:
+      - go build {{.BUILD_FLAGS}} -o {{.OUTPUT}}
+    vars:
+      BUILD_FLAGS: '{{if eq .DEV "true"}}-buildvcs=false -gcflags=all="-l"{{else}}-tags production -trimpath -buildvcs=false -ldflags="-w -s{{if .VERSION}} -X main.version=v{{.VERSION}}{{end}}"{{end}}'
+      OUTPUT: '{{.OUTPUT | default (printf "%s/%s" .BIN_DIR .APP_NAME)}}'
+    env:
+      GOOS: linux
+      CGO_ENABLED: 1
+      GOARCH: '{{.ARCH | default ARCH}}'
+
+  run:
+    cmds:
+      - '{{.BIN_DIR}}/{{.APP_NAME}}'
+
+  package:
+    summary: Builds the .deb and .rpm (the AppImage is built by the release workflow)
+    deps:
+      - task: build
+    cmds:
+      - task: create:deb
+      - task: create:rpm
+
+  create:deb:
+    summary: Creates a .deb package
+    cmds:
+      - wails3 tool package -name vervet -format deb -config ./build/linux/nfpm/nfpm.yaml -out {{.BIN_DIR}}
+    env:
+      VERSION: '{{.VERSION | default "0.0.0"}}'
+      GOARCH: '{{.ARCH | default ARCH}}'
+
+  create:rpm:
+    summary: Creates a .rpm package
+    cmds:
+      - wails3 tool package -name vervet -format rpm -config ./build/linux/nfpm/nfpm.yaml -out {{.BIN_DIR}}
+    env:
+      VERSION: '{{.VERSION | default "0.0.0"}}'
+      GOARCH: '{{.ARCH | default ARCH}}'

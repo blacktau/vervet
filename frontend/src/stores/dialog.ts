@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { type models } from 'wailsjs/go/models.ts'
+import type * as models from 'bindings/vervet/internal/models'
 
 export enum DialogMode {
   New = 0,

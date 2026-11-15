@@ -5,7 +5,7 @@ import { formatBytes } from '@/utils/formatBytes.ts'
 import { ArrowPathIcon } from '@heroicons/vue/24/outline'
 import StatisticsTab from './StatisticsTab.vue'
 import type { StatCard } from './StatisticsSummaryCards.vue'
-import * as databasesProxy from 'wailsjs/go/api/DatabasesProxy'
+import * as databasesProxy from 'bindings/vervet/internal/api/databasesproxy'
 import { resultErrorLines } from '@/utils/resultError'
 
 const props = defineProps<{

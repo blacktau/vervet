@@ -855,5 +855,6 @@ export default {
     loadFile: 'Failed to load file',
     saveFile: 'Failed to save file',
     fileDialog: 'Failed to open file dialog',
+    openLink: 'Could not open link',
   },
 }

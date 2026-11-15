@@ -1,10 +1,10 @@
-import { Environment } from '../../wailsjs/runtime'
+import { System } from '@wailsio/runtime'
 
 let os = ''
 
 export async function loadEnvironment() {
-  const env = await Environment()
-  os = env.platform
+  const env = await System.Environment()
+  os = env.OS
 }
 
 export function isMacOS() {

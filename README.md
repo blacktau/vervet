@@ -41,10 +41,12 @@ or straight from [Releases](https://github.com/blacktau/vervet/releases/latest):
 | **macOS** (Intel, Apple silicon) | `.dmg` |
 | **Windows** (amd64, arm64) | Installer `.exe`, portable `.zip` |
 
-The AppImage needs glibc 2.38 or newer and uses some of your system's libraries,
-including `libwayland-client`. Desktop installs normally have these, but minimal
-installs and containers may not. On older LTS releases such as Ubuntu 22.04 and
-Debian 12, use the `.deb` instead.
+Linux builds use GTK 4 and WebKitGTK 6.0, and need Ubuntu 24.04, Debian 13,
+Fedora 40 or newer. The AppImage uses some of your system's libraries, including
+`libwayland-client`. Desktop installs normally have these, but minimal installs
+and containers may not.
+
+macOS builds need macOS 12 (Monterey) or newer.
 
 ## Supported MongoDB versions
 

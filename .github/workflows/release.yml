@@ -16,7 +16,7 @@ permissions:
 
 env:
   GO_VERSION: '1.26'
-  WAILS_VERSION: 'v2.17.1'
+  WAILS_VERSION: 'v3.1.0'
 
 jobs:
   build:
@@ -59,11 +59,26 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
 
+      # The wails3 CLI links GTK on Linux, so its dependencies come first.
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libgtk-4-dev libwebkitgtk-6.0-dev librsvg2-dev libfuse2 rpm
+
+      - name: Install macOS dependencies
+        if: runner.os == 'macOS'
+        run: brew install create-dmg
+
+      - name: Install NSIS
+        if: runner.os == 'Windows'
+        run: choco install nsis jq --no-progress
+
       - name: Install Wails CLI
         shell: bash
         env:
           WAILS_VER: ${{ env.WAILS_VERSION }}
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@"$WAILS_VER"
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@"$WAILS_VER"
 
       # ── Determine version ──
       - name: Determine version
@@ -86,15 +101,13 @@ jobs:
             exit 1
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
+          # Passed to wails3 task; empty for dev builds, which keep main.version = "dev".
+          if [[ "$version" == "dev" ]]; then
+            echo "task_version=" >> "$GITHUB_OUTPUT"
+          else
+            echo "task_version=VERSION=$version" >> "$GITHUB_OUTPUT"
+          fi
           echo "Version: $version"
-
-      - name: Stamp version into wails.json
-        shell: bash
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          jq --arg v "$VERSION" '.info.productVersion = $v' wails.json > tmp.json
-          mv tmp.json wails.json
 
       - name: Stamp version into frontend/package.json
         shell: bash
@@ -104,74 +117,70 @@ jobs:
           jq --arg v "$VERSION" '.version = $v' frontend/package.json > tmp.json
           mv tmp.json frontend/package.json
 
-      # ── Linux dependencies ──
-      - name: Install Linux dependencies
-        if: runner.os == 'Linux'
+      - name: Stamp version into Windows resources
+        if: runner.os == 'Windows' && steps.version.outputs.version != 'dev'
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential libgtk-3-dev libgtk-3-bin libwebkit2gtk-4.1-dev libsoup-3.0-dev librsvg2-dev pkg-config libfuse-dev libfuse2 imagemagick
+          jq --arg v "$VERSION" '
+            .fixed.file_version = $v | .fixed.product_version = $v |
+            .info["0409"].FileVersion = $v | .info["0409"].ProductVersion = $v
+          ' build/windows/info.json > tmp.json
+          mv tmp.json build/windows/info.json
+          # Side-by-side manifests take a four-part version.
+          sed -i -E 's/(name="com\.blacktau\.vervet" version=")[^"]*"/\1'"$VERSION"'.0"/' build/windows/wails.exe.manifest
+          grep -q "version=\"$VERSION.0\"" build/windows/wails.exe.manifest
 
-      # ── macOS dependencies ──
-      - name: Install macOS dependencies
-        if: runner.os == 'macOS'
-        run: brew install create-dmg
+      - name: Stamp version into Info.plist
+        if: runner.os == 'macOS' && steps.version.outputs.version != 'dev'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          plutil -replace CFBundleVersion -string "$VERSION" build/darwin/Info.plist
+          plutil -replace CFBundleShortVersionString -string "$VERSION" build/darwin/Info.plist
 
-      # ── Windows dependencies ──
-      - name: Install NSIS
-        if: runner.os == 'Windows'
-        run: choco install nsis jq --no-progress
-
-      # ── Build ──
-      - name: Build (Windows)
+      # ── Build and package ──
+      # Windows builds without cgo, so arm64 cross-compiles on the amd64 runner.
+      - name: Build and package (Windows)
         if: runner.os == 'Windows'
         shell: bash
         env:
-          PLATFORM: ${{ matrix.platform }}
-          VERSION: ${{ steps.version.outputs.version }}
+          ARCH: ${{ matrix.arch }}
+          TASK_VERSION: ${{ steps.version.outputs.task_version }}
         run: |
           export PATH="/c/Program Files (x86)/NSIS:$PATH"
-          wails build -nsis -webview2 embed -platform "$PLATFORM" \
-            -ldflags "-X main.version=v$VERSION"
+          wails3 task windows:create:nsis:installer ARCH="$ARCH" ${TASK_VERSION:+"$TASK_VERSION"}
+          mv "bin/Vervet-${ARCH}-installer.exe" "Vervet-windows-${ARCH}-installer.exe"
 
-      - name: Build (Linux)
-        if: runner.os == 'Linux'
-        env:
-          PLATFORM: ${{ matrix.platform }}
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          wails build -platform "$PLATFORM" \
-            -ldflags "-X main.version=v$VERSION"
-
-      - name: Build (macOS)
-        if: runner.os == 'macOS'
-        env:
-          PLATFORM: ${{ matrix.platform }}
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          wails build -platform "$PLATFORM" \
-            -ldflags "-X main.version=v$VERSION"
-
-      # ── Package: Windows ──
       - name: Package Windows portable zip
         if: runner.os == 'Windows'
         shell: pwsh
         env:
           ARCH: ${{ matrix.arch }}
-        run: Compress-Archive "build/bin/Vervet.exe" "Vervet-windows-$env:ARCH-portable.zip"
+        run: Compress-Archive "bin/Vervet.exe" "Vervet-windows-$env:ARCH-portable.zip"
 
-      - name: Rename Windows installer
-        if: runner.os == 'Windows'
-        shell: bash
+      - name: Build (Linux)
+        if: runner.os == 'Linux'
+        env:
+          TASK_VERSION: ${{ steps.version.outputs.task_version }}
+        run: wails3 task linux:build ${TASK_VERSION:+"$TASK_VERSION"}
+
+      - name: Build (macOS)
+        if: runner.os == 'macOS'
         env:
           ARCH: ${{ matrix.arch }}
-        run: mv "build/bin/Vervet-${ARCH}-installer.exe" "Vervet-windows-${ARCH}-installer.exe"
+          TASK_VERSION: ${{ steps.version.outputs.task_version }}
+        run: wails3 task darwin:package ARCH="$ARCH" ${TASK_VERSION:+"$TASK_VERSION"}
 
       # ── Package: Linux AppImage ──
+      # Built with linuxdeploy rather than `wails3 generate appimage`: Wails 3.1
+      # downloads an unpinned linuxdeploy and has no way to add the xdg-open shim.
       - name: Package AppImage
         if: runner.os == 'Linux'
         env:
           APPIMAGE_EXTRACT_AND_RUN: "1"
-          DEPLOY_GTK_VERSION: "3"
+          DEPLOY_GTK_VERSION: "4"
         run: |
           # Download linuxdeploy and GTK plugin (pinned to specific commits)
           wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/1-alpha-20240109-1/linuxdeploy-x86_64.AppImage -O linuxdeploy
@@ -179,6 +188,10 @@ jobs:
 
           wget -q https://raw.githubusercontent.com/tauri-apps/linuxdeploy-plugin-gtk/b5eb8d05b4c0ed40107fe2158c5d8527f94568ef/linuxdeploy-plugin-gtk.sh
           chmod +x linuxdeploy-plugin-gtk.sh
+
+          # Tauri's fork forces GTK 3, overriding DEPLOY_GTK_VERSION. Vervet uses GTK 4.
+          sed -i 's/^DEPLOY_GTK_VERSION=3 .*$/DEPLOY_GTK_VERSION=4/' linuxdeploy-plugin-gtk.sh
+          grep -qx 'DEPLOY_GTK_VERSION=4' linuxdeploy-plugin-gtk.sh
 
           # Workaround: add WEBKIT_DISABLE_COMPOSITING_MODE to GTK plugin
           sed -i '/XDG_DATA_DIRS/a export WEBKIT_DISABLE_COMPOSITING_MODE=1' linuxdeploy-plugin-gtk.sh
@@ -191,31 +204,31 @@ jobs:
           # patch unnecessary:
           # https://github.com/AppImageCommunity/pkg2appimage/blob/master/excludelist
           # https://gitlab.freedesktop.org/mesa/mesa/-/issues/11316
-          sed -i 's|"\$LINUXDEPLOY" --appdir="\$APPDIR"|& --exclude-library="libwayland-client*"|' linuxdeploy-plugin-gtk.sh
+          sed -i 's|"[$]LINUXDEPLOY" --appdir="[$]APPDIR"|& --exclude-library="libwayland-client*"|' linuxdeploy-plugin-gtk.sh
 
           # Initial linuxdeploy run to set up AppDir
           ./linuxdeploy --appdir AppDir
 
-          # Copy WebKit process binaries into AppDir
+          # Copy WebKitGTK 6.0's helper processes and injected bundle into AppDir
           pushd AppDir
-          find /usr/lib* -name WebKitNetworkProcess -exec mkdir -p $(dirname '{}') \; -exec cp --parents '{}' "." \; || true
-          find /usr/lib* -name WebKitWebProcess -exec mkdir -p $(dirname '{}') \; -exec cp --parents '{}' "." \; || true
-          find /usr/lib* -name libwebkit2gtkinjectedbundle.so -exec mkdir -p $(dirname '{}') \; -exec cp --parents '{}' "." \; || true
+          for name in WebKitNetworkProcess WebKitWebProcess WebKitGPUProcess libwebkitgtkinjectedbundle.so; do
+            # --parents recreates each file's directory under AppDir.
+            find /usr/lib* -path '*webkitgtk-6.0*' -name "$name" -exec cp --parents '{}' . \;
+          done
           popd
+          if [ -z "$(find AppDir -name WebKitWebProcess)" ]; then
+            echo "::error::WebKitGTK 6.0 helper processes were not found"
+            exit 1
+          fi
 
           # Use our own AppRun rather than a prebuilt binary from upstream
           install -m 755 build/linux/AppRun AppDir/AppRun
 
-          # Resize icon to 512x512 (linuxdeploy rejects >512)
-          convert build/appicon.png -resize 512x512 build/Vervet-512.png
-
-          # Copy icon to hicolor directory
           mkdir -p AppDir/usr/share/icons/hicolor/512x512/apps
-          cp build/Vervet-512.png AppDir/usr/share/icons/hicolor/512x512/apps/Vervet.png
+          cp build/linux/Vervet-512.png AppDir/usr/share/icons/hicolor/512x512/apps/Vervet.png
 
-          # Copy binary
           mkdir -p AppDir/usr/bin
-          cp build/bin/Vervet AppDir/usr/bin/
+          cp bin/Vervet AppDir/usr/bin/
           install -m 755 build/linux/xdg-open AppDir/usr/bin/xdg-open
 
           # Run linuxdeploy with GTK plugin to produce AppImage
@@ -223,9 +236,9 @@ jobs:
             --exclude-library 'libwayland-client*' \
             --output appimage \
             --plugin gtk \
-            -e build/bin/Vervet \
-            -d build/linux/Vervet.desktop \
-            -i build/Vervet-512.png
+            -e bin/Vervet \
+            -d build/linux/com.blacktau.vervet.desktop \
+            -i build/linux/Vervet-512.png
 
           # Fail rather than ship the white window if the exclusion stops working
           if [ -n "$(find AppDir -name 'libwayland-client.so*')" ]; then
@@ -236,53 +249,35 @@ jobs:
           # Rename output (linuxdeploy names it based on the desktop file)
           mv Vervet-x86_64.AppImage "Vervet-linux-amd64.AppImage"
 
-      # ── Package: Linux .deb ──
-      - name: Package deb
+      # ── Package: Linux .deb and .rpm ──
+      - name: Package deb and rpm
         if: runner.os == 'Linux'
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          DEB_DIR="vervet_${VERSION}_amd64"
-          mkdir -p "$DEB_DIR/DEBIAN"
-          mkdir -p "$DEB_DIR/usr/bin"
-          mkdir -p "$DEB_DIR/usr/share/applications"
-          mkdir -p "$DEB_DIR/usr/share/icons/hicolor/512x512/apps"
+          wails3 task linux:create:deb VERSION="$VERSION"
+          wails3 task linux:create:rpm VERSION="$VERSION"
+          mv bin/vervet.deb Vervet-linux-amd64.deb
+          mv bin/vervet.rpm Vervet-linux-amd64.rpm
 
-          # Control file with version substituted
-          sed "s/VERSION_PLACEHOLDER/$VERSION/" build/linux/control > "$DEB_DIR/DEBIAN/control"
-
-          # Binary, desktop file, icon
-          cp build/bin/Vervet "$DEB_DIR/usr/bin/Vervet"
-          cp build/linux/Vervet.desktop "$DEB_DIR/usr/share/applications/Vervet.desktop"
-          cp build/appicon.png "$DEB_DIR/usr/share/icons/hicolor/512x512/apps/vervet.png"
-
-          dpkg-deb --build -Zxz "$DEB_DIR"
-          mv "${DEB_DIR}.deb" "Vervet-linux-amd64.deb"
-
-      # ── Package: Linux .rpm ──
-      - name: Package rpm
+      # COPR rebuilds the binary RPM from this source RPM, which nfpm can't make.
+      - name: Package src.rpm
         if: runner.os == 'Linux'
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          sudo apt-get install -y rpm
-
           # Create tarball with directory name matching spec (name-version)
           mkdir -p "vervet-$VERSION"
-          cp build/bin/Vervet "vervet-$VERSION/"
-          cp build/linux/Vervet.desktop "vervet-$VERSION/"
-          cp build/appicon.png "vervet-$VERSION/vervet.png"
+          cp bin/Vervet "vervet-$VERSION/"
+          cp build/linux/com.blacktau.vervet.desktop "vervet-$VERSION/"
+          cp build/linux/Vervet-512.png "vervet-$VERSION/Vervet.png"
           tar czf "vervet-$VERSION.tar.gz" "vervet-$VERSION/"
 
-          # Set up rpmbuild tree
           mkdir -p ~/rpmbuild/{SOURCES,SPECS,SRPMS,RPMS}
           cp "vervet-$VERSION.tar.gz" ~/rpmbuild/SOURCES/
           sed "s/VERSION_PLACEHOLDER/$VERSION/" build/linux/vervet.spec > ~/rpmbuild/SPECS/vervet.spec
 
-          # Build binary and source RPM
-          rpmbuild -ba ~/rpmbuild/SPECS/vervet.spec
-
-          cp ~/rpmbuild/RPMS/x86_64/vervet-*.rpm "Vervet-linux-amd64.rpm"
+          rpmbuild -bs ~/rpmbuild/SPECS/vervet.spec
           cp ~/rpmbuild/SRPMS/vervet-*.src.rpm "Vervet-linux-amd64.src.rpm"
 
       # ── Package: macOS DMG ──
@@ -291,12 +286,14 @@ jobs:
         env:
           ARCH: ${{ matrix.arch }}
         run: |
+          mkdir dmg
+          mv bin/Vervet.app dmg/
           create-dmg \
             --volname "Vervet" \
             --no-internet-enable \
             --app-drop-link 480 180 \
             "Vervet-macos-${ARCH}.dmg" \
-            "build/bin/"
+            dmg/
 
       # ── Upload ──
       - name: Upload Windows installer

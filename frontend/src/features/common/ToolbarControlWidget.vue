@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useThemeVars } from 'naive-ui'
 import { computed } from 'vue'
-import * as runtime from 'wailsjs/runtime/runtime'
+import { Window } from '@wailsio/runtime'
 import WindowMin from '@/features/icon/WindowMin.vue'
 import WindowRestore from '@/features/icon/WindowRestore.vue'
 import WindowMax from '@/features/icon/WindowMax.vue'
@@ -20,15 +20,16 @@ const buttonSize = computed(() => {
 })
 
 const handleMinimise = () => {
-  runtime.WindowMinimise()
+  void Window.Minimise()
 }
 
 const handleMaximise = () => {
-  runtime.WindowToggleMaximise()
+  void Window.ToggleMaximise()
 }
 
+// Closing the window, rather than quitting, lets the close guard ask about unsaved queries.
 const handleClose = () => {
-  runtime.Quit()
+  void Window.Close()
 }
 
 </script>

@@ -1,7 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { CheckIfDue, CheckNow, DismissUpdate, OpenReleasePage } from 'wailsjs/go/api/UpdatesProxy'
-import { EventsOn, EventsOff } from 'wailsjs/runtime/runtime'
+import { CheckIfDue, CheckNow, DismissUpdate, OpenReleasePage } from 'bindings/vervet/internal/api/updatesproxy'
+import { reportRefusedLink } from '@/utils/openInBrowser'
+import { onEvent } from '@/utils/wailsEvents'
 import { useSettingsStore } from '@/features/settings/settingsStore'
 import { resultDetailText } from '@/utils/resultError'
 
@@ -27,15 +28,17 @@ export const useUpdateStore = defineStore('updates', () => {
     releaseNotes.value = info.releaseNotes
   }
 
+  let stopListening: (() => void) | null = null
+
   function subscribe() {
-    EventsOn('update-available', (info: UpdateInfo) => {
-      applyEvent(info)
-    })
+    stopListening?.()
+    stopListening = onEvent<UpdateInfo>('update-available', applyEvent)
     void CheckIfDue()
   }
 
   function unsubscribe() {
-    EventsOff('update-available')
+    stopListening?.()
+    stopListening = null
   }
 
   async function checkNow() {
@@ -68,7 +71,7 @@ export const useUpdateStore = defineStore('updates', () => {
     if (!url.value) {
       return
     }
-    await OpenReleasePage(url.value)
+    reportRefusedLink(url.value, await OpenReleasePage(url.value))
   }
 
   return {

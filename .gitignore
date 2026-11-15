@@ -35,3 +35,8 @@ test-results
 .superpowers
 frontend/.opencode
 AGENTS.md
+
+# Wails v3 build output and tool cache
+bin
+.wails
+.task

@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { NButton, useThemeVars } from 'naive-ui'
-import { computed, h, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, h, onBeforeUnmount, onMounted, reactive, watch } from 'vue'
 import { NavType, useTabStore } from '@/features/tabs/tabs.ts'
 import { useSettingsStore } from '@/features/settings/settingsStore.ts'
 import { useServerStore } from '@/features/server-pane/serverStore.ts'
@@ -9,7 +9,8 @@ import { extraTheme } from '@/utils/extraTheme'
 import { debounce } from 'lodash'
 import { isMacOS, isWindows } from '@/init/environment'
 import { useI18n } from 'vue-i18n'
-import * as runtime from 'wailsjs/runtime'
+import { onEvent } from '@/utils/wailsEvents'
+import { useWindowState } from '@/app/useWindowState'
 import LeftRibbon from '@/features/sidebar/LeftRibbon.vue'
 import ResizeableWrapper from '@/features/common/ResizeableWrapper.vue'
 import ServerPane from '@/features/server-pane/ServerPane.vue'
@@ -36,7 +37,7 @@ const dataBrowserStore = useDataBrowserStore()
 const settingsStore = useSettingsStore()
 const updateStore = useUpdateStore()
 
-runtime.EventsOn('config-parse-error', (detail: string) => {
+onEvent<string>('config-parse-error', (detail) => {
   notification.warning({
     title: i18n.t('errorTitles.configParseError'),
     content: i18n.t('errors.configParseError'),
@@ -52,7 +53,7 @@ useAppCloseGuard()
 // Without this the tab and connection entry persist, and a later click on
 // the tab's close button silently no-ops because browserStore.disconnect
 // short-circuits on a missing connection.
-runtime.EventsOn('connection-disconnected', (serverId: string) => {
+onEvent<string>('connection-disconnected', (serverId) => {
   dataBrowserStore._cleanupConnection(serverId)
 })
 
@@ -70,7 +71,13 @@ const handleResize = () => {
   saveSidebarWidth()
 }
 
-const hideRadius = ref<boolean>(false)
+const windowState = useWindowState()
+
+// Rounded corners look wrong against the screen edges, so drop them in
+// fullscreen, and when maximised except on macOS.
+const hideRadius = computed(
+  () => windowState.fullscreen.value || (windowState.maximised.value && !isMacOS()),
+)
 
 const wrapperStyle = computed(() => {
   if (isWindows()) {
@@ -100,33 +107,7 @@ const spinStyle = computed<CSSStyleValue>(() => {
   }
 })
 
-const onToggleFullscreen = (fullscreen: boolean) => {
-  hideRadius.value = fullscreen
-}
-
-const onToggleMaximize = (isMaximized: boolean) => {
-  if (isMaximized) {
-    if (!isMacOS()) {
-      hideRadius.value = true
-    }
-  } else {
-    if (!isMacOS()) {
-      hideRadius.value = false
-    }
-  }
-}
-
-runtime.EventsOn('window_changed', (info) => {
-  const { fullscreen, maximized } = info
-  onToggleFullscreen(fullscreen == true)
-  onToggleMaximize(maximized)
-})
-
-onMounted(async () => {
-  const fullscreen = await runtime.WindowIsFullscreen()
-  onToggleFullscreen(fullscreen)
-  const maximized = await runtime.WindowIsMinimised()
-  onToggleMaximize(maximized)
+onMounted(() => {
   updateStore.subscribe()
 })
 

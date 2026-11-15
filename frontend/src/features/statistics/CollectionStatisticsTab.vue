@@ -5,7 +5,7 @@ import { formatBytes } from '@/utils/formatBytes.ts'
 import { ArrowPathIcon } from '@heroicons/vue/24/outline'
 import StatisticsTab from './StatisticsTab.vue'
 import type { StatCard } from './StatisticsSummaryCards.vue'
-import * as collectionsProxy from 'wailsjs/go/api/CollectionsProxy'
+import * as collectionsProxy from 'bindings/vervet/internal/api/collectionsproxy'
 import { resultErrorLines } from '@/utils/resultError'
 
 const props = defineProps<{

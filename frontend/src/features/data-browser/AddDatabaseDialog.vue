@@ -5,7 +5,7 @@ import { type FormInst, type FormItemRule } from 'naive-ui'
 import { DialogType, useDialogStore } from '@/stores/dialog.ts'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 import { useNotifier } from '@/utils/dialog.ts'
-import * as collectionsProxy from 'wailsjs/go/api/CollectionsProxy'
+import * as collectionsProxy from 'bindings/vervet/internal/api/collectionsproxy'
 import { errorCodeText } from '@/utils/resultError'
 
 const dialogStore = useDialogStore()

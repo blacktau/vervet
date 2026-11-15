@@ -12,8 +12,8 @@ import {
   TrashIcon,
 } from '@heroicons/vue/24/outline'
 import { useTabStore } from '@/features/tabs/tabs.ts'
-import * as serversProxy from 'wailsjs/go/api/ServersProxy'
-import * as oidcProxy from 'wailsjs/go/api/OIDCProxy'
+import * as serversProxy from 'bindings/vervet/internal/api/serversproxy'
+import * as oidcProxy from 'bindings/vervet/internal/api/oidcproxy'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 import { DialogType, useDialogStore } from '@/stores/dialog.ts'
 import { type RegisteredServerNode, useServerStore } from '@/features/server-pane/serverStore.ts'

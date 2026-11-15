@@ -27,7 +27,7 @@ func (f *fakeUpdatesService) DismissVersion(v string) error {
 
 type fakeURLOpener struct{ url string }
 
-func (f *fakeURLOpener) OpenURL(url string) { f.url = url }
+func (f *fakeURLOpener) OpenURL(url string) error { f.url = url; return nil }
 
 func TestUpdatesProxy_CheckNow_Success(t *testing.T) {
 	svc := &fakeUpdatesService{info: updates.UpdateInfo{Available: true, Version: "2026.05.1"}}

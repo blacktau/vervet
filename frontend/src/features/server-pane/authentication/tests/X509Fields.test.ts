@@ -5,7 +5,7 @@ import { createI18n } from 'vue-i18n'
 import X509Fields from '@/features/server-pane/authentication/fields/X509Fields.vue'
 
 const selectFile = vi.fn()
-vi.mock('wailsjs/go/api/FilesProxy', () => ({ SelectFile: (...args: unknown[]) => selectFile(...args) }))
+vi.mock('bindings/vervet/internal/api/filesproxy', () => ({ SelectFile: (...args: unknown[]) => selectFile(...args) }))
 
 const notifyError = vi.fn()
 vi.mock('@/utils/dialog', () => ({

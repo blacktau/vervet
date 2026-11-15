@@ -1,28 +1,27 @@
 package api
 
 import (
-	"context"
 	"log/slog"
 
 	"vervet/internal/models"
 	"vervet/internal/workspaces"
-
-	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
+
+// DirectorySelector asks the user to pick a directory. A cancelled dialog
+// returns an empty path and no error.
+type DirectorySelector interface {
+	SelectDirectory() (string, error)
+}
 
 type WorkspacesProxy struct {
 	log              *slog.Logger
-	ctx              context.Context
 	service          *workspaces.WorkspaceService
 	settingsProvider SettingsProvider
+	directories      DirectorySelector
 }
 
-func NewWorkspacesProxy(log *slog.Logger, service *workspaces.WorkspaceService, settingsProvider SettingsProvider) *WorkspacesProxy {
-	return &WorkspacesProxy{log: log, service: service, settingsProvider: settingsProvider}
-}
-
-func (p *WorkspacesProxy) Init(ctx context.Context) {
-	p.ctx = ctx
+func NewWorkspacesProxy(log *slog.Logger, service *workspaces.WorkspaceService, settingsProvider SettingsProvider, directories DirectorySelector) *WorkspacesProxy {
+	return &WorkspacesProxy{log: log, service: service, settingsProvider: settingsProvider, directories: directories}
 }
 
 func (p *WorkspacesProxy) GetWorkspaces() Result[models.WorkspaceData] {
@@ -71,7 +70,7 @@ func (p *WorkspacesProxy) SetActiveWorkspace(id string) EmptyResult {
 }
 
 func (p *WorkspacesProxy) AddFolder(workspaceID string) Result[string] {
-	path, err := wailsRuntime.OpenDirectoryDialog(p.ctx, wailsRuntime.OpenDialogOptions{})
+	path, err := p.directories.SelectDirectory()
 	if err != nil {
 		logFail(p.log, "AddFolder", err)
 		return FailResult[string](err)

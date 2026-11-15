@@ -6,7 +6,7 @@ import { useQueryStore } from '@/features/queries/queryStore'
 import { useSettingsStore } from '@/features/settings/settingsStore'
 import { completionsAt, labelsAt, filterTextFor } from './monacoHarness'
 
-// The schema cache talks to the backend over wailsjs. Everything it returns is
+// The schema cache talks to the backend over the Wails bindings. Everything it returns is
 // fixed here so the tests exercise the provider, not the transport.
 vi.mock('@/features/completion/useSchemaCache', () => ({
   getCollectionNames: vi.fn(async () => ['users', 'orders', 'userEvents']),

@@ -14,11 +14,13 @@
     "test:ci": "vitest run --coverage",
     "dev": "bunx --bun vite",
     "build": "bun run typecheck && bunx --bun vite build",
+    "build:dev": "bunx --bun vite build --minify false --mode development",
     "preview": "bunx --bun vite preview"
   },
   "dependencies": {
     "@babel/parser": "^7.29.8",
     "@heroicons/vue": "^2.2.0",
+    "@wailsio/runtime": "3.1.0",
     "color": "^5.0.3",
     "copy-text-to-clipboard": "^3.2.2",
     "dayjs": "^1.11.21",

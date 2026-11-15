@@ -17,8 +17,8 @@ import {
   readDbImpact,
   shouldEscalateCollectionDrop,
 } from '@/features/data-browser/statsImpact.ts'
-import * as collectionsProxy from 'wailsjs/go/api/CollectionsProxy'
-import * as databasesProxy from 'wailsjs/go/api/DatabasesProxy'
+import * as collectionsProxy from 'bindings/vervet/internal/api/collectionsproxy'
+import * as databasesProxy from 'bindings/vervet/internal/api/databasesproxy'
 import { errorCodeText } from '@/utils/resultError'
 
 const props = defineProps<{

@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ExportResults } from 'wailsjs/go/api/ExportProxy'
+import { ExportResults } from 'bindings/vervet/internal/api/exportproxy'
 import { useNotifier } from '@/utils/dialog'
 import { useExportStore } from './exportStore'
 import { buildDefaultFilename, type ExportFormat } from './defaultFilename'

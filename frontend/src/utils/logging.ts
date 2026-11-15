@@ -1,4 +1,4 @@
-import * as systemProxy from 'wailsjs/go/api/SystemProxy'
+import * as systemProxy from 'bindings/vervet/internal/api/systemproxy'
 
 type LogLevel = 'debug' | 'info' | 'warn' | 'error'
 

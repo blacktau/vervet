@@ -3,11 +3,13 @@ package oidc
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -141,7 +143,7 @@ func TestHumanCallback_DoesNotLaunchBrowserAfterShutdown(t *testing.T) {
 	tm.Init(context.Background())
 
 	browserOpened := false
-	tm.SetOpenBrowser(func(string) { browserOpened = true })
+	tm.SetOpenBrowser(func(string) error { browserOpened = true; return nil })
 
 	tm.Shutdown()
 
@@ -243,7 +245,7 @@ func TestHumanCallback_DoesNotLaunchBrowserWhileDisconnecting(t *testing.T) {
 	tm.Init(context.Background())
 
 	browserOpened := false
-	tm.SetOpenBrowser(func(string) { browserOpened = true })
+	tm.SetOpenBrowser(func(string) error { browserOpened = true; return nil })
 
 	release := tm.SuppressLogin("server-1")
 
@@ -395,7 +397,7 @@ func startBlockedLogin(t *testing.T, tm *TokenManager, ctx context.Context) <-ch
 func TestCancelLogin_StopsLoginStillInDiscovery(t *testing.T) {
 	tm := NewTokenManager(slog.Default(), nil)
 	browserOpened := false
-	tm.SetOpenBrowser(func(string) { browserOpened = true })
+	tm.SetOpenBrowser(func(string) error { browserOpened = true; return nil })
 	result := startBlockedLogin(t, tm, context.Background())
 
 	tm.CancelLogin("server-1")
@@ -456,4 +458,39 @@ func TestEndLogin_LeavesNewerLoginRunning(t *testing.T) {
 	if newerCtx.Err() != nil {
 		t.Fatal("an older login's cleanup closed the newer one")
 	}
+}
+
+// If the login page can't be opened, e.g. the URL is refused, the user must be
+// shown it to open by hand rather than wait for the login to time out.
+func TestBrowserLogin_ShowsTheURLWhenTheBrowserCantOpen(t *testing.T) {
+	var idp *httptest.Server
+	idp = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprintf(w, `{"issuer":%q,"authorization_endpoint":%q,"token_endpoint":%q,"jwks_uri":%q}`,
+			idp.URL, idp.URL+"/auth;jsessionid=abc", idp.URL+"/token", idp.URL+"/jwks")
+	}))
+	t.Cleanup(idp.Close)
+
+	tm := NewTokenManager(slog.New(slog.NewTextHandler(io.Discard, nil)), nil)
+	tm.SetOpenBrowser(func(string) error { return errors.New("refusing to open URL: shell metacharacters not allowed") })
+	shown := make(chan string, 1)
+	tm.SetEmitAuthURL(func(serverID, url string) { shown <- url })
+
+	ctx, cancel := context.WithCancel(context.Background())
+	result := make(chan error, 1)
+	go func() {
+		_, err := tm.browserLogin(ctx, "server-1", idp.URL, "vervet", "", nil, false)
+		result <- err
+	}()
+
+	select {
+	case url := <-shown:
+		if !strings.HasPrefix(url, idp.URL+"/auth;jsessionid=abc") {
+			t.Errorf("showed %q, want the login page URL", url)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the login URL was not shown after the browser failed to open")
+	}
+	cancel()
+	<-result
 }

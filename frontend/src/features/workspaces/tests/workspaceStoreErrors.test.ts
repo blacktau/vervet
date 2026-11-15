@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
-import * as workspacesProxy from 'wailsjs/go/api/WorkspacesProxy'
+import * as workspacesProxy from 'bindings/vervet/internal/api/workspacesproxy'
 import { useWorkspaceStore } from '../workspaceStore'
 
 const notifierError = vi.hoisted(() => vi.fn())
 vi.mock('@/utils/dialog', () => ({ useNotifier: () => ({ error: notifierError }) }))
-vi.mock('wailsjs/go/api/WorkspacesProxy', () => ({ GetWorkspaces: vi.fn() }))
+vi.mock('bindings/vervet/internal/api/workspacesproxy', () => ({ GetWorkspaces: vi.fn() }))
 
 describe('workspaceStore errors', () => {
   beforeEach(() => {

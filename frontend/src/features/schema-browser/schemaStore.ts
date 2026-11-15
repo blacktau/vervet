@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { SampleSchema, CancelSampleSchema } from 'wailsjs/go/api/CollectionsProxy'
-import type { models } from 'wailsjs/go/models'
+import { SampleSchema, CancelSampleSchema } from 'bindings/vervet/internal/api/collectionsproxy'
+import type * as models from 'bindings/vervet/internal/models'
 import { resultErrorLines } from '@/utils/resultError'
 
 export interface SchemaTabState {

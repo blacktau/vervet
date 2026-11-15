@@ -8,7 +8,7 @@ import { useTabStore } from '@/features/tabs/tabs'
 import { useQueryStore } from '@/features/queries/queryStore'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore'
 import { useI18n } from 'vue-i18n'
-import * as workspacesProxy from 'wailsjs/go/api/WorkspacesProxy'
+import * as workspacesProxy from 'bindings/vervet/internal/api/workspacesproxy'
 import { resultDetailText } from '@/utils/resultError'
 
 const { t } = useI18n()

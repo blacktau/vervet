@@ -21,7 +21,7 @@ import {
   getUriHost,
 } from '@/features/server-pane/connectionStrings.ts'
 import { filterGroupMap, toTreeSelectOptions } from '@/features/server-pane/helpers.ts'
-import * as connectionsProxy from 'wailsjs/go/api/ConnectionsProxy'
+import * as connectionsProxy from 'bindings/vervet/internal/api/connectionsproxy'
 import type { AuthMethod, OIDCConfig } from '@/types/ConnectionConfig'
 import AuthenticationPanel from './authentication/AuthenticationPanel.vue'
 import { errorCodeText, notifyResultError } from '@/utils/resultError'

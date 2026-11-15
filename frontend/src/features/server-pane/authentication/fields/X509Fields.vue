@@ -57,7 +57,7 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { InformationCircleIcon } from '@heroicons/vue/24/outline'
 import { parseX509, serialiseX509, type X509Auth } from '../authUri'
-import { SelectFile } from 'wailsjs/go/api/FilesProxy'
+import { SelectFile } from 'bindings/vervet/internal/api/filesproxy'
 import { notifyResultDetail } from '@/utils/resultError'
 
 const props = defineProps<{ uri: string }>()

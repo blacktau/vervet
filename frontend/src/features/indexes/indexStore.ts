@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { useNotifier } from '@/utils/dialog.ts'
 import { i18nGlobal } from '@/i18n'
-import * as indexesProxy from 'wailsjs/go/api/IndexesProxy'
+import * as indexesProxy from 'bindings/vervet/internal/api/indexesproxy'
 import { errorCodeText } from '@/utils/resultError'
 
 type IndexKeyField = {
@@ -44,7 +44,11 @@ export const useIndexStore = defineStore('indexes', {
           useNotifier().error(errorCodeText(result.errorCode), { title: i18nGlobal.t('errorTitles.loadIndexes'), detail: result.errorDetail })
           return
         }
-        this.indexes[key] = result.data ?? []
+        this.indexes[key] = (result.data ?? []).map((idx) => ({
+          ...idx,
+          keys: idx.keys ?? [],
+          ttl: idx.ttl ?? undefined,
+        }))
       } catch (e) {
         const err = e as Error
         useNotifier().error(err.message)

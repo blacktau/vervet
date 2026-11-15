@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, test, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { separatorFromChoice, buildExportPayload } from '../exportDialogHelpers'
 
-vi.mock('wailsjs/go/api/ExportProxy', () => ({
+vi.mock('bindings/vervet/internal/api/exportproxy', () => ({
   ExportResults: vi.fn().mockResolvedValue({ isSuccess: true, data: '/tmp/out.csv' }),
 }))
 

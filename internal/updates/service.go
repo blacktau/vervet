@@ -37,10 +37,8 @@ type SettingsAccessor interface {
 	SetDismissedVersion(v string) error
 }
 
-// EventEmitter matches wailsRuntime.EventsEmit's shape for testability.
-type EventEmitter interface {
-	EmitEvent(name string, data any)
-}
+// Emit sends an event to the frontend; desktop.Runtime.Emit in the app.
+type Emit func(name string, data ...any)
 
 // Config carries all dependencies so tests can substitute fakes.
 type Config struct {
@@ -48,7 +46,7 @@ type Config struct {
 	ReleasesURL    string
 	HTTPClient     *http.Client
 	Settings       SettingsAccessor
-	Emitter        EventEmitter
+	Emit           Emit
 	Now            func() time.Time
 }
 
@@ -58,7 +56,7 @@ type Service struct {
 	releasesURL    string
 	http           *http.Client
 	settings       SettingsAccessor
-	emitter        EventEmitter
+	emit           Emit
 	now            func() time.Time
 }
 
@@ -78,7 +76,7 @@ func NewService(log *slog.Logger, cfg Config) *Service {
 		releasesURL:    cfg.ReleasesURL,
 		http:           cfg.HTTPClient,
 		settings:       cfg.Settings,
-		emitter:        cfg.Emitter,
+		emit:           cfg.Emit,
 		now:            cfg.Now,
 	}
 }
@@ -124,7 +122,7 @@ func (s *Service) CheckIfDue(ctx context.Context) error {
 	if info.Version == s.settings.GetDismissedVersion() {
 		return nil
 	}
-	s.emitter.EmitEvent(EventUpdateAvailable, info)
+	s.emit(EventUpdateAvailable, info)
 	return nil
 }
 

@@ -5,6 +5,8 @@ import (
 	"log/slog"
 
 	"vervet/internal/updates"
+
+	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
 type UpdatesService interface {
@@ -13,8 +15,10 @@ type UpdatesService interface {
 	DismissVersion(version string) error
 }
 
+// URLOpener opens web links. It refuses anything but http(s), so a link in a
+// document can't launch file://, smb:// or a custom URL handler.
 type URLOpener interface {
-	OpenURL(url string)
+	OpenURL(url string) error
 }
 
 type UpdatesProxy struct {
@@ -28,8 +32,11 @@ func NewUpdatesProxy(log *slog.Logger, svc UpdatesService, opener URLOpener) *Up
 	return &UpdatesProxy{log: log, svc: svc, opener: opener, ctx: context.Background()}
 }
 
-func (p *UpdatesProxy) Init(ctx context.Context) {
+// ServiceStartup is called by Wails when the app starts; the context lasts
+// until shutdown. It is not exposed to the frontend.
+func (p *UpdatesProxy) ServiceStartup(ctx context.Context, _ application.ServiceOptions) error {
 	p.ctx = ctx
+	return nil
 }
 
 func (p *UpdatesProxy) CheckNow() Result[updates.UpdateInfo] {
@@ -58,6 +65,9 @@ func (p *UpdatesProxy) DismissUpdate(version string) EmptyResult {
 }
 
 func (p *UpdatesProxy) OpenReleasePage(url string) EmptyResult {
-	p.opener.OpenURL(url)
+	if err := p.opener.OpenURL(url); err != nil {
+		logFail(p.log, "OpenReleasePage", err)
+		return Fail(err)
+	}
 	return Success()
 }

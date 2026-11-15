@@ -2,17 +2,17 @@ import { beforeEach, describe, expect, test, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { useDataBrowserStore } from '@/features/data-browser/browserStore.ts'
 import { DataNodeType } from '@/features/data-browser/types.ts'
-import * as databasesProxy from 'wailsjs/go/api/DatabasesProxy'
-import * as collectionsProxy from 'wailsjs/go/api/CollectionsProxy'
-import { api } from 'wailsjs/go/models.ts'
+import * as databasesProxy from 'bindings/vervet/internal/api/databasesproxy'
+import * as collectionsProxy from 'bindings/vervet/internal/api/collectionsproxy'
+import type { Result } from 'bindings/vervet/internal/api'
 
-vi.mock('wailsjs/go/api/ConnectionsProxy', () => ({}))
+vi.mock('bindings/vervet/internal/api/connectionsproxy', () => ({}))
 
-vi.mock('wailsjs/go/api/DatabasesProxy', () => ({
+vi.mock('bindings/vervet/internal/api/databasesproxy', () => ({
   GetDatabases: vi.fn(),
 }))
 
-vi.mock('wailsjs/go/api/CollectionsProxy', () => ({
+vi.mock('bindings/vervet/internal/api/collectionsproxy', () => ({
   GetCollections: vi.fn(),
   GetViews: vi.fn(),
   GetNamespaceInventory: vi.fn(),
@@ -55,7 +55,7 @@ describe('browserStore', () => {
       vi.mocked(databasesProxy.GetDatabases).mockResolvedValue({
         isSuccess: true,
         data: ['db1', 'db2'],
-      } as api.Result___string_)
+      } as Result<string[]>)
 
       const result = await store.getDatabaseList('server1', true)
 
@@ -86,7 +86,7 @@ describe('browserStore', () => {
       vi.mocked(databasesProxy.GetDatabases).mockResolvedValue({
         isSuccess: true,
         data: ['db1', 'db2'],
-      } as api.Result___string_)
+      } as Result<string[]>)
 
       const result = await store.getDatabaseList('server1', true)
 
@@ -130,7 +130,7 @@ describe('browserStore', () => {
         data: [],
         errorCode: 'connection_failed',
         errorDetail: 'Connection failed',
-      } as api.Result___string_)
+      } as Result<string[]>)
 
       const result = await store.getDatabaseList('server1', true)
 
@@ -152,7 +152,7 @@ describe('browserStore', () => {
       vi.mocked(collectionsProxy.GetCollections).mockResolvedValue({
         isSuccess: true,
         data: ['collection1', 'collection2'],
-      } as api.Result___string_)
+      } as Result<string[]>)
 
       const result = await store.getCollectionList('server1', 'db1', true)
 

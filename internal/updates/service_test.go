@@ -36,8 +36,8 @@ type emitted struct {
 	data any
 }
 
-func (f *fakeEmitter) EmitEvent(name string, data any) {
-	f.events = append(f.events, emitted{name, data})
+func (f *fakeEmitter) emit(name string, data ...any) {
+	f.events = append(f.events, emitted{name, data[0]})
 }
 
 func newTestServer(t *testing.T, tag, htmlURL, body string) *httptest.Server {
@@ -59,7 +59,7 @@ func newService(t *testing.T, serverURL string, settings *fakeSettings, emitter 
 		ReleasesURL:    serverURL,
 		HTTPClient:     &http.Client{Timeout: 2 * time.Second},
 		Settings:       settings,
-		Emitter:        emitter,
+		Emit:           emitter.emit,
 		Now:            func() time.Time { return time.Date(2026, 4, 13, 12, 0, 0, 0, time.UTC) },
 	})
 }

@@ -1,13 +1,13 @@
 import { setActivePinia, createPinia } from 'pinia'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 
-vi.mock('wailsjs/go/api/ShellProxy', () => ({
+vi.mock('bindings/vervet/internal/api/shellproxy', () => ({
   ExecuteQuery: vi.fn(),
   CancelQuery: vi.fn(async () => undefined),
   CheckMongosh: vi.fn(async () => ({ isSuccess: true, data: true })),
 }))
 
-import * as shellProxy from 'wailsjs/go/api/ShellProxy'
+import * as shellProxy from 'bindings/vervet/internal/api/shellproxy'
 import { useQueryStore } from '../queryStore'
 import type { LogMessage } from '../queryStore'
 import { useTabStore } from '@/features/tabs/tabs'

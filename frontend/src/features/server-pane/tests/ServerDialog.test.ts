@@ -7,7 +7,7 @@ import { createI18n } from 'vue-i18n'
 import ServerDialog from '@/features/server-pane/ServerDialog.vue'
 import { DialogType, useDialogStore } from '@/stores/dialog.ts'
 
-vi.mock('wailsjs/go/api/ConnectionsProxy', () => ({ TestConnection: vi.fn() }))
+vi.mock('bindings/vervet/internal/api/connectionsproxy', () => ({ TestConnection: vi.fn() }))
 
 const getServerDetails = vi.fn()
 const updateServerWithConfig = vi.fn()

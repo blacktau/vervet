@@ -88,7 +88,7 @@ type event struct {
 	data []interface{}
 }
 
-func (r *recorder) emit(_ context.Context, name string, data ...interface{}) {
+func (r *recorder) emit(name string, data ...any) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.events = append(r.events, event{name: name, data: data})
@@ -105,7 +105,7 @@ func (r *recorder) names() []string {
 }
 
 // newManager wires a real ClientRegistry to the container, a fake store and a
-// fake server provider, and replaces the Wails emitter with a recorder.
+// fake server provider, and records emitted events.
 func newManager(t *testing.T, serverID, name string, cfg models.ConnectionConfig) (*ConnectionManager, *recorder) {
 	t.Helper()
 
@@ -122,7 +122,7 @@ func newManager(t *testing.T, serverID, name string, cfg models.ConnectionConfig
 	require.NoError(t, cm.Init(context.Background()))
 
 	rec := &recorder{}
-	cm.emit = rec.emit
+	cm.SetEmitter(rec.emit)
 	return cm, rec
 }
 

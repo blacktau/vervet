@@ -1,0 +1,3 @@
+# Go verifies these byte for byte (go mod tidy -diff in CI), so keep them LF on Windows too.
+go.mod text eol=lf
+go.sum text eol=lf

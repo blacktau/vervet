@@ -1,13 +1,13 @@
 import { defineStore } from 'pinia'
 import { isEmpty } from 'lodash'
-import * as connectionsProxy from 'wailsjs/go/api/ConnectionsProxy'
-import * as collectionsProxy from 'wailsjs/go/api/CollectionsProxy'
-import * as databasesProxy from 'wailsjs/go/api/DatabasesProxy'
+import * as connectionsProxy from 'bindings/vervet/internal/api/connectionsproxy'
+import * as collectionsProxy from 'bindings/vervet/internal/api/collectionsproxy'
+import * as databasesProxy from 'bindings/vervet/internal/api/databasesproxy'
 import { useTabStore } from '@/features/tabs/tabs.ts'
 import { useSettingsStore } from '@/features/settings/settingsStore.ts'
 import { useNotifier } from '@/utils/dialog.ts'
 import { i18nGlobal } from '@/i18n'
-import { type models } from 'wailsjs/go/models.ts'
+import type * as models from 'bindings/vervet/internal/models'
 import { DataNodeType, type DataTreeNode } from '@/features/data-browser/types.ts'
 import { type NamespaceRow } from '@/features/data-browser/namespaceSearch.ts'
 import { errorCodeText } from '@/utils/resultError'
@@ -479,7 +479,7 @@ export const useDataBrowserStore = defineStore('browser', {
         return
       }
 
-      this.connections = connections.data
+      this.connections = connections.data ?? []
     },
     async getDatabaseList(serverId: string, force: boolean = false): Promise<Database[]> {
       const connection = this.connections.find((x) => x.serverID === serverId)
@@ -494,7 +494,7 @@ export const useDataBrowserStore = defineStore('browser', {
       const databases = await databasesProxy.GetDatabases(serverId)
       if (databases.isSuccess) {
         const existing = connection.databases ?? []
-        connection.databases = databases.data.map(
+        connection.databases = (databases.data ?? []).map(
           (db) => existing.find((d) => d.name === db) ?? { name: db, collections: [], views: [] },
         )
         return connection.databases
@@ -525,7 +525,7 @@ export const useDataBrowserStore = defineStore('browser', {
 
       const collections = await collectionsProxy.GetCollections(serverId, dbName)
       if (collections.isSuccess) {
-        database.collections = collections.data.map((col) => ({ name: col, indexes: [] }))
+        database.collections = (collections.data ?? []).map((col) => ({ name: col, indexes: [] }))
         return database.collections
       }
 
@@ -550,7 +550,7 @@ export const useDataBrowserStore = defineStore('browser', {
 
       const views = await collectionsProxy.GetViews(serverId, dbName)
       if (views.isSuccess) {
-        database.views = views.data
+        database.views = views.data ?? []
         return database.views
       }
 
@@ -585,7 +585,7 @@ export const useDataBrowserStore = defineStore('browser', {
         return
       }
 
-      connection.databases = result.data.databases.map((db) => ({
+      connection.databases = (result.data.databases ?? []).map((db) => ({
         name: db.name,
         collections: (db.collections ?? []).map((name) => ({ name, indexes: [] })),
         views: db.views ?? [],

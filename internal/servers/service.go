@@ -2,7 +2,6 @@
 package servers
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -12,7 +11,6 @@ import (
 	"vervet/internal/oidc"
 
 	"github.com/google/uuid"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 const ConfigParseErrorEvent = "config-parse-error"
@@ -29,13 +27,15 @@ type OIDCSessions interface {
 }
 
 type ServerService struct {
-	ctx               context.Context
 	log               *slog.Logger
 	store             ServerStore
 	connectionStrings connectionStrings.Store
 	oidcSessions      OIDCSessions
 	disconnector      Disconnector
 	mu                sync.RWMutex
+
+	// emit sends an event to the frontend. It is a no-op until SetEmitter.
+	emit func(eventName string, data ...any)
 }
 
 // SetDisconnector wires the connection manager in after construction — it
@@ -51,6 +51,7 @@ func NewService(log *slog.Logger, store ServerStore, connectionStrings connectio
 		mu:                sync.RWMutex{},
 		store:             store,
 		connectionStrings: connectionStrings,
+		emit:              func(string, ...any) {},
 	}
 	// Assigned only when set: a nil pointer would make a non-nil interface.
 	if tokenManager != nil {
@@ -59,8 +60,9 @@ func NewService(log *slog.Logger, store ServerStore, connectionStrings connectio
 	return sm
 }
 
-func (sm *ServerService) Init(ctx context.Context) {
-	sm.ctx = ctx
+// SetEmitter sets how the service sends events to the frontend.
+func (sm *ServerService) SetEmitter(emit func(eventName string, data ...any)) {
+	sm.emit = emit
 }
 
 func (sm *ServerService) GetServers() ([]models.RegisteredServer, error) {
@@ -72,7 +74,7 @@ func (sm *ServerService) GetServers() ([]models.RegisteredServer, error) {
 		if registeredServers != nil {
 			// Store returned fallback data (e.g. empty list on parse error)
 			// — emit a warning event so the frontend can alert the user
-			runtime.EventsEmit(sm.ctx, ConfigParseErrorEvent, err.Error())
+			sm.emit(ConfigParseErrorEvent, err.Error())
 			return registeredServers, nil
 		}
 		return nil, fmt.Errorf("error getting models.RegisteredServers: %w", err)

@@ -1,6 +1,6 @@
 import { watch } from 'vue'
-import { EventsOn } from 'wailsjs/runtime/runtime'
-import * as closeGuardProxy from 'wailsjs/go/api/CloseGuardProxy'
+import { onEvent } from '@/utils/wailsEvents'
+import * as closeGuardProxy from 'bindings/vervet/internal/api/closeguardproxy'
 import { useTabStore } from '@/features/tabs/tabs'
 
 /** Stops closing the application from silently dropping unsaved queries. */
@@ -17,7 +17,7 @@ export function useAppCloseGuard() {
     { immediate: true },
   )
 
-  EventsOn('app-close-requested', async () => {
+  onEvent('app-close-requested', async () => {
     try {
       await closeGuardProxy.AcknowledgeCloseRequest()
       if (await tabStore.resolveAllUnsavedQueries()) {

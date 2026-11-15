@@ -2,7 +2,6 @@
 import { useSettingsStore } from '@/features/settings/settingsStore.ts'
 import { useI18n } from 'vue-i18n'
 import { onMounted, ref, watch } from 'vue'
-import { WindowSetDarkTheme, WindowSetLightTheme } from 'wailsjs/runtime'
 import { darkTheme, type NLocale } from 'naive-ui'
 import { darkThemeOverrides, themeOverrides } from '@/utils/theme'
 import { useServerStore } from '@/features/server-pane/serverStore.ts'
@@ -48,15 +47,14 @@ onMounted(async () => {
   void settingsStore.loadFontList()
 })
 
+// Native parts of the webview, such as scrollbars, follow the app's theme rather
+// than the system's.
 watch(
   () => settingsStore.isDark,
   (isDark: boolean) => {
-    if (isDark) {
-      WindowSetDarkTheme()
-    } else {
-      WindowSetLightTheme()
-    }
+    document.documentElement.style.colorScheme = isDark ? 'dark' : 'light'
   },
+  { immediate: true },
 )
 
 watch(
