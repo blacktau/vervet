@@ -286,6 +286,9 @@ jobs:
         env:
           ARCH: ${{ matrix.arch }}
         run: |
+          # In-app updates install from this zip; ditto keeps the bundle's
+          # symlinks and extended attributes, which plain zip loses.
+          ditto -c -k --keepParent bin/Vervet.app "Vervet-macos-${ARCH}.app.zip"
           mkdir dmg
           mv bin/Vervet.app dmg/
           create-dmg \
@@ -344,6 +347,14 @@ jobs:
           path: Vervet-linux-amd64.src.rpm
           if-no-files-found: error
 
+      - name: Upload macOS app zip
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: Vervet-macos-${{ matrix.arch }}.app.zip
+          path: Vervet-macos-${{ matrix.arch }}.app.zip
+          if-no-files-found: error
+
       - name: Upload macOS DMG
         if: runner.os == 'macOS'
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
@@ -361,11 +372,33 @@ jobs:
       contents: write
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
       - name: Download all artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           path: artifacts
           merge-multiple: true
+
+      # The app reads releases/latest/download/manifest.json and installs only
+      # artifacts whose signature verifies against internal/updates/publickey.go.
+      - name: Sign update manifest
+        env:
+          UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          go run ./cmd/release-manifest sign \
+            -version "${TAG#v}" \
+            -base-url "https://github.com/${REPO}/releases/download/${TAG}" \
+            -out artifacts/manifest.json \
+            artifacts/Vervet-*
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe # v2.6.1
@@ -376,6 +409,7 @@ jobs:
             artifacts/Vervet-windows-*
             artifacts/Vervet-linux-*
             artifacts/Vervet-macos-*
+            artifacts/manifest.json
 
       - name: Upload RPM to COPR
         env:

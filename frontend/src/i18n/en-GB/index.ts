@@ -138,6 +138,13 @@ export default {
       viewRelease: 'View release',
       dismiss: 'Dismiss',
       checkFailed: 'Could not check for updates: {error}',
+      updateNow: 'Update now',
+      tryAgain: 'Try again',
+      downloading: 'Downloading the update…',
+      verifying: 'Checking the download…',
+      ready: 'The update is ready. Restart Vervet to finish installing it.',
+      restartNow: 'Restart now',
+      installFailed: 'Could not install the update: {error}',
     },
   },
   workspaces: {

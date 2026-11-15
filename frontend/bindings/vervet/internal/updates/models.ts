@@ -9,4 +9,10 @@ export interface UpdateInfo {
     "version": string;
     "url": string;
     "releaseNotes": string;
+
+    /**
+     * CanInstall is true when Vervet can download and install the update
+     * itself; otherwise the user installs it from the release page.
+     */
+    "canInstall": boolean;
 }

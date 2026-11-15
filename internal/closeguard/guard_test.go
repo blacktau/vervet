@@ -118,3 +118,51 @@ func TestConfirmClose_QuitsAndLetsTheCloseThrough(t *testing.T) {
 	assert.Equal(t, 1, h.quits)
 	assert.False(t, h.guard.BeforeClose())
 }
+
+func TestBeforeCloseThen_GoesAheadWithoutUnsavedChanges(t *testing.T) {
+	h := newHarness()
+	ran := 0
+
+	assert.False(t, h.guard.BeforeCloseThen(func() { ran++ }))
+	assert.Equal(t, 0, ran, "caller runs it when nothing prevents closing")
+
+	// A later ordinary close must not run it.
+	h.guard.SetUnsavedChanges(true)
+	h.guard.BeforeClose()
+	h.guard.AcknowledgeCloseRequest()
+	h.guard.ConfirmClose()
+	assert.Equal(t, 0, ran)
+	assert.Equal(t, 1, h.quits)
+}
+
+func TestBeforeCloseThen_RunsInsteadOfQuitOnConfirm(t *testing.T) {
+	h := newHarness()
+	h.guard.SetUnsavedChanges(true)
+	ran := 0
+
+	assert.True(t, h.guard.BeforeCloseThen(func() { ran++ }))
+	h.emitCount(t, 1)
+	h.guard.AcknowledgeCloseRequest()
+	h.guard.ConfirmClose()
+
+	assert.Equal(t, 1, ran)
+	assert.Equal(t, 0, h.quits)
+}
+
+func TestBeforeCloseThen_DroppedOnCancel(t *testing.T) {
+	h := newHarness()
+	h.guard.SetUnsavedChanges(true)
+	ran := 0
+
+	h.guard.BeforeCloseThen(func() { ran++ })
+	h.guard.AcknowledgeCloseRequest()
+	h.guard.CancelClose()
+
+	// The user later closes the window normally.
+	h.guard.BeforeClose()
+	h.guard.AcknowledgeCloseRequest()
+	h.guard.ConfirmClose()
+
+	assert.Equal(t, 0, ran)
+	assert.Equal(t, 1, h.quits)
+}

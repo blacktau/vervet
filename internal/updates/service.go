@@ -16,8 +16,12 @@ const (
 	FrequencyWeekly  = "weekly"
 
 	EventUpdateAvailable = "update-available"
+	// EventRestartFailed carries the error when restarting into an update
+	// fails after the user answered the unsaved-queries prompt.
+	EventRestartFailed = "update-restart-failed"
 
 	defaultReleasesURL = "https://api.github.com/repos/blacktau/vervet/releases/latest"
+	defaultManifestURL = "https://github.com/blacktau/vervet/releases/latest/download/manifest.json"
 )
 
 // UpdateInfo is returned to callers and emitted as the event payload.
@@ -26,6 +30,9 @@ type UpdateInfo struct {
 	Version      string `json:"version"`
 	URL          string `json:"url"`
 	ReleaseNotes string `json:"releaseNotes"`
+	// CanInstall is true when Vervet can download and install the update
+	// itself; otherwise the user installs it from the release page.
+	CanInstall bool `json:"canInstall"`
 }
 
 // SettingsAccessor is the narrow settings surface the service needs.
@@ -48,6 +55,11 @@ type Config struct {
 	Settings       SettingsAccessor
 	Emit           Emit
 	Now            func() time.Time
+	// Installer installs updates in place. Nil, or an Install that can't
+	// self-update, leaves the release page as the only way to update.
+	Installer   Installer
+	Install     Install
+	ManifestURL string
 }
 
 type Service struct {
@@ -58,6 +70,8 @@ type Service struct {
 	settings       SettingsAccessor
 	emit           Emit
 	now            func() time.Time
+	installer      Installer
+	canInstall     bool
 }
 
 func NewService(log *slog.Logger, cfg Config) *Service {
@@ -70,7 +84,7 @@ func NewService(log *slog.Logger, cfg Config) *Service {
 	if cfg.Now == nil {
 		cfg.Now = time.Now
 	}
-	return &Service{
+	s := &Service{
 		log:            log,
 		currentVersion: cfg.CurrentVersion,
 		releasesURL:    cfg.ReleasesURL,
@@ -79,6 +93,8 @@ func NewService(log *slog.Logger, cfg Config) *Service {
 		emit:           cfg.Emit,
 		now:            cfg.Now,
 	}
+	s.initInstaller(cfg)
+	return s
 }
 
 // CheckNow fetches the latest release and returns an UpdateInfo.
@@ -95,7 +111,7 @@ func (s *Service) CheckNow(ctx context.Context) (UpdateInfo, error) {
 	if CompareVersion(latest, s.currentVersion) <= 0 {
 		return UpdateInfo{Available: false, Version: latest, URL: url, ReleaseNotes: body}, nil
 	}
-	return UpdateInfo{Available: true, Version: normalizeVersion(latest), URL: url, ReleaseNotes: body}, nil
+	return UpdateInfo{Available: true, Version: normalizeVersion(latest), URL: url, ReleaseNotes: body, CanInstall: s.canInstall}, nil
 }
 
 // CheckIfDue runs CheckNow only if frequency and interval allow it.
