@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { CheckIfDue, CheckNow, DismissUpdate, OpenReleasePage } from 'bindings/vervet/internal/api/updatesproxy'
+import { reportRefusedLink } from '@/utils/openInBrowser'
 import { onEvent } from '@/utils/wailsEvents'
 import { useSettingsStore } from '@/features/settings/settingsStore'
 import { resultDetailText } from '@/utils/resultError'
@@ -70,7 +71,7 @@ export const useUpdateStore = defineStore('updates', () => {
     if (!url.value) {
       return
     }
-    await OpenReleasePage(url.value)
+    reportRefusedLink(url.value, await OpenReleasePage(url.value))
   }
 
   return {

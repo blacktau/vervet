@@ -62,7 +62,8 @@ func main() {
 		LogLevel:   slog.LevelDebug,
 		ShouldQuit: vervet.ShouldQuit,
 		Linux: application.LinuxOptions{
-			ProgramName:   "Vervet",
+			// No ProgramName: Wails then uses the application ID as the Wayland
+			// app_id and X11 WM_CLASS, matching com.blacktau.vervet.desktop.
 			ApplicationID: "com.blacktau.vervet",
 		},
 		Mac: application.MacOptions{

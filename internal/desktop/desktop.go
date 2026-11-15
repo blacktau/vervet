@@ -154,7 +154,7 @@ func (r *Runtime) SelectFile(title string, filters []FileFilter) (string, error)
 	for _, f := range filters {
 		dialog.AddFilter(f.DisplayName, f.Pattern)
 	}
-	return dialog.PromptForSingleSelection()
+	return cancelledIsEmpty(dialog.PromptForSingleSelection())
 }
 
 // SelectDirectory asks the user to pick a directory. A cancelled dialog
@@ -171,7 +171,7 @@ func (r *Runtime) SelectDirectory() (string, error) {
 	if window != nil {
 		dialog.AttachToWindow(window)
 	}
-	return dialog.PromptForSingleSelection()
+	return cancelledIsEmpty(dialog.PromptForSingleSelection())
 }
 
 // SaveFile asks the user where to save a file. A cancelled dialog returns an
@@ -193,7 +193,20 @@ func (r *Runtime) SaveFile(title, defaultFilename string, filters []FileFilter) 
 	if window != nil {
 		options.Window = window
 	}
-	return app.Dialog.SaveFileWithOptions(options).PromptForSingleSelection()
+	return cancelledIsEmpty(app.Dialog.SaveFileWithOptions(options).PromptForSingleSelection())
+}
+
+// windowsCancelled is the error Wails's Windows dialogs return when the user
+// presses Cancel. The error value is internal to Wails, so match its text.
+const windowsCancelled = "cancelled by user"
+
+// cancelledIsEmpty turns a cancelled dialog into an empty path and no error,
+// as on Linux and macOS, so cancelling never shows an error.
+func cancelledIsEmpty(path string, err error) (string, error) {
+	if err != nil && err.Error() == windowsCancelled {
+		return "", nil
+	}
+	return path, err
 }
 
 // ScreenSize returns the size of the screen showing the main window, or

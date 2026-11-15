@@ -96,7 +96,7 @@ const onSelectSettingsMenu = (key: string) => {
       dialogStore.showNewDialog(DialogType.Settings)
       break
     case 'report':
-      openInBrowser('https://github.com/blacktau/vervet/issues')
+      void openInBrowser('https://github.com/blacktau/vervet/issues')
       break
     case 'about':
       dialogStore.showNewDialog(DialogType.About)
@@ -105,7 +105,7 @@ const onSelectSettingsMenu = (key: string) => {
 }
 
 const openGithub = () => {
-  openInBrowser('https://github.com/blacktau/vervet')
+  void openInBrowser('https://github.com/blacktau/vervet')
 }
 
 const exThemeVars = computed(() => {

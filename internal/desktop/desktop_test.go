@@ -1,6 +1,7 @@
 package desktop
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -35,4 +36,17 @@ func TestCheckBrowserURL(t *testing.T) {
 func TestOpenURLRefusesBeforeTheAppIsAttached(t *testing.T) {
 	assert.Error(t, New().OpenURL("file:///etc/passwd"))
 	assert.NoError(t, New().OpenURL("https://github.com"))
+}
+
+func TestCancelledDialogReturnsEmptyPath(t *testing.T) {
+	path, err := cancelledIsEmpty("", errors.New("cancelled by user"))
+	assert.NoError(t, err)
+	assert.Empty(t, path)
+
+	path, err = cancelledIsEmpty("/tmp/file.js", nil)
+	assert.NoError(t, err)
+	assert.Equal(t, "/tmp/file.js", path)
+
+	_, err = cancelledIsEmpty("", errors.New("dialog failed"))
+	assert.Error(t, err)
 }

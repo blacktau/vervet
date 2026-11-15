@@ -34,3 +34,4 @@ overrides:
 
 scripts:
   postinstall: "./build/linux/nfpm/scripts/postinstall.sh"
+  postremove: "./build/linux/nfpm/scripts/postremove.sh"

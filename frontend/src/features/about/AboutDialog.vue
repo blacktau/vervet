@@ -18,7 +18,7 @@ onMounted(async () => {
 })
 
 const onOpenSource = () => {
-  openInBrowser('https://github.com/blacktau/vervet')
+  void openInBrowser('https://github.com/blacktau/vervet')
 }
 </script>
 

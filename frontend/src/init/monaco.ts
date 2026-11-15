@@ -64,7 +64,7 @@ monaco.editor.defineTheme('vervet-dark', {
 
 monaco.editor.registerLinkOpener({
   open(resource: Uri): boolean | Promise<boolean> {
-    openInBrowser(resource.toString())
+    void openInBrowser(resource.toString())
     return true;
   },
 })
