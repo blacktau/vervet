@@ -11,10 +11,12 @@ import { createI18n } from 'vue-i18n'
 import naive, { NDialogProvider } from 'naive-ui'
 import { useTabStore } from '@/features/tabs/tabs'
 import { useQueryStore } from '@/features/queries/queryStore'
+import * as filesProxy from 'bindings/vervet/internal/api/filesproxy'
 
 // Records the `value` every editor is constructed with — the thing under test.
 const seededValues: string[] = []
 let editorContent = ''
+let changeListener: (() => void) | undefined
 
 function fakeEditor() {
   return {
@@ -23,7 +25,9 @@ function fakeEditor() {
       editorContent = v
     },
     addAction: vi.fn(),
-    onDidChangeModelContent: vi.fn(),
+    onDidChangeModelContent: vi.fn((listener: () => void) => {
+      changeListener = listener
+    }),
     focus: vi.fn(),
     getModel: () => null,
     dispose: vi.fn(),
@@ -84,6 +88,7 @@ let queryId: string
 beforeEach(() => {
   seededValues.length = 0
   editorContent = ''
+  changeListener = undefined
   setActivePinia(createPinia())
   const tabStore = useTabStore()
   tabStore.tabItems = [
@@ -165,6 +170,37 @@ describe('QueryTab editor seeding', () => {
     queryStore.setSavedContent(queryId, 'db.orders.find({})')
     await nextTick()
     expect(editorContent).toBe('db.orders.find({})')
+    wrapper.unmount()
+  })
+})
+
+// #363: finishing a slow save must not replace what the user typed meanwhile.
+describe('QueryTab save while typing', () => {
+  function type(text: string) {
+    editorContent = text
+    changeListener?.()
+  }
+
+  it('keeps text typed during a slow save and leaves the tab dirty', async () => {
+    let finish!: () => void
+    vi.mocked(filesProxy.WriteFile).mockReturnValue(
+      new Promise((resolve) => {
+        finish = () => resolve({ isSuccess: true } as never)
+      }) as never,
+    )
+    const queryStore = useQueryStore()
+    const wrapper = await mountQueryTab(queryId)
+    queryStore.setFilePath(queryId, '/mnt/query.js')
+    type('db.users.find({})')
+
+    const saving = queryStore.saveFile(queryId, editorContent)
+    type('db.users.find({ name: "alice" })')
+    finish()
+    await saving
+    await nextTick()
+
+    expect(editorContent).toBe('db.users.find({ name: "alice" })')
+    expect(queryStore.getQueryState(queryId).isDirty).toBe(true)
     wrapper.unmount()
   })
 })

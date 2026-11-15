@@ -93,6 +93,75 @@ describe('queryStore file reads and writes', () => {
   })
 })
 
+// #363: text typed while a slow write runs must stay unsaved.
+describe('queryStore save while the user keeps typing', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+  })
+
+  function slowWrite() {
+    let finish!: () => void
+    vi.mocked(filesProxy.WriteFile).mockReturnValue(
+      new Promise((resolve) => {
+        finish = () => resolve({ isSuccess: true } as never)
+      }) as never,
+    )
+    return () => finish()
+  }
+
+  test('saveFile keeps the query dirty when it changed during the write', async () => {
+    const finish = slowWrite()
+    const store = storeWithQuery()
+    store.setFilePath(QUERY_ID, '/mnt/q.js')
+    store.setCurrentContent(QUERY_ID, 'db.x.find()')
+
+    const saving = store.saveFile(QUERY_ID, 'db.x.find()')
+    store.setCurrentContent(QUERY_ID, 'db.x.find({ a: 1 })')
+    finish()
+
+    expect(await saving).toBe(true)
+    const state = store.getQueryState(QUERY_ID)
+    expect(state.savedContent).toBe('db.x.find()')
+    expect(state.isDirty).toBe(true)
+  })
+
+  test('saveFileAs keeps the query dirty when it changed during the write', async () => {
+    vi.mocked(filesProxy.SaveFile).mockResolvedValue({
+      isSuccess: true,
+      data: '/mnt/new.js',
+    } as never)
+    const finish = slowWrite()
+    const store = storeWithQuery()
+    store.setCurrentContent(QUERY_ID, 'db.x.find()')
+
+    const saving = store.saveFileAs(QUERY_ID, 'db.x.find()')
+    await vi.waitFor(() => expect(filesProxy.WriteFile).toHaveBeenCalled())
+    store.setCurrentContent(QUERY_ID, 'db.x.find({ a: 1 })')
+    finish()
+
+    expect(await saving).toBe(true)
+    const state = store.getQueryState(QUERY_ID)
+    expect(state.filePath).toBe('/mnt/new.js')
+    expect(state.savedContent).toBe('db.x.find()')
+    expect(state.isDirty).toBe(true)
+  })
+
+  test('saveFile marks the query clean when nothing changed during the write', async () => {
+    const finish = slowWrite()
+    const store = storeWithQuery()
+    store.setFilePath(QUERY_ID, '/mnt/q.js')
+    store.setCurrentContent(QUERY_ID, 'db.x.find()')
+    store.setDirty(QUERY_ID, true)
+
+    const saving = store.saveFile(QUERY_ID, 'db.x.find()')
+    finish()
+
+    expect(await saving).toBe(true)
+    expect(store.getQueryState(QUERY_ID).isDirty).toBe(false)
+  })
+})
+
 describe('queryStore file dialogs', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
