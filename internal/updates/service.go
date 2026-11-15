@@ -19,10 +19,22 @@ const (
 	// EventRestartFailed carries the error when restarting into an update
 	// fails after the user answered the unsaved-queries prompt.
 	EventRestartFailed = "update-restart-failed"
-
-	defaultReleasesURL = "https://api.github.com/repos/blacktau/vervet/releases/latest"
-	defaultManifestURL = "https://github.com/blacktau/vervet/releases/latest/download/manifest.json"
 )
+
+// releaseRepo is the GitHub repository that updates come from. The release
+// workflow stamps in the repository it builds from, so a fork's test releases
+// update from the fork:
+//
+//	-ldflags "-X vervet/internal/updates.releaseRepo=owner/name"
+var releaseRepo = "blacktau/vervet"
+
+func defaultReleasesURL() string {
+	return "https://api.github.com/repos/" + releaseRepo + "/releases/latest"
+}
+
+func defaultManifestURL() string {
+	return "https://github.com/" + releaseRepo + "/releases/latest/download/manifest.json"
+}
 
 // UpdateInfo is returned to callers and emitted as the event payload.
 type UpdateInfo struct {
@@ -76,7 +88,7 @@ type Service struct {
 
 func NewService(log *slog.Logger, cfg Config) *Service {
 	if cfg.ReleasesURL == "" {
-		cfg.ReleasesURL = defaultReleasesURL
+		cfg.ReleasesURL = defaultReleasesURL()
 	}
 	if cfg.HTTPClient == nil {
 		cfg.HTTPClient = &http.Client{Timeout: 10 * time.Second}

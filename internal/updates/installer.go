@@ -77,7 +77,7 @@ func configureInstaller(cfg Config) error {
 	}
 	url := cfg.ManifestURL
 	if url == "" {
-		url = defaultManifestURL
+		url = defaultManifestURL()
 	}
 	provider, err := endpoint.New(endpoint.Config{URL: url, HTTPClient: cfg.HTTPClient})
 	if err != nil {

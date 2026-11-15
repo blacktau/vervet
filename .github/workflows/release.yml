@@ -141,6 +141,8 @@ jobs:
           plutil -replace CFBundleShortVersionString -string "$VERSION" build/darwin/Info.plist
 
       # ── Build and package ──
+      # RELEASE_REPO points in-app updates at this repository, so test tags on
+      # a fork update from the fork's releases.
       # Windows builds without cgo, so arm64 cross-compiles on the amd64 runner.
       - name: Build and package (Windows)
         if: runner.os == 'Windows'
@@ -148,9 +150,10 @@ jobs:
         env:
           ARCH: ${{ matrix.arch }}
           TASK_VERSION: ${{ steps.version.outputs.task_version }}
+          REPO: ${{ github.repository }}
         run: |
           export PATH="/c/Program Files (x86)/NSIS:$PATH"
-          wails3 task windows:create:nsis:installer ARCH="$ARCH" ${TASK_VERSION:+"$TASK_VERSION"}
+          wails3 task windows:create:nsis:installer ARCH="$ARCH" RELEASE_REPO="$REPO" ${TASK_VERSION:+"$TASK_VERSION"}
           mv "bin/Vervet-${ARCH}-installer.exe" "Vervet-windows-${ARCH}-installer.exe"
 
       - name: Package Windows portable zip
@@ -164,14 +167,16 @@ jobs:
         if: runner.os == 'Linux'
         env:
           TASK_VERSION: ${{ steps.version.outputs.task_version }}
-        run: wails3 task linux:build ${TASK_VERSION:+"$TASK_VERSION"}
+          REPO: ${{ github.repository }}
+        run: wails3 task linux:build RELEASE_REPO="$REPO" ${TASK_VERSION:+"$TASK_VERSION"}
 
       - name: Build (macOS)
         if: runner.os == 'macOS'
         env:
           ARCH: ${{ matrix.arch }}
           TASK_VERSION: ${{ steps.version.outputs.task_version }}
-        run: wails3 task darwin:package ARCH="$ARCH" ${TASK_VERSION:+"$TASK_VERSION"}
+          REPO: ${{ github.repository }}
+        run: wails3 task darwin:package ARCH="$ARCH" RELEASE_REPO="$REPO" ${TASK_VERSION:+"$TASK_VERSION"}
 
       # ── Package: Linux AppImage ──
       # Built with linuxdeploy rather than `wails3 generate appimage`: Wails 3.1
@@ -411,7 +416,9 @@ jobs:
             artifacts/Vervet-macos-*
             artifacts/manifest.json
 
+      # Forks have no COPR credentials; their releases are for testing updates.
       - name: Upload RPM to COPR
+        if: github.repository == 'blacktau/vervet'
         env:
           COPR_LOGIN: ${{ secrets.COPR_LOGIN }}
           COPR_USERNAME: ${{ secrets.COPR_USERNAME }}

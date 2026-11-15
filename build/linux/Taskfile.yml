@@ -17,7 +17,7 @@ tasks:
     cmds:
       - go build {{.BUILD_FLAGS}} -o {{.OUTPUT}}
     vars:
-      BUILD_FLAGS: '{{if eq .DEV "true"}}-buildvcs=false -gcflags=all="-l"{{else}}-tags production -trimpath -buildvcs=false -ldflags="-w -s{{if .VERSION}} -X main.version=v{{.VERSION}}{{end}}"{{end}}'
+      BUILD_FLAGS: '{{if eq .DEV "true"}}-buildvcs=false -gcflags=all="-l"{{else}}-tags production -trimpath -buildvcs=false -ldflags="-w -s{{if .VERSION}} -X main.version=v{{.VERSION}}{{end}}{{if .RELEASE_REPO}} -X vervet/internal/updates.releaseRepo={{.RELEASE_REPO}}{{end}}"{{end}}'
       OUTPUT: '{{.OUTPUT | default (printf "%s/%s" .BIN_DIR .APP_NAME)}}'
     env:
       GOOS: linux
