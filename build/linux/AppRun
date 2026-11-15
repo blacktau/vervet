@@ -17,4 +17,11 @@ export LD_LIBRARY_PATH="$APPDIR/usr/lib:$APPDIR/usr/lib/x86_64-linux-gnu${LD_LIB
 export OWD="${OWD:-$PWD}"
 cd "$APPDIR/usr" || exit 1
 
+# Must stay: that rewrite also breaks WebKit's bubblewrap sandbox. It looks for
+# ././/bin/bwrap and mounts the rewritten library paths, so the web process
+# crashes on startup or can't load Mesa. The webview only loads Vervet's own
+# frontend. The xdg-open shim unsets this so programs the app opens keep their
+# sandbox. Rewriting only the helper paths would let it go (#377).
+export WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS=1
+
 exec "$APPDIR/usr/bin/Vervet" "$@"
