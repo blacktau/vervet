@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"vervet/internal/api"
+	"vervet/internal/models"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,7 +22,7 @@ type mockSaveDialog struct {
 	err  error
 }
 
-func (m *mockSaveDialog) SaveFile(_ *string, _ *string, _ []FileFilter) (string, error) {
+func (m *mockSaveDialog) SaveFile(_ *string, _ *string, _ []models.FileFilter) (string, error) {
 	return m.path, m.err
 }
 

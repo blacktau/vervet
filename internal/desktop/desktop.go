@@ -12,15 +12,11 @@ import (
 	"sync"
 	"time"
 
+	"vervet/internal/models"
+
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
 )
-
-// FileFilter restricts a file dialog to matching files, e.g. "*.js;*.mongodb".
-type FileFilter struct {
-	DisplayName string
-	Pattern     string
-}
 
 // Runtime wraps the Wails app and Vervet's main window.
 type Runtime struct {
@@ -139,7 +135,7 @@ func checkBrowserURL(rawURL string) (string, error) {
 
 // SelectFile asks the user to pick an existing file. A cancelled dialog
 // returns an empty path and no error.
-func (r *Runtime) SelectFile(title string, filters []FileFilter) (string, error) {
+func (r *Runtime) SelectFile(title string, filters []models.FileFilter) (string, error) {
 	app, window := r.get()
 	if app == nil {
 		return "", nil
@@ -176,7 +172,7 @@ func (r *Runtime) SelectDirectory() (string, error) {
 
 // SaveFile asks the user where to save a file. A cancelled dialog returns an
 // empty path and no error.
-func (r *Runtime) SaveFile(title, defaultFilename string, filters []FileFilter) (string, error) {
+func (r *Runtime) SaveFile(title, defaultFilename string, filters []models.FileFilter) (string, error) {
 	app, window := r.get()
 	if app == nil {
 		return "", nil

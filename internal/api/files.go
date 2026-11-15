@@ -2,16 +2,13 @@ package api
 
 import (
 	"log/slog"
+
+	"vervet/internal/models"
 )
 
-type FileFilter struct {
-	DisplayName string `json:"displayName"`
-	Pattern     string `json:"pattern"`
-}
-
 type FilesProvider interface {
-	SelectFile(title string, filters []FileFilter) (string, error)
-	SaveFile(title *string, name *string, filters []FileFilter) (string, error)
+	SelectFile(title string, filters []models.FileFilter) (string, error)
+	SaveFile(title *string, name *string, filters []models.FileFilter) (string, error)
 	ReadFile(path string) (string, error)
 	WriteFile(path string, content string) error
 }
@@ -25,7 +22,7 @@ func NewFilesProxy(log *slog.Logger, service FilesProvider) *FilesProxy {
 	return &FilesProxy{log: log, service: service}
 }
 
-func (fp *FilesProxy) SelectFile(title string, filters []FileFilter) Result[string] {
+func (fp *FilesProxy) SelectFile(title string, filters []models.FileFilter) Result[string] {
 	path, err := fp.service.SelectFile(title, filters)
 	if err != nil {
 		logFail(fp.log, "SelectFile", err)
@@ -34,7 +31,7 @@ func (fp *FilesProxy) SelectFile(title string, filters []FileFilter) Result[stri
 	return SuccessResult(path)
 }
 
-func (fp *FilesProxy) SaveFile(title *string, defaultName *string, filters []FileFilter) Result[string] {
+func (fp *FilesProxy) SaveFile(title *string, defaultName *string, filters []models.FileFilter) Result[string] {
 	path, err := fp.service.SaveFile(title, defaultName, filters)
 	if err != nil {
 		logFail(fp.log, "SaveFile", err)

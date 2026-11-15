@@ -41,6 +41,5 @@ export type {
     EmptyResult,
     ExportCSVOptions,
     ExportRequest,
-    FileFilter,
     Result
 } from "./models.js";

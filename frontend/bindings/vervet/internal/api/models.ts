@@ -42,11 +42,6 @@ export interface ExportRequest {
     "columns"?: string[] | null;
 }
 
-export interface FileFilter {
-    "displayName": string;
-    "pattern": string;
-}
-
 export enum OperatingSystem {
     /**
      * The Go zero value for the underlying type of the enum.

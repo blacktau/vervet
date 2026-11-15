@@ -5,8 +5,6 @@ import (
 	"log/slog"
 
 	"vervet/internal/updates"
-
-	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
 type UpdatesService interface {
@@ -28,15 +26,10 @@ type UpdatesProxy struct {
 	ctx    context.Context
 }
 
-func NewUpdatesProxy(log *slog.Logger, svc UpdatesService, opener URLOpener) *UpdatesProxy {
-	return &UpdatesProxy{log: log, svc: svc, opener: opener, ctx: context.Background()}
-}
-
-// ServiceStartup is called by Wails when the app starts; the context lasts
-// until shutdown. It is not exposed to the frontend.
-func (p *UpdatesProxy) ServiceStartup(ctx context.Context, _ application.ServiceOptions) error {
-	p.ctx = ctx
-	return nil
+// NewUpdatesProxy takes the app's context, which lasts until the app has shut
+// down. Update checks run with it.
+func NewUpdatesProxy(ctx context.Context, log *slog.Logger, svc UpdatesService, opener URLOpener) *UpdatesProxy {
+	return &UpdatesProxy{log: log, svc: svc, opener: opener, ctx: ctx}
 }
 
 func (p *UpdatesProxy) CheckNow() Result[updates.UpdateInfo] {
