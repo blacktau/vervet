@@ -205,7 +205,16 @@ export const useTabStore = defineStore('tabs', {
       if (choice === 'cancel') {
         return false
       }
-      return choice === 'discard' || this._saveQueries(dirty)
+      if (choice === 'discard') {
+        return true
+      }
+      if (!(await this._saveQueries(dirty))) {
+        return false
+      }
+      // Text typed while a save ran is still unsaved, so ask about it again.
+      return this._resolveDirtyQueries(
+        dirty.filter(({ query }) => queryStore.queries[query.id]?.isDirty),
+      )
     },
     // Stops at the first save that fails or is cancelled, leaving that query on show.
     async _saveQueries(dirty: { tab: ServerTabItem; query: QueryTabItem }[]): Promise<boolean> {

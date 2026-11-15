@@ -279,7 +279,8 @@ const promptSaveIfDirty = async (): Promise<boolean> => {
       negativeText: t('query.unsavedChangesDontSave'),
       onPositiveClick: async () => {
         // Only move on once the edits are safe: opening a file replaces them.
-        resolve(await saveFile())
+        // Text typed while the save ran leaves the query dirty, and isn't saved.
+        resolve((await saveFile()) && !queryState.value.isDirty)
       },
       onNegativeClick: () => {
         resolve(true)

@@ -102,7 +102,7 @@ describe('queryStore save while the user keeps typing', () => {
 
   function slowWrite() {
     let finish!: () => void
-    vi.mocked(filesProxy.WriteFile).mockReturnValue(
+    vi.mocked(filesProxy.WriteFile).mockReturnValueOnce(
       new Promise((resolve) => {
         finish = () => resolve({ isSuccess: true } as never)
       }) as never,
@@ -145,6 +145,19 @@ describe('queryStore save while the user keeps typing', () => {
     expect(state.filePath).toBe('/mnt/new.js')
     expect(state.savedContent).toBe('db.x.find()')
     expect(state.isDirty).toBe(true)
+  })
+
+  test('does not bring back the state of a tab closed during the write', async () => {
+    const finish = slowWrite()
+    const store = storeWithQuery()
+    store.setFilePath(QUERY_ID, '/mnt/q.js')
+
+    const saving = store.saveFile(QUERY_ID, 'db.x.find()')
+    store.removeQueryState(QUERY_ID)
+    finish()
+
+    expect(await saving).toBe(true)
+    expect(store.queries[QUERY_ID]).toBeUndefined()
   })
 
   test('saveFile marks the query clean when nothing changed during the write', async () => {

@@ -183,7 +183,7 @@ describe('QueryTab save while typing', () => {
 
   it('keeps text typed during a slow save and leaves the tab dirty', async () => {
     let finish!: () => void
-    vi.mocked(filesProxy.WriteFile).mockReturnValue(
+    vi.mocked(filesProxy.WriteFile).mockReturnValueOnce(
       new Promise((resolve) => {
         finish = () => resolve({ isSuccess: true } as never)
       }) as never,

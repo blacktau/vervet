@@ -250,6 +250,27 @@ describe('closeTab with unsaved queries', () => {
     expect(useQueryStore().getQueryState(notReached).isDirty).toBe(true)
     expect(confirmDisconnect).not.toHaveBeenCalled()
   })
+
+  // #363: text typed while the save ran isn't saved, so it can't be dropped silently.
+  it('asks again about a query edited while it was being saved', async () => {
+    const edited = addDirtyQuery('/queries/a.js')
+    addDirtyQuery('/queries/b.js')
+    const queryStore = useQueryStore()
+    vi.mocked(filesProxy.WriteFile).mockImplementationOnce((async () => {
+      queryStore.setCurrentContent(edited, 'typed during the save')
+      return { isSuccess: true }
+    }) as never)
+
+    void useTabStore().closeTab(SERVER)
+    await flushPromises()
+    await clickButton('Save All')
+
+    expect(dialogShow).toHaveBeenCalledTimes(2)
+    expect(renderToWrapper(dialogShow.mock.calls[1]![0].content).text()).toContain('a.js')
+    expect(renderToWrapper(dialogShow.mock.calls[1]![0].content).text()).not.toContain('b.js')
+    expect(queryStore.getQueryState(edited).isDirty).toBe(true)
+    expect(confirmDisconnect).not.toHaveBeenCalled()
+  })
 })
 
 describe('disconnecting with no tab open', () => {

@@ -279,6 +279,22 @@ describe('opening a file from a QueryTab with a saved file', () => {
     expect(filesProxy.SelectFile).toHaveBeenCalledOnce()
   })
 
+  // #363: opening a file would replace text typed while the save ran.
+  it('does not open a file when the query was edited during the save', async () => {
+    vi.mocked(filesProxy.WriteFile).mockImplementationOnce((async () => {
+      setEditorValue('typed during the save')
+      return { isSuccess: true }
+    }) as never)
+    const prompt = await pressOpenAndGetPrompt()
+
+    await prompt.onPositiveClick()
+    await flushPromises()
+
+    expect(filesProxy.SelectFile).not.toHaveBeenCalled()
+    expect(editorState.value).toBe('typed during the save')
+    expect(isDirty()).toBe(true)
+  })
+
   it('opens a file when the user discards their edits', async () => {
     const prompt = await pressOpenAndGetPrompt()
 
