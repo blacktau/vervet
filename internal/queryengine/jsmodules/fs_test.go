@@ -256,3 +256,31 @@ func TestFS_RelativePathsAcrossOperations(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []any{true, int64(1), []string{"copy.txt"}}, val.Export())
 }
+
+// A Windows path pasted into a JS string with "Copy as path" keeps its quotes,
+// and `\t` becomes a tab. The error should say so (issue #369).
+func TestFS_ErrorExplainsPastedWindowsPath(t *testing.T) {
+	rt := newTestRuntimeIn(t, t.TempDir())
+	val, err := rt.RunString(`
+		try {
+			require('fs').readFileSync('"C:\temp\test.csv"', 'utf8');
+			'no-error';
+		} catch (e) {
+			e.message;
+		}
+	`)
+	require.NoError(t, err)
+	msg := val.String()
+	assert.Contains(t, msg, "remove the quotes")
+	assert.Contains(t, msg, `C:\\temp or C:/temp`)
+}
+
+func TestFS_ErrorHasNoHintForPlainPath(t *testing.T) {
+	rt := newTestRuntimeIn(t, t.TempDir())
+	val, err := rt.RunString(`
+		try { require('fs').readFileSync('missing.txt', 'utf8'); 'no-error'; }
+		catch (e) { e.message; }
+	`)
+	require.NoError(t, err)
+	assert.NotContains(t, val.String(), "(the path contains")
+}

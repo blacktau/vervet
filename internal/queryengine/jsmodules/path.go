@@ -45,7 +45,7 @@ func registerPath(r *require.Registry, baseDir string) {
 			return rt.ToValue(filepath.Ext(call.Argument(0).String()))
 		})
 		_ = exports.Set("isAbsolute", func(call goja.FunctionCall) goja.Value {
-			return rt.ToValue(filepath.IsAbs(call.Argument(0).String()))
+			return rt.ToValue(isAbs(call.Argument(0).String()))
 		})
 		_ = exports.Set("normalize", func(call goja.FunctionCall) goja.Value {
 			return rt.ToValue(filepath.Clean(call.Argument(0).String()))
