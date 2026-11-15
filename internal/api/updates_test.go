@@ -12,12 +12,15 @@ type fakeUpdatesService struct {
 	err       error
 	dismissed string
 	openURL   string
+	ctx       context.Context
 }
 
 func (f *fakeUpdatesService) CheckNow(ctx context.Context) (updates.UpdateInfo, error) {
+	f.ctx = ctx
 	return f.info, f.err
 }
 func (f *fakeUpdatesService) CheckIfDue(ctx context.Context) error {
+	f.ctx = ctx
 	return f.err
 }
 func (f *fakeUpdatesService) DismissVersion(v string) error {
@@ -44,6 +47,25 @@ func TestUpdatesProxy_CheckNow_Failure(t *testing.T) {
 	r := p.CheckNow()
 	if r.IsSuccess {
 		t.Fatalf("expected failure")
+	}
+}
+
+// Checks must run with the app's context, so they stop when the app shuts down.
+func TestUpdatesProxy_ChecksUseAppContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	svc := &fakeUpdatesService{}
+	p := NewUpdatesProxy(ctx, testLogger(), svc, &fakeURLOpener{})
+
+	p.CheckNow()
+	if svc.ctx == nil || svc.ctx.Err() == nil {
+		t.Fatalf("CheckNow did not get the app context")
+	}
+
+	svc.ctx = nil
+	p.CheckIfDue()
+	if svc.ctx == nil || svc.ctx.Err() == nil {
+		t.Fatalf("CheckIfDue did not get the app context")
 	}
 }
 

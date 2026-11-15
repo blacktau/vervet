@@ -165,7 +165,7 @@ func NewApp(log *slog.Logger, settingsService settings.Service, version string) 
 }
 
 // Services lists what Wails binds and starts. The lifecycle service comes
-// first so the backend is initialised before any proxy's ServiceStartup.
+// first so the backend is initialised before the other services start.
 func (a *App) Services() []application.Service {
 	return []application.Service{
 		application.NewService(&lifecycle{app: a}),
@@ -238,24 +238,22 @@ func (l *lifecycle) ServiceShutdown() error {
 }
 
 func (a *App) startup() error {
-	ctx := a.ctx
+	a.tokenManager.Init(a.ctx)
+	a.registry.Init(a.ctx)
 
-	a.tokenManager.Init(ctx)
-	a.registry.Init(ctx)
-
-	if err := a.connectionManager.Init(ctx); err != nil {
+	if err := a.connectionManager.Init(a.ctx); err != nil {
 		return fmt.Errorf("failed to initialize connection manager: %w", err)
 	}
 
-	a.databasesService.Init(ctx)
-	a.indexService.Init(ctx)
-	a.collectionsService.Init(ctx)
-	a.queryExecutor.Init(ctx)
+	a.databasesService.Init(a.ctx)
+	a.indexService.Init(a.ctx)
+	a.collectionsService.Init(a.ctx)
+	a.queryExecutor.Init(a.ctx)
 
-	a.exportService.Init(ctx)
-	a.systemService.Init(ctx)
+	a.exportService.Init(a.ctx)
+	a.systemService.Init(a.ctx)
 
-	go a.runUpdateChecks(ctx)
+	go a.runUpdateChecks(a.ctx)
 	return nil
 }
 
