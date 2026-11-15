@@ -24,6 +24,7 @@ var version = "dev"
 func main() {
 	debugUI := flag.Bool("debug-ui", false, "enable ui inspector")
 	flag.Parse()
+	setApplicationName("Vervet")
 
 	isDev := version == "dev"
 
