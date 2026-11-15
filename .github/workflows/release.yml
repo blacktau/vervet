@@ -206,6 +206,16 @@ jobs:
           # https://gitlab.freedesktop.org/mesa/mesa/-/issues/11316
           sed -i 's|"[$]LINUXDEPLOY" --appdir="[$]APPDIR"|& --exclude-library="libwayland-client*"|' linuxdeploy-plugin-gtk.sh
 
+          # The plugin rewrites every /usr in libwebkit to ././, which breaks
+          # WebKit's bubblewrap sandbox: it can't find /usr/bin/bwrap and the
+          # app crashes on startup (#377). relocate-webkit-helpers.py rewrites
+          # only the helper-process path instead.
+          sed -i '\#s|/usr|\./\./|g#d' linuxdeploy-plugin-gtk.sh
+          if grep -q '\./\./' linuxdeploy-plugin-gtk.sh; then
+            echo "::error::linuxdeploy-plugin-gtk still rewrites /usr in libwebkit"
+            exit 1
+          fi
+
           # Initial linuxdeploy run to set up AppDir
           ./linuxdeploy --appdir AppDir
 
@@ -231,14 +241,17 @@ jobs:
           cp bin/Vervet AppDir/usr/bin/
           install -m 755 build/linux/xdg-open AppDir/usr/bin/xdg-open
 
-          # Run linuxdeploy with GTK plugin to produce AppImage
+          # Deploy with the GTK plugin, relocate WebKit's helpers, then package.
           ./linuxdeploy --appdir AppDir \
             --exclude-library 'libwayland-client*' \
-            --output appimage \
             --plugin gtk \
             -e bin/Vervet \
             -d build/linux/com.blacktau.vervet.desktop \
             -i build/linux/Vervet-512.png
+          python3 build/linux/relocate-webkit-helpers.py AppDir
+          ./linuxdeploy --appdir AppDir \
+            --exclude-library 'libwayland-client*' \
+            --output appimage
 
           # Fail rather than ship the white window if the exclusion stops working
           if [ -n "$(find AppDir -name 'libwayland-client.so*')" ]; then

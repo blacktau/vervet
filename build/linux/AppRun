@@ -10,11 +10,17 @@ export PATH="$APPDIR/usr/bin:$PATH"
 # Must stay: WebKit's helper processes don't start without it.
 export LD_LIBRARY_PATH="$APPDIR/usr/lib:$APPDIR/usr/lib/x86_64-linux-gnu${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 
-# Must stay: linuxdeploy-plugin-gtk rewrites /usr in libwebkit to the relative
-# path ././, so WebKit only finds its helper processes when run from usr/.
-# The app uses $OWD as the user's working directory instead. The AppImage
-# runtime doesn't set it in extract-and-run mode, so record it here if needed.
+# Must stay: WebKit's bundled copy of the injected bundle. The library's
+# compiled-in path is the build machine's, missing elsewhere or a different
+# WebKit build.
+export WEBKIT_INJECTED_BUNDLE_PATH="$APPDIR/usr/lib/webkitgtk-6.0/injected-bundle/"
+
+# Must stay: relocate-webkit-helpers.py points libwebkit at its helper
+# processes through the relative path ././webkitgtk-6.0/, which resolves from
+# usr/lib, both here and inside WebKit's sandbox. The app uses $OWD as the
+# user's working directory instead. The AppImage runtime doesn't set it in
+# extract-and-run mode, so record it here if needed.
 export OWD="${OWD:-$PWD}"
-cd "$APPDIR/usr" || exit 1
+cd "$APPDIR/usr/lib" || exit 1
 
 exec "$APPDIR/usr/bin/Vervet" "$@"
